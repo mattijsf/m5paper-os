@@ -16,6 +16,7 @@ constexpr const char* kCacheRoot = "/sd/books/.paperos";
 
 struct Chapter {
   std::string title;
+  std::string href;  // EPUB: the chapter's XHTML document inside the zip; "" for TXT
 };
 
 struct BookMeta {
@@ -23,6 +24,7 @@ struct BookMeta {
   std::string file;  // file name inside /sd/books
   std::string title, author;
   bool epub = false;
+  std::string cover;  // EPUB: zip path of the cover image, "" if none
   std::vector<Chapter> chapters;
 };
 
@@ -60,6 +62,12 @@ struct TxtImport {
 // turns _word_ into italics and short "CHAPTER ..." lines into headings; splits very long texts into parts at
 // paragraph boundaries (`maxChapterBytes`).
 TxtImport importTxt(const std::string& utf8, size_t maxChapterBytes = 512 * 1024);
+
+// ---- EPUB
+
+// Reads an EPUB's structure into a BookMeta (title, author, cover, chapter list with hrefs); `meta.file` / `meta.id`
+// are left to the caller. Chapters without a table-of-contents title are named "Chapter N" until their text is read.
+bool epubMeta(const std::string& virtualPath, BookMeta& meta, std::string& error);
 
 // ---- cache files (/sd/books/.paperos/<id>/)
 

@@ -6,7 +6,9 @@
 
 #include <ArduinoJson.h>
 
+#include "apps/reader/epub.h"
 #include "core/fs.h"
+#include "core/zip.h"
 
 namespace pos::reader {
 
@@ -232,6 +234,26 @@ TxtImport importTxt(const std::string& textIn, size_t maxChapterBytes) {
   return r;
 }
 
+// ---- EPUB
+
+bool epubMeta(const std::string& virtualPath, BookMeta& meta, std::string& error) {
+  zip::Archive z;
+  if (!z.open(virtualPath)) {
+    error = "Not a valid EPUB file (" + z.error() + ")";
+    return false;
+  }
+  EpubInfo info;
+  if (!parseEpub(z, info, error)) return false;
+  meta.epub = true;
+  if (!info.title.empty()) meta.title = info.title;
+  if (!info.author.empty()) meta.author = info.author;
+  meta.cover = info.cover;
+  meta.chapters.clear();
+  for (size_t i = 0; i < info.chapters.size(); ++i)
+    meta.chapters.push_back(Chapter{info.chapters[i].title.empty() ? "Chapter " + std::to_string(i + 1) : info.chapters[i].title, info.chapters[i].href});
+  return true;
+}
+
 // ---- cache
 
 bool writeMeta(const BookMeta& m) {
@@ -240,8 +262,13 @@ bool writeMeta(const BookMeta& m) {
   doc["title"] = m.title;
   doc["author"] = m.author;
   doc["epub"] = m.epub;
+  if (!m.cover.empty()) doc["cover"] = m.cover;
   JsonArray ch = doc["chapters"].to<JsonArray>();
-  for (const Chapter& c : m.chapters) ch.add(c.title);
+  for (const Chapter& c : m.chapters) {
+    JsonObject o = ch.add<JsonObject>();
+    o["title"] = c.title;
+    if (!c.href.empty()) o["href"] = c.href;
+  }
   std::string out;
   serializeJson(doc, out);
   return fs::writeFile(cacheDir(m.id) + "/meta.json", out);
@@ -258,7 +285,8 @@ bool readMeta(const std::string& id, BookMeta& m) {
   m.title = doc["title"] | "";
   m.author = doc["author"] | "";
   m.epub = doc["epub"] | false;
-  for (JsonVariant v : doc["chapters"].as<JsonArray>()) m.chapters.push_back(Chapter{v.as<std::string>()});
+  m.cover = doc["cover"] | "";
+  for (JsonVariant v : doc["chapters"].as<JsonArray>()) m.chapters.push_back(Chapter{v["title"] | "", v["href"] | ""});
   return !m.chapters.empty();
 }
 

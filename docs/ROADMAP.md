@@ -271,9 +271,9 @@ simulator first; each task ends with screenshots.
   restart.
 - [x] **P4-2 Library screen.** Scan `/sd/books`, list with progress, recent-book card (no cover
   yet), empty state. Golden.
-- [ ] **P4-3 Zip and EPUB structure.** Vendor miniz (tinfl) in `lib/miniz`, `core/zip`,
+- [x] **P4-3 Zip and EPUB structure.** Vendor miniz (tinfl) in `lib/miniz`, `core/zip`,
   container.xml / OPF / nav+ncx parsing to `meta.json`. Unit tests with a small fixture EPUB
-  (build one with a script in `tests/unit/fixtures/`), including malformed files.
+  (built by `tests/fixtures/make-epub.py` into `tests/fixtures/books/`, committed), including malformed files.
 - [ ] **P4-4 XHTML to chapters, page index, indexing on the worker.** `apps/reader/xhtml`,
   chapter cache files, `pages-<key>.idx`, "Preparing book..." progress, opening from cache.
   Unit tests per reader.md. Add one Project Gutenberg EPUB to `sim-data/sd/books/`.

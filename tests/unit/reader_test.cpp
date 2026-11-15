@@ -279,3 +279,43 @@ TEST_CASE("reader: library scan reads names, cached meta and progress, and sorts
   CHECK(lib[0].opened == 1700000000);
   CHECK(lib[1].title == "alpha Tales");
 }
+
+TEST_CASE("reader: EPUB structure becomes book meta and survives meta.json") {
+  Card card;
+  std::string epub;
+  {
+    FILE* f = std::fopen("tests/fixtures/books/fixture3.epub", "rb");
+    REQUIRE(f);
+    char buf[4096];
+    size_t n;
+    while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) epub.append(buf, n);
+    std::fclose(f);
+  }
+  REQUIRE(fs::writeFile("/sd/books/Fixture - Someone.epub", epub));
+  BookMeta m;
+  m.id = "aabbccddeeff";
+  m.file = "Fixture - Someone.epub";
+  titleFromFileName(m.file, m.title, m.author);
+  std::string err;
+  REQUIRE(epubMeta("/sd/books/Fixture - Someone.epub", m, err));
+  CHECK(m.epub);
+  CHECK(m.title == "The Fixture & Co");  // the book's own metadata beats the file name
+  CHECK(m.author == "Ann Example");
+  CHECK(m.cover == "OEBPS/images/cover.png");
+  REQUIRE(m.chapters.size() == 3);
+  CHECK(m.chapters[1].title == "The Second Chapter");
+  CHECK(m.chapters[1].href == "OEBPS/text/ch2.xhtml");
+  REQUIRE(writeMeta(m));
+  BookMeta back;
+  REQUIRE(readMeta(m.id, back));
+  CHECK(back.title == m.title);
+  CHECK(back.cover == m.cover);
+  CHECK(back.chapters.size() == 3);
+  CHECK(back.chapters[0].href == "OEBPS/text/Chapter One.xhtml");
+  CHECK(back.epub);
+
+  fs::writeFile("/sd/books/junk.epub", "this is not a zip file at all, just some text");
+  BookMeta j;
+  CHECK_FALSE(epubMeta("/sd/books/junk.epub", j, err));
+  CHECK(err.find("Not a valid EPUB") == 0);
+}

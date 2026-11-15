@@ -95,7 +95,8 @@ The page index file is `"PIX1"`, a u32 page count, then per page u16 chapter, u3
 
 ## Tests
 
-- Unit (`tests/unit/`): zip reader on a small fixture EPUB; XHTML tokenizer (entities, nested
+- Unit (`tests/unit/`): zip reader on the small fixture EPUBs (`tests/fixtures/make-epub.py` builds `fixture3.epub`: EPUB 3 with nav, cover,
+  deflated chapters, %20 in an href; `fixture2.epub`: EPUB 2 with NCX, stored chapter), damaged zips (cut, bit flips, wrong sizes and CRC, random damage); XHTML tokenizer (entities, nested
   tags, malformed input must not crash); pagination (no line wider than the column, page offsets
   strictly increasing, last page ends at chapter end, re-pagination keeps position).
 - UI: `tests/ui/reader.script` runs against a **generated** fixture book (built by a script in

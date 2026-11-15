@@ -1,0 +1,6 @@
+{
+  "name": "miniz-tinfl",
+  "version": "3.0.2",
+  "description": "Inflate (tinfl) from miniz, used by the reader to open EPUB files",
+  "build": { "flags": "-w" }
+}
