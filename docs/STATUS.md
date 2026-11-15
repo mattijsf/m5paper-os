@@ -264,8 +264,10 @@ None of these block Phase 1, Phase 2, or the reader.
   pressed look feels under a real finger (a hold >120 ms shows it).
 
 - P2-7 notes: `keyboard.script` types `Passw0rd!2x?` (capital, digits, symbols; layer switches handled by
-  `Keyboard::tapsFor`); key presses stay under 6000 px except layer switches. Not verified on the device: the
-  keyboard was not flashed yet (frames come with the next device run), and how typing feels. The reader
+  `Keyboard::tapsFor`); key presses stay under 6000 px except layer switches. Device (run after P3-1, injected taps): `widgets4`
+  (keyboard, 3 keys typed) and `widgets5` (TextBlock, page 1 and a tap to page 2) frames are pixel-identical to the
+  simulator's; the first TextBlock page layout took 222 ms on the UI thread (a whole chapter must be paginated on the
+  worker). Not verified: how typing feels under real fingers. The reader
   and the inbox will use `TextBlock`; a real book's font-size change relies on `pageIndexOf` (tested with a fake
   metric and with the real fonts on generated text).
 
