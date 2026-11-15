@@ -30,6 +30,8 @@ class Widget {
   Rect frame;           // set by the parent's layout()
   int flex = 0;         // > 0: takes leftover space along the parent's main axis, in proportion
   bool visible = true;  // invisible widgets take no space, draw nothing and get no touches
+  bool touchable = true;     // false: touches fall through to what is below (Toast)
+  bool transparent = false;  // true: the frame is not cleared before drawing (overlays that draw over the screen)
 
   // Preferred size when at most `availW` wide.
   virtual Size measure(int /*availW*/) { return {}; }

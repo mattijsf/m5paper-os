@@ -1,6 +1,8 @@
 #include "apps/uitest/uitest.h"
 
 #include "ui/controls.h"
+#include "ui/inputs.h"
+#include "ui/panels.h"
 #include "ui/label.h"
 #include "ui/layout.h"
 #include "ui/list.h"
@@ -149,16 +151,54 @@ std::unique_ptr<Widget> widgets2list() {
   return root;
 }
 
+// widgets3 (P2-3): Segmented, Stepper, LevelBar, EmptyState, Toast and Sheet. Every control is live.
+std::unique_ptr<Widget> widgets3() {
+  auto root = std::make_unique<Padding>(kMargin, s2, kMargin, s2);
+  auto* col = root->add<Column>(s2);
+  col->add<Label>("Widgets 3", Type::Title);
+  auto caption = [&](const char* t) { col->add<Label>(t, Type::Caption, secondary); };
+
+  caption("Segmented");
+  col->add<Segmented>(std::vector<std::string>{"Day", "Night", "Auto"}, 0);
+  caption("Stepper (target temperature)");
+  col->add<Stepper>(21, 15, 25, 1, [](int v) { return std::to_string(v) + " \xC2\xB0" "C"; });
+  caption("LevelBar (brightness)");
+  col->add<LevelBar>(60);
+
+  auto* row = col->add<Row>(s2);
+  auto* toastBtn = row->add<Button>("Toast", Button::Kind::Secondary);
+  auto* sheetBtn = row->add<Button>("Sheet", Button::Kind::Primary);
+  toastBtn->onClick = [toastBtn] { toastBtn->screen()->showToast("No Wi-Fi: showing saved data"); };
+  sheetBtn->onClick = [sheetBtn] {
+    auto sheet = std::make_unique<Sheet>();
+    Column* c = sheet->content();
+    c->add<Label>("Quick controls", Type::Title);
+    c->add<Segmented>(std::vector<std::string>{"Off", "Low", "High"}, 1);
+    c->add<LevelBar>(30);
+    auto* done = c->add<Button>("Done", Button::Kind::Primary);
+    Sheet* raw = sheet.get();
+    done->onClick = [raw] { raw->close(); };
+    sheetBtn->screen()->addOverlay(std::move(sheet));
+  };
+
+  auto* empty = col->add<EmptyState>(Icon::WifiOff, "No connection", "Connect to Wi-Fi to load messages.", "Retry");
+  empty->flex = 1;
+  Button* retry = empty->button();
+  retry->onClick = [retry] { retry->screen()->showToast("Still offline"); };
+  return root;
+}
+
 }  // namespace
 
-std::unique_ptr<Screen> create(const std::string& name, Canvas& canvas, DisplayManager& dm) {
+std::unique_ptr<Screen> create(const std::string& name, Os& os) {
   std::unique_ptr<Widget> root;
   if (name == "widgets1") root = widgets1();
   if (name == "widgets2") root = widgets2();
   if (name == "widgets2rows") root = widgets2rows();
+  if (name == "widgets3") root = widgets3();
   if (name == "widgets2list") root = widgets2list();
   if (!root) return nullptr;
-  auto screen = std::make_unique<Screen>(canvas, dm);
+  auto screen = std::make_unique<Screen>(os.canvas(), os.displayManager(), &os.timers());
   screen->setRoot(std::move(root));
   return screen;
 }

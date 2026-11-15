@@ -158,7 +158,7 @@ simulator first; each task ends with screenshots.
   Done when: `tests/ui/widgets2.script` shows each widget in normal/pressed/on states; a tap on
   a Toggle passes `expect-max-pushed 12000`; a Pager changes pages of a 20-row list.
 
-- [ ] **P2-3 Sheet, Toast, EmptyState, Segmented, Stepper, LevelBar.**
+- [x] **P2-3 Sheet, Toast, EmptyState, Segmented, Stepper, LevelBar.**
   Do: as in UI.md. Sheet restores what was under it when closed (redraw parent).
   Done when: `tests/ui/widgets3.script` goldens accepted.
 

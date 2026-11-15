@@ -1,0 +1,51 @@
+# app: widgets3
+# P3 widgets: Segmented, Stepper, LevelBar, Toast (times out after 3 s, the screen under it is restored),
+# Sheet (dimmed screen, modal), EmptyState. Interactions are plain Fast passes.
+wait 200
+shot widgets3
+tap 268 143             # Segmented: Night
+wait 100
+expect-no-quality
+expect-max-pushed 40000
+shot widgets3-segment
+tap 480 270             # Stepper: + twice
+tap 480 270
+wait 100
+expect-no-quality
+shot widgets3-stepper
+tap 440 397             # LevelBar: 90 %
+wait 100
+expect-no-quality
+expect-max-pushed 20000
+shot widgets3-level
+wait 800
+shot widgets3-base      # settled: the reference for "restored" below
+tap 78 485              # Toast button
+wait 100
+expect-no-quality
+shot widgets3-toast
+wait 3300               # the toast times out
+expect-no-quality
+shot widgets3-toast-gone
+tap 203 485             # Sheet button
+wait 900
+expect-no-quality
+shot widgets3-sheet
+tap 433 725             # inside the sheet: Segmented "High"
+tap 320 811             # inside the sheet: LevelBar 70 %
+wait 100
+expect-no-quality
+shot widgets3-sheet-edited
+tap 270 200             # on the dimmed part: closes the sheet, the screen below comes back
+wait 900
+expect-no-quality
+shot widgets3-sheet-closed
+tap 203 485             # open again, close with the Done button
+wait 900
+tap 270 900
+wait 900
+expect-no-quality
+shot widgets3-done-closed
+tap 269 840             # Retry on the EmptyState: a toast
+wait 300
+shot widgets3-retry-toast

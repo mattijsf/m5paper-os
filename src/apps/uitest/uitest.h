@@ -5,11 +5,12 @@
 #include <memory>
 #include <string>
 
+#include "core/os.h"
 #include "ui/screen.h"
 
 namespace pos::apps::uitest {
 
 // nullptr if `name` is not a test screen.
-std::unique_ptr<ui::Screen> create(const std::string& name, Canvas& canvas, DisplayManager& dm);
+std::unique_ptr<ui::Screen> create(const std::string& name, Os& os);
 
 }  // namespace pos::apps::uitest

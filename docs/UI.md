@@ -159,6 +159,22 @@ arrows and horizontal swipes anywhere in the content call `onPage(page)`; arrows
 disabled). A Fast pass shows the shrunk changed rectangle only: a Toggle tap pushes about 2 x 4000
 pixels. Test screens: `widgets2`, `widgets2rows`, `widgets2list` (`--app`, or `>set screen NAME`).
 
+P2-3 widgets (`ui/inputs`, `ui/panels`): `Segmented` (2-4 options, 72 high; a Down already shows the option
+under the finger as selected, Tap commits), `Stepper` (two 72 px IconButtons that grey out at the
+limits around the value text; optional formatter), `LevelBar` (10 segments, 10..100 %, tap sets
+(k+1) x 10), `EmptyState` (a Column: 64 px icon, title, hint, optional button), `Sheet`, `Toast`.
+Overlays: `Screen::addOverlay(widget)` puts a widget above the root (it gets touches first; its
+frame starts as the full screen and `layout()` may shrink it); `closeOverlay` redraws the area
+below (`Screen::invalidateRect`) and is safe to call from the overlay's own button handlers (the
+widget is destroyed on the next pass). `Widget::transparent` skips the clear-to-bg before drawing
+(overlays draw over the screen), `Widget::touchable = false` lets touches fall through (Toast).
+`Sheet`: full-screen modal widget, panel at the bottom (max 60% of the height, 2 px ink top edge,
+grab handle), the part above is dimmed with 1 px gray(13) lines on every 3rd row; a tap on the
+dimmed part or a swipe down closes it; put controls into `sheet->content()`. `Screen::showToast(text)`:
+ink pill at the bottom (y 864..936), 3 s, then the screen below is restored pixel for pixel
+(checked: `widgets3-toast-gone` == `widgets3-base`). Text over the dim hatch is thinned by the
+lines: acceptable for a dimmed background.
+
 ## Gestures (`core/gesture`, task P2-1)
 
 | Gesture | Definition |

@@ -441,3 +441,206 @@ TEST_CASE("Tile: measure, value and badge setters redraw") {
   t->setBadge(0);  // unchanged: no redraw
   CHECK_FALSE(f.screen.dirty());
 }
+
+// ---- P2-3 inputs and overlays
+
+#include "ui/inputs.h"
+#include "ui/panels.h"
+
+namespace {
+
+// Fixture with timers on a controllable clock (the toast needs them).
+struct TFixture {
+  Canvas canvas;
+  FakeDisplay display;
+  struct Clk : hal::Clock {
+    uint32_t millis() override { return ms; }
+    int64_t now() override { return 0; }
+    void set(int64_t) override {}
+    uint32_t ms = 1000;
+  } clock;
+  DisplayManager dm;
+  Timers timers;
+  Screen screen;
+  TFixture() : dm(display, Fixture::prep(canvas), clock), timers(clock), screen(canvas, dm, &timers) { dm.forceClean(); }
+  uint8_t px(int x, int y) { return static_cast<const uint8_t*>(canvas.getBuffer())[y * kScreenW + x]; }
+};
+
+void tap(Screen& s, int x, int y) {
+  s.onGesture(g(Gesture::Down, x, y));
+  s.onGesture(g(Gesture::Tap, x, y));
+}
+
+}  // namespace
+
+TEST_CASE("Segmented: Down previews, Tap commits and reports once") {
+  Fixture f;
+  auto root = std::make_unique<Column>();
+  auto* seg = root->add<Segmented>(std::vector<std::string>{"A", "B", "C"}, 0);
+  std::vector<int> seen;
+  seg->onChange = [&](int i) { seen.push_back(i); };
+  f.screen.setRoot(std::move(root));
+  CHECK(seg->frame.h == kTouchMin);
+  f.screen.onGesture(g(Gesture::Down, 300, 20));  // middle third
+  CHECK(seg->selected() == 0);                    // not committed yet
+  f.screen.onGesture(g(Gesture::Cancel, 300, 80));
+  CHECK(seg->selected() == 0);
+  CHECK(seen.empty());
+  tap(f.screen, 500, 20);
+  CHECK(seg->selected() == 2);
+  tap(f.screen, 500, 20);  // the same option again: no callback
+  CHECK(seen == std::vector<int>{2});
+  seg->setSelected(7);  // clamped, no callback
+  CHECK(seg->selected() == 2);
+}
+
+TEST_CASE("Stepper: steps, clamps and greys out at the limits") {
+  Fixture f;
+  auto root = std::make_unique<Column>();
+  auto* st = root->add<Stepper>(24, 15, 25, 1);
+  std::vector<int> seen;
+  st->onChange = [&](int v) { seen.push_back(v); };
+  f.screen.setRoot(std::move(root));
+  const Rect plus = st->children()[1]->frame, minus = st->children()[0]->frame;
+  CHECK(plus.x + plus.w == st->frame.x + st->frame.w);
+  CHECK(plus.w >= kTouchMin);
+  tap(f.screen, plus.x + 10, plus.y + 10);
+  CHECK(st->value() == 25);
+  tap(f.screen, plus.x + 10, plus.y + 10);  // at the maximum: the + button is disabled
+  CHECK(st->value() == 25);
+  tap(f.screen, minus.x + 10, minus.y + 10);
+  CHECK(st->value() == 24);
+  CHECK(seen == std::vector<int>{25, 24});
+  st->setValue(100);
+  CHECK(st->value() == 25);
+  st->setValue(-5);
+  CHECK(st->value() == 15);
+}
+
+TEST_CASE("LevelBar: ten segments, 10..100 percent") {
+  Fixture f;
+  auto root = std::make_unique<Column>();
+  auto* lb = root->add<LevelBar>(60);
+  std::vector<int> seen;
+  lb->onChange = [&](int p) { seen.push_back(p); };
+  f.screen.setRoot(std::move(root));
+  const int w = lb->frame.w;
+  tap(f.screen, w * 45 / 100, 20);  // 5th segment
+  CHECK(lb->percent() == 50);
+  tap(f.screen, 2, 20);
+  CHECK(lb->percent() == 10);
+  tap(f.screen, w - 2, 20);
+  CHECK(lb->percent() == 100);
+  CHECK(seen == std::vector<int>{50, 10, 100});
+  lb->setPercent(47);
+  CHECK(lb->percent() == 50);
+  lb->setPercent(0);
+  CHECK(lb->percent() == 10);
+  lb->setPercent(250);
+  CHECK(lb->percent() == 100);
+}
+
+TEST_CASE("Sheet: modal, restores the screen below, closes on outside tap and swipe down") {
+  TFixture f;
+  auto root = std::make_unique<Column>();
+  auto* btn = root->add<Button>("Below");
+  int clicks = 0;
+  btn->onClick = [&] { ++clicks; };
+  auto* fillBox = root->add<Box>(100, 100);
+  fillBox->flex = 1;
+  f.screen.setRoot(std::move(root));
+  f.screen.render(f.canvas, f.dm);
+  const uint8_t before = f.px(200, 700);
+  CHECK(before == 0x88);  // the box's gray(8)
+
+  auto sheet = std::make_unique<Sheet>();
+  sheet->content()->add<Label>("Title", Type::Title);
+  auto* done = sheet->content()->add<Button>("Done");
+  int closed = 0;
+  sheet->onClose = [&] { ++closed; };
+  Sheet* sp = sheet.get();
+  f.screen.addOverlay(std::move(sheet));
+  CHECK(f.screen.hasOverlay());
+  CHECK(sp->panel().h <= kScreenH * 6 / 10);
+  CHECK(sp->panel().y + sp->panel().h == kScreenH);
+  f.screen.render(f.canvas, f.dm);
+  CHECK(f.px(200, sp->panel().y + 40) == 0xFF);  // the panel is paper
+  CHECK(f.px(200, 3) != 0xFF);                   // the hatch dims the area above (row 3 is a hatch row)
+
+  tap(f.screen, 40, 20);  // on the dimmed part: closes, and does not click the button below
+  CHECK_FALSE(f.screen.hasOverlay());
+  CHECK(clicks == 0);
+  CHECK(closed == 1);
+  f.screen.render(f.canvas, f.dm);
+  CHECK(f.px(200, 700) == before);  // restored
+  tap(f.screen, 40, 20);            // now the button gets it
+  CHECK(clicks == 1);
+
+  // Swipe down inside the sheet closes it too; the Done button closes it as well.
+  auto s2 = std::make_unique<Sheet>();
+  s2->content()->add<Button>("Done")->onClick = [] {};
+  Sheet* s2p = s2.get();
+  f.screen.addOverlay(std::move(s2));
+  f.screen.onGesture(g(Gesture::Down, 270, s2p->panel().y + 30));
+  f.screen.onGesture(g(Gesture::Cancel, 270, s2p->panel().y + 90));
+  f.screen.onGesture(g(Gesture::SwipeDown, 270, s2p->panel().y + 200));
+  CHECK_FALSE(f.screen.hasOverlay());
+  (void)done;
+}
+
+TEST_CASE("Sheet: its Done button can close it from inside the click") {
+  TFixture f;
+  f.screen.setRoot(std::make_unique<Column>());
+  auto sheet = std::make_unique<Sheet>();
+  Sheet* sp = sheet.get();
+  auto* done = sheet->content()->add<Button>("Done");
+  done->onClick = [sp] { sp->close(); };
+  f.screen.addOverlay(std::move(sheet));
+  const Rect r = done->frame;
+  tap(f.screen, r.x + 20, r.y + 20);
+  CHECK_FALSE(f.screen.hasOverlay());
+  f.screen.render(f.canvas, f.dm);  // the closed sheet is destroyed here, not inside its own handler
+}
+
+TEST_CASE("Toast: shows for 3 s, passes touches through, a new one replaces it") {
+  TFixture f;
+  auto root = std::make_unique<Column>();
+  auto* btn = root->add<Button>("Under");
+  int clicks = 0;
+  btn->onClick = [&] { ++clicks; };
+  btn->flex = 1;  // the button fills the screen so the toast sits on top of it
+  f.screen.setRoot(std::move(root));
+  f.screen.showToast("No Wi-Fi");
+  CHECK(f.screen.hasOverlay());
+  tap(f.screen, 100, kScreenH - 40);  // inside the toast, which does not take touches
+  CHECK(clicks == 1);
+  f.clock.ms += 2999;
+  f.timers.runDue();
+  CHECK(f.screen.hasOverlay());
+  f.screen.showToast("Second");  // replaces the first one and restarts the 3 s
+  f.clock.ms += 2999;
+  f.timers.runDue();
+  CHECK(f.screen.hasOverlay());
+  f.clock.ms += 1;
+  f.timers.runDue();
+  CHECK_FALSE(f.screen.hasOverlay());
+  CHECK(f.timers.size() == 0);
+}
+
+TEST_CASE("EmptyState: icon, title, hint and an optional button, centered") {
+  Fixture f;
+  auto root = std::make_unique<Column>();
+  int retried = 0;
+  auto* es = root->add<EmptyState>(Icon::WifiOff, "No connection", "Try again later.", "Retry", [&] { ++retried; });
+  es->flex = 1;
+  f.screen.setRoot(std::move(root));
+  REQUIRE(es->button() != nullptr);
+  const Rect b = es->button()->frame;
+  CHECK(b.h == kTouchMin);
+  CHECK(std::abs(b.x + b.w / 2 - kScreenW / 2) <= 1);  // centered
+  tap(f.screen, b.x + 10, b.y + 10);
+  CHECK(retried == 1);
+
+  auto bare = std::make_unique<EmptyState>(Icon::Mail, "Nothing here");
+  CHECK(bare->button() == nullptr);
+}

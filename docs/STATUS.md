@@ -8,16 +8,16 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   the simulator and on the device: HAL, display manager (fast-then-settle, ghost budget), e-ink
   emulation with a refresh log, gestures, widget tree, fonts and icons (Inter, Literata, Lucide),
   main loop with timers and a worker thread, remote control over USB (`tools/device.py`), UI
-  scripts with golden screenshots, 56 host unit tests.
-- **P2-1 and P2-2 are done** (2026-11-15): `core/gesture`, `core/surface`, `ui/{widget,screen,layout,
-  label,controls,list,tile}`, `apps/uitest` (test screens `widgets1`, `widgets2`, `widgets2rows`,
-  `widgets2list`: `--app NAME` in the simulator, `>set screen NAME` on both). Phase 2 continues
-  with P2-3 (Sheet, Toast, EmptyState, Segmented, Stepper, LevelBar), then the app framework
-  (P2-4), launcher (P2-5/P2-7) and settings.
+  scripts with golden screenshots, 63 host unit tests.
+- **P2-1 to P2-3 are done** (2026-11-15): `core/gesture`, `core/surface`, `ui/{widget,screen,layout,
+  label,controls,list,tile,inputs,panels}`, `apps/uitest` (test screens `widgets1`, `widgets2`,
+  `widgets2rows`, `widgets2list`, `widgets3`: `--app NAME` in the simulator, `>set screen NAME` on
+  simulator and device). The widget kit is complete; next the app framework (P2-4), launcher
+  (P2-5, P2-7) and settings (P2-6).
 - **What the device runs**: the Phase 1 demo (a mock launcher with Inter text and Lucide icons;
   tapping a tile runs a fake 1 s job on the worker; tapping elsewhere draws a touch marker). The
   real launcher and apps arrive with P2-4 to P2-7; the owner asked for Settings on 2026-11-15.
-- **Next task: P2-3** (Sheet, Toast, EmptyState, Segmented, Stepper, LevelBar).
+- **Next task: P2-4** (app framework).
 - The factory firmware is saved in `backup/factory-16MB.bin` (restore command in HARDWARE.md).
 
 ## What works today
@@ -27,8 +27,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Simulator build | `make sim` | OK (first build ~3 min, then seconds) |
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
-| Firmware build | `make fw` | OK, 1.39 MB (26.5% of the 5 MB slot) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 56 tests; 18 goldens; `out/gallery.html` |
+| Firmware build | `make fw` | OK, 1.40 MB (26.7% of the 5 MB slot) |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 63 tests; 30 goldens; `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Serial heartbeat | `make monitor` | `[beat]` and `[sd]` lines every 5 s (the refresh benchmark is gone since P1-1) |
@@ -215,6 +215,12 @@ None of these block Phase 1, Phase 2, or the reader.
   (`out/dev-w2*.png` vs `out/sim-w2*.png`). Heap free after boot with the worker: ~242 KB.
   Not verified: how the pressed looks feel on the physical panel (thick borders, inverted rows).
 
+- P2-3 device check (extra): `>set screen widgets3`, injected taps (Sheet open, dimmed-area close, Toast
+  and its timeout): device frames identical to the simulator's after the same steps
+  (`out/dev-w3-*.png` vs `out/sim-w3-*.png`; compare settled frames: a frame taken before the 600 ms settle
+  differs by the anti-aliasing of the changed text, on both). Overlays and the toast timer work on the
+  device. Not verified: how the dim hatch looks on the physical panel.
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -241,3 +247,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P1-6. Fonts and icons pipeline, text API, demo with Inter and Lucide.
 - 2026-11-15: P1-7. Event loop idle step, timers, worker; demo job on sim and device. Phase 1 done.
 - 2026-11-15: P2-2. Button, IconButton, Toggle, Badge, ListItem, Tile, Pager; three test screens with goldens.
+- 2026-11-15: P2-3. Segmented, Stepper, LevelBar, EmptyState, Sheet, Toast; overlays in Screen; widgets3 test screen.

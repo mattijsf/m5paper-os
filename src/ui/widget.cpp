@@ -51,7 +51,7 @@ Color Widget::bg() const {
 }
 
 Widget* Widget::hit(int x, int y) {
-  if (!visible || !contains(x, y)) return nullptr;
+  if (!visible || !touchable || !contains(x, y)) return nullptr;
   for (size_t i = children_.size(); i-- > 0;)
     if (Widget* h = children_[i]->hit(x, y)) return h;
   return this;
