@@ -94,9 +94,22 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 - Home Assistant: entity ids come from the dashboard repo, not from the live instance; nothing
   has been requested from the live instance yet (tasks P5-1, P5-2).
 - Which Home Assistant user the token belongs to. The Home app and the inbox calls have **not been run with a non-admin token** (D18 assumes they work); the swap to a dedicated non-admin user comes after development.
-- WhatsApp add-on: not installed; event fields for groups and the effect on phone
-  notifications are unknown (task P6-1). `ha/paperos_inbox.yaml` is an untested draft.
+- WhatsApp add-on: installed, **not linked yet**; event fields for groups and the effect on phone
+  notifications are unknown (task P6-1, see "P6-1 progress"). `ha/paperos_inbox.yaml` is an untested draft.
 - Proton Mail Bridge on Home Assistant OS: no confirmed add-on that exposes IMAP (task P6-2).
+
+## P6-1 progress (2026-11-15, done with the owner in Home Assistant)
+
+- Add-on repository `https://github.com/FaserF/hassio-addons` added; "WhatsApp Gateway" 2.1.10 (slug `605cee21_whatsapp`)
+  installed, running, start on boot, auto-update off. Options: `admin_notifications_enabled` false, `admin_numbers` empty,
+  `mark_online` false, `welcome_message_enabled` false, `sync_full_history` false, webhook off. The add-on wrote its integration
+  2.1.10 to `custom_components/whatsapp` (`auto_install_integration`). Add-on facts: host network, port 8066, `/config`
+  read-write, API key shown in its web UI (BACKEND.md).
+- The user accepted the terms-of-service risk on 2026-11-15 ("Install the add-on it is fine").
+- **Still open**: restart Home Assistant to load the integration; UI password (`ui_auth_enabled`, the user types it); add the
+  integration; the user scans the QR code; capture one real `whatsapp_message_received` event (direct, then group); then P6-3.
+  Check (1) phone notifications still arrive, (2) events captured, (3) auto-responder, bot commands, mark-as-read off.
+- The Home Assistant config repo is not touched by this note.
 
 ## Pitfalls found in Phase 4 (device)
 

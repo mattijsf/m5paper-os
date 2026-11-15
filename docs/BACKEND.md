@@ -104,6 +104,15 @@ The package that defines both sensors is `ha/paperos_inbox.yaml` (**draft**, tes
   user answers in that chat (`whatsapp_message_sent` to the same JID), when the device's "Mark
   all read" is used, or when they are older than 48 hours.
 
+Installed on 2026-11-15 (task P6-1, done in Home Assistant): add-on
+"WhatsApp Gateway" 2.1.10 from the repository above, slug `605cee21_whatsapp`. Facts about it: it runs on the **host
+network**, its web UI / API listens on **port 8066**, it maps **`/config` read-write**, and its **API key is shown in its
+web UI**. It wrote its integration 2.1.10 to `custom_components/whatsapp` itself (`auto_install_integration`). Options set:
+`admin_notifications_enabled` false, `admin_numbers` empty, `mark_online` false (so the phone keeps its notifications),
+`welcome_message_enabled` false, `sync_full_history` false, webhook off; start on boot on, auto-update off. Still open: restart
+Home Assistant to load the integration, the web UI password (`ui_auth_enabled`: the user types it), add the integration, the QR
+link by the user, one real captured event (below).
+
 Risks and checks (task P6-1). **These need the owner's attention before installing:**
 
 1. **Terms of service.** The add-on is an unofficial client. Its own docs warn that automated
