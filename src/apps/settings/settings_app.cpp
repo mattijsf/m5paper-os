@@ -414,13 +414,110 @@ class StoragePage : public Page {
   ui::ListItem *sd_ = nullptr, *data_ = nullptr;
 };
 
+// Display lab (docs/DISPLAY.md "Test patterns", task P7-1): what only eyes on the panel can judge. A gray ramp, a ghosting test
+// (checkerboard, then white, both as Fast passes; Clean = the Quality pass), text samples in every gray and size.
+class LabView : public ui::Widget {
+ public:
+  enum class Mode { Ramp, Checker, White, Text };
+  void setMode(Mode m, Hint h) {
+    mode_ = m;
+    invalidate(h);
+  }
+  Mode mode() const { return mode_; }
+  void draw(Canvas& c) override {
+    const int x = frame.x, y = frame.y, w = frame.w, h = frame.h;
+    if (mode_ == Mode::Ramp) {
+      // 16 steps, black at the top, each labelled with its level (the label in the colour that contrasts).
+      const int step = h / 16;
+      for (int i = 0; i < 16; ++i) {
+        c.fillRect(x, y + i * step, w, step, gray(i));
+        ui::drawText(c, "gray(" + std::to_string(i) + ")", x + 12, y + i * step + step / 2, Type::Caption, i < 8 ? ui::paper : ui::ink, ui::Anchor::MiddleLeft, gray(i));
+      }
+    } else if (mode_ == Mode::Checker) {
+      const int cell = 41;  // 12 columns of 41 px in 492
+      for (int row = 0; row * cell < h; ++row)
+        for (int col = 0; col * cell < w; ++col)
+          if ((row + col) % 2 == 0) c.fillRect(x + col * cell, y + row * cell, std::min(cell, w - col * cell), std::min(cell, h - row * cell), ui::ink);
+    } else if (mode_ == Mode::Text) {
+      int ty = y + 4;
+      auto line = [&](const std::string& t, Type type, Color col, int advance) {
+        ui::drawText(c, t, x, ty, type, col, ui::Anchor::TopLeft, bg());
+        ty += advance;
+      };
+      for (int g : {0, 3, 5, 7, 9}) line("Caption 18 in gray(" + std::to_string(g) + "): The quick brown fox", Type::Caption, gray(g), 26);
+      ty += 6;
+      for (int g : {0, 3, 5, 7}) line("Body 22 in gray(" + std::to_string(g) + "): quick brown fox", Type::Body, gray(g), 32);
+      ty += 6;
+      line("Read S 24: It is a truth universally", Type::ReadS, ui::ink, 34);
+      line("Read M 28: It is a truth universally", Type::ReadM, ui::ink, 40);
+      line("Read L 32: It is a truth univers", Type::ReadL, ui::ink, 46);
+      line("Read XL 38: It is a truth", Type::ReadXL, ui::ink, 54);
+      ty += 8;
+      for (int g : {0, 7, 9, 11, 13}) {  // 1 px hairlines in several grays
+        c.drawFastHLine(x, ty, w - 130, gray(g));
+        ui::drawText(c, "line gray(" + std::to_string(g) + ")", x + w, ty, Type::Caption, ui::ink, ui::Anchor::MiddleRight, bg());
+        ty += 26;
+      }
+    }  // White: the cleared frame is the pattern
+  }
+
+ private:
+  Mode mode_ = Mode::Ramp;
+};
+
+class DisplayLabPage : public Page {
+ public:
+  void build(ui::Column& root) override {
+    setTitle("Display lab");
+    root.add<ui::Spacer>(ui::s1);
+    auto* modes = root.add<ui::Segmented>(std::vector<std::string>{"Ramp", "Checker", "White", "Text"}, 0);
+    root.add<ui::Spacer>(ui::s1);
+    view_ = root.add<LabView>();
+    view_->flex = 1;
+    root.add<ui::Spacer>(ui::s1);
+    counters_ = root.add<ui::Label>("", Type::Caption, ui::secondary);
+    auto* row = root.add<ui::Row>(ui::s2);
+    auto* clean = row->add<ui::Button>("Clean (Quality)", ui::Button::Kind::Secondary);
+    clean->flex = 1;
+    clean->onClick = [this] {
+      ctx().os().displayManager().forceClean();
+      update();
+    };
+    auto* count = row->add<ui::Button>("Update counters", ui::Button::Kind::Secondary);
+    count->flex = 1;
+    count->onClick = [this] { update(); };
+    root.add<ui::Spacer>(ui::s1);
+    modes->onChange = [this](int i) {
+      // Checker and White are pure black and white: Feedback = one Fast pass, so going Checker -> White shows the ghost a Fast pass leaves.
+      const LabView::Mode m = static_cast<LabView::Mode>(i);
+      view_->setMode(m, m == LabView::Mode::Checker || m == LabView::Mode::White ? Hint::Feedback : Hint::Content);
+      update();
+    };
+    update();
+  }
+  std::string debugState() const override { return "lab=" + std::to_string(static_cast<int>(view_->mode())); }
+
+ private:
+  void update() {
+    const auto& c = ctx().os().displayManager().counts();
+    char buf[96];
+    std::snprintf(buf, sizeof buf, "Pushes: Quality %u  Text %u  Fast %u   ghost score %.1f / %.0f", static_cast<unsigned>(c.quality), static_cast<unsigned>(c.text),
+                  static_cast<unsigned>(c.fast), ctx().os().displayManager().ghostScore(), cfg().display.ghostLimit);
+    counters_->setText(buf);
+  }
+  LabView* view_ = nullptr;
+  ui::Label* counters_ = nullptr;
+};
+
 class DeveloperPage : public Page {
  public:
   void build(ui::Column& root) override {
     setTitle("Developer");
     root.add<ui::Spacer>(ui::s1);
-    heap_ = root.add<ui::ListItem>("Heap free", "", false);
-    psram_ = root.add<ui::ListItem>("PSRAM free", "", false);
+    auto* lab = root.add<ui::ListItem>("Display lab", "Gray ramp, ghost test, text samples", false);
+    lab->setChevron();
+    lab->onClick = [this] { ctx().nav.push<DisplayLabPage>(); };
+    heap_ = root.add<ui::ListItem>("Memory free", "", false);
     counters_ = root.add<ui::ListItem>("Refreshes since boot", "", false);
     battery_ = root.add<ui::ListItem>("Battery", "", false);
     uptime_ = root.add<ui::ListItem>("Time since boot", "", false);
@@ -489,8 +586,7 @@ class DeveloperPage : public Page {
 
   void update() {
     hal::MemoryInfo m = hal::memoryInfo();
-    heap_->setTrailingText(kbText(m.heapFree) + " / " + kbText(m.heapTotal));
-    psram_->setTrailingText(kbText(m.psramFree) + " / " + kbText(m.psramTotal));
+    heap_->setTrailingText(kbText(m.heapFree) + " heap, " + kbText(m.psramFree) + " PSRAM");
     const auto& c = ctx().os().displayManager().counts();
     counters_->setTrailingText("Q " + std::to_string(c.quality) + "  T " + std::to_string(c.text) + "  F " + std::to_string(c.fast));
     {
@@ -510,7 +606,7 @@ class DeveloperPage : public Page {
       if (ch == '\n') ch = ' ';
     log_->setText(tail);
   }
-  ui::ListItem *heap_ = nullptr, *psram_ = nullptr, *counters_ = nullptr, *battery_ = nullptr, *uptime_ = nullptr, *plog_ = nullptr;
+  ui::ListItem *heap_ = nullptr, *counters_ = nullptr, *battery_ = nullptr, *uptime_ = nullptr, *plog_ = nullptr;
   ui::Label* log_ = nullptr;
 };
 

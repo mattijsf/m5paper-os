@@ -203,6 +203,12 @@ Settings > Developer > Display lab (task P7-1) shows: the 16-step gray ramp, a g
 (checkerboard then white), a fine-text sample, and counters for pushes per mode. Use it to tune
 `ghostLimit` and the settle delay, and to compare custom waveforms.
 
+**As built (2026-11-15, `DisplayLabPage` in `apps/settings/settings_app.cpp`)**: four patterns behind a Segmented control.
+**Ramp**: 16 labelled bars gray(0) to gray(15). **Checker** and **White**: pure black and white, shown with one Fast pass each, so Checker then
+White shows what a Fast pass leaves behind; "Clean (Quality)" is the cleaning pass. **Text**: the caption size in gray 0/3/5/7/9, the body size in
+gray 0/3/5/7, the four reader sizes, and 1 px lines in gray 0/7/9/11/13. A line below shows the pushes per mode and the ghost score against the
+limit. Goldens `lab-*`. It is a tool for a person's eyes: nothing was tuned with it yet (frame dumps show the frame, not the panel).
+
 ## What the panel does to grays
 
 Frame dumps and simulator screenshots cannot show this. On the physical panel the white is itself gray, and the mid-grays read **lighter**

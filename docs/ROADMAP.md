@@ -339,7 +339,7 @@ home-assistant repo's own rules. Read BACKEND.md fully before any of them.
 
 ## Phase 7: Polish
 
-- [ ] **P7-1 Display lab and tuning.** Developer > Display lab; tune defaults on the device;
+- [~] **P7-1 Display lab and tuning.** (2026-11-15: the Display lab screen is built and runs on the device; tuning, the sub-rectangle push optimisation and a custom waveform are open and need a person's eyes) Developer > Display lab; tune defaults on the device;
   sub-rectangle push optimisation; optional custom Text waveform (DECISIONS.md D6).
 - [ ] **P7-2 UI scripts on the device.** `tools/device.py script tests/ui/<name>.script` runs
   the simulator's script commands against the device through the P1-8 commands and compares

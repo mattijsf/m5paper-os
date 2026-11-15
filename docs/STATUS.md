@@ -437,3 +437,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: launcher summary line (`summaryLine`, golden with and without data).
 - 2026-11-15: P6-3 (WhatsApp half, done in parallel): `ha/paperos_inbox.yaml` synced from the Home Assistant repo; BACKEND.md event fields and feed mapping corrected; D20; add-on security facts.
 - 2026-11-15: P3-5 preparation: `core/power_log` (`/data/power.csv`, every 10 min), Developer screen shows battery, time since boot and the power log switch, `>cat` / `tools/device.py cat`.
+- 2026-11-15: P7-1 Display lab screen (ramp, checker / white ghost test, text samples, counters); Developer screen: Display lab row, memory in one row.
