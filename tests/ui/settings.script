@@ -1,0 +1,57 @@
+# Settings: the list, then every section. Changes are plain Fast passes; "Clean screen now" is the one Quality flash.
+wait 300
+tap 140 700             # launcher: Settings tile
+wait 300
+shot settings-list
+tap 270 172             # Wi-Fi
+wait 900
+shot settings-wifi
+back
+wait 900
+tap 270 268             # Display
+wait 900
+shot settings-display
+tap 480 305             # ghost limit: +
+tap 480 305
+wait 100
+expect-no-quality
+tap 430 420             # settle delay: 1000 ms
+wait 900
+expect-no-quality
+shot settings-display-changed
+tap 270 150             # Clean screen now: the one Quality refresh
+wait 900
+shot settings-display-cleaned
+back
+wait 900
+tap 270 364             # Power
+wait 900
+shot settings-power
+tap 470 200             # switch off after: Never
+wait 900
+shot settings-power-never
+back
+wait 900
+tap 270 460             # Reading
+wait 900
+shot settings-reading
+back
+wait 900
+tap 270 556             # Home Assistant
+wait 900
+shot settings-ha
+back
+wait 900
+tap 270 652             # Storage
+wait 900
+shot settings-storage
+back
+wait 900
+tap 270 748             # Developer
+wait 900
+shot settings-developer
+back
+wait 900
+tap 270 844             # About
+wait 900
+shot settings-about

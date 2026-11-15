@@ -4,6 +4,7 @@
 #include <ctime>
 
 #include "core/fs.h"
+#include "core/timefmt.h"
 #include "ui/widgets.h"
 
 namespace pos::apps::launcher {
@@ -18,9 +19,8 @@ std::string dateLine(hal::Clock& clock) {
   static const char* kDays[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
   static const char* kMonths[] = {"January", "February", "March", "April", "May", "June",
                                   "July", "August", "September", "October", "November", "December"};
-  time_t t = static_cast<time_t>(now);  // UTC until the time zone setting exists
   struct tm tmv;
-  gmtime_r(&t, &tmv);
+  localTime(now, tmv);  // net.timezone
   return std::string(kDays[tmv.tm_wday]) + " " + std::to_string(tmv.tm_mday) + " " + kMonths[tmv.tm_mon];
 }
 

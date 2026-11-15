@@ -8,7 +8,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   the simulator and on the device: HAL, display manager (fast-then-settle, ghost budget), e-ink
   emulation with a refresh log, gestures, widget tree, fonts and icons (Inter, Literata, Lucide),
   main loop with timers and a worker thread, remote control over USB (`tools/device.py`), UI
-  scripts with golden screenshots, 70 host unit tests.
+  scripts with golden screenshots, 79 host unit tests.
 - **P2-1 to P2-3 are done** (2026-11-15): `core/gesture`, `core/surface`, `ui/{widget,screen,layout,
   label,controls,list,tile,inputs,panels}`, `apps/uitest` (test screens `widgets1`, `widgets2`,
   `widgets2rows`, `widgets2list`, `widgets3`: `--app NAME` in the simulator, `>set screen NAME` on
@@ -16,12 +16,13 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   (P2-5, P2-7) and settings (P2-6).
 - **What the device runs**: the launcher with placeholder apps. Settings (asked for by the user on
   2026-11-15) arrives with P2-6.
-- **P2-4 and P2-5 are done** (2026-11-15): app framework (`core/app`, `core/shell`, `core/store`,
+- **P2-4 to P2-6 are done** (2026-11-15): app framework (`core/app`, `core/shell`, `core/store`,
   `ui/chrome`); the `hello` app compiles verbatim in the unit tests. The widget surface is `ui::Root`
   (renamed from `ui::Screen`; `pos::Screen` is the app screen). The device boots into the launcher
   (tiles Read, Home, WhatsApp, Mail, Settings; all show "Coming soon"); `tools/new-app.sh` creates apps.
   The Phase 1 demo screen is gone (Os without a Surface draws the font sheet or a blank screen).
-- **Next task: P2-6** (config service, Settings skeleton).
+- **P2-6**: config service, secrets reader, time zone, Settings (all sections). The device shows the real
+  Settings. **Next task: P2-7** (Keyboard and TextBlock), then Phase 3 (connectivity and power).
 - The factory firmware is saved in `backup/factory-16MB.bin` (restore command in HARDWARE.md).
 
 ## What works today
@@ -31,8 +32,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Simulator build | `make sim` | OK (first build ~3 min, then seconds) |
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
-| Firmware build | `make fw` | OK, 1.42 MB (27.0% of the 5 MB slot) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 70 tests; 30 goldens; `out/gallery.html` |
+| Firmware build | `make fw` | OK, 1.44 MB (27.5% of the 5 MB slot) |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 79 tests; 42 goldens; `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Serial heartbeat | `make monitor` | `[beat]` and `[sd]` lines every 5 s (the refresh benchmark is gone since P1-1) |
@@ -238,6 +239,15 @@ None of these block Phase 1, Phase 2, or the reader.
   (`out/dev-*.png` vs `out/sim-*.png`, `device.py diff A B 56`; the status bar shows live battery).
   Not verified: how a tap feels on the physical panel.
 
+- P2-6 device check (2026-11-15): Settings opened from the launcher, every section opened and left by the
+  back arrow with injected taps. Frames of the list, Wi-Fi, Display and Reading are pixel-identical to the
+  simulator's below the status bar; Home Assistant shows "present" for HA_TOKEN and the key name only
+  (`out/dev-s-ha.png`); Developer shows heap 229 / 353 KB, PSRAM 6.0 / 8.0 MB, refresh counters, log tail.
+  The refresh log (50 entries, all F or T) shows no Quality push while navigating. The ghost limit change
+  persists across a simulator restart (checked with two runs on the same `--data`). Not verified on the
+  device: that the Display settings change real behaviour over time (ghost cleans), and "Clean screen now"
+  (Quality flash) was not run on the panel.
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -267,3 +277,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P2-3. Segmented, Stepper, LevelBar, EmptyState, Sheet, Toast; overlays in Screen; widgets3 test screen.
 - 2026-11-15: P2-4. App framework, Shell, store/cache, chrome widgets; ui::Screen renamed ui::Root.
 - 2026-11-15: P2-5. Launcher grid, placeholder apps, app template, new-app.sh; demo screen removed.
+- 2026-11-15: P2-6. Config, secrets, time zone, Settings; ui-test uses one data root per script.

@@ -9,8 +9,10 @@
 #include <functional>
 #include <memory>
 
+#include "core/config.h"
 #include "core/display_manager.h"
 #include "core/gesture.h"
+#include "core/secrets.h"
 #include "core/gfx.h"
 #include "core/surface.h"
 #include "core/timers.h"
@@ -41,6 +43,13 @@ class Os {
   // Called from the worker thread when a result is ready (the simulator wakes its event wait).
   void setWakeup(std::function<void()> fn) { worker_.setWakeup(std::move(fn)); }
   hal::Platform& platform() { return p_; }
+  // Loads /data/config.json and /sd/paperos_config (after the storage is mounted), applies the display
+  // parameters and the time zone. Call before creating the Surface.
+  void loadConfig();
+  Config& config() { return config_; }
+  const Secrets& secrets() const { return secrets_; }
+  // Applies config().display to the DisplayManager (Settings calls this after a change).
+  void applyDisplayConfig();
   Timers& timers() { return timers_; }
   Worker& worker() { return worker_; }
 
@@ -55,6 +64,8 @@ class Os {
   Canvas canvas_;
   DisplayManager dm_;
   Timers timers_;
+  Config config_;
+  Secrets secrets_;
   std::unique_ptr<Surface> surface_;
   GestureRecognizer gestures_;
   Worker worker_;

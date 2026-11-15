@@ -181,7 +181,7 @@ simulator first; each task ends with screenshots.
   tile appears (then delete the demo app).
   Device check: launcher on the panel; tap-to-open feels immediate (Fast pass within ~0.3 s).
 
-- [ ] **P2-6 Config service and Settings skeleton.**
+- [x] **P2-6 Config service and Settings skeleton.**
   Read: apps/settings.md.
   Do: `src/core/config.{h,cpp}` (typed getters, defaults, load/save); Settings app with the
   list, Display (clean now, ghost limit, settle delay: wired to the DisplayManager), About,

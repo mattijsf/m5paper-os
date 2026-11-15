@@ -30,6 +30,8 @@ bool readFile(const std::string& virtualPath, std::string& out);
 bool writeFile(const std::string& virtualPath, const std::string& data);
 // Entries sorted by name, without "." and "..". False if the folder cannot be opened.
 bool listDir(const std::string& virtualPath, std::vector<DirEntry>& out);
+// Deletes a file, or a folder and everything in it. True if nothing is left afterwards (also if it never existed).
+bool removeAll(const std::string& virtualPath);
 // Creates the folder and every missing parent ("mkdir -p"). True if it exists afterwards.
 bool mkdirs(const std::string& virtualPath);
 

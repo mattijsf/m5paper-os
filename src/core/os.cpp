@@ -6,6 +6,7 @@
 
 #include "core/demo.h"
 #include "core/log.h"
+#include "core/timefmt.h"
 
 namespace pos {
 
@@ -27,6 +28,21 @@ bool Os::setup() {
   POS_LOG("boot", "full quality refresh %ums", static_cast<unsigned>(p_.clock.millis() - t0));
   ready_ = true;
   return true;
+}
+
+void Os::loadConfig() {
+  config_.load();
+  secrets_.load();
+  applyDisplayConfig();
+  applyTimezone(config_.net.timezone);
+}
+
+void Os::applyDisplayConfig() {
+  DisplayParams p;
+  p.ghostLimit = config_.display.ghostLimit;
+  p.settleMs = static_cast<uint32_t>(config_.display.settleMs);
+  p.idleCleanMs = static_cast<uint32_t>(config_.display.idleCleanMs);
+  dm_.setParams(p);
 }
 
 void Os::setSurface(std::unique_ptr<Surface> s) {

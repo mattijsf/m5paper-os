@@ -132,6 +132,31 @@ bool listDir(const std::string& v, std::vector<DirEntry>& out) {
   return true;
 }
 
+namespace {
+bool removeReal(const std::string& p) {
+  struct stat st;
+  if (stat(p.c_str(), &st) != 0) return true;
+  if (S_ISDIR(st.st_mode)) {
+    if (DIR* d = opendir(p.c_str())) {
+      std::vector<std::string> names;
+      while (dirent* e = readdir(d)) {
+        std::string n = e->d_name;
+        if (n != "." && n != "..") names.push_back(n);
+      }
+      closedir(d);
+      for (auto& n : names) removeReal(p + "/" + n);
+    }
+    return rmdir(p.c_str()) == 0;
+  }
+  return std::remove(p.c_str()) == 0;
+}
+}  // namespace
+
+bool removeAll(const std::string& v) {
+  std::string p = resolve(v);
+  return !p.empty() && p != gSdRoot && p != gDataRoot && removeReal(p);
+}
+
 bool mkdirs(const std::string& v) {
   std::string p = resolve(v);
   return !p.empty() && mkdirsReal(p);

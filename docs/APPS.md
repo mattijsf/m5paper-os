@@ -63,6 +63,7 @@ the Os shows), `core/store.{h,cpp}` (`Store`, `Cache`), `ui/chrome` (StatusBar, 
 - `nav.push/pop/home` run after the current gesture or callback returns, so a button can pop its own
   screen. Back from an app's first screen leaves the app. Order when leaving: top screen `onHide`,
   `App::onStop`, then the screens and the App are destroyed (and the store is saved).
+- `ctx.config` (read-only `Config`) and `ctx.secrets` (`Secrets`: `present`, `get`; never log or show values) exist since P2-6.
 - `ctx.async` / `ctx.http` results are dropped if the screen that was on top at the call is gone, and
   all pending results are dropped when the app is left. `ctx.http` calls `hal::Net::request` on the
   worker; bringing Wi-Fi up and the linger policy are not implemented yet (P3). `ctx.timer` timers are

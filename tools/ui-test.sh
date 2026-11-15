@@ -13,7 +13,7 @@ ACCEPT=0
 
 [ -x "$SIM" ] || { echo "ui-test: $SIM missing: run make sim"; exit 2; }
 rm -rf "$OUT" out/ui-data
-mkdir -p "$OUT" "$GOLD" out/ui-data   # empty data root: tests never touch sim-data/
+mkdir -p "$OUT" "$GOLD" out/ui-data   # one empty data root per script: tests never touch sim-data/ or each other
 
 fail=0
 shopt -s nullglob
@@ -21,7 +21,7 @@ scripts=(tests/ui/*.script)
 [ ${#scripts[@]} -gt 0 ] || { echo "ui-test: no scripts in tests/ui"; exit 2; }
 for s in "${scripts[@]}"; do
   app=$(sed -n 's/^# app: *//p' "$s" | head -1)   # optional "# app: NAME" header line
-  if ! "$SIM" --headless ${app:+--app "$app"} --script "$s" --out "$OUT" --data out/ui-data --time 2026-01-15T12:34:00 >"$OUT/$(basename "$s").log" 2>&1; then
+  if ! "$SIM" --headless ${app:+--app "$app"} --script "$s" --out "$OUT" --data "out/ui-data/$(basename "$s" .script)" --time 2026-01-15T12:34:00 >"$OUT/$(basename "$s").log" 2>&1; then
     echo "FAIL script $s:"
     tail -n 8 "$OUT/$(basename "$s").log" | sed 's/^/    /'
     fail=1

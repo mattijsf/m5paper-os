@@ -16,6 +16,25 @@ System configuration and developer tools.
 | Developer | Display lab (DISPLAY.md), log tail, heap/PSRAM free, refresh counters, reboot |
 | About | version, build date, board, MAC, licences (fonts, icons, libraries) |
 
+## As built (P2-6)
+
+`core/config.{h,cpp}` (typed structs `display power net reader ha launcher`, `load()` clamps ranges and
+ignores wrong types, `save()` writes atomically), `core/secrets.{h,cpp}` (`present`, `keys`, `get`;
+read-only), `core/timefmt` (time zone from `net.timezone`, used by the status bar and launcher),
+`hal/system.h` (storage sizes, memory, restart, board, MAC: per-platform hooks), `Os::loadConfig()`
+(called by the platform mains after the storage is mounted: loads config and secrets, applies the
+display parameters and the time zone). `AppContext` gained `config` (read-only) and `secrets`; `os()`
+is for built-in system apps only. Settings (`src/apps/settings/settings_app.cpp`): the list; **Display**
+(Clean screen now = the one Quality refresh, ghost limit Stepper 4..16 and settle delay Segmented, both
+applied to the DisplayManager at once and saved); **Power** (switch-off Segmented, battery); **Reading**
+(font size, margins, line spacing: stored only, the reader comes in P4); **Home Assistant** (base URL,
+token "present" / "not configured", key names; values never shown; Test connection is a stub);
+**Storage** (SD and `/data` sizes, Clear caches); **Developer** (heap, PSRAM, refresh counters, log tail,
+Reboot); **About** (version, build, board, MAC, licences); **Wi-Fi** shows a notice until P3. The
+simulator reports fixed fake storage and memory values so screenshots are deterministic.
+A unit test walks every Settings page with a secrets file holding recognisable values and checks that
+none of them appears in any widget text or in the log.
+
 ## Config schema
 
 `/data/config.json` (no secrets; all keys optional; defaults in `core/config.cpp`):

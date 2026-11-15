@@ -61,6 +61,12 @@ class DisplayManager {
 
   float ghostScore() const { return score_; }
   const DisplayParams& params() const { return params_; }
+  void setParams(const DisplayParams& p) { params_ = p; }
+  // Pushes since boot per mode (Settings > Developer).
+  struct Counts {
+    uint32_t quality = 0, text = 0, fast = 0;
+  };
+  const Counts& counts() const { return counts_; }
   const std::vector<RefreshEntry>& refreshLog() const { return log_; }
   // Last lines of the refresh log as text: "t=<ms> mode=<Q|T|F> rect=x,y,w,h changed=<n> why=<..>".
   std::string refreshLogTail(int maxLines = 20) const;
@@ -97,6 +103,7 @@ class DisplayManager {
   std::vector<Pending> pending_;
   std::vector<Settle> settles_;
   std::vector<RefreshEntry> log_;
+  Counts counts_;
   float score_ = 0;
   uint32_t lastActivityMs_ = 0;
   bool wasBusy_ = false;

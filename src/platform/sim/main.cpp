@@ -31,6 +31,7 @@
 #include "core/os.h"
 #include "core/remote.h"
 #include "hal/platform.h"
+#include "hal/system.h"
 #include "apps/apps.h"
 #include "core/fs.h"
 #include "core/loop.h"
@@ -41,6 +42,24 @@ using namespace pos;
 
 namespace pos::hal {
 void logWrite(const char* line) { std::fputs(line, stderr); }
+
+// Fixed fake values: screenshots of Settings > Storage / Developer stay deterministic.
+StorageInfo storageInfo(const char* which) {
+  StorageInfo s;
+  s.present = true;
+  if (std::string(which) == "sd") {
+    s.totalBytes = 60917ull * 1024 * 1024;
+    s.freeBytes = 60913ull * 1024 * 1024;
+  } else {
+    s.totalBytes = 6016ull * 1024;
+    s.freeBytes = 6008ull * 1024;
+  }
+  return s;
+}
+MemoryInfo memoryInfo() { return MemoryInfo{250000, 330000, 6400000, 8388608}; }
+void restart() { std::exit(0); }
+std::string boardName() { return "simulator"; }
+std::string macAddress() { return ""; }
 }  // namespace pos::hal
 
 namespace {
@@ -169,6 +188,7 @@ int main(int argc, char** argv) {
   if (headless && !remoteMode) clock.setFake(true);  // also for --script runs
 
   Os os(platform);
+  os.loadConfig();
   os.setScreen(appName);
   if (auto s = apps::createSurface(appName, os)) os.setSurface(std::move(s));
   os.setWakeup([] {  // a finished job wakes the idle wait

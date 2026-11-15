@@ -452,3 +452,99 @@ TEST_CASE("launcher: tiles come from the registry in order; a tap opens the app;
   pager->next();
   CHECK(tiles[0]->label() == apps[6]->info.name);
 }
+
+// ---- settings
+
+namespace {
+
+// Collects every piece of text a widget tree can show.
+void collectTexts(ui::Widget* w, std::string& out) {
+  if (!w->visible) return;
+  if (auto* l = dynamic_cast<ui::Label*>(w)) out += l->text() + "\n";
+  if (auto* b = dynamic_cast<ui::Button*>(w)) out += b->text() + "\n";
+  if (auto* li = dynamic_cast<ui::ListItem*>(w)) out += li->title() + "\n";
+  for (auto& c : w->children()) collectTexts(c.get(), out);
+}
+
+ui::ListItem* findItem(ui::Widget* w, const std::string& title) {
+  if (auto* li = dynamic_cast<ui::ListItem*>(w))
+    if (li->title() == title && li->visible) return li;
+  for (auto& c : w->children())
+    if (auto* r = findItem(c.get(), title)) return r;
+  return nullptr;
+}
+
+}  // namespace
+
+TEST_CASE("settings: never shows or logs secret values, only key names and 'present'") {
+  Env env;
+  fs::writeFile("/sd/paperos_config", "HA_TOKEN=SUPERSECRETTOKEN123\nHA_URL=http://secret-host.example:8123\nWIFI_PASSWORD=hunter2hunter2\n");
+  env.os.loadConfig();
+  POS_LOG("test", "marker line");
+  REQUIRE(env.shell->openApp("settings"));
+  auto tapItem = [&](const std::string& title) {
+    auto* it = findItem(env.shell->root().root(), title);
+    REQUIRE(it != nullptr);
+    env.tapAt(it->frame.x + 40, it->frame.y + 40);
+  };
+  std::string all;
+  for (const char* page : {"Home Assistant", "Developer", "About", "Storage", "Display", "Power", "Reading", "Wi-Fi"}) {
+    tapItem(page);
+    CHECK(env.shell->depth() == 3);  // launcher + list + page
+    collectTexts(env.shell->root().root(), all);
+    const Rect b = env.shell->titleBar().backButton()->frame;
+    env.tapAt(b.x + 20, b.y + 20);
+    CHECK(env.shell->depth() == 2);
+  }
+  CHECK(all.find("SUPERSECRETTOKEN123") == std::string::npos);
+  CHECK(all.find("secret-host.example") == std::string::npos);
+  CHECK(all.find("hunter2hunter2") == std::string::npos);
+  CHECK(all.find("HA_TOKEN") != std::string::npos);   // the key name is shown
+
+  // the Home Assistant page: token row says "present", the URL row does not show the URL
+  tapItem("Home Assistant");
+  auto* token = findItem(env.shell->root().root(), "Token (HA_TOKEN)");
+  REQUIRE(token != nullptr);
+  auto* url = findItem(env.shell->root().root(), "Base URL");
+  REQUIRE(url != nullptr);
+  // the secrets stay out of the log ring as well
+  const std::string log = logTail(50);
+  CHECK(log.find("SUPERSECRETTOKEN123") == std::string::npos);
+  CHECK(log.find("hunter2") == std::string::npos);
+  CHECK(env.os.secrets().present("HA_TOKEN"));
+}
+
+TEST_CASE("settings: changing the ghost limit and settle delay applies at once and persists") {
+  Env env;
+  env.os.loadConfig();
+  CHECK(env.os.displayManager().params().ghostLimit == doctest::Approx(8.0f));
+  REQUIRE(env.shell->openApp("settings"));
+  auto* disp = findItem(env.shell->root().root(), "Display");
+  REQUIRE(disp != nullptr);
+  env.tapAt(disp->frame.x + 40, disp->frame.y + 40);
+  REQUIRE(env.shell->titleBar().title() == "Display");
+
+  std::function<ui::Widget*(ui::Widget*, int)> find = [&](ui::Widget* w, int which) -> ui::Widget* {
+    if (which == 0 && dynamic_cast<ui::Stepper*>(w)) return w;
+    if (which == 1 && dynamic_cast<ui::Segmented*>(w)) return w;
+    for (auto& c : w->children())
+      if (auto* r = find(c.get(), which)) return r;
+    return nullptr;
+  };
+  auto* stepper = static_cast<ui::Stepper*>(find(env.shell->root().root(), 0));
+  auto* seg = static_cast<ui::Segmented*>(find(env.shell->root().root(), 1));
+  REQUIRE(stepper != nullptr);
+  REQUIRE(seg != nullptr);
+  const Rect plus = stepper->children()[1]->frame;
+  env.tapAt(plus.x + 10, plus.y + 10);
+  env.tapAt(plus.x + 10, plus.y + 10);
+  CHECK(env.os.displayManager().params().ghostLimit == doctest::Approx(10.0f));  // wired to the DisplayManager
+  env.tapAt(seg->frame.x + seg->frame.w - 20, seg->frame.y + 20);                // "1000 ms"
+  CHECK(env.os.displayManager().params().settleMs == 1000);
+
+  // a fresh Config (a restart) reads the saved values
+  Config again;
+  REQUIRE(again.load());
+  CHECK(again.display.ghostLimit == doctest::Approx(10.0f));
+  CHECK(again.display.settleMs == 1000);
+}

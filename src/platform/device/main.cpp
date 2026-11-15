@@ -4,6 +4,9 @@
 
 #include <Arduino.h>
 #include <M5Unified.h>
+#include <LittleFS.h>
+#include <SD.h>
+#include <esp_mac.h>
 #include <esp_pthread.h>
 
 #include <string>
@@ -16,12 +19,40 @@
 #include "core/os.h"
 #include "core/remote.h"
 #include "hal/platform.h"
+#include "hal/system.h"
 #include "platform/device/device.h"
 
 using namespace pos;
 
 namespace pos::hal {
 void logWrite(const char* line) { Serial.print(line); }
+
+StorageInfo storageInfo(const char* which) {
+  StorageInfo s;
+  if (std::string(which) == "sd") {
+    if (SD.cardType() == CARD_NONE) return s;
+    s.present = true;
+    s.totalBytes = SD.totalBytes();
+    s.freeBytes = s.totalBytes - SD.usedBytes();
+  } else {
+    s.present = true;
+    s.totalBytes = LittleFS.totalBytes();
+    s.freeBytes = s.totalBytes - LittleFS.usedBytes();
+  }
+  return s;
+}
+MemoryInfo memoryInfo() {
+  return MemoryInfo{ESP.getFreeHeap(), ESP.getHeapSize(), ESP.getFreePsram(), ESP.getPsramSize()};
+}
+void restart() { esp_restart(); }
+std::string boardName() { return M5.getBoard() == m5::board_t::board_M5PaperS3 ? "M5PaperS3" : "unknown board"; }
+std::string macAddress() {
+  uint8_t m[6];
+  if (esp_efuse_mac_get_default(m) != ESP_OK) return "";
+  char buf[20];
+  snprintf(buf, sizeof buf, "%02X:%02X:%02X:%02X:%02X:%02X", m[0], m[1], m[2], m[3], m[4], m[5]);
+  return buf;
+}
 }  // namespace pos::hal
 
 namespace {
@@ -192,6 +223,7 @@ void setup() {
   pcfg.stack_size = 16 * 1024;
   pcfg.thread_name = "worker";
   esp_pthread_set_cfg(&pcfg);
+  gOs.loadConfig();  // after the storage is mounted
   gOs.setSurface(apps::createSurface("", gOs));  // the launcher
   gOs.setup();
 }

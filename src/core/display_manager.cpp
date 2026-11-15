@@ -110,6 +110,7 @@ void DisplayManager::push(Rect r, Refresh mode, uint32_t changed, const char* wh
   log_.push_back(e);
   if (log_.size() > kLogMax) log_.erase(log_.begin(), log_.begin() + (log_.size() - kLogMax));
   lastActivityMs_ = now;
+  (mode == Refresh::Quality ? counts_.quality : mode == Refresh::Text ? counts_.text : counts_.fast)++;
   POS_LOG("disp", "push %c rect=%d,%d,%d,%d changed=%u why=%s", e.mode, r.x, r.y, r.w, r.h,
           static_cast<unsigned>(changed), why);
 }

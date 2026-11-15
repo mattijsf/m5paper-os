@@ -2,6 +2,8 @@
 
 #include <ctime>
 
+#include "core/timefmt.h"
+
 #include "ui/widgets.h"
 
 namespace pos {
@@ -58,6 +60,7 @@ void Nav::home() {
 size_t Nav::depth() const { return shell_.appOpen() ? shell_.depth() - shell_.appBase_ : 0; }
 Screen* Nav::top() const { return shell_.appOpen() ? shell_.top() : nullptr; }
 
+Os& AppContext::os() { return shell_.os(); }
 Worker& AppContext::worker() { return shell_.os().worker(); }
 hal::Net& AppContext::netHal() { return shell_.os().platform().net; }
 std::weak_ptr<bool> AppContext::aliveToken() {
@@ -111,9 +114,8 @@ void Shell::updateStatus() {
   if (now <= 0) {
     status_->setTime("--:--");
   } else {
-    time_t t = static_cast<time_t>(now);  // UTC until the time zone setting exists (P2-6)
     struct tm tmv;
-    gmtime_r(&t, &tmv);
+    localTime(now, tmv);  // net.timezone
     char buf[8];
     std::snprintf(buf, sizeof buf, "%02d:%02d", tmv.tm_hour, tmv.tm_min);
     status_->setTime(buf);
@@ -172,7 +174,7 @@ bool Shell::openApp(const std::string& id) {
   store_ = std::make_unique<Store>("/data/apps/" + id + ".json");
   cache_ = std::make_unique<Cache>(id);
   nav_.reset(new Nav(*this));
-  ctx_.reset(new AppContext(*this, *nav_, *store_, *cache_, os_.platform().clock, id));
+  ctx_.reset(new AppContext(*this, *nav_, *store_, *cache_, os_.platform().clock, os_.config(), os_.secrets(), id));
   appBase_ = stack_.size();
   app_ = entry->create();
   app_->onStart(*ctx_);

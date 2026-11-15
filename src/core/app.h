@@ -10,7 +10,9 @@
 #include <string>
 #include <vector>
 
+#include "core/config.h"
 #include "core/log.h"
+#include "core/secrets.h"
 #include "core/store.h"
 #include "core/timers.h"
 #include "core/worker.h"
@@ -25,6 +27,7 @@ using Icon = gen::Icon;
 
 class AppContext;
 class Nav;
+class Os;
 class Shell;
 
 // One screen of an app (or the launcher). build() runs once per instance and fills `root`, a Column
@@ -125,6 +128,8 @@ class AppContext {
   Store& store;
   Cache& cache;
   hal::Clock& clock;
+  const Config& config;      // system settings, read-only
+  const Secrets& secrets;    // secrets by key; never log or display the values
 
   // Runs `job` on the worker thread and `onDone(result)` on the UI thread; dropped if the screen
   // that was on top when this was called is gone by then.
@@ -147,11 +152,13 @@ class AppContext {
   // POS_LOG with the app id as tag.
   void log(const char* fmt, ...) __attribute__((format(printf, 2, 3)));
   const std::string& appId() const { return id_; }
+  // The Os: for built-in system apps only (Settings changes config, cleans the panel). Other apps use the members above.
+  Os& os();
 
  private:
   friend class Shell;
-  AppContext(Shell& shell, Nav& nav, Store& store, Cache& cache, hal::Clock& clock, std::string id)
-      : nav(nav), store(store), cache(cache), clock(clock), shell_(shell), id_(std::move(id)) {}
+  AppContext(Shell& shell, Nav& nav, Store& store, Cache& cache, hal::Clock& clock, const Config& config, const Secrets& secrets, std::string id)
+      : nav(nav), store(store), cache(cache), clock(clock), config(config), secrets(secrets), shell_(shell), id_(std::move(id)) {}
   Worker& worker();
   hal::Net& netHal();
   std::weak_ptr<bool> aliveToken();
