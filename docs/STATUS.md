@@ -73,6 +73,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Mail | Proton Mail, through Home Assistant if possible | D17 |
 | Home Assistant token | The owner put it on the SD card: `/sd/paperos_config`, `HA_TOKEN=` | D19, apps/settings.md |
 | Home Assistant URL | The public HTTPS address, set by the user as `HA_URL=` on the card; not hard-coded or committed; works away from home. TLS cost: one kept-alive connection per refresh | D18 (note), BACKEND.md "Connection" |
+| Home Assistant token, during development | The token on the card stays as it is; after development it is replaced by a token of a dedicated non-admin user. Code stays within the non-admin API subset (per-entity `GET /api/states/<id>`, service calls; no `/api/template`, no event firing) so the swap needs no code change | D18 |
 | Books | SD card is in, empty: find open books ourselves | `tools/fetch-books.sh`, task P4-0 pushes them to the card |
 
 ## Not verified yet (do not assume)
@@ -92,7 +93,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 - Whether a side-button click is readable by a running program (task P3-1).
 - Home Assistant: entity ids come from the dashboard repo, not from the live instance; nothing
   has been requested from the live instance yet (tasks P5-1, P5-2).
-- Which Home Assistant user the token belongs to (should be a dedicated non-admin user, D18).
+- Which Home Assistant user the token belongs to. The Home app and the inbox calls have **not been run with a non-admin token** (D18 assumes they work); the swap to a dedicated non-admin user comes after development.
 - WhatsApp add-on: not installed; event fields for groups and the effect on phone
   notifications are unknown (task P6-1). `ha/paperos_inbox.yaml` is an untested draft.
 - Proton Mail Bridge on Home Assistant OS: no confirmed add-on that exposes IMAP (task P6-2).
@@ -149,10 +150,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
    install time (task P6-1). The notification-sensor route stays available as fallback.
 2. **Wi-Fi**: add `WIFI_SSID=` and `WIFI_PASSWORD=` to `paperos_config` on the card? It lets
    the device go online from task P3-2, long before the on-screen keyboard exists.
-3. **Home Assistant user**: is the token from a dedicated non-admin user? (task P5-1). The URL is decided
-   (public HTTPS, `HA_URL=` on the card); still missing on the card: `HA_URL=` and the Wi-Fi credentials
-   (`WIFI_SSID=`, `WIFI_PASSWORD=`; see question 2).
-4. **Proton**: paid plan (needed for Bridge)? OK to run Bridge as a Home Assistant add-on?
+3. **Proton**: paid plan (needed for Bridge)? OK to run Bridge as a Home Assistant add-on?
    (task P6-2)
 
 None of these block Phase 1, Phase 2, or the reader.

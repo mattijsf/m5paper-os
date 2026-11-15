@@ -303,7 +303,7 @@ simulator first; each task ends with screenshots.
   failure revert + toast. Goldens with fixtures.
 - [ ] **P5-4 Climate and More tabs, member sheet, scenes.** Goldens.
 - [ ] **P5-5 Polling, cache, device check.** Foreground refresh policy, cache-first open.
-  Device check: timings in apps/home.md.
+  Device check: timings in apps/home.md. One run with a non-admin token (a dedicated user, per the 2026-11-15 decision) before Phase 5 counts as done on the device, or list it under "Pending device checks" in STATUS.md.
 
 ## Phase 6: Inbox (WhatsApp, Mail)
 
