@@ -2,10 +2,12 @@
 
 #include "ui/controls.h"
 #include "ui/inputs.h"
+#include "ui/keyboard.h"
 #include "ui/panels.h"
 #include "ui/label.h"
 #include "ui/layout.h"
 #include "ui/list.h"
+#include "ui/textblock.h"
 #include "ui/tile.h"
 
 namespace pos::apps::uitest {
@@ -188,6 +190,68 @@ std::unique_ptr<Widget> widgets3() {
   return root;
 }
 
+// widgets4 (P2-7): a password field on top, the keyboard at the bottom (full width).
+std::unique_ptr<Widget> widgets4() {
+  auto root = std::make_unique<Column>(0);
+  auto* pad = root->add<Padding>(kMargin, s2, kMargin, s2);
+  auto* col = pad->add<Column>(s2);
+  col->add<Label>("Wi-Fi password", Type::Title);
+  auto* field = col->add<TextField>("Password");
+  field->setMasked(true);
+  auto* shown = col->add<Label>("", Type::Caption, secondary);
+  pad->flex = 1;  // the padded block takes the rest: the keyboard sits at the bottom
+  auto* kb = root->add<Keyboard>();
+  // The field is masked: the caption shows only how many characters were typed.
+  bindKeyboard(*kb, *field, [shown, field] { shown->setText("Entered " + std::to_string(field->text().size()) + " characters"); });
+  auto inner = kb->onKey;
+  kb->onKey = [inner, shown, field](Keyboard::Kind k, const std::string& t) {
+    inner(k, t);
+    if (k != Keyboard::Kind::Enter) shown->setText(std::to_string(field->text().size()) + " characters");
+  };
+  return root;
+}
+
+// widgets5 (P2-7): TextBlock with headings, bold and italic runs; tap right = next page, left third = back.
+std::unique_ptr<Widget> widgets5() {
+  auto root = std::make_unique<Padding>(kMargin, s2, kMargin, s2);
+  auto* col = root->add<Column>(s1);
+  auto* info = col->add<Label>("", Type::Caption, secondary);
+  auto* tb = col->add<TextBlock>();
+  tb->flex = 1;
+  std::vector<Paragraph> paras;
+  auto heading = [&](const char* t, int level) {
+    Paragraph p;
+    p.heading = level;
+    p.runs.push_back(Run{t, false, false});
+    paras.push_back(p);
+  };
+  auto body = [&](std::vector<Run> runs) {
+    Paragraph p;
+    p.runs = std::move(runs);
+    paras.push_back(p);
+  };
+  heading("The Paper Almanac", 1);
+  body({{"An e-ink page does not glow. It reflects the light of the room, the way a printed page does, and it ", false, false},
+        {"keeps its picture", true, false}, {" without any power at all. That is why a reader like this one can last for weeks ", false, false},
+        {"on a single charge", false, true}, {".", false, false}});
+  body({{"Pages are laid out one at a time. A line is filled with as many words as fit the column, then the next line starts; "
+         "a paragraph ends with a little extra space, and a heading is never left alone at the bottom of a page.", false, false}});
+  heading("Chapter one: light", 2);
+  for (int i = 0; i < 6; ++i)
+    body({{"Paragraph " + std::to_string(i + 1) + ". Words are measured with the real font, so what is counted here is what is drawn. ", false, false},
+          {"Italic runs", false, true}, {" and ", false, false}, {"bold runs", true, false},
+          {" change the face in the middle of a line without breaking it, and a long word such as extraordinarily is simply carried to the next line when it does not fit.", false, false}});
+  heading("Chapter two: ink", 2);
+  for (int i = 0; i < 6; ++i)
+    body({{"Second chapter, paragraph " + std::to_string(i + 1) + ". Reading position is stored as a paragraph and a byte offset, not as a page number, "
+           "so changing the font size never loses the place.", false, false}});
+  tb->setParagraphs(std::move(paras));
+  auto update = [info, tb](int) { info->setText("Page " + std::to_string(tb->pageIndex() + 1) + " of " + std::to_string(tb->pageCount())); };
+  tb->onPageChange = update;
+  tb->onLayout = [update] { update(0); };
+  return root;
+}
+
 }  // namespace
 
 std::unique_ptr<Root> create(const std::string& name, Os& os) {
@@ -196,6 +260,8 @@ std::unique_ptr<Root> create(const std::string& name, Os& os) {
   if (name == "widgets2") root = widgets2();
   if (name == "widgets2rows") root = widgets2rows();
   if (name == "widgets3") root = widgets3();
+  if (name == "widgets4") root = widgets4();
+  if (name == "widgets5") root = widgets5();
   if (name == "widgets2list") root = widgets2list();
   if (!root) return nullptr;
   auto screen = std::make_unique<Root>(os.canvas(), os.displayManager(), &os.timers());

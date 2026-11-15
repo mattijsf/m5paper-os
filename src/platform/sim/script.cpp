@@ -92,6 +92,34 @@ bool ScriptRunner::command(const std::string& cmd, const std::string& args, std:
     }
     touch(hal::TouchEvent::Up, n[2], n[3]);
     step(10);
+  } else if (cmd == "type" || cmd == "type-max") {
+    // Taps the keys of the on-screen keyboard that spells the text (switching layers as needed). type-max N:
+    // every character key press (until just after it) may push at most N pixels; layer switches repaint all keys.
+    long limit = -1;
+    if (cmd == "type-max" && !(in >> limit)) {
+      error = "'type-max' needs a pixel limit and a text";
+      return false;
+    }
+    std::string text;
+    std::getline(in >> std::ws, text);
+    auto taps = os_.surface() ? os_.surface()->keyboardTaps(text) : std::vector<KeyTap>{};
+    if (taps.empty() && !text.empty()) {
+      error = "no on-screen keyboard is showing (or the text has no typeable characters)";
+      return false;
+    }
+    for (size_t i = 0; i < taps.size(); ++i) {
+      const uint64_t before = display_.counters().area;
+      touch(hal::TouchEvent::Down, taps[i].x, taps[i].y);
+      step(40);
+      touch(hal::TouchEvent::Up, taps[i].x, taps[i].y);
+      step(20);
+      const uint64_t used = display_.counters().area - before;
+      if (limit >= 0 && !taps[i].layerSwitch && used > static_cast<uint64_t>(limit)) {
+        error = "type-max " + std::to_string(limit) + ": key " + std::to_string(i + 1) + " of '" + text + "' pushed " +
+                std::to_string(used) + " pixels\n" + display_.logTail(3);
+        return false;
+      }
+    }
   } else if (cmd == "expect-no-quality") {
     step(0);
     if (display_.counters().quality > 0) {

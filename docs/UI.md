@@ -176,6 +176,25 @@ it too. Only the sheet's rectangle is invalidated on open and on close. Put cont
 `sheet->content()`. `Root::showToast(text)`: ink pill at the bottom (y 864..936), 3 s, then the
 screen below is restored pixel for pixel (checked: `widgets3-toast-gone` == `widgets3-base`).
 
+P2-7 (`ui/keyboard`, `ui/textblock`):
+`Keyboard`: 540 x 288, four rows of 54 x 72 keys; layers abc, ABC (one letter, then back to abc) and 123#;
+rows: letters, letters (offset half a key), shift + letters + backspace, 123/abc + comma + space + period +
+enter. Events through `onKey(Kind, text)`; `bindKeyboard(kb, field, onEnter)` wires it to a `TextField`
+(72 px, optional masking with bullets, shows the tail of long text, caret). A key's pressed look (ink) appears
+only after a 120 ms hold, and only the key's rectangle is redrawn (`Widget::invalidateRect`): a quick tap
+pushes just the changed text-field pixels (every character key of the 12-character password in
+`keyboard.script` stays under 6000 px; shift / layer switches repaint all keys and are not size-checked).
+`TextBlock` + pure pagination (`layoutPage`, `paginate`, `pageIndexOf`, `parseMarked`): a position is
+(paragraph, byte offset), so it survives a change of font size or margins. Greedy line breaking at spaces
+(a word is the pieces that touch, so a style change or punctuation in its own run never opens a gap), long
+words are cut by characters, first-line indent for body paragraphs after body paragraphs, extra gap above
+headings, a heading is never split across pages or left alone at the bottom, a page too small for a line
+still advances. Bold and italic exist as faces at ReadM only; other sizes fake bold with a double strike and
+show italic as regular. Layout runs on `TextMetrics` (a fake in the tests, `CanvasMetrics` on the device),
+so a whole book can be paginated on the worker; `TextBlock::setPageStarts()` hands such an index over. Touch:
+tap on the left third = back, elsewhere forward, horizontal swipes. Test screens `widgets4` (keyboard), `widgets5`
+(text pages); script commands `type TEXT` and `type-max N TEXT`.
+
 ## Gestures (`core/gesture`, task P2-1)
 
 | Gesture | Definition |

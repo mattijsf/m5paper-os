@@ -26,8 +26,8 @@ Implemented: `--headless --script --out --data --time --scale --name --remote`; 
 sheet (`fonts`); without it the launcher shows (a script file can start with a `# app: NAME` line, which
 `tools/ui-test.sh` passes as `--app`). `--no-rtc` makes `now()` 0 like a device whose RTC was never set; `--fixtures` is ignored until P5. Script commands implemented: `wait`, `shot`,
 `tap`, `long`, `swipe`, `back` (taps (36, 92), the back-arrow target), `expect-no-quality`,
-`expect-max-pushed N` (sum of pushed rectangle areas since the last `shot`). `battery`, `wifi`, `type`
-wait for their features. `--time` takes `YYYY-MM-DDTHH:MM:SS` (UTC). In `--headless` runs the clock
+`expect-max-pushed N` (sum of pushed rectangle areas since the last `shot`). `type TEXT` and `type-max N TEXT` (tap the keys of the visible
+on-screen keyboard; with a limit every character key may push at most N pixels), `battery`, `wifi` wait for their features. `--time` takes `YYYY-MM-DDTHH:MM:SS` (UTC). In `--headless` runs the clock
 is fake; `tools/ui-test.sh` runs every script with `--data out/ui-data` (empty, never `sim-data/`) and
 `--time 2026-01-15T12:34:00` (UTC; the status bar shows 13:34 in the default zone CET). Every script gets its own empty data root
 `out/ui-data/<script>/`, so config written by one script (Settings) never leaks into another. Worker jobs run in real time while the fake clock jumps; the script

@@ -188,7 +188,7 @@ simulator first; each task ends with screenshots.
   Developer (heap, PSRAM, refresh counters, log tail).
   Done when: goldens for the screens; changing ghost limit persists across a simulator restart.
 
-- [ ] **P2-7 Keyboard and TextBlock.**
+- [x] **P2-7 Keyboard and TextBlock.**
   Do: `ui::Keyboard` (3 layers, key press feedback limited to the key rect), text field;
   `ui::TextBlock` (paragraphs with bold/italic runs, pagination API used later by reader and
   inbox). Script command `type`.

@@ -44,9 +44,13 @@ class Widget {
   // until consumed; the consumer then gets the rest of that touch (Tap, LongPress, Cancel), and
   // Swipe* bubbles from there.
   virtual bool onTouch(const Gesture& /*g*/) { return false; }
+  // The device build has no RTTI: widgets that must be found by kind say so.
+  virtual bool isKeyboard() const { return false; }
 
   // Marks the frame dirty. Cheap; the Root redraws and commits once per loop pass.
   void invalidate(Hint h = Hint::Content);
+  // Same for part of the frame (a key of the keyboard): only `r` is cleared, redrawn and pushed.
+  void invalidateRect(Rect r, Hint h = Hint::Feedback);
 
   // Tree
   template <class T, class... Args>

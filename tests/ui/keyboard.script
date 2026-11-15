@@ -1,0 +1,15 @@
+# app: widgets4
+# P2-7: the keyboard types a 12-character password with letters, a capital, digits and symbols. Every key
+# press pushes at most 6000 pixels (just the changed part of the text field).
+wait 200
+shot keyboard-empty
+type-max 6000 Passw0rd!2x?
+wait 900
+expect-no-quality
+shot keyboard-typed
+tap 498 855             # backspace
+wait 900
+shot keyboard-backspace
+tap 40 927              # 123 key
+wait 900
+shot keyboard-symbols

@@ -45,3 +45,8 @@ info
 triangle-alert
 door-open
 air-vent
+delete
+arrow-up
+corner-down-left
+eye
+eye-off

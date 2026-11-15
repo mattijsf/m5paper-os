@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "ui/keyboard.h"
 #include "ui/panels.h"
 
 namespace pos::ui {
@@ -50,6 +51,14 @@ void Root::markDirty(Widget* w, Hint h) {
   dirty_.push_back({w, h, false, Rect{}});
 }
 
+void Root::markDirtyRect(Widget* w, Rect r, Hint hint) {
+  // Clip to the widget's frame.
+  const int x0 = std::max<int>(r.x, w->frame.x), y0 = std::max<int>(r.y, w->frame.y);
+  const int x1 = std::min<int>(r.x + r.w, w->frame.x + w->frame.w), y1 = std::min<int>(r.y + r.h, w->frame.y + w->frame.h);
+  if (x1 <= x0 || y1 <= y0) return;
+  dirty_.push_back({w, hint, true, Rect{static_cast<int16_t>(x0), static_cast<int16_t>(y0), static_cast<int16_t>(x1 - x0), static_cast<int16_t>(y1 - y0)}});
+}
+
 void Root::invalidateRect(Rect r, Hint hint) {
   if (root_ && !r.empty()) dirty_.push_back({root_.get(), hint, true, r});
 }
@@ -58,7 +67,7 @@ void Root::forget(Widget* w) {
   if (consumer_ == w) consumer_ = nullptr;
   if (target_ == w) target_ = nullptr;
   if (toast_ == w) toast_ = nullptr;
-  dirty_.erase(std::remove_if(dirty_.begin(), dirty_.end(), [w](const Dirty& d) { return d.w == w && !d.hasRect; }), dirty_.end());
+  dirty_.erase(std::remove_if(dirty_.begin(), dirty_.end(), [w](const Dirty& d) { return d.w == w; }), dirty_.end());
 }
 
 void Root::forgetTree(Widget* w) {
@@ -70,7 +79,7 @@ void Root::forgetTree(Widget* w) {
   if (consumer_ && inTree(consumer_)) consumer_ = nullptr;
   if (target_ && inTree(target_)) target_ = nullptr;
   if (toast_ && inTree(toast_)) toast_ = nullptr;
-  dirty_.erase(std::remove_if(dirty_.begin(), dirty_.end(), [&](const Dirty& d) { return !d.hasRect && inTree(d.w); }), dirty_.end());
+  dirty_.erase(std::remove_if(dirty_.begin(), dirty_.end(), [&](const Dirty& d) { return inTree(d.w); }), dirty_.end());
 }
 
 Widget* Root::overlayOf(Widget* w) const {
@@ -126,7 +135,7 @@ void Root::render(Canvas& canvas, DisplayManager& dm) {
     }
     const Rect f = d.hasRect ? d.rect : d.w->frame;
     canvas.setClipRect(f.x, f.y, f.w, f.h);
-    if (!d.w->transparent) canvas.fillRect(f.x, f.y, f.w, f.h, d.hasRect ? paper : d.w->bg());
+    if (!d.w->transparent) canvas.fillRect(f.x, f.y, f.w, f.h, d.w == root_.get() ? (d.hasRect ? paper : d.w->bg()) : d.w->bg());
     d.w->drawTree(canvas, f);
     // Anything drawn in the root tree is covered again by the overlays above it.
     if (!overlayOf(d.w)) {
@@ -188,6 +197,28 @@ void Root::showToast(const std::string& text, uint32_t ms) {
   hideToast();
   toast_ = addOverlay(std::make_unique<Toast>(text));
   if (timers_) toastTimer_ = timers_->after(ms, [this] { toastTimer_ = 0; hideToast(); });
+}
+
+}  // namespace pos::ui
+
+namespace pos::ui {
+
+namespace {
+Keyboard* findKeyboard(Widget* w) {
+  if (!w->visible) return nullptr;
+  if (w->isKeyboard()) return static_cast<Keyboard*>(w);
+  for (auto& c : w->children())
+    if (Keyboard* k = findKeyboard(c.get())) return k;
+  return nullptr;
+}
+}  // namespace
+
+std::vector<KeyTap> Root::keyboardTaps(const std::string& text) {
+  for (size_t i = overlays_.size(); i-- > 0;)
+    if (Keyboard* k = findKeyboard(overlays_[i].get())) return k->tapsFor(text);
+  if (root_)
+    if (Keyboard* k = findKeyboard(root_.get())) return k->tapsFor(text);
+  return {};
 }
 
 }  // namespace pos::ui

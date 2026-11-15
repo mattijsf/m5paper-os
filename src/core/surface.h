@@ -2,11 +2,20 @@
 // stack. Defined in core so core does not depend on ui; ui and apps implement it.
 #pragma once
 
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "core/display_manager.h"
 #include "core/gesture.h"
 #include "core/gfx.h"
 
 namespace pos {
+
+struct KeyTap {
+  int x = 0, y = 0;
+  bool layerSwitch = false;  // shift / 123 / abc: repaints the whole keyboard, so scripts do not size-check it
+};
 
 class Surface {
  public:
@@ -17,6 +26,8 @@ class Surface {
   virtual void render(Canvas& canvas, DisplayManager& dm) = 0;
   // True while something waits to be rendered.
   virtual bool dirty() const = 0;
+  // Screen points to tap, in order, to type `text` on the on-screen keyboard that is showing (UI scripts).
+  virtual std::vector<KeyTap> keyboardTaps(const std::string& /*text*/) { return {}; }
 };
 
 }  // namespace pos

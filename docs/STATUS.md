@@ -8,7 +8,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   the simulator and on the device: HAL, display manager (fast-then-settle, ghost budget), e-ink
   emulation with a refresh log, gestures, widget tree, fonts and icons (Inter, Literata, Lucide),
   main loop with timers and a worker thread, remote control over USB (`tools/device.py`), UI
-  scripts with golden screenshots, 79 host unit tests.
+  scripts with golden screenshots, 93 host unit tests.
 - **P2-1 to P2-3 are done** (2026-11-15): `core/gesture`, `core/surface`, `ui/{widget,screen,layout,
   label,controls,list,tile,inputs,panels}`, `apps/uitest` (test screens `widgets1`, `widgets2`,
   `widgets2rows`, `widgets2list`, `widgets3`: `--app NAME` in the simulator, `>set screen NAME` on
@@ -21,8 +21,10 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   (renamed from `ui::Screen`; `pos::Screen` is the app screen). The device boots into the launcher
   (tiles Read, Home, WhatsApp, Mail, Settings; all show "Coming soon"); `tools/new-app.sh` creates apps.
   The Phase 1 demo screen is gone (Os without a Surface draws the font sheet or a blank screen).
-- **P2-6**: config service, secrets reader, time zone, Settings (all sections). The device shows the real
-  Settings. **Next task: P2-7** (Keyboard and TextBlock), then Phase 3 (connectivity and power).
+- **P2-7**: keyboard, text field and TextBlock with pagination (`ui/keyboard`, `ui/textblock`), 14 unit tests for
+  pagination (no overlong line, strictly increasing page starts, nothing lost, position survives re-layout,
+  headings, long words, tiny pages, parser). **P2-6**: config service, secrets reader, time zone, Settings (all sections). The device shows the real
+  Settings. **Next: Phase 3** (P3-1 device power HAL, P3-4 idle policy; Wi-Fi tasks wait for credentials).
 - The factory firmware is saved in `backup/factory-16MB.bin` (restore command in HARDWARE.md).
 
 ## What works today
@@ -32,8 +34,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Simulator build | `make sim` | OK (first build ~3 min, then seconds) |
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
-| Firmware build | `make fw` | OK, 1.44 MB (27.5% of the 5 MB slot) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 79 tests; 42 goldens; `out/gallery.html` |
+| Firmware build | `make fw` | OK, 1.45 MB (27.7% of the 5 MB slot) |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 93 tests; 55 goldens; `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Serial heartbeat | `make monitor` | `[beat]` and `[sd]` lines every 5 s (the refresh benchmark is gone since P1-1) |
@@ -255,6 +257,12 @@ None of these block Phase 1, Phase 2, or the reader.
   `Pressable: a quick tap never shows the pressed look`, the diff span tests. Not verified: how the delayed
   pressed look feels under a real finger (a hold >120 ms shows it).
 
+- P2-7 notes: `keyboard.script` types `Passw0rd!2x?` (capital, digits, symbols; layer switches handled by
+  `Keyboard::tapsFor`); key presses stay under 6000 px except layer switches. Not verified on the device: the
+  keyboard was not flashed yet (frames come with the next device run), and how typing feels. The reader
+  and the inbox will use `TextBlock`; a real book's font-size change relies on `pageIndexOf` (tested with a fake
+  metric and with the real fonts on generated text).
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -286,3 +294,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P2-5. Launcher grid, placeholder apps, app template, new-app.sh; demo screen removed.
 - 2026-11-15: P2-6. Config, secrets, time zone, Settings; ui-test uses one data root per script.
 - 2026-11-15: navigation speed: press look delayed 120 ms, cheaper diff; 925 -> 605 ms to a new screen.
+- 2026-11-15: P2-7. Keyboard, TextField, TextBlock with pagination; type / type-max script commands.

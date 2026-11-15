@@ -44,6 +44,10 @@ void Widget::invalidate(Hint h) {
   if (Root* s = host()) s->markDirty(this, h);
 }
 
+void Widget::invalidateRect(Rect r, Hint h) {
+  if (Root* s = host()) s->markDirtyRect(this, r, h);
+}
+
 Color Widget::bg() const {
   for (const Widget* w = this; w; w = w->parent_)
     if (w->hasBg_) return w->bg_;

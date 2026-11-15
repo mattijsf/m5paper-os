@@ -32,6 +32,7 @@ class Root : public Surface {
   void onGesture(const Gesture& g) override;
   void render(Canvas& canvas, DisplayManager& dm) override;
   bool dirty() const override { return !dirty_.empty(); }
+  std::vector<KeyTap> keyboardTaps(const std::string& text) override;
 
   // Overlays are drawn above the root and get touches first: a Sheet (modal, full screen) or a Toast.
   // The overlay is given the full screen, then lays itself out (it may shrink its own frame).
@@ -43,6 +44,7 @@ class Root : public Surface {
   void showToast(const std::string& text, uint32_t ms = 3000);
   // Redraws a region of the root (and the overlays over it) with `hint`.
   void invalidateRect(Rect r, Hint hint);
+  void markDirtyRect(Widget* w, Rect r, Hint hint);  // part of one widget
 
   // Called by widgets.
   void markDirty(Widget* w, Hint h);

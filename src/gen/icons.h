@@ -51,6 +51,11 @@ enum class Icon : uint8_t {
   TriangleAlert,
   DoorOpen,
   AirVent,
+  Delete,
+  ArrowUp,
+  CornerDownLeft,
+  Eye,
+  EyeOff,
   Count
 };
 
@@ -101,6 +106,11 @@ constexpr uint32_t kIconCodepoint[] = {
   0xE193,  // triangle-alert
   0xE3D6,  // door-open
   0xE34D,  // air-vent
+  0xE0AE,  // delete
+  0xE04A,  // arrow-up
+  0xE0A1,  // corner-down-left
+  0xE0BA,  // eye
+  0xE0BB,  // eye-off
 };
 
 }  // namespace pos::gen

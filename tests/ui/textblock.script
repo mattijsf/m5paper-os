@@ -1,0 +1,17 @@
+# app: widgets5
+# P2-7: TextBlock pages. A tap on the right two thirds turns forward, the left third back; swipes turn too.
+wait 200
+shot textblock-p1
+tap 400 500
+wait 900
+expect-no-quality
+shot textblock-p2
+swipe 400 600 100 600
+wait 900
+shot textblock-p3
+tap 60 500
+wait 900
+shot textblock-p2-back
+swipe 100 600 400 600
+wait 900
+shot textblock-p1-back
