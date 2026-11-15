@@ -114,12 +114,14 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 - **Internal heap is small** (about 200 KB, 12 KB left with a 40000-entry `unordered_map` width cache): big caches are fixed
   tables in one allocation (PSRAM), never many small nodes.
 - **The device naps when no host has the port open** (`HWCDC::isPlugged()` is false then): a command sent meanwhile is lost,
-  `tools/device.py` now sends it again; and after `power.autoOffMin` (15 min) without a touch it **powers itself off** as if on
-  battery, which only the side button undoes. A long pause between device runs (a long build, a code review) can do that: see
-  "Pending device checks". The policy should look at VBUS instead of the data link (follow-up, not changed here).
+  `tools/device.py` now sends it again. **Root cause of the unattended power-off**: auto-off was "never while a USB host is
+  connected", but a Mac suspends the port when no program has it open, so the device saw no host and switched itself off after 15
+  idle minutes. Fixed: USB (host or charger) seen this boot suppresses auto-off for 12 h (`kUsbGraceMs`, unit-tested in
+  `power_policy_test.cpp`); firmware flashed only after the next time the device is on (Pending device checks).
 
 ## Pending device checks
 
+- **Auto-off guard** (kUsbGraceMs): built, not run on the device; check that an idle device on USB with no program holding the port stays on for more than 20 minutes.
 - **Phase 4 (reader), device state**: the device powered itself off during a long pause (see the pitfalls above) and no tool can
   bring it back: it needs the side button once. Done on the device before that (firmware of P4-4, commit 9f8d440): Pride and
   Prejudice cold open 15.3 s (1542 pages), cached open 0.22 s, frame dumps of page 1, page 4 and the cached page 4 identical to the

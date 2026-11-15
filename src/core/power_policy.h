@@ -34,9 +34,16 @@ constexpr uint32_t kMaxSleepMs = 60000;        // tick at least once a minute
 // 0 = do not sleep (wait briefly instead); otherwise how long to light-sleep in ms (at most kMaxSleepMs).
 uint32_t decideSleep(const SleepInputs& in);
 
+// A device that saw USB (a host on the data link, or the charger) this boot is being worked on: it does not switch itself off for
+// this long after the last time it saw it. The host link alone is not enough: with the port closed, the Mac suspends it and the
+// device sees no host, yet a power-off then needs the side button (the device switched itself off during development).
+constexpr uint32_t kUsbGraceMs = 12u * 60 * 60 * 1000;
+constexpr uint32_t kUsbNeverSeen = 0xFFFFFFFFu;
+
 // Auto-off: true when the device was idle for `idleMs` >= the limit and nothing keeps it awake.
-// limitMin 0 = never. Never while a USB host is connected (the device is being worked on).
-bool autoOffDue(uint32_t idleMs, int limitMin, bool usbConnected);
+// limitMin 0 = never. Never while a USB host is connected, nor within kUsbGraceMs of the last time USB was seen
+// (`msSinceUsbSeen`, kUsbNeverSeen if not this boot).
+bool autoOffDue(uint32_t idleMs, int limitMin, bool usbConnected, uint32_t msSinceUsbSeen = kUsbNeverSeen);
 
 class PowerPolicy {
  public:
@@ -52,6 +59,8 @@ class PowerPolicy {
   Os& os_;
   std::function<void(uint32_t)> wait_;
   uint32_t sleeps_ = 0;
+  bool usbSeen_ = false;
+  uint32_t usbSeenMs_ = 0;  // clock.millis() when USB (host or charger) was last seen
 };
 
 }  // namespace pos

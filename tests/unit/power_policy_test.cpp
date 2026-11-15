@@ -57,6 +57,15 @@ TEST_CASE("autoOffDue: after the limit, on battery only, never when the limit is
   CHECK_FALSE(autoOffDue(10 * 60 * 60 * 1000, 15, true));   // USB host connected
 }
 
+TEST_CASE("autoOffDue: not within the grace period after USB was seen (a suspended port shows no host)") {
+  const uint32_t idle = 60 * 60 * 1000;
+  CHECK(autoOffDue(idle, 15, false, kUsbNeverSeen));
+  CHECK_FALSE(autoOffDue(idle, 15, false, 5 * 60 * 1000));            // seen 5 minutes ago
+  CHECK_FALSE(autoOffDue(idle, 15, false, kUsbGraceMs - 1));
+  CHECK(autoOffDue(idle, 15, false, kUsbGraceMs));                    // a day-long unplugged device does switch off
+  CHECK_FALSE(autoOffDue(14 * 60 * 1000, 15, false, kUsbNeverSeen));  // the limit still applies
+}
+
 namespace {
 
 class FakeDisplay : public hal::Display {
@@ -101,7 +110,8 @@ class FakePower : public hal::Power {
  public:
   int batteryMv() override { return 3900; }
   int batteryPercent() override { return 70; }
-  bool charging() override { return false; }
+  bool charging() override { return chargingNow; }
+  bool chargingNow = false;
   bool usbConnected() override { return usb; }
   bool canLightSleep() override { return true; }
   hal::Wake lightSleep(uint32_t ms) override {
@@ -251,4 +261,33 @@ TEST_CASE("PowerPolicy::idle: the reader has its own, longer auto-off limit") {
   e.clock.ms += 11 * 60 * 1000;
   e.policy.idle(1000);
   CHECK(e.power.offs.size() == 1);
+}
+
+TEST_CASE("PowerPolicy::idle: USB seen once this boot keeps the device on when the host link goes quiet (suspended port)") {
+  Env e;
+  e.os.config().power.autoOffMin = 15;
+  e.power.usb = true;
+  e.policy.idle(1000);        // the host is seen
+  e.power.usb = false;        // the Mac suspends the port: no host on the link
+  e.clock.ms += 40 * 60 * 1000;
+  e.policy.idle(1000);
+  CHECK(e.power.offs.empty());
+  e.clock.ms += 13u * 60 * 60 * 1000;  // but not for ever: after the grace period it switches off
+  e.policy.idle(1000);
+  CHECK(e.power.offs.size() == 1);
+
+  Env b;                      // never saw USB: plain battery behaviour
+  b.os.config().power.autoOffMin = 15;
+  b.clock.ms += 16 * 60 * 1000;
+  b.policy.idle(1000);
+  CHECK(b.power.offs.size() == 1);
+
+  Env c;                      // a charger without a data link counts too
+  c.os.config().power.autoOffMin = 15;
+  c.power.chargingNow = true;
+  c.policy.idle(1000);
+  c.power.chargingNow = false;
+  c.clock.ms += 30 * 60 * 1000;
+  c.policy.idle(1000);
+  CHECK(c.power.offs.empty());
 }

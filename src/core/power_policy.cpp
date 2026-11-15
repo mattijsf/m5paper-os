@@ -21,8 +21,9 @@ uint32_t decideSleep(const SleepInputs& in) {
   return ms;
 }
 
-bool autoOffDue(uint32_t idleMs, int limitMin, bool usbConnected) {
+bool autoOffDue(uint32_t idleMs, int limitMin, bool usbConnected, uint32_t msSinceUsbSeen) {
   if (limitMin <= 0 || usbConnected) return false;
+  if (msSinceUsbSeen != kUsbNeverSeen && msSinceUsbSeen < kUsbGraceMs) return false;
   return idleMs >= static_cast<uint32_t>(limitMin) * 60u * 1000u;
 }
 
@@ -42,7 +43,11 @@ void PowerPolicy::idle(uint32_t maxWaitMs) {
   // Auto-off first: on battery, after the configured idle time (the reader gets a longer limit).
   const bool inReader = os_.surface() && os_.surface()->currentAppId() == "read";
   const int limit = inReader ? cfg.power.autoOffMinReader : cfg.power.autoOffMin;
-  if (autoOffDue(sinceInput, limit, p.power.usbConnected())) {
+  if (p.power.usbConnected() || p.power.charging()) {
+    usbSeen_ = true;
+    usbSeenMs_ = now;
+  }
+  if (autoOffDue(sinceInput, limit, p.power.usbConnected(), usbSeen_ ? now - usbSeenMs_ : kUsbNeverSeen)) {
     powerOffNow();
     return;
   }
