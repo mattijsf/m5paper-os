@@ -1,12 +1,15 @@
 # PaperOS inbox feeds for Home Assistant.  DRAFT: not tested against a live instance yet.
-# Task P6-1 in docs/ROADMAP.md tests and installs it. Contract: docs/BACKEND.md "Inbox feeds".
+# Tasks P6-1..P6-3 in docs/ROADMAP.md test and install it. Contract: docs/BACKEND.md "Inbox feeds".
 #
-# Install: copy to <home-assistant config>/packages/paperos_inbox.yaml (that repo goes live on
-# push: follow its rules). Replace the two phone sensor ids if yours differ.
+# Needs (set up in the Home Assistant UI first):
+#   - "WhatsApp for Home Assistant" add-on + integration (events whatsapp_message_received/_sent)
+#   - IMAP integration pointed at Proton Mail Bridge (event imap_content), text enabled
 #
-# Phone: Home Assistant app > Settings > Companion app > Manage sensors > Notification sensors:
-# enable "Last notification" and "Last removed notification", allow list com.whatsapp and your
-# mail app for both.
+# Install: copy to <home-assistant config>/packages/paperos_inbox.yaml. That repo goes live on
+# push: follow its rules. Replace IMAP_UNREAD_SENSOR below with the real entity id.
+#
+# Field names of the WhatsApp events come from the add-on docs; verify them against real
+# events (Developer tools > Events) before trusting the templates, especially for groups.
 
 recorder:
   exclude:
@@ -14,15 +17,26 @@ recorder:
       - sensor.paperos_whatsapp_inbox
       - sensor.paperos_mail_inbox
 
+script:
+  paperos_inbox_clear:
+    alias: PaperOS inbox clear
+    fields:
+      feed:
+        description: whatsapp or mail
+    sequence:
+      - event: paperos_inbox_clear
+        event_data:
+          feed: "{{ feed }}"
+
 template:
   # ---------------------------------------------------------------- WhatsApp
   - trigger:
-      - trigger: state
-        entity_id: sensor.pixel_9_pro_last_notification
-        id: posted
-      - trigger: state
-        entity_id: sensor.pixel_9_pro_last_removed_notification
-        id: removed
+      - trigger: event
+        event_type: whatsapp_message_received
+        id: received
+      - trigger: event
+        event_type: whatsapp_message_sent
+        id: sent
       - trigger: event
         event_type: paperos_inbox_clear
         event_data:
@@ -36,47 +50,44 @@ template:
         attributes:
           updated: "{{ now().isoformat() }}"
           items: >
-            {% set old = this.attributes.get('items', []) if this is defined and this.attributes is defined else [] %}
+            {% set max_age = 48 * 3600 %}
+            {% set t = now().timestamp() | int %}
+            {% set old = (this.attributes.get('items', []) if this is defined and this.attributes is defined else [])
+                         | selectattr('ts', 'gt', t - max_age) | list %}
             {% if trigger.id == 'clear' %}
               {{ [] }}
+            {% elif trigger.id == 'sent' %}
+              {# the user answered in this chat (from the phone too): it is no longer unread #}
+              {% set d = trigger.event.data %}
+              {{ old | rejectattr('key', 'eq', d.get('group_id') or d.get('to') or d.get('recipient')) | list }}
             {% else %}
-              {% set a = trigger.to_state.attributes %}
-              {% set title = a.get('android.title', '') | string %}
-              {% set is_ours = a.get('package') == 'com.whatsapp' and title not in ['', 'WhatsApp'] %}
-              {% if not is_ours %}
+              {% set d = trigger.event.data %}
+              {% set text = d.get('content', '') | string %}
+              {% if d.get('type') != 'chat' or text == '' %}
                 {{ old }}
               {% else %}
-                {% set parts = title.split(': ', 1) %}
-                {% set chat = parts[0] if parts | count > 1 else '' %}
-                {% set sender = parts[1] if parts | count > 1 else parts[0] %}
-                {% if trigger.id == 'removed' %}
-                  {# the user opened or dismissed this chat on the phone: drop its items #}
-                  {% if chat != '' %}
-                    {{ old | rejectattr('chat', 'eq', chat) | list }}
-                  {% else %}
-                    {{ old | rejectattr('from', 'eq', sender) | list }}
-                  {% endif %}
-                {% else %}
-                  {% set item = {
-                    'id': a.get('post_time', now().timestamp() | int) | string,
-                    'from': sender,
-                    'chat': chat,
-                    'text': (a.get('android.text', trigger.to_state.state) | string)[:500],
-                    'ts': now().timestamp() | int
-                  } %}
-                  {{ ([item] + (old | rejectattr('id', 'eq', item.id) | list))[:25] }}
-                {% endif %}
+                {% set jid = d.get('sender', '') | string %}
+                {% set item = {
+                  'id': (d.get('timestamp', t) | string) ~ '-' ~ (d.get('sender_number', '') | string),
+                  'from': d.get('sender_name') or d.get('sender_number', '?'),
+                  'chat': d.get('group_name', '') if jid.endswith('@g.us') else '',
+                  'text': text[:500],
+                  'ts': d.get('timestamp', t) | int,
+                  'key': jid
+                } %}
+                {{ ([item] + (old | rejectattr('id', 'eq', item.id) | list))[:30] }}
               {% endif %}
             {% endif %}
 
-  # ---------------------------------------------------------------- Mail
+  # ---------------------------------------------------------------- Mail (Proton via Bridge + IMAP)
   - trigger:
+      - trigger: event
+        event_type: imap_content
+        id: mail
       - trigger: state
-        entity_id: sensor.pixel_9_pro_last_notification
-        id: posted
-      - trigger: state
-        entity_id: sensor.pixel_9_pro_last_removed_notification
-        id: removed
+        entity_id: sensor.IMAP_UNREAD_SENSOR
+        to: "0"
+        id: allread
       - trigger: event
         event_type: paperos_inbox_clear
         event_data:
@@ -90,25 +101,23 @@ template:
         attributes:
           updated: "{{ now().isoformat() }}"
           items: >
-            {% set mail_apps = ['ch.protonmail.android', 'com.google.android.gm'] %}
             {% set old = this.attributes.get('items', []) if this is defined and this.attributes is defined else [] %}
-            {% if trigger.id == 'clear' %}
+            {% if trigger.id in ['clear', 'allread'] %}
               {{ [] }}
             {% else %}
-              {% set a = trigger.to_state.attributes %}
-              {% set title = a.get('android.title', '') | string %}
-              {% if a.get('package') not in mail_apps or title == '' %}
+              {% set d = trigger.event.data %}
+              {% if not d.get('initial', true) %}
                 {{ old }}
-              {% elif trigger.id == 'removed' %}
-                {{ old | rejectattr('id', 'eq', a.get('post_time', '') | string) | list }}
               {% else %}
                 {% set item = {
-                  'id': a.get('post_time', now().timestamp() | int) | string,
-                  'from': title,
+                  'id': d.get('uid', '') | string,
+                  'from': d.get('sender', '?') | string,
                   'chat': '',
-                  'text': (a.get('android.text', trigger.to_state.state) | string)[:500],
-                  'ts': now().timestamp() | int
+                  'subject': (d.get('subject', '') | string)[:200],
+                  'text': (d.get('text', '') | string)[:1500],
+                  'ts': as_timestamp(d.get('date'), now().timestamp()) | int,
+                  'key': d.get('entry_id', '') | string
                 } %}
-                {{ ([item] + (old | rejectattr('id', 'eq', item.id) | list))[:25] }}
+                {{ ([item] + (old | rejectattr('id', 'eq', item.id) | list))[:20] }}
               {% endif %}
             {% endif %}

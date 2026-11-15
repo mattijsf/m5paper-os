@@ -64,7 +64,7 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   which is strictly better than deep sleep for long idle. E-ink keeps the image either way.
 - Details and open measurements: `POWER.md`.
 
-## D8. WhatsApp via phone notifications in Home Assistant, not a WhatsApp client
+## D8. WhatsApp via phone notifications in Home Assistant, not a WhatsApp client  (superseded by D16, kept as fallback)
 
 - **Why**: WhatsApp has no API for reading personal messages. The alternatives are unofficial
   WhatsApp Web clients (Baileys, whatsapp-web.js, WAHA) running on a server: against WhatsApp's
@@ -77,7 +77,7 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
 - **Fallback** if the user finds this too limited: a Baileys-based gateway (Phase 8), after
   asking the user.
 
-## D9. Mail via the same notification feed first; full bodies later through a gateway
+## D9. Mail via the same notification feed first; full bodies later through a gateway  (superseded by D17)
 
 - **Why**: the user's address is Proton Mail, which has no IMAP without Proton Mail Bridge, so
   the device cannot fetch mail directly. Notifications give sender + subject today with zero
@@ -88,8 +88,7 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
 ## D10. Home Assistant over REST, not WebSocket
 
 - **Why**: the device is asleep most of the time; a persistent WebSocket would keep Wi-Fi up
-  (150 mA). REST request/response fits "wake, fetch, sleep". Many states are read in one
-  `POST /api/template` call.
+  (150 mA). REST request/response fits "wake, fetch, sleep". How states are read: D18.
 - **Cost accepted**: no live push; the Home app polls every 30 s while in active use.
 
 ## D11. Apps are compiled-in C++ classes with static registration
@@ -121,8 +120,56 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
 - **Why**: reading and lists fit portrait; one layout halves the UI work. Rotation can be added
   later for the reader (landscape two-column is not planned).
 
-## D15. Secrets in `/data/secrets.json`, provisioned over USB serial
+## D15. Secrets in `/data/secrets.json`, provisioned over USB serial  (superseded by D19)
 
 - **Why**: a 180-character token cannot be typed on e-ink. Serial provisioning from a
   gitignored `config.local.json` is one command. Flash encryption is not enabled (it makes
   development and recovery harder); the trade-off is stated in `BACKEND.md`.
+
+## D16. WhatsApp through a Home Assistant add-on. Supersedes D8
+
+- **Decision**: the user declined the phone-notification route and asked for a Home Assistant
+  plugin that reads the messages and stores them, so the device only reads a small list.
+  Chosen: "WhatsApp for Home Assistant" by FaserF (add-on + `whatsapp` integration, Baileys
+  based, links to the account like WhatsApp Web). It fires `whatsapp_message_received`; a
+  trigger-based template sensor keeps the recent items (`ha/paperos_inbox.yaml`).
+- **Why this one**: actively documented, runs as an HA OS add-on, exposes incoming messages as
+  events with sender name and text, also reports the user's own replies (used to drop answered
+  chats). Alternatives seen: WAHA add-on / `ha-waha` (alpha, text only), older Baileys add-on
+  forks (`new_whatsapp_message` event, unclear maintenance), Whinself (webhook based).
+- **Risk the user accepted**: unofficial client on the personal account; the add-on's own docs
+  warn of possible bans. PaperOS use is read-only. Checks and the warning to repeat at install
+  time are in `BACKEND.md`. D8 stays documented as the zero-risk fallback: same sensors, same
+  device code, only the triggers in the package change.
+- **Not verified**: event fields for groups, effect on phone notifications. Task P6-1.
+
+## D17. Proton Mail through Bridge + Home Assistant's IMAP integration. Supersedes D9
+
+- **Decision**: Proton Mail
+  Bridge runs where Home Assistant can reach it; the core IMAP integration fires `imap_content`
+  per new mail; a template sensor keeps the newest 20 with a 1500-character excerpt; the full
+  text is fetched on demand through the `imap.fetch` action. No custom gateway.
+- **Why**: uses a core integration for the mail logic (MIME, IDLE push); only Bridge is extra.
+- **Open**: how to run Bridge on HA OS. The known community add-on documents itself as
+  send-only; a small local add-on wrapping the `protonmail-bridge` image is the likely answer.
+  Needs a paid Proton plan and an interactive login with 2FA. Task P6-2.
+- **Rejected**: Proton notification text only (no body); `hydroxide` (its IMAP is marked
+  work-in-progress); a separate gateway service (more to host than a Bridge add-on).
+
+## D18. Home Assistant access: dedicated non-admin user, LAN URL, per-entity reads
+
+- **Why**: the home-assistant repo's standing rule is that other devices never get the admin
+  token (the TV app has its own non-admin user). `POST /api/template` (one-call batch read)
+  and firing events need admin, so they are not used: states are read with
+  `GET /api/states/<id>` over a kept-alive connection, and "mark all read" goes through a
+  script service. The LAN `http://` address avoids TLS cost on the device.
+- **To measure** in P5-2: if a tab takes more than 3 s, add an aggregate template sensor on the
+  Home Assistant side (BACKEND.md).
+
+## D19. Secrets come from `/sd/paperos_config` (KEY=VALUE). Supersedes D15
+
+- **Why**: the owner put the Home Assistant token there (`HA_TOKEN=`, 183 characters, checked on
+  the device by key name and length only). Reading the file at boot is simpler than importing
+  it or provisioning over serial, and the card is as readable as the internal flash anyway.
+- The device never writes, logs or displays the values. Optional keys: `HA_URL`, `WIFI_SSID`,
+  `WIFI_PASSWORD`. Details: `apps/settings.md`.

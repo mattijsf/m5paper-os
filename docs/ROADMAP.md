@@ -53,8 +53,8 @@ DisplayManager, and the simulator can run scripts and compare screenshots.
   HARDWARE.md, 25 MHz) and LittleFS at `/littlefs` (format on first boot); log sizes.
   Done when: `make fw` passes; on the device the demo shows, taps log coordinates, the boot log
   prints SD and LittleFS sizes, a file written to `/data/test.txt` survives a reboot.
-  Device check: all of the above (needs an SD card inserted for the SD part; without one the
-  boot log must say "no SD card" and continue).
+  Device check: all of the above. A 64 GB card is in the device and mounts with the spike's
+  code (HARDWARE.md); without a card the boot log must say "no SD card" and continue.
 
 - [ ] **P1-3 DisplayManager.**
   Read: DISPLAY.md (all).
@@ -195,12 +195,16 @@ simulator first; each task ends with screenshots.
   Device check: HTTPS GET to a public site works; connect time and heap logged; Wi-Fi goes off
   after the linger time.
 
-- [ ] **P3-3 Secrets, provisioning, serial commands.**
-  Read: apps/settings.md (Provisioning), BACKEND.md (Connection).
-  Do: `core/secrets`; serial line reader on the device (`>cmd args`): `>provision <base64>`,
-  `>get config`, `>reboot`, `>log`; `tools/provision.py`; SD import at boot;
-  `config.local.example.json`.
-  Done when: `tools/provision.py` round-trips on the device; secrets never appear in logs.
+- [ ] **P3-3 Secrets from the SD card, serial commands.**
+  Read: apps/settings.md (Secrets and provisioning), BACKEND.md (Connection), DECISIONS.md D19.
+  Do: `src/core/secrets.{h,cpp}`: parse `/sd/paperos_config` (KEY=VALUE) at boot, `get(key)`,
+  `has(key)`; never log values. Net service tries `WIFI_SSID`/`WIFI_PASSWORD` first. Serial
+  line reader on the device (`>cmd args`): `>status` (key names + lengths, Wi-Fi, heap),
+  `>reboot`, `>log`. Simulator reads `sim-data/sd/paperos_config`.
+  Tests: parser (comments, blank lines, CRLF, `=` inside the value, missing file).
+  Done when: unit tests pass; `>status` on the device lists `HA_TOKEN(183)` and no value; a
+  grep of the firmware log for the first 8 characters of the token finds nothing (do the grep
+  with a script that reads the token from the simulator copy without printing it).
 
 - [ ] **P3-4 PowerPolicy: idle sleep and auto-off.**
   Read: POWER.md (Idle rules, Auto-off).
@@ -228,6 +232,15 @@ simulator first; each task ends with screenshots.
 
 ## Phase 4: Reader
 
+- [ ] **P4-0 Push files to the SD card over USB.** Depends on P3-3 (serial commands).
+  Do: serial command `>put <path> <size> <crc32>` followed by raw bytes in 4 KB chunks with an
+  ACK per chunk (writes to `<path>.part`, renames when the CRC matches; only under `/sd/books/`
+  and `/sd/paperos/`, never `paperos_config`); `>ls <dir>`, `>rm <path>` with the same path
+  limits; `tools/push.py <file>... [--to /sd/books/]`; `make books` = fetch + push all.
+  Done when: all six books from `tools/fetch-books.sh` are on the card and `>ls /sd/books`
+  shows matching sizes. Target speed at least 100 KB/s (2 MB of books under 30 s).
+  Alternative for the user at any time: take the card out and copy files into `/books/`.
+
 - [ ] **P4-1 TXT reading.** Read: apps/reader.md. Page screen with touch zones, pagination via
   TextBlock, progress save/restore, footer. Put a public-domain TXT in `sim-data/sd/books/`.
   Done when: `tests/ui/reader.script` turns 5 pages with `expect-no-quality`; position survives
@@ -249,14 +262,19 @@ simulator first; each task ends with screenshots.
 
 ## Phase 5: Home (Home Assistant)
 
-- [ ] **P5-1 HA client.** Read: BACKEND.md. `apps/home/ha_client` (or `core/ha` since inbox
-  uses it too: put it in `src/core/ha.{h,cpp}`): `get(path)`, `post(path, json)`, error
-  mapping (no Wi-Fi, timeout, 401, other), Settings > Home Assistant "Test connection".
-  Fixtures for each case.
-- [ ] **P5-2 States via template, `home.json`.** Template builder, response parser, default
-  `home.json` (complete the Avond scene from the dashboard repo), verify every entity id and
-  the template against the live instance (needs the token in
-  `sim-data/data/secrets.json`; ask the owner if it is missing). Unit tests.
+- [ ] **P5-1 HA client.** Read: BACKEND.md, DECISIONS.md D18. `src/core/ha.{h,cpp}` (the inbox
+  uses it too): `get(path)`, `post(path, json)`, `callService(domain, service, json,
+  wantResponse)`, kept-alive connection, error mapping (no token, no Wi-Fi, timeout, 401,
+  other), Settings > Home Assistant "Test connection". Fixtures for each case.
+  Ask the owner (once): which Home Assistant user does the token on the card belong to? It
+  should be a dedicated non-admin user; and what LAN URL to use (`HA_URL` on the card).
+  Device check: "Test connection" succeeds from the device on the home Wi-Fi.
+- [ ] **P5-2 States and `home.json`.** Per-entity state reads (visible tab first), response
+  parser to item view models, default `home.json` (complete the Avond scene from the dashboard
+  repo). Verify every entity id against the live instance from the simulator
+  (`--fixtures none`, token in `sim-data/sd/paperos_config`: ask the owner to copy the file
+  from the card or add one; never print it). Measure the time for the Lights tab on the device;
+  above 3 s, add the aggregate sensor described in BACKEND.md. Unit tests.
 - [ ] **P5-3 Lights tab.** Rows with Toggle and LevelBar, optimistic updates, service calls,
   failure revert + toast. Goldens with fixtures.
 - [ ] **P5-4 Climate and More tabs, member sheet, scenes.** Goldens.
@@ -265,15 +283,35 @@ simulator first; each task ends with screenshots.
 
 ## Phase 6: Inbox (WhatsApp, Mail)
 
-- [ ] **P6-1 Home Assistant package.** Read: BACKEND.md (Inbox feeds). Needs the owner: enable
-  the phone sensors, confirm entity ids and mail app. Test the templates in HA Developer tools,
-  then install `ha/paperos_inbox.yaml` in the home-assistant repo following that repo's rules.
-  Done when: a real WhatsApp message appears in `sensor.paperos_whatsapp_inbox` and disappears
-  when read on the phone; record real attribute samples (redacted) in `tests/fixtures/http/`.
-- [ ] **P6-2 Inbox app.** Read: apps/inbox.md. List, grouping, detail, cache, errors, both
-  registrations. Goldens with fixtures. (Can be built before P6-1 from the contract.)
-- [ ] **P6-3 Badges and mark-all-read.** Seen marker, launcher badge, clear event.
-- [ ] **P6-4 Text clean-up.** Emoji handling, long words, links shortened to the host name.
+P6-4 to P6-6 (the device app) need only the feed contract and can be done first. P6-1 to P6-3
+change the user's Home Assistant: each needs the owner present, and each follows the
+home-assistant repo's own rules. Read BACKEND.md fully before any of them.
+
+- [ ] **P6-1 WhatsApp add-on in Home Assistant.** Needs the owner (QR scan with the phone).
+  Before installing, repeat the terms-of-service warning from BACKEND.md and get a clear yes.
+  Do: add the add-on repository, install and start the WhatsApp add-on, link the account,
+  install the `whatsapp` integration. Checks: (1) phone still gets WhatsApp notifications
+  while the add-on is connected; (2) capture `whatsapp_message_received` for a direct and a
+  group message and `whatsapp_message_sent` for a reply (Developer tools > Events); save
+  redacted samples in `tests/fixtures/ha-events/`; (3) auto-responder, bot commands and
+  mark-as-read are off. Record what was installed in the home-assistant repo's HANDOVER.md.
+  Done when: the three checks are written down in STATUS.md with their results.
+- [ ] **P6-2 Proton Mail Bridge + IMAP integration.** Needs the owner (Proton login, 2FA).
+  Do: find how to run Bridge for Home Assistant (options a/b/c in BACKEND.md; say what will be
+  installed where before doing it), configure the IMAP integration, enable message text,
+  confirm an `imap_content` event for a test mail, try `imap.fetch` with `?return_response`
+  over REST with the device token and save a redacted fixture.
+  Done when: event and fetch samples are saved; setup recorded in HANDOVER.md.
+- [ ] **P6-3 Install the inbox package.** Fix `ha/paperos_inbox.yaml` against the real samples
+  (group names, entity ids), test both templates in Developer tools > Template, install into
+  the home-assistant repo per its rules, verify: a new WhatsApp message and a new mail appear
+  in the sensors within seconds; answering the chat removes its items; reading all mail empties
+  the mail list; `script.paperos_inbox_clear` works with the device token.
+- [ ] **P6-4 Inbox app.** Read: apps/inbox.md. List, grouping, chat detail, mail detail with
+  full-text fetch, cache, errors, link-down notice, both registrations. Goldens with fixtures.
+- [ ] **P6-5 Badges and mark-all-read.** Seen marker, launcher badge, clear via the script.
+- [ ] **P6-6 Text clean-up.** `core/text_clean`: HTML to text, entities, emoji, long words,
+  links shortened to the host name. Unit tests.
 
 ## Phase 7: Polish
 
@@ -290,8 +328,9 @@ simulator first; each task ends with screenshots.
 
 ## Phase 8: Optional, ask the owner first
 
-- [ ] **P8-1 Mail gateway** for full mail text (BACKEND.md, DECISIONS.md D9).
-- [ ] **P8-2 WhatsApp gateway** if the notification feed proves too limited (D8).
+- [ ] **P8-1 Notification-sensor feeds** (DECISIONS.md D8) as a replacement if the WhatsApp
+  add-on proves unreliable or risky: only the package triggers change.
+- [ ] **P8-2 Aggregate Home sensor** in Home Assistant if per-entity reads are too slow (D18).
 
 ---
 
@@ -306,8 +345,8 @@ simulator first; each task ends with screenshots.
 | Fast | Fast-then-settle (D6), cache-first apps, fast resume (P3-6) |
 | Fits the device | budgets in ARCHITECTURE.md (firmware < 3 MB of 5 MB slot) |
 | Testable with and without device | SIMULATOR.md; P1-4, P1-5, P7-2 |
-| E-books | P4 |
+| E-books | P4; open books fetched by `tools/fetch-books.sh`, pushed to the card in P4-0 |
 | Easy to add apps | APPS.md; P2-4, P2-5 |
-| WhatsApp unread | P6 (via Home Assistant notifications, D8) |
-| Recent mail | P6 (sender + subject; full text P8-1) |
+| WhatsApp unread | P6 (Home Assistant WhatsApp add-on, D16) |
+| Recent mail | P6 (Proton via Bridge + IMAP integration, full text on demand, D17) |
 | Home Assistant control | P5 |

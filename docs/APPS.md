@@ -73,7 +73,7 @@ keep (`ctx.store`) in `onStop()`/`onHide()`. Power-off calls `onStop()` first.
 | `ctx.http(request, onDone)` | convenience over `async`: brings Wi-Fi up, performs the request, applies the Wi-Fi linger policy |
 | `ctx.store` | per-app key/value JSON persisted at `/data/apps/<id>.json`: `get<T>(key, default)`, `set(key, value)`, `save()` |
 | `ctx.config` | read-only system settings (`config.json`) |
-| `ctx.secrets` | read-only secrets by key (`ha.token`) |
+| `ctx.secrets` | read-only secrets by key (`HA_TOKEN`), from `/sd/paperos_config` |
 | `ctx.cache` | `read(name)`, `write(name, text)` under `/data/cache/<id>/`: show stale data first |
 | `ctx.timer(ms, fn)` | one-shot timer on the UI thread; cancelled with the screen |
 | `ctx.toast(text)` | 3 s message |

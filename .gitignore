@@ -4,6 +4,7 @@
 out/
 backup/
 shot*.png
-# secrets: device config with Wi-Fi password and Home Assistant token
-config.local.json
-sim-data/config/secrets.json
+# simulator SD card: downloaded books (tools/fetch-books.sh) and paperos_config with the
+# Home Assistant token and Wi-Fi password
+sim-data/sd/
+sim-data/data/wifi.json

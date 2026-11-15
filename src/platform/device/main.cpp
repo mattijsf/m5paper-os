@@ -3,6 +3,8 @@
 
 #include <Arduino.h>
 #include <M5Unified.h>
+#include <SD.h>
+#include <SPI.h>
 
 #include "core/demo.h"
 #include "core/gfx.h"
@@ -12,6 +14,9 @@ using namespace pos;
 static Canvas canvas;
 static uint32_t bootRefreshMs = 0;
 static uint32_t bench[6] = {0};
+static bool sdOk = false;
+static String cfgKeys = "(not read)";
+static uint32_t sdSizeMb = 0, sdFreeMb = 0;
 
 static void pushRect(const Rect& r, Refresh mode) {
   auto epd = mode == Refresh::Quality ? lgfx::epd_quality : mode == Refresh::Text ? lgfx::epd_text : lgfx::epd_fast;
@@ -35,6 +40,34 @@ void setup() {
                 (unsigned)ESP.getFreePsram(), (unsigned)ESP.getFlashChipSize(), (unsigned)ESP.getFreeHeap());
   Serial.printf("[boot] battery=%dmV level=%d%% charging=%d\n", (int)M5.Power.getBatteryVoltage(),
                 (int)M5.Power.getBatteryLevel(), (int)M5.Power.isCharging());
+
+  // SD card check (pins: docs/HARDWARE.md). Mounted at /sd.
+  SPI.begin(39, 40, 38, 47);
+  sdOk = SD.begin(47, SPI, 25000000, "/sd");
+  if (sdOk) {
+    sdSizeMb = (uint32_t)(SD.totalBytes() / (1024 * 1024));
+    sdFreeMb = (uint32_t)((SD.totalBytes() - SD.usedBytes()) / (1024 * 1024));
+  }
+  Serial.printf("[boot] sd=%d type=%d size=%uMB free=%uMB\n", (int)sdOk, (int)SD.cardType(), (unsigned)sdSizeMb,
+                (unsigned)sdFreeMb);
+
+  // Provisioning file check: report key names and value lengths only, never values.
+  if (sdOk) {
+    File f = SD.open("/paperos_config", FILE_READ);
+    if (!f) {
+      cfgKeys = "(file missing)";
+    } else {
+      cfgKeys = "";
+      while (f.available()) {
+        String line = f.readStringUntil('\n');
+        line.trim();
+        int eq = line.indexOf('=');
+        if (line.length() == 0 || line[0] == '#' || eq <= 0) continue;
+        cfgKeys += line.substring(0, eq) + "(" + String(line.length() - eq - 1) + ") ";
+      }
+      f.close();
+    }
+  }
 
   canvas.setPsram(true);
   canvas.setColorDepth(lgfx::color_depth_t::grayscale_8bit);
@@ -99,6 +132,8 @@ void loop() {
                   (int)M5.Display.height(),
                   (unsigned)ESP.getFreePsram(), (unsigned)ESP.getPsramSize(), (unsigned)ESP.getFreeHeap(),
                   (int)M5.Power.getBatteryVoltage(), (int)M5.Power.getBatteryLevel(), (int)M5.Power.isCharging());
+    Serial.printf("[sd] ok=%d size=%uMB free=%uMB config keys(len): %s\n", (int)sdOk, (unsigned)sdSizeMb,
+                  (unsigned)sdFreeMb, cfgKeys.c_str());
     Serial.printf("[bench] textFull=%u textRow=%u fastBoxOn=%u fastBoxOff=%u fastFull=%u qualityFull=%u\n",
                   (unsigned)bench[0], (unsigned)bench[1], (unsigned)bench[2], (unsigned)bench[3],
                   (unsigned)bench[4], (unsigned)bench[5]);

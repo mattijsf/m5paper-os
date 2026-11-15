@@ -91,8 +91,16 @@ Progress is saved on every 5th page turn and in `onStop()`.
 - Unit (`tests/unit/`): zip reader on a small fixture EPUB; XHTML tokenizer (entities, nested
   tags, malformed input must not crash); pagination (no line wider than the column, page offsets
   strictly increasing, last page ends at chapter end, re-pagination keeps position).
-- UI: `tests/ui/reader.script` with `sim-data/sd/books/` containing one public-domain EPUB
-  (Project Gutenberg, small) and one TXT. Shots: library, first page, after 3 turns, menu.
+- UI: `tests/ui/reader.script` runs against a **generated** fixture book (built by a script in
+  `tests/unit/fixtures/`, committed), so goldens never depend on downloads. Shots: library,
+  first page, after 3 turns, menu.
+- Real books for manual testing: `tools/fetch-books.sh` downloads five public-domain EPUBs and
+  one TXT from Project Gutenberg into `sim-data/sd/books/` (not committed): Pride and
+  Prejudice, Sherlock Holmes, Frankenstein, Alice in Wonderland (EPUB3), Max Havelaar (Dutch,
+  accented characters), The Time Machine (TXT). Every one of them must open, paginate to the
+  end without a crash, and show its title and author (task P4-4 acceptance).
+- Getting books onto the device card: `tools/push.py` over USB (task P4-0), or take the card
+  out and copy the files into `/books/` with a computer.
 - Device check: page turn time (target under 0.6 s to readable text), ghosting after 10 turns,
   open time for a cached 1 MB EPUB (target under 1.5 s).
 

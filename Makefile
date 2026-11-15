@@ -5,7 +5,7 @@ PIO   ?= $(shell command -v pio || echo $(HOME)/.local/bin/pio)
 SIM   := .pio/build/sim/program
 PORT  ?= $(firstword $(wildcard /dev/cu.usbmodem*))
 
-.PHONY: help sim run shot fw flash monitor backup clean check
+.PHONY: help sim run shot fw flash monitor backup books clean check
 
 help:
 	@echo "make sim      build the simulator"
@@ -15,6 +15,7 @@ help:
 	@echo "make flash    build + flash the device (PORT=$(PORT))"
 	@echo "make monitor  serial log from the device"
 	@echo "make backup   read the whole device flash to backup/flash-16MB.bin"
+	@echo "make books    download public-domain test books into sim-data/sd/books/"
 	@echo "make check    what must pass before a task is done: sim build, headless shot, firmware build"
 
 sim:
@@ -39,6 +40,9 @@ monitor:
 backup:
 	@mkdir -p backup
 	$(HOME)/.platformio/penv/bin/esptool --port $(PORT) --baud 921600 read-flash 0 0x1000000 backup/flash-16MB.bin
+
+books:
+	tools/fetch-books.sh
 
 check: shot fw
 

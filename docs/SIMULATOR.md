@@ -92,7 +92,7 @@ example: POST_ha.local_api_template.json, GET_ha.local_api_states_sensor.paperos
 A `<name>.status` file next to it can hold a status code (to test errors). Unknown requests
 return status 0 with error "no fixture" and are listed at exit so missing fixtures are obvious.
 With `--fixtures none` the simulator uses the real network through libcurl and the real
-`sim-data/data/secrets.json` (not in git).
+`sim-data/sd/paperos_config` (not in git).
 
 ### E-ink emulation and the refresh log
 

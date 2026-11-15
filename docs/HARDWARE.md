@@ -17,7 +17,7 @@ version 0.3.0 (in `.pio/libdeps/papers3/`), **measured** = read from our own dev
 | RTC | BM8563, I2C 0x51, alarm can power the board on | docs |
 | IMU | BMI270, I2C 0x68 | docs |
 | Battery | 3.7 V 1800 mAh LiPo, charger LGS4056H (~330 mA), no fuel gauge: voltage via ADC only | docs |
-| Storage | microSD slot (SPI) | docs |
+| Storage | microSD slot (SPI). The 64 GB card in the device mounts with Arduino `SD.begin(47, SPI, 25000000, "/sd")` after `SPI.begin(39, 40, 38, 47)` | docs, measured |
 | Sound | passive buzzer | docs |
 | Power controller | PMS150G microcontroller: handles the side button, power on/off, download mode | docs |
 | USB | USB-C, native USB serial/JTAG (shows up as `/dev/cu.usbmodem*`, VID:PID 303A:1001) | measured |

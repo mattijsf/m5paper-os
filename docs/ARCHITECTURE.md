@@ -48,7 +48,7 @@ src/
   platform/sim/       main.cpp + HAL implementations on SDL/host
   gen/                generated fonts and icon tables. Never edit by hand (tools/gen-assets.sh)
 assets/               source TTF fonts, icon list
-tools/                asset generation, UI test runner, provisioning script
+tools/                asset generation, UI test runner, book fetch, USB file push
 tests/
   ui/                 simulator scripts (*.script) and golden screenshots
   fixtures/http/      canned HTTP responses for offline simulator runs
@@ -170,9 +170,10 @@ mounted at `/sd` and LittleFS at `/littlefs` through the ESP-IDF VFS, so `fopen`
 ```
 /sd/books/                    EPUB and TXT files the user copies onto the card
 /sd/books/.paperos/<id>/      per-book cache: page index, extracted cover, progress
-/sd/paperos/secrets.json      optional: imported into /data on boot, then deleted (provisioning)
+/sd/paperos_config            secrets, KEY=VALUE: HA_TOKEN, HA_URL, WIFI_SSID, WIFI_PASSWORD (read-only for us)
+/sd/paperos/home.json         optional override of the Home app layout
 /data/config.json             settings (no secrets)
-/data/secrets.json            Wi-Fi passwords, Home Assistant token
+/data/wifi.json               Wi-Fi networks added on the device
 /data/home.json               Home app layout (tiles -> entities), see docs/apps/home.md
 /data/cache/                  last fetched feeds, so apps can show stale data instantly
 /data/log.txt                 ring log, capped

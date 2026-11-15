@@ -1,26 +1,34 @@
 # Backend: Home Assistant is the hub
 
-The device talks to exactly one server: the user's Home Assistant. It is used for
+The device talks to exactly one server: the user's Home Assistant (HA OS 2026.10, with add-ons
+and HACS). Home Assistant does the heavy work; the device only reads small JSON documents.
 
-1. controlling the house (Home app), and
-2. the **inbox feeds**: recent WhatsApp messages and mails, which Home Assistant collects from
-   the notifications of the user's Android phone.
+1. **Home app**: read entity states, call services.
+2. **WhatsApp inbox**: a Home Assistant add-on is linked to the user's WhatsApp account and
+   fires an event per incoming message; a template sensor keeps the recent ones.
+3. **Mail inbox**: Proton Mail Bridge exposes the mailbox over IMAP; Home Assistant's IMAP
+   integration fires an event per new mail; a template sensor keeps the recent ones.
 
-One URL, one token, one TLS setup, nothing new to host. Why not talk to WhatsApp or the mail
-server directly: see `DECISIONS.md` D8 and D9.
+The device never speaks WhatsApp or IMAP. It reads two sensors. The reasons and the rejected
+alternatives are in `DECISIONS.md` D16 and D17.
+
+```
+WhatsApp servers <--linked device--> [WhatsApp add-on] --event--> [template sensor] --+
+Proton Mail <--> [Proton Bridge] <--IMAP--> [HA IMAP integration] --event--> [sensor] +--> REST --> PaperOS
+lights, climate, switches ---------------------------------------------- states ------+
+```
 
 ## Connection
 
 | Setting | Where | Notes |
 |---|---|---|
-| Base URL | `config.json` `ha.baseUrl` | The public HTTPS address is set by the user. On the home network a plain `http://<ip>:8123` URL is faster and needs no TLS; then the token crosses the LAN unencrypted. Default: HTTPS. |
-| Token | `secrets.json` `ha.token` | Long-lived access token: HA > profile > Security > Long-lived access tokens. Name it "PaperOS". |
-| TLS | device: Arduino `NetworkClientSecure` with the built-in CA bundle (`setCACertBundle`); sim: libcurl | no certificate pinning |
+| Token | `/sd/paperos_config`, line `HA_TOKEN=...` | Present on the device's SD card (183 characters, checked 2026-11-15). See `apps/settings.md` "Provisioning". |
+| Base URL | `/sd/paperos_config` `HA_URL=...`, else `config.json` `ha.baseUrl` | Use the LAN address with plain `http://`: no TLS handshake, faster, less RAM. The device is only useful for this at home anyway. The public HTTPS address also works (CA bundle), slower. |
+| User | a dedicated **non-admin** Home Assistant user | The home-assistant repo's standing rule: never put the Mac's admin token on other devices (the TV app has its own non-admin user). The design below needs no admin rights. Which user the current token belongs to is not known: confirm with the owner in task P5-1. |
 
 Every request carries `Authorization: Bearer <token>` and `Content-Type: application/json`.
-The token is stored in plain text in the device flash (`/data/secrets.json`): anyone holding the
-device and a USB cable can read it. If that matters, create a separate Home Assistant user for
-the device and make the token there; revoke it in HA if the device is lost.
+The token sits in plain text on the SD card: whoever holds the device can read it. Revoke it in
+Home Assistant (profile > Security) if the device is lost.
 
 ## API calls used
 
@@ -29,113 +37,145 @@ the device and make the token there; revoke it in HA if the device is lost.
 | Test | `GET /api/` | `{"message":"API running."}` |
 | One entity | `GET /api/states/<entity_id>` | `{"entity_id","state","attributes":{...},"last_changed"}` |
 | Call a service | `POST /api/services/<domain>/<service>` body `{"entity_id":"light.x","brightness_pct":60}` | `200` + list of changed states |
-| Many states in one request | `POST /api/template` body `{"template":"..."}` | rendered text (we make it JSON) |
-| Fire an event | `POST /api/events/<event_type>` body `{...}` | `200` |
+| Service with a response | `POST /api/services/<domain>/<service>?return_response` | `{"changed_states":[...],"service_response":{...}}` |
+| Fire an event | `POST /api/events/<event_type>` body `{...}` | `200` (needs admin: see "Mark all read" below) |
 
-### Reading many states
+### Reading the Home app's states
 
-`GET /api/states` returns every entity (hundreds of KB): too slow and too big. The Home app
-instead renders a template that returns only what it needs, as compact JSON:
+`GET /api/states` returns every entity (hundreds of KB): not used. `POST /api/template` would
+give everything in one call but needs an admin token: not used.
 
-```jinja
-{% set ids = ['light.lounge','light.lounge_relative','sensor.outdoor_temperature'] %}
-{% set ns = namespace(o={}) %}
-{% for id in ids %}{% set s = states[id] %}{% if s %}
-{% set ns.o = dict(ns.o, **{id: {'s': s.state,
-   'b': s.attributes.brightness, 'm': s.attributes.entity_id,
-   't': s.attributes.temperature, 'c': s.attributes.current_temperature,
-   'u': s.attributes.unit_of_measurement}}) %}
-{% endif %}{% endfor %}{{ ns.o | tojson }}
-```
+v1: one `GET /api/states/<id>` per entity in `home.json`, sequentially over one kept-alive HTTP
+connection (about 30 entities; expected 1 to 2 s on the LAN). Only the visible tab's entities
+are fetched first; the other tabs follow in the background.
 
-Result: `{"light.lounge":{"s":"on","b":153,"m":["light.a","light.b"],...}, ...}`. `ids` is built
-from `home.json` (entities, groups and members). Null attributes are simply absent or null.
-
-Caveats to verify in task P5-2 (HA > Developer tools > Template first, then over the API):
-
-- `POST /api/template` needs an **administrator** token. With a non-admin token it returns 401:
-  then fall back to one `GET /api/states/<id>` per entity over a kept-alive connection (slower,
-  ~50 ms each on the LAN). Implement the fallback only if the user chooses a non-admin user.
-- The `dict(a, **b)` idiom must work in the installed HA version; if not, build the JSON by
-  string concatenation with `tojson` per value.
+If task P5-2 measures more than 3 s for a tab, add an aggregate sensor to the Home Assistant
+package: a template sensor `sensor.paperos_home` whose attribute `states` holds
+`{entity_id: {s, b, ...}}` for the listed entities, so the device needs one request. Do not
+build this before measuring.
 
 ## Inbox feeds
 
-### How messages get into Home Assistant
-
-The Home Assistant Android app has a **Last Notification** sensor and a **Last Removed
-Notification** sensor (App > Settings > Companion app > Manage sensors > Notification sensors).
-With an allow list they report notifications from chosen apps only:
-
-- state = notification text; attributes include `android.title` (sender, or "Group: Sender"),
-  `android.text`, `package`, `post_time`, `category`, `group_id`, `is_clearable`.
-- They need the "notification access" permission on the phone.
-- Source: https://companion.home-assistant.io/docs/core/sensors/ (Notification sensors).
-
-Phone setup (once, by the user, on the Pixel that receives the messages):
-
-1. Enable both sensors.
-2. Allow list for both: `com.whatsapp` and the mail app (`ch.protonmail.android` for Proton
-   Mail, `com.google.android.gm` for Gmail).
-3. Note the entity ids (expected `sensor.pixel_9_pro_last_notification` and
-   `sensor.pixel_9_pro_last_removed_notification`; check in HA > Settings > Entities).
-
-### How Home Assistant stores them
-
-A package (`ha/paperos_inbox.yaml` in this repo, a **draft** to be tested in task P6-1) defines
-two trigger-based template sensors that keep the newest 25 items in an attribute:
+Both feeds have the same shape so the device has one implementation (`apps/inbox.md`).
 
 | Entity | state | attributes |
 |---|---|---|
-| `sensor.paperos_whatsapp_inbox` | number of items | `items`: list, newest first; `updated`: ISO time |
-| `sensor.paperos_mail_inbox` | number of items | same |
+| `sensor.paperos_whatsapp_inbox` | unix time of last change | `items`: list, newest first, max 30; `updated` |
+| `sensor.paperos_mail_inbox` | unix time of last change | `items`: list, newest first, max 20; `updated` |
 
-Item shape (the **feed contract** between Home Assistant and the device):
+Item (the **feed contract**):
 
 ```json
-{ "id": "1763200000123", "from": "Anna", "chat": "Family", "text": "Are you coming at six?", "ts": 1763200000 }
+{ "id": "1763200000-31612345678", "from": "Anna", "chat": "Family", "text": "Are you coming at six?",
+  "ts": 1763200000, "key": "31612345678@s.whatsapp.net" }
 ```
 
-- `id`: `post_time` of the notification (unique enough, sortable).
-- `from`: sender. `chat`: group name or empty. WhatsApp titles look like `Sender` or
-  `Group: Sender`; the template splits on the first `": "`.
-- `text`: notification text, cut to 500 characters. For mail: the subject (and the snippet when
-  the mail app includes one).
-- An item is **removed** when the phone removes the notification (the user read the chat on the
-  phone, or dismissed it): the removed-notification trigger drops all items of the same chat.
-  So the list is "recent and still unread on the phone", which is what was asked for.
-- A `paperos_inbox_clear` event with `{"feed":"whatsapp"}` empties a feed (the device's
-  "Mark all read" button fires it).
+| Field | WhatsApp | Mail |
+|---|---|---|
+| `id` | timestamp + sender number | IMAP uid |
+| `from` | sender display name | sender address/name |
+| `chat` | group name, or empty for a direct chat | empty |
+| `subject` | absent | mail subject |
+| `text` | message text, max 500 chars | start of the body as plain text, max 1500 chars |
+| `ts` | unix seconds | unix seconds |
+| `key` | chat id (JID): used to drop a chat's items | IMAP config entry id: used to fetch the full text |
 
-Summary notifications ("5 messages from 2 chats", title `WhatsApp`) are ignored by a condition
-in the template. Messages in muted chats never produce a notification and never appear: accepted.
+The package that defines both sensors is `ha/paperos_inbox.yaml` (**draft**, tested in task P6-3).
+
+### WhatsApp: "WhatsApp for Home Assistant" (FaserF)
+
+- Docs: https://faserf.github.io/ha-whatsapp/ . Two parts: an add-on ("App", from the add-on
+  repository `https://github.com/FaserF/hassio-addons`) that holds the WhatsApp connection
+  using the Baileys library, and the `whatsapp` integration that talks to it.
+- Linking: the add-on shows a QR code; scan it in WhatsApp > Linked devices. It then behaves
+  like WhatsApp Web: one more linked device on the user's own account.
+- Incoming messages fire the event **`whatsapp_message_received`** with: `type` (`chat` for
+  text), `sender` (JID: `...@s.whatsapp.net` person, `...@g.us` group), `sender_number`,
+  `sender_name`, `content`, `timestamp`, `media_url`.
+- The user's own replies (from the phone too) fire **`whatsapp_message_sent`** with `to` /
+  `recipient` (JID), `is_group`, `group_id`, `content`, `id`.
+- "Unread": WhatsApp gives a linked device no reliable "read on the phone" signal through this
+  integration. The feed therefore holds **recent messages** and drops a chat's items when the
+  user answers in that chat (`whatsapp_message_sent` to the same JID), when the device's "Mark
+  all read" is used, or when they are older than 48 hours.
+
+Risks and checks (task P6-1). **These need the owner's attention before installing:**
+
+1. **Terms of service.** The add-on is an unofficial client. Its own docs warn that automated
+   use "may violate their Terms of Service and lead to a permanent account ban" and recommend
+   a second number. Reading the user's personal messages requires linking the *personal*
+   account. PaperOS only reads and never sends through it, which is the lowest-risk use, but
+   the risk is not zero and it is the user's account. The owner chose this route on 2026-11-15
+   after the risk-free alternative (phone notification sensors, `DECISIONS.md` D8) was offered;
+   repeat this warning once at install time.
+2. **Phone notifications.** A linked device that reports itself "online" can stop WhatsApp
+   from pushing notifications to the phone. After linking, send a test message from another
+   account and confirm the phone still notifies. If not, set the add-on's presence to
+   unavailable (its API has `POST /set_presence`) or find its "mark online" option.
+3. **Never** enable the add-on's auto-responder, bot commands, or "mark as read" features.
+4. The link drops if the phone is offline for 14 days or WhatsApp is reinstalled: the feed
+   then silently stops. The integration has a connection `binary_sensor`; the inbox app shows
+   "WhatsApp link is down" when it is off (fetch it along with the feed).
+5. Group messages: the documented event fields do not include the group name. Capture real
+   events (HA > Developer tools > Events > listen to `whatsapp_message_received`) for a direct
+   and a group message and adjust the template; save redacted samples as fixtures.
+
+### Mail: Proton Mail Bridge + the built-in IMAP integration
+
+Proton has no IMAP except through **Proton Mail Bridge** (needs a paid Proton plan), which
+decrypts mail locally and serves IMAP on port 1143 with its own generated password.
+
+1. **Run Bridge where Home Assistant can reach it** (task P6-2). Options, in order:
+   a. A Home Assistant add-on that runs Bridge and exposes IMAP. The known community add-on
+      (`fboulay/ha-addons-repository`, "ProtonMail Bridge") documents itself as send-only
+      (SMTP); check whether its current version or a fork exposes port 1143.
+   b. A small **local add-on** in the home-assistant repo wrapping the
+      `ghcr.io/belphemur/protonmail-bridge` image (ports 1143/1025, data in `/data`), logged in
+      once interactively (`init`, `login`, 2FA, then `info` prints the IMAP password).
+   c. Bridge on another always-on machine in the house.
+   Do not start b or c without telling the user what will be installed where.
+2. **IMAP integration** (core, https://www.home-assistant.io/integrations/imap): server = the
+   Bridge host, port 1143, STARTTLS, "verify SSL" off (Bridge uses a self-signed certificate),
+   username/password from Bridge, folder INBOX, search `UnSeen UnDeleted`. In its options
+   enable "message data: text" and keep push (IDLE) on.
+3. Each new mail fires **`imap_content`** with `sender`, `subject`, `date`, `text` (first
+   2048 bytes by default), `uid`, `entry_id`, `initial`. The package stores the newest 20.
+   When the integration's unread-count sensor drops to 0 (everything read elsewhere) the list
+   is emptied.
+4. **Full text on demand**: the mail detail screen calls
+   `POST /api/services/imap/fetch?return_response` with `{"entry": "<key>", "uid": "<id>"}` and
+   shows `service_response.text`. Home Assistant does the MIME decoding. HTML-only mails may
+   come back as HTML: the device strips tags (`core/text_clean`, task P6-6). Verify the exact
+   request/response shape in task P6-2 and record a fixture.
+
+### "Mark all read" from the device
+
+The package defines `script.paperos_inbox_clear` (field `feed`: `whatsapp` or `mail`) which
+fires the `paperos_inbox_clear` event the sensors listen to. The device calls
+`POST /api/services/script/paperos_inbox_clear` (a service call works for a non-admin user;
+firing events directly does not).
 
 ### Installing the package
 
-The Home Assistant config lives in a repo of its own and goes **live on push to
-main**. That repo has its own rules (there: check YAML, push to main, wait for the
-sync, tell the user). Do the install as its own step, in that repo, following those rules:
-copy `ha/paperos_inbox.yaml` to `home-assistant/packages/paperos_inbox.yaml`, adjust the two
-phone sensor ids, validate, push. Also exclude the two inbox sensors from the recorder (the
-package does this) so message text is not written to the history database.
-
-### Device side
-
-`GET /api/states/sensor.paperos_whatsapp_inbox` and read `attributes.items`. That is all. The
-device keeps the last response in `/data/cache/inbox/<feed>.json` and a "seen up to id" marker
-per feed for the unread badge on the launcher.
+The Home Assistant config is a repo of its own: **live on push to main**,
+with its own rules (its docs: check YAML, push to main, wait for
+the sync, answer the user in Dutch there). Install as its own step in that repo: copy
+`ha/paperos_inbox.yaml` to `packages/paperos_inbox.yaml`, adjust entity ids, validate, push.
+Add-ons and integrations set up in the UI live in `.storage/` and are not in git: record what
+was installed in that repo's `docs/HANDOVER.md`.
 
 ## Privacy
 
-Message text passes through and is stored in Home Assistant (in memory and in
-`.storage/core.restore_state`), and is cached on the device. Home Assistant is the user's own
-server. Nothing is sent to any third party. The feeds must never be exposed under `www/`
-(public) or in a dashboard shared with guests.
+Message and mail text is held in Home Assistant state (memory and
+`.storage/core.restore_state`) and cached on the device's internal flash. The package excludes
+both sensors from the recorder so text is not written to the history database. Nothing goes to
+a third party beyond what WhatsApp and Proton already hold. Never expose the two sensors under
+`www/` (public) or on a dashboard shared with guests. Someone else also uses this Home Assistant:
+the feeds contain the user's private messages, so they must not appear on shared dashboards.
 
-## Optional later: gateway for full mail bodies (Phase 8)
+## Fallback kept in reserve
 
-Notifications carry sender and subject only. Reading full mail text needs a small service on
-the home network (`gateway/`, Docker) that logs in to the mailbox over IMAP (for Proton: via
-Proton Mail Bridge), converts mails to plain text, and serves the same feed contract with an
-extra `body` field. The device would then read `GET <gateway>/v1/mail`. Not designed in detail
-yet; do not start it without asking the user which mail provider and where to host it.
+Phone notification sensors of the Home Assistant Android app (`DECISIONS.md` D8) can fill the
+same two sensors with no add-on and no terms risk (sender + text for WhatsApp, sender + subject
+for mail). If the WhatsApp add-on proves unreliable or the account gets a warning, switch the
+package's triggers; the device does not change.

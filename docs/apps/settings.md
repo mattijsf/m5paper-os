@@ -18,7 +18,7 @@ System configuration and developer tools.
 
 ## Config schema
 
-`/data/config.json` (all keys optional; defaults in `core/config.cpp`):
+`/data/config.json` (no secrets; all keys optional; defaults in `core/config.cpp`):
 
 ```json
 {
@@ -31,25 +31,26 @@ System configuration and developer tools.
 }
 ```
 
-`/data/secrets.json` (never in git, never logged):
+## Secrets and provisioning: `/sd/paperos_config`
 
-```json
-{
-  "wifi": [ { "ssid": "MyNetwork", "password": "..." } ],
-  "ha":   { "token": "<long-lived access token>" }
-}
+Secrets live in one text file in the root of the SD card, `KEY=VALUE` per line, `#` comments:
+
+```
+# /sd/paperos_config
+HA_TOKEN=<long-lived access token>         # present on the card in the device (2026-11-15)
+HA_URL=http://<home assistant LAN ip>:8123 # optional, overrides config.json ha.baseUrl
+WIFI_SSID=<network name>                   # optional: lets the device join Wi-Fi before the
+WIFI_PASSWORD=<password>                   #   on-screen keyboard exists (task P3-7)
 ```
 
-## Provisioning secrets
-
-The Home Assistant token is ~180 characters: not something to type on an e-ink keyboard.
-
-1. **USB serial (preferred)**: `tools/provision.py --port /dev/cu.usbmodem101` (task P3-3)
-   reads `config.local.json` from the repo root (gitignored, same shape as `secrets.json` plus
-   optional config keys) and sends it over serial as `>provision <base64>`; the device writes
-   `/data/secrets.json` and merges the config keys.
-2. **SD card**: put `secrets.json` in `/sd/paperos/`; at boot it is moved into `/data` and
-   deleted from the card.
-3. Wi-Fi networks can also be added on the device (Wi-Fi screen).
-
-The simulator reads `sim-data/data/secrets.json` (gitignored).
+- The user created this file by putting the card in a computer. The device reads it at boot
+  (`core/secrets`, task P3-3) and **never writes to it, logs its values, or shows them**; the
+  Settings screens show "token present" and the key names only.
+- Parsing: split at the first `=`, trim spaces and carriage returns, ignore blank lines,
+  `#` lines and unknown keys. Missing file or key = "not configured", never a crash.
+- Wi-Fi networks added on the device (Wi-Fi screen) are stored in `/data/wifi.json` (internal
+  flash), also never logged. `WIFI_SSID`/`WIFI_PASSWORD` from the card are tried first.
+- The simulator reads the same file from `sim-data/sd/paperos_config` (gitignored). Tests use
+  fixtures and need no token.
+- No SD card: the device still boots; Home and inbox apps show "No Home Assistant token:
+  put paperos_config on the SD card".
