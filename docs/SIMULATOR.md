@@ -156,7 +156,19 @@ A task is done only when `make check` passes.
   folders cannot be removed. `tools/push.py [--to /sd/books/] FILE...` skips files already there with the same size
   (`--force` to resend), `--sim --data DIR` talks to a simulator instead of the device. `make books` = fetch + push.
   `tools/device.py ls DIR` / `rm PATH`. Right after a flash the port needs a few seconds before it answers.
-- Whole UI scripts on the device: task P7-2.
+- **Whole UI scripts on the device (P7-2)**: `tools/device.py script tests/ui/NAME.script` (add `--sim` to run the same thing against the simulator's
+  remote mode) opens the script's `# app:` screen with `>set screen`, plays `wait`, `tap`, `long`, `swipe`, `back`, `shot`, `expect-no-quality`,
+  `expect-max-pushed` (from `>refresh`), `expect-state`, `page-through`, `page-until` (from the new `>state` = `Screen::debugState()`) and
+  `expect-shot-equal`, saves every `shot` to `out/device-ui/` and compares it with the golden: IDENTICAL, identical below the status bar (the top 56
+  rows hold the live clock and battery), or DIFFERENT with a pixel count. `tools/device.py scripts` lists what can run:
+  - **compare** (no card data, no fixtures): `textblock`, `widgets1`, `widgets2`, `widgets2list`, `widgets2rows`, `widgets3`; also `launcher` and
+    `display-lab`, whose date line and counters differ on a real device.
+  - **data** (runs, but the goldens come from preset card data and HTTP fixtures the device does not have): `home`, `inbox-empty`, `inbox-link`,
+    `launcher-summary`, `library`, `reader-menu`, `settings`.
+  - **cannot**: scripts with `type` / `type-max` (key positions are not exposed: `keyboard`, `wifi`), `wifi on|off` (simulator only: `home-offline`,
+    `inbox-error`, `inbox-mail`), `restart` (`epub`, `inbox`, `inbox-wifi`, `reader`), `power-off` (`sleep`, `sleep-reader`), and `fonts` (drawn by the Os).
+  Time is real on the device: a shot right after a tap can catch the frame before or after the settle pass, so it may differ from the golden by a few
+  hundred anti-aliased pixels (seen in `widgets3-stepper` and `-level` even against the simulator's remote mode).
 - Things only the device can answer are listed per task as "Device check" in `ROADMAP.md`.
   If no device is attached, finish the task in the simulator and add the device check to
   `STATUS.md` under "Pending device checks". Never claim a device check passed without running it.

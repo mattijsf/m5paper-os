@@ -100,7 +100,7 @@ def _request_once(link, cmd, verbose, timeout):
         if line.startswith("#shot "):
             header = line.split()
             payload = link.read(int(header[3]))
-        elif line.startswith("#log ") or line.startswith("#refresh ") or line.startswith("#status ") or line.startswith("#ls ") or line.startswith("#cat "):
+        elif line.startswith("#log ") or line.startswith("#refresh ") or line.startswith("#status ") or line.startswith("#ls ") or line.startswith("#cat ") or line.startswith("#state "):
             header = line.split()
             payload = link.read(int(header[1]))
         elif line.startswith("#ok") or line.startswith("#err"):
@@ -158,14 +158,180 @@ def unpack4(packed):
     return bytes(out)
 
 
+# ---- UI scripts on the device (task P7-2): the simulator's script commands through the remote commands.
+
+SCRIPT_UNSUPPORTED = {
+    "type": "needs the key positions of the on-screen keyboard (not exposed over the link)",
+    "type-max": "needs the key positions of the on-screen keyboard (not exposed over the link)",
+    "wifi": "the fake Wi-Fi world exists only in the simulator",
+    "restart": "a restart on the device is a real power cycle (use >poweroff N by hand)",
+    "power-off": "never powers the device off from a script",
+}
+
+
+def script_plan(path):
+    """Parses a script: (app, [(lineno, cmd, args)], [reasons it cannot run on the device])."""
+    app, steps, blocked = "", [], []
+    for no, raw in enumerate(open(path, encoding="utf-8").read().splitlines(), 1):
+        line = raw.strip()
+        if line.startswith("# app:"):
+            app = line[len("# app:"):].strip()
+            continue
+        line = line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        cmd, _, args = line.partition(" ")
+        if app == "fonts" and not blocked:
+            blocked.append("the font sheet is drawn by the Os, not a screen `>set screen` can open")
+        if cmd in SCRIPT_UNSUPPORTED:
+            blocked.append(f"line {no}: '{cmd}': {SCRIPT_UNSUPPORTED[cmd]}")
+        steps.append((no, cmd, args.strip()))
+    return app, steps, blocked
+
+
+def run_script(link, path, out_dir, golden_dir, verbose=False):
+    """Runs a UI script against the device (or the simulator with --sim). Returns the exit code.
+
+    Every `shot` is saved as OUT/<name>.png and compared with the golden: identical, identical below the status bar (the top 56 rows
+    hold the live clock and battery), or different (data on the device differs from the fixtures: expected for many screens)."""
+    app, steps, blocked = script_plan(path)
+    if blocked:
+        print(f"cannot run {path} on the device:")
+        for b in blocked:
+            print("  " + b)
+        return 2
+    os.makedirs(out_dir, exist_ok=True)
+
+    def ok(cmd, timeout=20):
+        status, payload, hdr = request(link, cmd, verbose, timeout=timeout)
+        if not status.startswith("#ok"):
+            raise RuntimeError(f"{cmd}: {status}")
+        return payload, hdr
+
+    def refresh_entries():
+        payload, _ = ok(">refresh")
+        entries = []
+        for l in (payload or b"").decode(errors="replace").splitlines():
+            f = dict(p.split("=", 1) for p in l.split() if "=" in p)
+            if "t" in f and "mode" in f:
+                entries.append((int(f["t"]), f["mode"], f.get("rect", "0,0,0,0")))
+        return entries
+
+    def state():
+        payload, _ = ok(">state")
+        return (payload or b"").decode(errors="replace")
+
+    def tap(x, y):
+        ok(f">tap {x} {y}")
+
+    ok(">set screen " + (app or "launcher"))
+    time.sleep(1.0)
+    last_t = max([e[0] for e in refresh_entries()] or [0])
+    results, failed = [], 0
+    for no, cmd, args in steps:
+        try:
+            if cmd == "wait":
+                time.sleep(int(args) / 1000.0)
+            elif cmd == "shot":
+                name = args.split()[0]
+                payload, hdr = ok(">shot", timeout=30)
+                w, h = int(hdr[1]), int(hdr[2])
+                pixels = unpack4(payload)
+                write_png(os.path.join(out_dir, name + ".png"), pixels, w, h)
+                gold = os.path.join(golden_dir, name + ".png")
+                if not os.path.exists(gold):
+                    verdict = "no golden"
+                else:
+                    gw, gh, gp = read_png(gold)
+                    bad = sum(1 for a, b in zip(pixels, gp) if a != b)
+                    below = sum(1 for a, b in zip(pixels[56 * w:], gp[56 * w:]) if a != b)
+                    verdict = "IDENTICAL" if bad == 0 else "identical below the status bar" if below == 0 else f"DIFFERENT ({below} pixels below the status bar)"
+                results.append((name, verdict))
+                print(f"  shot {name}: {verdict}")
+                last_t = max([e[0] for e in refresh_entries()] or [last_t])
+            elif cmd in ("tap", "long"):
+                x, y = args.split()[:2]
+                ok(f">{cmd} {x} {y}")
+                time.sleep(0.15)  # the touch is played out by the firmware (down, 40 ms, up): let it finish before the next command
+            elif cmd == "back":
+                tap(36, 92)
+            elif cmd == "swipe":
+                ok(">swipe " + " ".join(args.split()[:4]))
+            elif cmd == "expect-no-quality":
+                q = [e for e in refresh_entries() if e[0] > last_t and e[1] == "Q"]
+                if q:
+                    raise RuntimeError(f"expect-no-quality: {len(q)} Quality push(es) since the last shot")
+            elif cmd == "expect-max-pushed":
+                area = 0
+                for e in refresh_entries():
+                    if e[0] > last_t:
+                        r = [int(v) for v in e[2].split(",")]
+                        area += r[2] * r[3]
+                if area > int(args.split()[0]):
+                    raise RuntimeError(f"expect-max-pushed {args}: {area} pixels pushed since the last shot")
+            elif cmd == "expect-state":
+                s = state()
+                if args not in s:
+                    raise RuntimeError(f"expect-state '{args}': the screen says '{s[:80]}'")
+            elif cmd == "expect-shot-equal":
+                a_name, b_name = args.split()[:2]
+                pa = read_png(os.path.join(out_dir, a_name + ".png"))[2]
+                pb = read_png(os.path.join(out_dir, b_name + ".png"))[2]
+                if pa != pb:
+                    raise RuntimeError(f"expect-shot-equal: {a_name} and {b_name} differ")
+            elif cmd in ("page-through", "page-until"):
+                parts = args.split()
+                max_taps = int(parts[0])
+                want = " ".join(parts[1:]) if cmd == "page-until" else None
+                done = False
+                for _ in range(max_taps):
+                    s = state()
+                    m = __import__("re").search(r"page=(\d+)/(\d+)", s)
+                    if not m:
+                        time.sleep(0.3)
+                        continue
+                    if (want is not None and want in s) or (want is None and int(m.group(1)) >= int(m.group(2))):
+                        done = True
+                        break
+                    tap(400, 500)
+                    time.sleep(0.9)
+                if not done:
+                    raise RuntimeError(f"{cmd}: not reached in {max_taps} taps")
+            else:
+                raise RuntimeError(f"unknown command '{cmd}'")
+        except (RuntimeError, TimeoutError) as e:
+            print(f"{path}:{no}: {e}")
+            failed += 1
+            break
+    same = sum(1 for _, v in results if v.startswith("IDENTICAL") or v.startswith("identical"))
+    print(f"{os.path.basename(path)}: {len(results)} shot(s), {same} equal to the golden" + (", FAILED" if failed else ""))
+    return 1 if failed else 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port")
     ap.add_argument("--sim", action="store_true")
     ap.add_argument("-v", "--verbose", action="store_true")
-    ap.add_argument("cmd", choices=["shot", "tap", "long", "swipe", "log", "refresh", "status", "ls", "cat", "rm", "set", "poweroff", "wait-boot", "diff"])
+    ap.add_argument("cmd", choices=["shot", "tap", "long", "swipe", "log", "refresh", "status", "ls", "cat", "rm", "set", "poweroff", "wait-boot", "diff", "script", "scripts"])
+    ap.add_argument("--out", default="out/device-ui", help="script: where the frame dumps go")
+    ap.add_argument("--golden", default="tests/ui/golden", help="script: goldens to compare with")
     ap.add_argument("args", nargs="*")
     a = ap.parse_args()
+
+    if a.cmd == "scripts":
+        # Which UI scripts can run on the device, and which of those can be compared with the goldens.
+        for path in sorted(glob.glob("tests/ui/*.script")):
+            name = os.path.basename(path)[:-len(".script")]
+            _, _, blocked = script_plan(path)
+            preset = os.path.isdir(os.path.join("tests/ui/data", name))
+            if blocked:
+                print(f"cannot   {name}: {blocked[0].split(': ', 1)[1]}")
+            elif preset:
+                print(f"data     {name}: runs, but its goldens come from preset card data and HTTP fixtures (tests/ui/data/{name}): the device has its own")
+            else:
+                print(f"compare  {name}")
+        return
 
     if a.cmd == "diff":
         if len(a.args) not in (2, 3):
@@ -211,6 +377,10 @@ def main():
             if not status.startswith("#ok"):
                 sys.exit(status)
             sys.stdout.write((payload or b"").decode(errors="replace"))
+        elif a.cmd == "script":
+            if len(a.args) != 1:
+                sys.exit("usage: script tests/ui/NAME.script [--out DIR] [--golden DIR]")
+            sys.exit(run_script(link, a.args[0], a.out, a.golden, a.verbose))
         elif a.cmd == "cat":
             if len(a.args) != 1:
                 sys.exit("usage: cat /data/power.csv")

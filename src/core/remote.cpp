@@ -30,7 +30,11 @@ RemoteCommand parseRemoteCommand(const std::string& raw) {
     c.error = why;
     return c;
   };
-  if (word == "shot" || word == "log" || word == "refresh" || word == "reboot" || word == "status") {
+  if (word == "state") {
+    std::string extra;
+    if (in >> extra) return bad("no arguments expected");
+    c.kind = RemoteCommand::State;
+  } else if (word == "shot" || word == "log" || word == "refresh" || word == "reboot" || word == "status") {
     std::string extra;
     if (in >> extra) return bad("no arguments expected");
     c.kind = word == "shot" ? RemoteCommand::Shot
@@ -155,6 +159,13 @@ void Remote::handleLine(const std::string& line) {
     case RemoteCommand::Log: {
       std::string text = logTail(50);
       say("#log " + std::to_string(text.size()));
+      host_.reply(text.data(), text.size());
+      break;
+    }
+    case RemoteCommand::State: {
+      // What the top screen says about itself (Screen::debugState): UI scripts on the device use it like the simulator's do.
+      const std::string text = os_.surface() ? os_.surface()->debugState() : std::string();
+      say("#state " + std::to_string(text.size()));
       host_.reply(text.data(), text.size());
       break;
     }

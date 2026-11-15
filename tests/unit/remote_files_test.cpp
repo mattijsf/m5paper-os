@@ -250,3 +250,8 @@ TEST_CASE("remote: poweroff needs 1..3600 seconds, never 0") {
   CHECK(parseRemoteCommand(">poweroff -5").kind == RemoteCommand::None);
   CHECK(parseRemoteCommand(">poweroff 5 6").kind == RemoteCommand::None);
 }
+
+TEST_CASE("remote: state takes no arguments") {
+  CHECK(parseRemoteCommand(">state").kind == RemoteCommand::State);
+  CHECK(parseRemoteCommand(">state now").kind == RemoteCommand::None);
+}
