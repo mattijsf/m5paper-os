@@ -44,13 +44,24 @@ Fonts are baked to 4-bit anti-aliased bitmaps by `tools/gen-assets.sh` (task P1-
 
 Glyph ranges: U+0020-007E, U+00A0-00FF, U+0100-017F, U+2010-2027, U+20AC. Unknown code points
 draw as `?`. Emoji in messages are replaced by `?` in v1 (task P6-4 notes an improvement).
-Both fonts are under the SIL Open Font License; keep their licence files in `assets/fonts/`.
+Both fonts are under the SIL Open Font License; their licence files are in `assets/fonts/`
+(also `Lucide-LICENSE.txt`, ISC). API: `ui/text.h` (`drawText`, `measureText`, `lineHeight`,
+`ellipsize`, `sanitize`, `drawIcon`), tokens: `ui/theme.h`. Pitfalls found in P1-6:
+
+- **Pass the background colour.** M5GFX blends glyph edges between the text colour and an explicit
+  background colour (`setTextColor(fg, bg)`); it cannot read the canvas. Without `bg` every glyph
+  pixel is solid ink (no anti-aliasing, looks bold). `drawText(..., Anchor, bg)` defaults to paper;
+  text on `fill` (icon wells) or on ink needs that colour passed. Text over pictures is not supported.
+- **Literata lacks some code points** in U+2010-2027 (it has the dashes, quotes, bullet and
+  ellipsis); missing ones draw nothing or `?`.
+- Each canvas holds one font: `ui/text.cpp` reloads only when the font changes.
+- The specimen sheet (`program --app fonts`, golden `fonts-sheet`) shows every token.
 
 ### Icons
 
 Lucide line icons (ISC licence), baked from the Lucide icon font at **32 px** (rows, bars) and
 **64 px** (launcher tiles, empty states) through the same font pipeline, so an icon is a glyph:
-`ui::icon(canvas, Icon::Sofa, x, y, 32)`. `assets/icons.txt` lists the icon names to include;
+`ui::icon(canvas, Icon::Sofa, x, y, 32)`. `assets/icons.txt` lists the icon names to include (45 icons, `Icon::BookOpen` etc.);
 the generator writes `src/gen/icons.h` (`enum class Icon`) and the two icon fonts.
 Initial set: arrow-left, chevron-left, chevron-right, house, book-open, library, lightbulb,
 lightbulb-off, sofa, utensils, blocks, cooking-pot, lamp-wall-down, lamp-wall-up, car, bed, thermometer,

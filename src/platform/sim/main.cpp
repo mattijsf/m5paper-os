@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
     else if (!std::strcmp(argv[i], "--script") && i + 1 < argc) scriptPath = argv[++i];
     else if (!std::strcmp(argv[i], "--data") && i + 1 < argc) dataDir = argv[++i];
     else if (!std::strcmp(argv[i], "--time") && i + 1 < argc) startTime = argv[++i];
-    else if (!std::strcmp(argv[i], "--app") && i + 1 < argc) appName = argv[++i];  // no apps yet (P2)
+    else if (!std::strcmp(argv[i], "--app") && i + 1 < argc) appName = argv[++i];  // "fonts" = specimen sheet; apps arrive in P2
     else if (!std::strcmp(argv[i], "--fixtures") && i + 1 < argc) ++i;               // P5
     else if (!std::strcmp(argv[i], "--out") && i + 1 < argc) outDir = argv[++i];
     else if (!std::strcmp(argv[i], "--scale") && i + 1 < argc) scale = std::max(1, std::atoi(argv[++i]));
@@ -141,6 +141,7 @@ int main(int argc, char** argv) {
   if (headless && !remoteMode) clock.setFake(true);  // also for --script runs
 
   Os os(platform);
+  os.setScreen(appName);
   StdioRemoteHost remoteHost(input);
   Remote remote(os, clock, remoteHost);
   std::string rx;

@@ -19,7 +19,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 - **P1-5 is done** (2026-11-15): `sim/script.{h,cpp}`, `tools/ui-test.sh`, `tools/gallery.sh`,
   `make test ui-test ui-accept gallery`, `check` = sim + test + ui-test + fw; first script
   `tests/ui/demo.script` with three goldens. 21 unit tests (DisplayManager, remote parser, log ring, fs).
-- **Next task: P1-6** (fonts and icons pipeline).
+- **P1-6 is done** (2026-11-15): Inter, Literata and Lucide baked by `tools/gen-assets.sh` into
+  `src/gen/`; `ui/theme.h`, `ui/text.{h,cpp}`; the demo uses Inter text and Lucide icons.
+- **Next task: P1-7** (event loop, timers, worker).
 - The device runs the **spike firmware**: one static mock launcher. It is not interactive: a
   tap only draws a black dot. There are no apps or settings screens yet (the owner tried to open
   Settings on 2026-11-15; that arrives with tasks P2-5 and P2-6).
@@ -190,6 +192,18 @@ None of these block Phase 1, Phase 2, or the reader.
   `make test` runs the built test program itself because PlatformIO's doctest runner shows
   "SKIPPED" for a custom main.
 
+- P1-6 findings: (1) M5GFX's BFF loader works for `lv_font_conv --format bin`; (2) it misreads
+  sparse cmap subtables (offset relative to record vs payload) -> icons showed as boxes; fixed by
+  rewriting the offsets in the generator (`patch_cmap`); (3) without a background colour glyphs
+  have no anti-aliasing (see UI.md "Pitfalls"); verified now: caption, headline and icon areas
+  contain all 16 gray levels. (4) `core/demo.cpp` includes `ui/` (core -> ui): temporary, goes away
+  with the launcher app (P2-7). Fonts downloaded from the official releases: Inter 4.1 (rsms/inter),
+  Literata 3.103 (googlefonts/literata), `lucide-static` 1.73.0 (npm); `lv_font_conv` 1.5.3 pinned.
+  Firmware 1,354,379 bytes (25.8% of the 5 MB slot, under the 3 MB limit). Device frame
+  (`out/device.png`) is pixel-identical to the simulator panel (`out/sim-m5.png`, `--name M5PaperS3`).
+  Goldens updated on purpose (new look): demo-boot, demo-tap-fast, demo-tap-settled; new fonts-sheet.
+  Not verified: how the text looks on the physical panel (sharpness, gray rendering).
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -213,3 +227,4 @@ None of these block Phase 1, Phase 2, or the reader.
   and `make test`; device measurements above.
 - 2026-11-15: P1-4. Simulator e-ink emulation, refresh log, input and clock split into files.
 - 2026-11-15: P1-5. Script runner, golden screenshots, gallery, make targets, more unit tests.
+- 2026-11-15: P1-6. Fonts and icons pipeline, text API, demo with Inter and Lucide.

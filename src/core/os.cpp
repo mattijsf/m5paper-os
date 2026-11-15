@@ -12,7 +12,8 @@ bool Os::setup() {
     POS_LOG("os", "canvas alloc failed");
     return false;
   }
-  drawDemo(canvas_, p_.name);
+  if (screen_ == "fonts") drawFontSheet(canvas_);
+  else drawDemo(canvas_, p_.name);
 
   uint32_t t0 = p_.clock.millis();
   dm_.forceClean();  // first frame: Quality over the whole screen

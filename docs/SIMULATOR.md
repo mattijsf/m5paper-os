@@ -22,8 +22,8 @@ grayscale quantised to the panel's 16 levels. **UI work is verified by running
 
 ## Command line, scripts, goldens (P1-4, P1-5)
 
-Implemented: `--headless --script --out --data --time --scale --name --remote`; `--app` and
-`--fixtures` are accepted and ignored until P2 and P5. Script commands implemented: `wait`, `shot`,
+Implemented: `--headless --script --out --data --time --scale --name --remote`; `--app fonts` shows the font specimen sheet (apps arrive in P2; a script file can start with a
+`# app: NAME` line, which `tools/ui-test.sh` passes as `--app`); `--fixtures` is ignored until P5. Script commands implemented: `wait`, `shot`,
 `tap`, `long`, `swipe`, `back` (taps (36, 92), the back-arrow target), `expect-no-quality`,
 `expect-max-pushed N` (sum of pushed rectangle areas since the last `shot`). `battery`, `wifi`, `type`
 wait for their features. `--time` takes `YYYY-MM-DDTHH:MM:SS` (UTC). In `--headless` runs the clock

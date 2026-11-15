@@ -105,6 +105,10 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   same pipeline and draw as glyphs. No TTF rasteriser on the device.
 - **Fonts**: Inter (UI), Literata (reading): both SIL OFL. **Icons**: Lucide (ISC), the same
   set the user's Home Assistant dashboard uses.
+- **Verified (P1-6)**: M5GFX 0.3.0 loads `lv_font_conv --format bin` output natively on both
+  platforms (`loadFont(data, ft_lvgl)` -> `BFFfont`, no LVGL needed). One loader bug is worked
+  around in `tools/gen_assets.py`: sparse cmap offsets are rewritten payload-relative (see
+  `patch_cmap`). Blobs: 13 fonts, 455 KB; firmware 1.35 MB.
 - **Rejected**: FreeType on device (RAM, speed); VLW fonts (no kerning, bigger); bitmap icons
   as PNG (one decode per draw).
 

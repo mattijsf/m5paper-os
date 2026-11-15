@@ -20,7 +20,8 @@ shopt -s nullglob
 scripts=(tests/ui/*.script)
 [ ${#scripts[@]} -gt 0 ] || { echo "ui-test: no scripts in tests/ui"; exit 2; }
 for s in "${scripts[@]}"; do
-  if ! "$SIM" --headless --script "$s" --out "$OUT" --data out/ui-data --time 2026-01-15T12:34:00 >"$OUT/$(basename "$s").log" 2>&1; then
+  app=$(sed -n 's/^# app: *//p' "$s" | head -1)   # optional "# app: NAME" header line
+  if ! "$SIM" --headless ${app:+--app "$app"} --script "$s" --out "$OUT" --data out/ui-data --time 2026-01-15T12:34:00 >"$OUT/$(basename "$s").log" 2>&1; then
     echo "FAIL script $s:"
     tail -n 8 "$OUT/$(basename "$s").log" | sed 's/^/    /'
     fail=1

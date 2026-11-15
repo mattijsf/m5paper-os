@@ -1,0 +1,4 @@
+# app: fonts
+# Font and icon specimen sheet: all type tokens, special characters, every icon at 32 px, a few at 64 px.
+wait 200
+shot fonts-sheet

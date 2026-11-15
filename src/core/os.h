@@ -3,6 +3,7 @@
 // DisplayManager replace this in P1-3 .. P1-5.
 #pragma once
 
+#include <string>
 #include <vector>
 
 #include "core/display_manager.h"
@@ -16,6 +17,8 @@ class Os {
   explicit Os(hal::Platform& platform) : p_(platform), dm_(platform.display, canvas_, platform.clock) {}
 
   // Allocates the canvas, draws the first screen and pushes it. False if allocation failed.
+  // Which screen to draw: "" = the demo launcher, "fonts" = the font specimen sheet. Before setup().
+  void setScreen(const std::string& name) { screen_ = name; }
   bool setup();
   // One pass of the main loop: handle pending input. Never blocks beyond a panel refresh.
   void loopOnce();
@@ -31,6 +34,7 @@ class Os {
   Canvas canvas_;
   DisplayManager dm_;
   bool ready_ = false;
+  std::string screen_;
 };
 
 }  // namespace pos

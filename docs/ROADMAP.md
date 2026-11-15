@@ -88,7 +88,7 @@ DisplayManager, and the simulator can run scripts and compare screenshots.
   Done when: `make check` runs all four stages and passes; changing a pixel in the demo makes
   `make ui-test` fail and name the image.
 
-- [ ] **P1-6 Fonts and icons pipeline.**
+- [x] **P1-6 Fonts and icons pipeline.**
   Read: UI.md (Type, Icons), DECISIONS.md D12.
   Do: download Inter, Literata (Google Fonts, OFL) and the Lucide icon font + its
   name-to-codepoint JSON into `assets/` with licence files; `assets/icons.txt`;
