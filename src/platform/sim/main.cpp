@@ -103,12 +103,19 @@ class StdioRemoteHost : public RemoteHost {
 bool readStdinLines(std::string& buf, Remote& remote, int waitMs) {
   struct pollfd pfd = {0, POLLIN, 0};
   if (poll(&pfd, 1, waitMs) > 0 && (pfd.revents & (POLLIN | POLLHUP))) {
-    char tmp[256];
+    char tmp[4096];
     ssize_t n = read(0, tmp, sizeof tmp);
     if (n <= 0) return false;
     buf.append(tmp, static_cast<size_t>(n));
-    size_t nl;
-    while ((nl = buf.find('\n')) != std::string::npos) {
+    for (;;) {
+      if (remote.wantsRaw()) {  // an upload: the buffered bytes are file content
+        std::string chunk;
+        chunk.swap(buf);
+        remote.feedRaw(reinterpret_cast<const uint8_t*>(chunk.data()), chunk.size());
+        break;
+      }
+      size_t nl = buf.find('\n');
+      if (nl == std::string::npos) break;
       remote.handleLine(buf.substr(0, nl));
       buf.erase(0, nl + 1);
     }

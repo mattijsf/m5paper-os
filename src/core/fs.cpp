@@ -157,6 +157,47 @@ bool removeAll(const std::string& v) {
   return !p.empty() && p != gSdRoot && p != gDataRoot && removeReal(p);
 }
 
+bool rename(const std::string& from, const std::string& to) {
+  std::string a = resolve(from), b = resolve(to);
+  if (a.empty() || b.empty()) return false;
+  if (std::rename(a.c_str(), b.c_str()) == 0) return true;
+  std::remove(b.c_str());  // FAT refuses to overwrite
+  return std::rename(a.c_str(), b.c_str()) == 0;
+}
+
+bool fileInfo(const std::string& v, uint64_t& size, int64_t& mtime) {
+  std::string p = resolve(v);
+  struct stat st;
+  if (p.empty() || stat(p.c_str(), &st) != 0 || S_ISDIR(st.st_mode)) return false;
+  size = static_cast<uint64_t>(st.st_size);
+  mtime = static_cast<int64_t>(st.st_mtime);
+  return true;
+}
+
+bool Writer::open(const std::string& v) {
+  close();
+  std::string p = resolve(v);
+  if (p.empty()) return false;
+  size_t slash = p.rfind('/');
+  if (slash != std::string::npos && slash > 0 && !mkdirsReal(p.substr(0, slash))) return false;
+  f_ = std::fopen(p.c_str(), "wb");
+  ok_ = f_ != nullptr;
+  return ok_;
+}
+
+bool Writer::write(const void* data, size_t n) {
+  if (!f_) return false;
+  if (std::fwrite(data, 1, n, f_) != n) ok_ = false;
+  return ok_;
+}
+
+bool Writer::close() {
+  if (!f_) return ok_;
+  ok_ = (std::fclose(f_) == 0) && ok_;
+  f_ = nullptr;
+  return ok_;
+}
+
 bool mkdirs(const std::string& v) {
   std::string p = resolve(v);
   return !p.empty() && mkdirsReal(p);

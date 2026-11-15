@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -32,6 +33,25 @@ bool writeFile(const std::string& virtualPath, const std::string& data);
 bool listDir(const std::string& virtualPath, std::vector<DirEntry>& out);
 // Deletes a file, or a folder and everything in it. True if nothing is left afterwards (also if it never existed).
 bool removeAll(const std::string& virtualPath);
+// Renames a file, replacing the destination. Both must be virtual paths.
+bool rename(const std::string& fromVirtual, const std::string& toVirtual);
+// Size and modification time (unix seconds) of a file; false if it does not exist.
+bool fileInfo(const std::string& virtualPath, uint64_t& size, int64_t& mtime);
+
+// Sequential writer (large files): open, write chunks, close. Parent folders are created.
+class Writer {
+ public:
+  ~Writer() { close(); }
+  bool open(const std::string& virtualPath);
+  bool write(const void* data, size_t n);
+  bool close();  // true if everything reached the file
+  bool isOpen() const { return f_ != nullptr; }
+
+ private:
+  FILE* f_ = nullptr;
+  bool ok_ = true;
+};
+
 // Creates the folder and every missing parent ("mkdir -p"). True if it exists afterwards.
 bool mkdirs(const std::string& virtualPath);
 

@@ -256,7 +256,7 @@ simulator first; each task ends with screenshots.
 
 ## Phase 4: Reader
 
-- [ ] **P4-0 Push files to the SD card over USB.** Depends on P3-3 (serial commands).
+- [x] **P4-0 Push files to the SD card over USB.** Depends on P3-3 (serial commands).
   Do: serial command `>put <path> <size> <crc32>` followed by raw bytes in 4 KB chunks with an
   ACK per chunk (writes to `<path>.part`, renames when the CRC matches; only under `/sd/books/`
   and `/sd/paperos/`, never `paperos_config`); `>ls <dir>`, `>rm <path>` with the same path

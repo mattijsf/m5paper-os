@@ -20,7 +20,7 @@ help:
 	@echo "make monitor  serial log from the device"
 	@echo "make device-shot  dump the frame from the device over USB to out/device.png (tools/device.py)"
 	@echo "make backup   read the whole device flash to backup/flash-16MB.bin"
-	@echo "make books    download public-domain test books into sim-data/sd/books/"
+	@echo "make books    download public-domain test books into sim-data/sd/books/ and push them to the device (tools/push.py)"
 	@echo "make check    what must pass before a task is done: sim build, unit tests, UI golden tests, firmware build"
 
 sim:
@@ -52,6 +52,7 @@ backup:
 
 books:
 	tools/fetch-books.sh
+	$(HOME)/.platformio/penv/bin/python tools/push.py sim-data/sd/books/*.epub sim-data/sd/books/*.txt
 
 TEST := .pio/build/test/program
 

@@ -1,6 +1,7 @@
 #include "core/remote.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <sstream>
 
@@ -41,6 +42,26 @@ RemoteCommand parseRemoteCommand(const std::string& raw) {
     c.kind = word == "tap" ? RemoteCommand::Tap : RemoteCommand::Long;
     c.x1 = n[0];
     c.y1 = n[1];
+  } else if (word == "put") {
+    // path may contain spaces: everything before the last two tokens
+    std::string rest;
+    std::getline(in >> std::ws, rest);
+    size_t sp2 = rest.rfind(' ');
+    size_t sp1 = sp2 == std::string::npos ? std::string::npos : rest.rfind(' ', sp2 - 1);
+    if (sp1 == std::string::npos || sp1 == 0) return bad("usage: put <path> <size> <crc32 hex>");
+    c.path = rest.substr(0, sp1);
+    char* e1 = nullptr;
+    char* e2 = nullptr;
+    c.size = std::strtoull(rest.c_str() + sp1 + 1, &e1, 10);
+    c.crc = static_cast<uint32_t>(std::strtoul(rest.c_str() + sp2 + 1, &e2, 16));
+    if (*e1 != ' ' || *e2 != '\0') return bad("usage: put <path> <size> <crc32 hex>");
+    c.kind = RemoteCommand::Put;
+  } else if (word == "ls" || word == "rm") {
+    std::string rest;
+    std::getline(in >> std::ws, rest);
+    if (rest.empty()) return bad("usage: ls|rm <path>");
+    c.path = rest;
+    c.kind = word == "ls" ? RemoteCommand::Ls : RemoteCommand::Rm;
   } else if (word == "set") {
     if (!(in >> c.key >> c.value)) return bad("usage: set key value");
     c.kind = RemoteCommand::Set;
@@ -57,13 +78,30 @@ RemoteCommand parseRemoteCommand(const std::string& raw) {
   return c;
 }
 
-uint32_t crc32(const uint8_t* data, size_t len) {
-  uint32_t crc = 0xFFFFFFFFu;
-  for (size_t i = 0; i < len; ++i) {
-    crc ^= data[i];
-    for (int k = 0; k < 8; ++k) crc = (crc & 1) ? 0xEDB88320u ^ (crc >> 1) : crc >> 1;
+uint32_t crc32Update(uint32_t prev, const uint8_t* data, size_t len) {
+  static uint32_t table[256];
+  static bool init = false;
+  if (!init) {
+    for (uint32_t n = 0; n < 256; ++n) {
+      uint32_t c = n;
+      for (int k = 0; k < 8; ++k) c = (c & 1) ? 0xEDB88320u ^ (c >> 1) : c >> 1;
+      table[n] = c;
+    }
+    init = true;
   }
+  uint32_t crc = ~prev;
+  for (size_t i = 0; i < len; ++i) crc = table[(crc ^ data[i]) & 0xFF] ^ (crc >> 8);
   return ~crc;
+}
+
+uint32_t crc32(const uint8_t* data, size_t len) { return crc32Update(0, data, len); }
+
+bool remotePathAllowed(const std::string& p) {
+  if (p.find("..") != std::string::npos || p.find('\\') != std::string::npos) return false;
+  const bool ok = p.rfind("/sd/books/", 0) == 0 || p == "/sd/books" || p.rfind("/sd/paperos/", 0) == 0 || p == "/sd/paperos";
+  if (!ok) return false;
+  const size_t slash = p.rfind('/');
+  return p.substr(slash + 1) != "paperos_config";
 }
 
 void Remote::say(const std::string& s) {
@@ -117,6 +155,58 @@ void Remote::handleLine(const std::string& line) {
       host_.reply(text.data(), text.size());
       break;
     }
+    case RemoteCommand::Put: {
+      if (put_.active) abortPut("new upload started");
+      if (!remotePathAllowed(c.path) || c.path.back() == '/') {
+        say("#err path not allowed");
+        return;
+      }
+      if (c.size > 64ull * 1024 * 1024) {
+        say("#err too large");
+        return;
+      }
+      put_.path = c.path;
+      put_.partPath = c.path + ".part";
+      if (!put_.file.open(put_.partPath)) {
+        say("#err cannot open file");
+        return;
+      }
+      put_.size = c.size;
+      put_.got = 0;
+      put_.crc = 0;
+      put_.expect = c.crc;
+      put_.active = true;
+      put_.lastByteMs = now;
+      say("#put go");
+      if (c.size == 0) feedRaw(nullptr, 0);
+      return;
+    }
+    case RemoteCommand::Ls: {
+      if (!remotePathAllowed(c.path)) {
+        say("#err path not allowed");
+        return;
+      }
+      std::vector<fs::DirEntry> list;
+      if (!fs::listDir(c.path, list)) {
+        say("#err no such folder");
+        return;
+      }
+      std::string text;
+      for (const auto& e : list) text += e.name + "\t" + (e.isDir ? std::string("-") : std::to_string(e.size)) + "\n";
+      say("#ls " + std::to_string(text.size()));
+      host_.reply(text.data(), text.size());
+      break;
+    }
+    case RemoteCommand::Rm:
+      if (!remotePathAllowed(c.path) || c.path == "/sd/books" || c.path == "/sd/paperos") {
+        say("#err path not allowed");
+        return;
+      }
+      if (!fs::removeAll(c.path)) {
+        say("#err delete failed");
+        return;
+      }
+      break;
     case RemoteCommand::Status: {
       std::string text = os_.statusText();
       say("#status " + std::to_string(text.size()));
@@ -141,8 +231,54 @@ void Remote::handleLine(const std::string& line) {
   say("#ok");
 }
 
+void Remote::abortPut(const std::string& why) {
+  put_.file.close();
+  fs::removeAll(put_.partPath);
+  put_.active = false;
+  say("#err " + why);
+}
+
+void Remote::feedRaw(const uint8_t* data, size_t n) {
+  if (!put_.active) return;
+  put_.lastByteMs = clock_.millis();
+  while (n > 0 && put_.got < put_.size) {
+    const size_t take = static_cast<size_t>(std::min<uint64_t>(n, put_.size - put_.got));
+    const uint64_t before = put_.got;
+    if (!put_.file.write(data, take)) {
+      abortPut("write failed");
+      return;
+    }
+    put_.crc = crc32Update(put_.crc, data, take);
+    put_.got += take;
+    data += take;
+    n -= take;
+    if (put_.got / 4096 != before / 4096 && put_.got < put_.size) say("#ack " + std::to_string(put_.got));
+  }
+  if (put_.got < put_.size) return;
+  const bool wrote = put_.file.close();
+  put_.active = false;
+  if (!wrote) {
+    fs::removeAll(put_.partPath);
+    say("#err write failed");
+    return;
+  }
+  if (put_.crc != put_.expect) {
+    fs::removeAll(put_.partPath);
+    say("#err crc mismatch");
+    return;
+  }
+  if (!fs::rename(put_.partPath, put_.path)) {
+    fs::removeAll(put_.partPath);
+    say("#err rename failed");
+    return;
+  }
+  say("#ack " + std::to_string(put_.got));
+  say("#ok");
+}
+
 void Remote::tick() {
   const uint32_t now = clock_.millis();
+  if (put_.active && now - put_.lastByteMs > 8000) abortPut("upload timed out");
   for (size_t i = 0; i < timed_.size();) {
     if (static_cast<int32_t>(now - timed_[i].at) >= 0) {
       timed_[i].ev.ms = now;

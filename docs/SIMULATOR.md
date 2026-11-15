@@ -145,6 +145,13 @@ A task is done only when `make check` passes.
   stdin and replies on stdout (`--name M5PaperS3` for an identical footer). Send `>shot` alone
   and wait for its reply: it runs after earlier touches were handled, so it answers after
   later one-line commands. Commands per line, replies end with `#ok` or `#err <reason>`.
+- Files over the same link (P4-0): `>put <path> <size> <crc32hex>` (device answers `#put go`, then raw bytes,
+  `#ack <total>` every 4096 bytes, `#ok` after the CRC matched and the `.part` file was renamed; a stalled upload
+  is dropped after 8 s), `>ls <dir>` (`#ls <bytes>` then `name<TAB>size` lines, `-` for folders), `>rm <path>`.
+  Only `/sd/books/...` and `/sd/paperos/...` are allowed, never `paperos_config`, never `..`; the two root
+  folders cannot be removed. `tools/push.py [--to /sd/books/] FILE...` skips files already there with the same size
+  (`--force` to resend), `--sim --data DIR` talks to a simulator instead of the device. `make books` = fetch + push.
+  `tools/device.py ls DIR` / `rm PATH`. Right after a flash the port needs a few seconds before it answers.
 - Whole UI scripts on the device: task P7-2.
 - Things only the device can answer are listed per task as "Device check" in `ROADMAP.md`.
   If no device is attached, finish the task in the simulator and add the device check to

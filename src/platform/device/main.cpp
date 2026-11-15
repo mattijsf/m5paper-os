@@ -9,6 +9,7 @@
 #include <esp_mac.h>
 #include <esp_pthread.h>
 
+#include <algorithm>
 #include <string>
 
 #include "core/fs.h"
@@ -133,6 +134,13 @@ std::string gRxLine;
 
 void pollSerial() {
   while (Serial.available() > 0) {
+    if (gRemote.wantsRaw()) {  // an upload (>put): the bytes are file content
+      static uint8_t raw[4096];
+      const size_t n = Serial.readBytes(reinterpret_cast<char*>(raw), std::min<size_t>(sizeof raw, Serial.available()));
+      if (n == 0) break;
+      gRemote.feedRaw(raw, n);
+      continue;
+    }
     int ch = Serial.read();
     if (ch < 0) break;
     if (ch == '\n') {
@@ -192,6 +200,7 @@ void setup() {
   auto cfg = M5.config();
   cfg.clear_display = false;
   M5.begin(cfg);
+  Serial.setRxBufferSize(16384);  // uploads arrive in 4 KB bursts
   Serial.begin(115200);
   Serial.setTxTimeoutMs(0);  // never block the UI thread on a USB host that is not reading the log
 
