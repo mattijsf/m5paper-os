@@ -67,9 +67,11 @@ void drawDemo(Canvas& c, const char* platform) {
 
 Rect drawTouchMarker(Canvas& c, int x, int y) {
   const int r = 14;
+  c.fillCircle(x, y, r + 3, gray(8));  // soft ring: grays need a settle pass after the Fast push
   c.fillCircle(x, y, r, kBlack);
-  return Rect{static_cast<int16_t>(x - r), static_cast<int16_t>(y - r), static_cast<int16_t>(2 * r + 1),
-              static_cast<int16_t>(2 * r + 1)};
+  const int e = r + 3;  // outer ring
+  return Rect{static_cast<int16_t>(x - e), static_cast<int16_t>(y - e), static_cast<int16_t>(2 * e + 1),
+              static_cast<int16_t>(2 * e + 1)};
 }
 
 }  // namespace pos

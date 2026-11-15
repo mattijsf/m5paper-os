@@ -9,7 +9,7 @@ namespace pos {
 // Draws a mock home screen into the canvas. `platform` is shown in the footer.
 void drawDemo(Canvas& c, const char* platform);
 
-// Draws a touch marker; returns the rectangle that changed.
+// Draws a touch marker (black dot, gray ring); returns the rectangle that changed.
 Rect drawTouchMarker(Canvas& c, int x, int y);
 
 }  // namespace pos

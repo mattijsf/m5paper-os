@@ -58,7 +58,7 @@ The DisplayManager maps hints to panel modes:
 
 | Hint | First pass | Settle pass | Notes |
 |---|---|---|---|
-| Feedback | Fast, immediately | none if the region is pure black/white, else Text | must reach the panel within 100 ms of the touch |
+| Feedback | Fast, immediately | none if the *changed pixels* are pure black/white, else Text | must reach the panel within 100 ms of the touch |
 | Content | Fast | Text after 600 ms without further changes in the region | "fast then settle" |
 | Screen | Fast full screen | Text after 600 ms; **Quality instead** if the ghost budget is spent | navigation is the natural place to hide a clean |
 | Image | Quality on the image rect | none | only place a flash is expected |
@@ -89,6 +89,28 @@ roughly one clean flash every 8 to 10 pages, never in the middle of reading a pa
 
 `ghostLimit`, the settle delay and the idle delay live in `config.json` under `display` so they
 can be tuned on the device without rebuilding (task P7-1).
+
+## As implemented (`core/display_manager.{h,cpp}`, P1-3)
+
+- API: `invalidate(Rect, Hint)`, `commit()`, `tick(nowMs)`, `nextDeadlineMs()`, `forceClean()`,
+  `ghostScore()`, `refreshLogTail()`, `shadowPacked()`. Parameters in `DisplayParams`
+  (`ghostLimit` 8, `settleMs` 600, `idleCleanMs` 2000). Unit tests: `tests/unit/display_manager_test.cpp`.
+- One pending rect per hint (invalidations of the same hint are united). `commit()` handles
+  Feedback, Content, Screen, Image in that order; later rects diff against the shadow the
+  earlier ones updated.
+- The shadow is the quantised canvas of everything pushed (not the thresholded Fast image).
+  `forceClean()` at boot makes it valid; before that every pixel counts as changed.
+- A settle region merges with any overlapping or touching Fast region and restarts its timer
+  (500 ms later change in the same area = new 600 ms from then). Unrelated regions keep their timers.
+- Screen at or over `ghostLimit`: Quality over the whole screen, drops pending settles.
+  Image: Quality on the changed box only, does not touch the score.
+- Idle clean (`score >= 2 x ghostLimit`, 2 s without a push): `tick()` runs `forceClean()`.
+- Every push is logged (`POS_LOG("disp", ...)` and the refresh log: `t= mode= rect= changed= why=`).
+- **`hal::Display::busy()` on the device is only "M5GFX update queue full"**: M5GFX cannot say
+  whether a waveform is running. So the "coalesce while busy" rule rarely triggers on the device;
+  M5GFX queues up to 8 updates itself and merges overlapping ones. `>set epd-timing on` makes the
+  device wait after each push and log `[epd] ... push+waveform <ms> done t=<ms>` (blocks the UI:
+  debug only).
 
 ## Rules for UI code (enforced in review, see UI.md)
 

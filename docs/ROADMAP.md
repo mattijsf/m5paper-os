@@ -56,7 +56,7 @@ DisplayManager, and the simulator can run scripts and compare screenshots.
   Device check: all of the above. A 64 GB card is in the device and mounts with the spike's
   code (HARDWARE.md); without a card the boot log must say "no SD card" and continue.
 
-- [ ] **P1-3 DisplayManager.**
+- [x] **P1-3 DisplayManager.**
   Read: DISPLAY.md (all).
   Do: `src/core/display_manager.{h,cpp}`: `invalidate(Rect, Hint)`, `commit(canvas)`,
   `tick(nowMs)` (settle and clean timers), `nextDeadlineMs()`, `forceClean()`. Shadow buffer

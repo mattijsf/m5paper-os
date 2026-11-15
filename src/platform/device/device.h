@@ -13,8 +13,15 @@ namespace pos::device {
 class Display : public hal::Display {
  public:
   void push(const Canvas& frame, Rect area, Refresh mode) override;
+  // busy() means the update queue of M5GFX is full (back-pressure); a running waveform cannot be
+  // read from M5GFX.
   bool busy() override;
   void wait() override;
+  // Debug (">set epd-timing on"): wait after each push and log how long it took. Blocks the UI.
+  void setTiming(bool on) { timing_ = on; }
+
+ private:
+  bool timing_ = false;
 };
 
 class Input : public hal::Input {

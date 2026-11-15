@@ -5,7 +5,8 @@
 //   >shot                       #shot 540 960 <bytes> <crc32 hex>\n + raw 4-bit pixels, then #ok
 //   >tap x y   >long x y   >swipe x1 y1 x2 y2    inject touch events as a real touch would
 //   >log                        #log <bytes>\n + the last 50 log lines, then #ok
-//   >refresh                    refresh log tail (empty until P1-3)
+//   >refresh                    #refresh <bytes>\n + the last 50 refresh-log lines, then #ok
+//   >set key value              platform debug switch, e.g. ">set epd-timing on" (device)
 //   >reboot                     #ok, then restart
 // Every command ends with "#ok" or "#err <reason>" on its own line.
 #pragma once
@@ -28,10 +29,13 @@ class RemoteHost {
   virtual void inject(const hal::TouchEvent& ev) = 0;  // into the Input queue
   virtual void reply(const void* data, size_t n) = 0;  // raw bytes back to the controller
   virtual void reboot() = 0;
+  // Platform-specific debug switch (">set key value"). Returns false for unknown keys.
+  virtual bool option(const std::string& /*key*/, const std::string& /*value*/) { return false; }
 };
 
 struct RemoteCommand {
-  enum Kind { None, Shot, Tap, Long, Swipe, Log, Refresh, Reboot } kind = None;
+  enum Kind { None, Shot, Tap, Long, Swipe, Log, Refresh, Reboot, Set } kind = None;
+  std::string key, value;  // Set
   int x1 = 0, y1 = 0, x2 = 0, y2 = 0;
   std::string error;  // set when parsing fails (kind stays None)
 };
@@ -39,9 +43,6 @@ struct RemoteCommand {
 // Pure parser: "tap 10 20" (with or without the leading '>') -> command. No side effects.
 RemoteCommand parseRemoteCommand(const std::string& line);
 
-// Frame packing used by >shot: 16 gray levels, two pixels per byte (first pixel in the high
-// nibble), row-major, 0 = black .. 15 = white. Size = kScreenW * kScreenH / 2 bytes.
-std::vector<uint8_t> packFrame4(Canvas& canvas);
 uint32_t crc32(const uint8_t* data, size_t len);
 
 class Remote {

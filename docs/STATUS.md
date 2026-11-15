@@ -12,7 +12,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   `/sd`, LittleFS at `/littlefs`; `/data/test.txt` survives reboots and reflashes.
 - **P1-8 is done** (2026-11-15): `>shot`, `>tap`, `>long`, `>swipe`, `>log`, `>refresh`, `>reboot`
   over USB serial and on the simulator's stdin; `tools/device.py`, `make device-shot`.
-- **Next task: P1-3** (DisplayManager).
+- **P1-3 is done** (2026-11-15): `core/display_manager`, 14 unit tests, the demo goes through it.
+  The unit harness (doctest via PlatformIO, `env:test`, `make test`) was done here, ahead of P1-5.
+- **Next task: P1-4** (simulator e-ink emulation), then P1-5.
 - The device runs the **spike firmware**: one static mock launcher. It is not interactive: a
   tap only draws a black dot. There are no apps or settings screens yet (the owner tried to open
   Settings on 2026-11-15; that arrives with tasks P2-5 and P2-6).
@@ -65,6 +67,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Books | SD card is in, empty: find open books ourselves | `tools/fetch-books.sh`, task P4-0 pushes them to the card |
 
 ## Not verified yet (do not assume)
+
+- **What the panel physically shows after Fast then settle** (ghosting, edge quality of the
+  touch marker, flash feel): no tool can see it. Frame dumps show the firmware's frame only.
 
 - **What the panel shows**: the user saw the mock launcher well enough to aim at the Settings
   tile, but nobody has confirmed the gray ramp order, sharpness, ghosting, or that the black
@@ -155,6 +160,18 @@ None of these block Phase 1, Phase 2, or the reader.
   still only verified by a real finger (see Pending device checks).
   Limits: the dump shows what the firmware drew, not the physical panel (ghosting, waveforms).
 
+- P1-3 device measurements (2026-11-15, `>set epd-timing on`, injected `tap 140 300`): touch
+  logged at t=3260 ms; Fast push of the 35x35 marker region queued at 3261 and finished at 3507
+  (246 ms push+waveform, ~247 ms from tap to done); the Text settle pass started at 3868
+  (607 ms after the Fast push) and took 818 ms (done at 4686). Refresh log on the device
+  (`tools/device.py refresh`): `F ... why=feedback`, `T ... why=settle`.
+  The touch marker now has a gray ring (`drawTouchMarker`), so its Feedback pass has grays and
+  gets a settle pass; a pure black dot would not (changed pixels pure black/white = no settle).
+- P1-3 decisions: tests live in `tests/unit/` with PlatformIO's doctest runner (see
+  SIMULATOR.md "Unit tests"); `Os::loopOnce()` no longer waits after pushes (only the boot
+  frame waits); `>shot` takes the frame from `Os::frame4()` (simulator: emulated panel, from P1-4; else
+  the manager's shadow); `>refresh` returns the manager's refresh log.
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -174,3 +191,5 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P1-8. Remote control over USB serial and simulator stdin. Device frame
   (`out/device.png`) identical to the simulator's (`out/shot-m5.png`, `--name M5PaperS3`); an
   injected `tap 140 300` shows the marker and logs `[touch] x=140 y=300 fast refresh 257ms`.
+- 2026-11-15: P1-3. DisplayManager with fast-then-settle, ghost budget, refresh log; unit harness
+  and `make test`; device measurements above.

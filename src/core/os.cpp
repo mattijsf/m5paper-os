@@ -15,7 +15,7 @@ bool Os::setup() {
   drawDemo(canvas_, p_.name);
 
   uint32_t t0 = p_.clock.millis();
-  p_.display.push(canvas_, Rect{0, 0, kScreenW, kScreenH}, Refresh::Quality);
+  dm_.forceClean();  // first frame: Quality over the whole screen
   p_.display.wait();
   POS_LOG("boot", "full quality refresh %ums", static_cast<unsigned>(p_.clock.millis() - t0));
   ready_ = true;
@@ -27,13 +27,19 @@ void Os::loopOnce() {
   hal::TouchEvent ev;
   while (p_.input.poll(ev)) {
     if (ev.type != hal::TouchEvent::Down) continue;
-    uint32_t t0 = p_.clock.millis();
+    POS_LOG("touch", "x=%d y=%d t=%u", static_cast<int>(ev.x), static_cast<int>(ev.y),
+            static_cast<unsigned>(p_.clock.millis()));
     Rect r = drawTouchMarker(canvas_, ev.x, ev.y);
-    p_.display.push(canvas_, r, Refresh::Fast);
-    p_.display.wait();
-    POS_LOG("touch", "x=%d y=%d fast refresh %ums", static_cast<int>(ev.x), static_cast<int>(ev.y),
-            static_cast<unsigned>(p_.clock.millis() - t0));
+    dm_.invalidate(r, Hint::Feedback);
   }
+  if (dm_.dirty()) dm_.commit();
+  dm_.tick(p_.clock.millis());
+}
+
+std::vector<uint8_t> Os::frame4() {
+  std::vector<uint8_t> out;
+  if (p_.display.snapshot4(out)) return out;
+  return dm_.shadowPacked();
 }
 
 }  // namespace pos

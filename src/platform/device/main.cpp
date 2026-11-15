@@ -73,6 +73,13 @@ class SerialRemoteHost : public RemoteHost {
       n -= w;
     }
   }
+  bool option(const std::string& key, const std::string& value) override {
+    if (key == "epd-timing") {
+      gDisplay.setTiming(value == "on");
+      return true;
+    }
+    return false;
+  }
   void reboot() override {
     Serial.flush();
     delay(100);

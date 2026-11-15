@@ -102,12 +102,16 @@ passes, ghost residue), not the raw canvas. `out/refresh.log` records every push
 ### Unit tests
 
 Pure logic (EPUB zip reading, XHTML to paragraphs, pagination, JSON mapping, ghost accounting)
-gets host unit tests under `tests/unit/`, run with `pio test -e sim` (`make test`). Use the
-`doctest` single header. Keep them fast: all of `make test` under 10 s.
+gets host unit tests under `tests/unit/` (`make test`: `pio test -e test --without-testing`, then the
+built program runs directly; PlatformIO's own doctest runner reports 0 cases and "SKIPPED" for our
+custom `main`, so its summary is ignored). `env:test` compiles `src/core`, `src/hal`, `src/ui` and
+`src/apps` only (no `platform/`); `tests/unit/main.cpp` holds the runner and a silent log sink
+(`POS_TEST_LOG=1` prints logs). doctest comes from the PlatformIO registry. Keep them fast: all of
+`make test` under 10 s.
 
 ## What `make check` means
 
-Phase 0: `shot` + `fw`. From task P1-5 on it is: `sim` build, `test`, `ui-test`, `fw` build.
+Since P1-3: `shot`, `test`, `fw`. From task P1-5 on it is: `sim` build, `test`, `ui-test`, `fw` build.
 A task is done only when `make check` passes.
 
 ## Device testing

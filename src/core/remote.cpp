@@ -41,6 +41,9 @@ RemoteCommand parseRemoteCommand(const std::string& raw) {
     c.kind = word == "tap" ? RemoteCommand::Tap : RemoteCommand::Long;
     c.x1 = n[0];
     c.y1 = n[1];
+  } else if (word == "set") {
+    if (!(in >> c.key >> c.value)) return bad("usage: set key value");
+    c.kind = RemoteCommand::Set;
   } else if (word == "swipe") {
     if (!ints(4)) return bad("usage: swipe x1 y1 x2 y2");
     c.kind = RemoteCommand::Swipe;
@@ -61,18 +64,6 @@ uint32_t crc32(const uint8_t* data, size_t len) {
     for (int k = 0; k < 8; ++k) crc = (crc & 1) ? 0xEDB88320u ^ (crc >> 1) : crc >> 1;
   }
   return ~crc;
-}
-
-std::vector<uint8_t> packFrame4(Canvas& canvas) {
-  const auto* src = static_cast<const uint8_t*>(canvas.getBuffer());
-  const size_t pixels = static_cast<size_t>(kScreenW) * kScreenH;
-  std::vector<uint8_t> out(pixels / 2);
-  for (size_t i = 0; i < pixels; i += 2) {
-    uint8_t a = static_cast<uint8_t>((src[i] + 8) / 17);      // same quantisation as the simulator shot
-    uint8_t b = static_cast<uint8_t>((src[i + 1] + 8) / 17);
-    out[i / 2] = static_cast<uint8_t>((a << 4) | b);
-  }
-  return out;
 }
 
 void Remote::say(const std::string& s) {
@@ -120,12 +111,22 @@ void Remote::handleLine(const std::string& line) {
       break;
     }
     case RemoteCommand::Refresh:
-      say("#refresh 0");  // the refresh log arrives with the DisplayManager (P1-3)
+    {
+      std::string text = os_.displayManager().refreshLogTail(50);
+      say("#refresh " + std::to_string(text.size()));
+      host_.reply(text.data(), text.size());
       break;
+    }
     case RemoteCommand::Shot:
       shotPending_ = true;  // runs in tick(), after earlier touches were handled; replies then
       settle_ = 0;
       return;
+    case RemoteCommand::Set:
+      if (!host_.option(c.key, c.value)) {
+        say("#err unknown option");
+        return;
+      }
+      break;
     case RemoteCommand::Reboot:
       say("#ok");
       host_.reboot();
@@ -156,7 +157,7 @@ void Remote::tick() {
 }
 
 void Remote::doShot() {
-  std::vector<uint8_t> px = packFrame4(os_.canvas());
+  std::vector<uint8_t> px = os_.frame4();
   char head[96];
   std::snprintf(head, sizeof head, "#shot %d %d %u %08x\n", kScreenW, kScreenH, static_cast<unsigned>(px.size()),
                 static_cast<unsigned>(crc32(px.data(), px.size())));
