@@ -1,0 +1,9 @@
+.pio/
+.vscode/
+.DS_Store
+out/
+backup/
+shot*.png
+# secrets: device config with Wi-Fi password and Home Assistant token
+config.local.json
+sim-data/config/secrets.json

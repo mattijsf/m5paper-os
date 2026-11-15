@@ -1,0 +1,91 @@
+# Power
+
+The battery is 1800 mAh. Running with Wi-Fi on draws about 154 mA (M5Stack docs): under 12
+hours. So the design is: **be asleep almost always, keep Wi-Fi off almost always.** The e-ink
+image stays visible while the processor sleeps, so the user cannot tell.
+
+Hardware constraints behind this design are in `HARDWARE.md` ("Power behaviour"). The key one:
+touch can wake the ESP32 from **light sleep** only, not from deep sleep or power-off.
+
+## States
+
+| State | What is on | Entered when | Left by | Expected current |
+|---|---|---|---|---|
+| **Active** | CPU, maybe Wi-Fi | input, worker job running, display busy | nothing left to do | 40-160 mA |
+| **Idle** (light sleep) | RAM kept, touch controller, RTC | UI thread has nothing to do | touch (GPIO 48), next timer, max 60 s tick | est. 1-5 mA, **measure** (P3-5) |
+| **Off** (PMS power-off) | RTC only | auto-off timeout, quick panel "Power off", battery below 3.3 V | side button; RTC alarm if a wake time was set | ~9 uA (docs) |
+
+There is no separate "deep sleep" state: power-off is lower and wakes on the same sources.
+
+### Idle rules (`core/power_policy`, task P3-4)
+
+The main loop calls `PowerPolicy.idle()` when it has nothing to do. It light-sleeps when all of
+these hold, otherwise it waits 10 ms and returns:
+
+- no worker job is running and no callback is queued;
+- the display is not busy and no settle or clean pass is due within 50 ms;
+- Wi-Fi is off (Wi-Fi drops in light sleep unless modem sleep is configured; v1 keeps it simple);
+- at least 300 ms have passed since the last touch event (lets double taps and swipes finish).
+
+Sleep duration = time until the next timer (settle pass, status bar minute tick, auto-off),
+capped at 60 s. On touch wake, the GT911 still holds the touch data, so the tap that woke the
+device is delivered normally: the user never has to "tap twice".
+
+### Auto-off
+
+- After `power.autoOffMin` minutes without input (default 15, reader 30, 0 = never while on USB):
+  draw the sleep screen (below), `display.wait()`, then `power.powerOff(0)`.
+- Before power-off every app gets `onPause()` to save state (reading position).
+- Boot after power-off is a cold start. Target: **under 2.5 s from button to the previous
+  screen** (task P3-6): the launcher restores the last app and the app restores its state from
+  `/data`. Do not connect Wi-Fi during boot.
+
+### Sleep screen
+
+A full-screen image drawn before power-off (Quality mode, it stays for hours): large clock-less
+layout with the current book cover and progress, or the PaperOS mark, plus "Press the side
+button to wake". Task P3-6.
+
+## Wi-Fi policy (`core/net`, task P3-2)
+
+- Off at boot. Apps never switch Wi-Fi on themselves: they call `ctx.http(...)` and the net
+  service connects if needed (known network, stored BSSID and channel for a ~1 s connect).
+- After the last request finishes, Wi-Fi stays up for `net.lingerSec` (default 20 s) in case
+  another request follows, then switches off.
+- While the Home app is in the foreground and was touched in the last 2 minutes, linger is
+  extended so toggles respond fast. The device does not light-sleep during that window.
+- Time sync: SNTP once per day when Wi-Fi happens to be up, written to the BM8563 RTC.
+- No background polling in v1. Scheduled wake-ups to pre-fetch the inbox are task P7-5.
+- TLS handshakes are expensive (~1.5 s, ~45 KB RAM). If Home Assistant is reachable on the LAN
+  by plain `http://`, the user can set that URL; the token then travels unencrypted on the home
+  network, which is the owner's call (documented in `BACKEND.md`).
+
+## CPU
+
+`setCpuFrequencyMhz(80)` when Wi-Fi is off (rendering text at 80 MHz is fine; measure page turn
+time before and after, task P3-5). 240 MHz while Wi-Fi is on or while indexing a book.
+
+## Battery reading
+
+No fuel gauge: `M5.Power.getBatteryVoltage()` (ADC on GPIO 3) and `getBatteryLevel()`.
+Voltage under load sags, so sample only when Wi-Fi is off, average 8 samples, and show steps of
+5%. `M5.Power.isCharging()` reads GPIO 4. Measured at first boot: 3716 mV = 52% while charging.
+
+## Estimates (to be replaced by measurements in task P3-5)
+
+| Scenario | Assumption | Average | Battery life |
+|---|---|---|---|
+| Reading | 1 page / 40 s: 1 s active at 60 mA, rest idle at 3 mA | ~4.5 mA | ~400 h of reading |
+| Home app, active use | Wi-Fi up, 100 mA | 100 mA | 18 h continuous |
+| Checking inbox | 15 s Wi-Fi per check, 10 checks a day | ~0.5 mAh per check | negligible |
+| Off | 9 uA | | years (self-discharge dominates) |
+
+## Measuring (task P3-5)
+
+1. Developer screen shows battery mV and time since boot; `/data/power.csv` gets a line every
+   10 minutes of awake/idle time: `unix,mv,state,wifiSeconds,pushes`.
+2. Run three sessions from a full charge with USB unplugged: 2 h reading (auto page turn every
+   40 s from a script flag), 2 h idle on the launcher, 30 min Home app with Wi-Fi up. Compute
+   mAh/h from the voltage curve and compare with the table. With a USB power meter in line the
+   numbers are better: use one if available.
+3. Record results in `STATUS.md` and correct this file.
