@@ -10,6 +10,7 @@
 
 #include "core/app.h"
 #include "core/fs.h"
+#include "apps/apps.h"
 #include "core/shell.h"
 #include "ui/widgets.h"
 
@@ -53,7 +54,8 @@ namespace {
 
 class FakeDisplay : public hal::Display {
  public:
-  void push(const Canvas&, Rect, Refresh) override {}
+  int pushes = 0;
+  void push(const Canvas&, Rect, Refresh) override { ++pushes; }
   bool busy() override { return false; }
   void wait() override {}
 };
@@ -553,4 +555,38 @@ TEST_CASE("settings: changing the ghost limit and settle delay applies at once a
   REQUIRE(again.load());
   CHECK(again.display.ghostLimit == doctest::Approx(10.0f));
   CHECK(again.display.settleMs == 1000);
+}
+
+TEST_CASE("power-off: the sleep screen stays on the panel, the next boot opens the app that was open, once") {
+  Env env;
+  REQUIRE(env.shell->openApp("settings"));
+  env.shell->prepareForPowerOff();
+  CHECK_FALSE(env.shell->appOpen());          // the app was stopped (state saved)
+  CHECK_FALSE(env.shell->dirty());            // nothing draws over the sleep screen
+  CHECK(env.display.pushes > 0);              // the sleep screen reached the panel
+  env.shell->prepareForPowerOff();            // a second call changes nothing (the remembered app stays)
+  Store sys("/data/system.json");
+  CHECK(sys.get("lastApp", std::string()) == "settings");
+
+  auto boot = apps::createSurface("", env.os, true);
+  static_cast<Shell*>(boot.get())->render(env.os.canvas(), env.os.displayManager());  // runs the deferred open
+  CHECK(boot->currentAppId() == "settings");
+  boot.reset();
+  Store after("/data/system.json");
+  CHECK(after.get("lastApp", std::string()) == "");  // used up: a boot after a crash shows the launcher
+  auto again = apps::createSurface("", env.os, true);
+  static_cast<Shell*>(again.get())->render(env.os.canvas(), env.os.displayManager());
+  CHECK(again->currentAppId() == "");
+  // `>set screen launcher` never resumes
+  env.shell->prepareForPowerOff();
+}
+
+TEST_CASE("power-off: an unknown remembered app (removed since) shows the launcher") {
+  Env env;
+  Store sys("/data/system.json");
+  sys.set("lastApp", std::string("no-such-app"));
+  sys.save();
+  auto boot = apps::createSurface("", env.os, true);
+  static_cast<Shell*>(boot.get())->render(env.os.canvas(), env.os.displayManager());
+  CHECK(boot->currentAppId() == "");
 }

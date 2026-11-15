@@ -244,7 +244,7 @@ simulator first; each task ends with screenshots.
   Do: `/data/power.csv` logger, the three sessions, CPU 80 MHz experiment.
   Done when: POWER.md estimates replaced by measurements; STATUS.md updated.
 
-- [ ] **P3-6 Sleep screen and fast resume.**
+- [~] **P3-6 Sleep screen and fast resume.** (simulator part done: sleep screen, resume of the last app and the open book, goldens `sleep-*`; device timing open)
   Do: sleep screen before power-off; boot path restores the last app without Wi-Fi.
   Device check: button press to usable screen under 2.5 s (measure, record).
 

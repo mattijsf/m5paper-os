@@ -45,7 +45,7 @@ class Shell : public Surface {
   // Surface
   void onGesture(const Gesture& g) override;
   void render(Canvas& canvas, DisplayManager& dm) override;
-  bool dirty() const override { return !deferred_.empty() || root_.dirty(); }
+  bool dirty() const override { return !sleeping_ && (!deferred_.empty() || root_.dirty()); }
   void prepareForPowerOff() override;
   std::string currentAppId() const override { return appId_; }
   std::string debugState() const override { return stack_.empty() ? std::string() : stack_.back().screen->debugState(); }
@@ -80,6 +80,7 @@ class Shell : public Surface {
   std::vector<Entry> stack_;
   std::vector<std::function<void()>> deferred_;
   Timers::Id statusTimer_ = 0;
+  bool sleeping_ = false;  // the sleep screen is on the panel
 
   // The running app.
   std::unique_ptr<App> app_;

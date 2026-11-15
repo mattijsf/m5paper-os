@@ -130,6 +130,11 @@ bool ScriptRunner::command(const std::string& cmd, const std::string& args, std:
         return false;
       }
     }
+  } else if (cmd == "power-off") {
+    // What auto-off does before cutting the power: apps save their state, the sleep screen goes on the panel. The script goes on
+    // (take a `shot`, then `restart` = the next boot).
+    if (os_.surface()) os_.surface()->prepareForPowerOff();
+    step(3000);
   } else if (cmd == "restart") {
     if (!restart_) {
       error = "'restart' is not available here";

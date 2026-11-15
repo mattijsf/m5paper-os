@@ -169,7 +169,7 @@ int main(int argc, char** argv) {
   Os os(platform);
   os.loadConfig();
   os.setScreen(appName);
-  if (auto s = apps::createSurface(appName, os)) os.setSurface(std::move(s));
+  if (auto s = apps::createSurface(appName, os, true)) os.setSurface(std::move(s));
   os.setWakeup([] {  // a finished job wakes the idle wait
     SDL_Event e = {};
     e.type = SDL_USEREVENT;
@@ -198,7 +198,7 @@ int main(int argc, char** argv) {
     sim::ScriptRunner runner(os, display, input, clock, net, outDir, [&] { display.present(); });
     runner.setRestart([&] {
       if (os.surface()) os.surface()->prepareForPowerOff();
-      os.setSurface(apps::createSurface(appName, os));
+      os.setSurface(apps::createSurface(appName, os, true));
     });
     int rc = runner.run(scriptPath);
     if (headless || rc != 0) return rc;

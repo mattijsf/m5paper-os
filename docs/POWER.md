@@ -67,7 +67,17 @@ Shell writes `lastApp` to `/data/system.json` and closes the app so it saves), t
 
 A full-screen image drawn before power-off (Quality mode, it stays for hours): large clock-less
 layout with the current book cover and progress, or the PaperOS mark, plus "Press the side
-button to wake". Task P3-6.
+button to wake". Task P3-6 (simulator part done): `Shell::prepareForPowerOff()` asks the open app for `App::sleepInfo()`
+(title, subtitle, percent, cover path; the reader keeps these in its store while a book is open), closes the app, draws
+`core/sleep_screen` into the canvas and calls `forceClean()` (one Quality pass); the Shell draws nothing after that.
+
+### Resume after power-off
+
+`prepareForPowerOff()` also stores the id of the open app as `lastApp` in `/data/system.json`. The boot path
+(`apps::createSurface("", os, true)`) opens that app once and clears the key (a boot after a crash shows the launcher); an
+unknown id shows the launcher. The app restores its own state: the reader keeps the open book's file name in its store
+(`open`, cleared when the user leaves the book for the library) and reopens it on the saved page; Settings just opens.
+No Wi-Fi at boot. `>set screen launcher` never resumes.
 
 ## Wi-Fi policy (`core/net`, task P3-2)
 

@@ -134,6 +134,10 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 ## Pending device checks
 
+- **P3-6**: button press to usable screen under 2.5 s after a power-off with the reader open (measure and record); how the
+  sleep screen looks on the panel (cover gray ramp, contrast, that it stays sharp for hours); `Shell::prepareForPowerOff()` on the
+  device takes the cover decode (about 0.3 s expected) before the Quality pass.
+
 - **Auto-off guard** (kUsbGraceMs): built, not run on the device; check that an idle device on USB with no program holding the port stays on for more than 20 minutes.
 - **Phase 4 (reader), device state**: the device powered itself off during a long pause (see the pitfalls above) and no tool can
   bring it back: it needs the side button once. Done on the device before that (firmware of P4-4, commit 9f8d440): Pride and
@@ -396,3 +400,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P4-3. `lib/miniz` (tinfl only, MIT), `core/zip`, `apps/reader/xml` tokenizer, `apps/reader/epub` (container, OPF, nav, NCX), EPUB meta in `meta.json`; fixture EPUBs and damaged-file tests; the five real EPUBs parse.
 - 2026-11-15: P4-4. XHTML to marked text, EPUB open (convert, paginate from memory, index file), "Preparing book..." with percentage and cancel, chapters converted on demand, cover in the background; `tools/books-check.sh` (six real books to their last page), `tools/books-device.py`. Device: cold index of Pride and Prejudice (609 KB EPUB, 1542 pages) 15.3 s, cached open 0.22 s.
 - 2026-11-15: P4-5. Reader menu (text size S/M/L/XL, go to by 10% and by page, contents, clean screen), cover thumbnail on the library card (decoded on the worker, box-filter scaled, `Hint::Image`), `Row` measures flex children at their own width. Goldens: `tests/ui/reader-menu.script`.
+- 2026-11-15: P3-6 (simulator part). Sleep screen (`core/sleep_screen`, `App::sleepInfo`), resume of the last app and the open book after power-off, `power-off` script command, `ui/image` (cover decoding shared by library and sleep screen).

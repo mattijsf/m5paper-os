@@ -229,7 +229,7 @@ void setup() {
   pcfg.pin_to_core = 0;
   esp_pthread_set_cfg(&pcfg);
   gOs.loadConfig();  // after the storage is mounted
-  gOs.setSurface(apps::createSurface("", gOs));  // the launcher
+  gOs.setSurface(apps::createSurface("", gOs, true));  // the launcher, or the app that was open at the last power-off
   gOs.setup();
 }
 

@@ -1,6 +1,7 @@
 // UI script runner (docs/SIMULATOR.md "UI scripts"). Plain text, one command per line:
 //   wait MS | shot NAME | tap X Y | long X Y | swipe X1 Y1 X2 Y2 | back
 //   expect-no-quality | expect-max-pushed N        (checked against pushes since the last shot)
+//   power-off                                       what auto-off does before the power goes: state saved, sleep screen on the panel
 //   restart                                         save and close the app, build the surface again (same data)
 //   expect-state TEXT                               the top screen's debugState() contains TEXT (reader: "page=3/33")
 //   expect-shot-equal A B                           the two screenshots (shot A, shot B) are byte-identical

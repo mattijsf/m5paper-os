@@ -59,9 +59,19 @@ class Screen {
   std::string title_;
 };
 
+// What the sleep screen shows about the app being left (docs/POWER.md "Sleep screen"): a title with a picture and a progress,
+// like the book being read.
+struct SleepInfo {
+  std::string title, subtitle;
+  int percent = -1;   // < 0: no progress bar
+  std::string image;  // virtual path of a JPEG or PNG, "" = none
+};
+
 class App {
  public:
   virtual ~App() = default;
+  // Asked just before power-off, while the app is still open. True if `info` was filled.
+  virtual bool sleepInfo(SleepInfo& /*info*/) { return false; }
   // The app was opened: push the first screen.
   virtual void onStart(AppContext& ctx) = 0;
   // The app is being left (back from its first screen, home, power-off): save state. Not called

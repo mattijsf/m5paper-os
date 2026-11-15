@@ -2,7 +2,9 @@
 
 #include <ctime>
 
+#include "core/sleep_screen.h"
 #include "core/timefmt.h"
+#include "ui/image.h"
 
 #include "ui/widgets.h"
 
@@ -219,11 +221,20 @@ void Shell::runDeferred() {
 }
 
 void Shell::prepareForPowerOff() {
-  // Remember what was open (the launcher can resume it), then leave the app so it saves its state.
+  if (sleeping_) return;
+  // Remember what was open (the next boot resumes it), ask the app what the sleep screen should show, then leave the app so it
+  // saves its state, and leave the sleep screen on the panel.
   Store sys("/data/system.json");
   sys.set("lastApp", appId_);
   sys.save();
+  SleepInfo info;
+  const bool haveInfo = app_ && app_->sleepInfo(info);
   if (app_) closeApp();
+  std::shared_ptr<Canvas> image;
+  if (haveInfo && !info.image.empty()) image = ui::loadImageFit(info.image, kSleepImageW, kSleepImageH);
+  sleeping_ = true;  // nothing else draws over the sleep screen
+  drawSleepScreen(os_.canvas(), haveInfo ? &info : nullptr, image.get());
+  os_.displayManager().forceClean();
 }
 
 void Shell::onGesture(const Gesture& g) {
@@ -232,6 +243,7 @@ void Shell::onGesture(const Gesture& g) {
 }
 
 void Shell::render(Canvas& canvas, DisplayManager& dm) {
+  if (sleeping_) return;
   runDeferred();
   root_.render(canvas, dm);
 }

@@ -33,10 +33,8 @@ wait 900
 tap 400 500
 wait 900
 shot reader-p7
-restart                 # back to the library, the book is now the "continue" card
-wait 600
-tap 400 320
-wait 1500
+restart                 # a boot after power-off: the app opens the book again on its page
+wait 2000
 expect-state page=7/
 shot reader-p7-resumed
 expect-shot-equal reader-p7 reader-p7-resumed

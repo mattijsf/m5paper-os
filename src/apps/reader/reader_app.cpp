@@ -174,6 +174,8 @@ class SegmentLabels : public ui::Widget {
 class PageScreen : public Screen {
  public:
   PageScreen(std::string file, int fontIndex) : file_(std::move(file)), font_(fontIndex) {}
+  // The book stays "open" in the store until the reader leaves it for the library: after a power-off the app opens it again.
+  void leaveBook() { ctx().store.set("open", std::string()); }
   ~PageScreen() override {
     if (steps_) steps_->cancel = true;  // the worker stops indexing a book nobody waits for
     saveProgress();
@@ -194,6 +196,7 @@ class PageScreen : public Screen {
 
   void build(ui::Column& root) override {
     setTitle(file_);
+    ctx().store.set("open", file_);
     view_ = root.add<PageView>();
     view_->flex = 1;
     view_->setInsets(kMarginX, kMarginTop, kMarginX, 0);
@@ -308,7 +311,17 @@ class PageScreen : public Screen {
         });
   }
 
+  // What the sleep screen shows (ReadApp::sleepInfo reads these): the book being read, its cover and progress.
+  void rememberForSleep() {
+    Store& st = ctx().store;
+    st.set("last.title", meta_.title);
+    st.set("last.author", meta_.author);
+    st.set("last.percent", percentOf(cur_, pages_.size()));
+    st.set("last.cover", coverFile(meta_));
+  }
+
   void updateFooter() {
+    rememberForSleep();
     const int ch = std::min<int>(pages_[cur_].chapter, static_cast<int>(meta_.chapters.size()) - 1);
     char right[32];
     std::snprintf(right, sizeof right, "%d / %zu", cur_ + 1, pages_.size());
@@ -321,6 +334,7 @@ class PageScreen : public Screen {
     if (state_ != State::Ready) {
       if (z == PageView::Zone::Menu) {  // while preparing (or after an error) the centre leaves
         if (steps_) steps_->cancel = true;
+        leaveBook();
         ctx().nav.pop();
       }
       return;
@@ -385,6 +399,7 @@ class PageScreen : public Screen {
     lib->flex = 1;
     lib->onClick = [this, raw] {
       raw->close();
+      leaveBook();
       ctx().nav.pop();
     };
     view_->host()->addOverlay(std::move(sheet));
@@ -449,10 +464,26 @@ class PageScreen : public Screen {
 
 class ReadApp : public App {
  public:
+  bool sleepInfo(SleepInfo& info) override {
+    if (!store_) return false;
+    info.title = store_->get("last.title", std::string());
+    if (info.title.empty()) return false;
+    info.subtitle = store_->get("last.author", std::string());
+    info.percent = store_->get("last.percent", -1);
+    info.image = store_->get("last.cover", std::string());
+    return true;
+  }
   void onStart(AppContext& ctx) override {
+    store_ = &ctx.store;
     AppContext* c = &ctx;
     ctx.nav.push<LibraryScreen>([c](const std::string& file) { c->nav.push<PageScreen>(file, c->store.get("font", 1)); });
+    // The book that was open at the last power-off comes back on its page (the library stays under it).
+    const std::string open = ctx.store.get("open", std::string());
+    if (!open.empty() && fs::exists(std::string(kBooksDir) + "/" + open)) ctx.nav.push<PageScreen>(open, ctx.store.get("font", 1));
   }
+
+ private:
+  Store* store_ = nullptr;
 };
 
 POS_REGISTER_APP(ReadApp, {.id = "read", .name = "Read", .icon = Icon::BookOpen, .order = 10});

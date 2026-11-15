@@ -12,10 +12,11 @@ shot epub-p2
 page-through 200 400 500 150
 shot epub-last
 expect-state page=
-restart
-wait 600
-shot epub-library-opened  # now with the book's own title and author, 100% read
-tap 400 320
-wait 1500
-expect-no-quality
+restart                 # the sleep screen and the boot are Quality passes: no expect-no-quality here
+wait 2000
 shot epub-resumed
+tap 270 500             # menu, then the library: the book's own title and author, 100% read
+wait 700
+tap 432 900
+wait 1500
+shot epub-library-opened

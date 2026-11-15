@@ -1,0 +1,21 @@
+# app: read
+# P3-6 (simulator): power-off while reading. The sleep screen shows the book with its cover and progress; the next boot opens the
+# book again on the same page.
+wait 600
+tap 270 178
+wait 1500
+tap 400 500
+wait 900
+tap 400 500
+wait 900
+tap 400 500
+wait 900
+shot sleep-reader-page
+expect-state page=4/
+power-off
+shot sleep-reader
+restart
+wait 2000
+expect-state page=4/
+shot sleep-reader-resumed
+expect-shot-equal sleep-reader-page sleep-reader-resumed
