@@ -138,6 +138,8 @@ std::string Os::statusText() {
     const std::string log = logTail(50);
     int checked = 0, hits = 0;
     for (const auto& k : secrets_.keys()) {
+      // Passwords and tokens only: network names and the HA address are not secret (SSIDs are logged on purpose).
+      if (k.rfind("WIFI_SSID", 0) == 0 || k == "HA_URL") continue;
       const std::string v = secrets_.get(k);
       if (v.size() < 8) continue;
       ++checked;
@@ -145,7 +147,7 @@ std::string Os::statusText() {
       for (size_t at = log.find(prefix); at != std::string::npos; at = log.find(prefix, at + 1)) ++hits;
       for (size_t at = out.find(prefix); at != std::string::npos; at = out.find(prefix, at + 1)) ++hits;
     }
-    out += "secret leak check: " + std::to_string(checked) + " values checked, " + std::to_string(hits) + " occurrences in the log and in this output\n";
+    out += "secret leak check: " + std::to_string(checked) + " secret values (tokens, passwords) checked, " + std::to_string(hits) + " occurrences in the log and in this output\n";
   }
   out += std::string("clock: ") + (p_.clock.now() > 0 ? "set" : "not set") + "\n";
   return out;
