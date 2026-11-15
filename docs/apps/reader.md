@@ -94,7 +94,7 @@ boundaries into virtual chapters.
 | File | Content |
 |---|---|
 | `meta.json` | title, author, chapter list (title, and for EPUB the source href and part), cover path inside the zip |
-| `ch<N>.txt` | **TXT books only**: chapter N as our own compact text format: one paragraph per line, style marks as control bytes (0x01 bold on, 0x02 bold off, 0x03 italic on, 0x04 italic off, 0x05 + level = heading). An EPUB's chapters are converted from the EPUB itself each time one is opened (about 0.1 s) and while paginating: the card writes at only about 90 KB/s, so caching 1 MB of text cost 8 s of a 26 s first open. |
+| `ch<N>.txt` | **TXT books only**: chapter N as our own compact text format: one paragraph per line, style marks as control bytes (0x01 bold on, 0x02 bold off, 0x03 italic on, 0x04 italic off, 0x05 + level = heading, 0x06 at the start of a line = continues the previous block after a `<br>`). An EPUB's chapters are converted from the EPUB itself each time one is opened (about 0.1 s) and while paginating: the card writes at only about 90 KB/s, so caching 1 MB of text cost 8 s of a 26 s first open. |
 | `pages-<layoutKey>.idx` | binary: for each page, chapter index (u16) and byte offset into `chN.txt` (u32). `layoutKey` = font size + margins + line spacing |
 | `cover.jpg` / `.png` | the cover copied out of the EPUB as it is (decoded by M5GFX when drawn); written in the background after the book is open |
 | `progress.json` | `{ "chapter": 3, "offset": 18234, "percent": 42, "opened": 1763200000 }` |
