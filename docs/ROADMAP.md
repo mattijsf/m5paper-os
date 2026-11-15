@@ -326,7 +326,7 @@ home-assistant repo's own rules. Read BACKEND.md fully before any of them.
   confirm an `imap_content` event for a test mail, try `imap.fetch` with `?return_response`
   over REST with the device token and save a redacted fixture.
   Done when: event and fetch samples are saved; setup recorded in HANDOVER.md.
-- [ ] **P6-3 Install the inbox package.** Fix `ha/paperos_inbox.yaml` against the real samples
+- [~] **P6-3 Install the inbox package.** (2026-11-15: WhatsApp half live in the Home Assistant repo, commit de1323d, tested with fake events; mail half waits for P6-2; real message, non-admin script call, recorder exclusion and the 48 h expiry untested. See BACKEND.md.) Fix `ha/paperos_inbox.yaml` against the real samples
   (group names, entity ids), test both templates in Developer tools > Template, install into
   the home-assistant repo per its rules, verify: a new WhatsApp message and a new mail appear
   in the sensors within seconds; answering the chat removes its items; reading all mail empties

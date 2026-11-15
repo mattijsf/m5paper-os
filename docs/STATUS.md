@@ -72,6 +72,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | WhatsApp | Not phone notifications: a Home Assistant plugin reads and stores messages, the device reads the result | DECISIONS.md D16, BACKEND.md |
 | Mail | Proton Mail, through Home Assistant if possible | D17 |
 | Home Assistant token | The owner put it on the SD card: `/sd/paperos_config`, `HA_TOKEN=` | D19, apps/settings.md |
+| WhatsApp data | Lives in a hardened Home Assistant sensor (recorder-excluded, on no dashboard); the add-on keeps running despite its open endpoints | D20, BACKEND.md |
 | Home Assistant URL | The public HTTPS address, set by the user as `HA_URL=` on the card; not hard-coded or committed; works away from home. TLS cost: one kept-alive connection per refresh | D18 (note), BACKEND.md "Connection" |
 | Home Assistant token, during development | The token on the card stays as it is; after development it is replaced by a token of a dedicated non-admin user. Code stays within the non-admin API subset (per-entity `GET /api/states/<id>`, service calls; no `/api/template`, no event firing) so the swap needs no code change | D18 |
 | Books | SD card is in, empty: find open books ourselves | `tools/fetch-books.sh`, task P4-0 pushes them to the card |
@@ -95,7 +96,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   has been requested from the live instance yet (tasks P5-1, P5-2).
 - Which Home Assistant user the token belongs to. The Home app and the inbox calls have **not been run with a non-admin token** (D18 assumes they work); the swap to a dedicated non-admin user comes after development.
 - WhatsApp add-on: installed, **not linked yet**; event fields for groups and the effect on phone
-  notifications are unknown (task P6-1, see "P6-1 progress"). `ha/paperos_inbox.yaml` is an untested draft.
+  notifications are unknown (task P6-1, see "P6-1 progress"). `ha/paperos_inbox.yaml` is a copy of the live WhatsApp package (tested with fake events only; see P6-3).
 - Proton Mail Bridge on Home Assistant OS: no confirmed add-on that exposes IMAP (task P6-2).
 
 ## P6-1 progress (2026-11-15, done with the owner in Home Assistant)
@@ -179,14 +180,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 ## Open questions for the user
 
-0. **Where may WhatsApp data live?** Every Home Assistant login can read entity states, so putting the user's private messages into a
-   Home Assistant sensor (the current design, BACKEND.md "Inbox feeds") exposes them to every Home Assistant user. The alternative is
-   that the device reads the add-on directly on the home network (its chats API on port 8066, which needs `ui_auth` and its API key and
-   works only at home). The user is deciding; **nothing is built for either until then** (the inbox app reads the sensor contract only
-   from fixtures). Affects P6-3 and, for the second option, a new device client for the add-on API.
-1. **WhatsApp add-on risk**: it is an unofficial client linked to the personal account; its own
-   documentation warns of possible bans. PaperOS only reads. To be confirmed once more at
-   install time (task P6-1). The notification-sensor route stays available as fallback.
+1. ~~Where may WhatsApp data live? / add-on risk~~ **Closed 2026-11-15**: a hardened Home Assistant sensor (DECISIONS.md D20); the terms-of-service risk was
+   accepted at install; the add-on's unauthenticated endpoints (BACKEND.md "Add-on security") are an accepted risk, "Keep running". **Watch**: check each add-on
+   update for auth on `/api/autoresponder/config` and `/api/dashboard`; the add-on's API token never goes on the SD card.
 2. **Wi-Fi**: add `WIFI_SSID=` and `WIFI_PASSWORD=` to `paperos_config` on the card? It lets
    the device go online from task P3-2, long before the on-screen keyboard exists.
 3. **Proton**: paid plan (needed for Bridge)? OK to run Bridge as a Home Assistant add-on?
@@ -427,3 +423,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P6-4, P6-5, P6-6. `core/text_clean`, Inbox app for WhatsApp and Mail (grouped chats, detail pages, full-text fetch, mark all read, seen marker, badge file), `Screen::setAction`; goldens `inbox-*`, `mail-*`.
 - 2026-11-15: P7-6 quick panel (`core/quick_panel`, `Shell::sleepNow`); Home light sheet shows the brightness value.
 - 2026-11-15: launcher summary line (`summaryLine`, golden with and without data).
+- 2026-11-15: P6-3 (WhatsApp half, done in parallel): `ha/paperos_inbox.yaml` synced from the Home Assistant repo; BACKEND.md event fields and feed mapping corrected; D20; add-on security facts.

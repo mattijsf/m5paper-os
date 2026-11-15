@@ -189,3 +189,16 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   device, the card wins duplicates. Connect: last network first with its stored BSSID/channel, else one scan and the
   strongest known network; never loop. The radio is 2.4 GHz only. The card on the device holds `HA_TOKEN`, `WIFI_SSID`,
   `WIFI_PASSWORD`, `HA_URL` (names and lengths only, checked 2026-11-15).
+
+## D20. WhatsApp data lives in a hardened Home Assistant sensor
+
+- **Decision**: the WhatsApp feed stays a Home Assistant template sensor (`sensor.paperos_whatsapp_inbox`, D16), hardened: the sensor and
+  the `whatsapp_message_received` / `whatsapp_message_sent` events are excluded from the recorder (no history, no logbook) and the sensor is
+  on no dashboard.
+- **Why / accepted risk**: Home Assistant has no per-user entity permissions: any login can read an entity's state by name. The user accepts
+  that for this one sensor.
+- **Rejected**: the device reading the WhatsApp add-on directly on the home network (its chats API on port 8066): it would only work at home, and
+  the device would need the add-on's API key on the SD card. The add-on's API token belongs only in the Home Assistant integration; the device
+  needs only `HA_TOKEN` and `HA_URL`.
+- Related: the add-on's open endpoints (accepted risk, BACKEND.md "Add-on security"), D8 stays the fallback.
+

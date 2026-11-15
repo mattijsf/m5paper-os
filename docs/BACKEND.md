@@ -85,7 +85,13 @@ Item (the **feed contract**):
 | `ts` | unix seconds | unix seconds |
 | `key` | chat id (JID): used to drop a chat's items | IMAP config entry id: used to fetch the full text |
 
-The package that defines both sensors is `ha/paperos_inbox.yaml` (**draft**, tested in task P6-3).
+The package is `ha/paperos_inbox.yaml`, a copy of the live `packages/paperos_inbox.yaml` in the Home Assistant config repo (commit de1323d there; the
+Home Assistant repo is the source, sync by copying). It defines the **WhatsApp half only** (sensor and `script.paperos_inbox_clear`); the mail sensor comes with P6-2.
+Tested on the live Home Assistant 2026.10.1 (2026-11-15): the template rendered 8 cases in Home Assistant's own engine (direct, group with a `{low, high}` timestamp,
+media without text, poll ignored, status broadcast ignored, sent removes the chat, clear, first run without attributes), fake events fired through the API
+produced the items, a fake sent event removed that chat, the script emptied the feed. **Not tested**: a real WhatsApp message (the integration is not set up
+yet: it needs the add-on API token pasted by the user), the script with a non-admin token, the recorder exclusion (needs a Home Assistant restart), the 48 h expiry.
+The package has no `connected` attribute, so the inbox's "link is down" notice never shows until one is added.
 
 ### WhatsApp: "WhatsApp for Home Assistant" (FaserF)
 
@@ -94,11 +100,17 @@ The package that defines both sensors is `ha/paperos_inbox.yaml` (**draft**, tes
   using the Baileys library, and the `whatsapp` integration that talks to it.
 - Linking: the add-on shows a QR code; scan it in WhatsApp > Linked devices. It then behaves
   like WhatsApp Web: one more linked device on the user's own account.
-- Incoming messages fire the event **`whatsapp_message_received`** with: `type` (`chat` for
-  text), `sender` (JID: `...@s.whatsapp.net` person, `...@g.us` group), `sender_number`,
-  `sender_name`, `content`, `timestamp`, `media_url`.
-- The user's own replies (from the phone too) fire **`whatsapp_message_sent`** with `to` /
-  `recipient` (JID), `is_group`, `group_id`, `content`, `id`.
+- Incoming messages fire the event **`whatsapp_message_received`** with these fields (read from the integration and add-on source v2.1.10;
+  an earlier version of this page had them wrong): `type` = `"message"` for text **and** media (not `"chat"`), `content`, `caption`,
+  `media_type`, `sender_name`, `sender_number`, `from` (the **chat** JID: the person's `...@s.whatsapp.net`, or the group's `...@g.us` in a
+  group), `sender` (the person's JID inside a group), `is_group`, `id`, and `raw` (the whole raw message; `raw.messageTimestamp` is a number
+  or `{low, high}`). There is **no `timestamp` field and no group name** in the event. The integration drops the user's own messages from the
+  received event.
+- The user's own replies (from the phone too) fire **`whatsapp_message_sent`** with `to` / `recipient` (the chat JID).
+- **Feed item mapping** (`packages/paperos_inbox.yaml`): `key` = `from` (chat JID); `chat` = `"Group"` for groups (the name is not in the event: improving
+  this is open), `""` for direct chats; `text` = `content`, else `caption`, else `"[<media_type>]"`; `ts` = `raw.messageTimestamp` (`low` of a mapping),
+  else now; `id` = `"<ts>-<sender_number>-<last 6 of the message id>"`; chats ending in `@broadcast` (status) or `@newsletter` are skipped. The device
+  never parses `id` (it is only a key) and shows a group message as "Anna - Group".
 - "Unread": WhatsApp gives a linked device no reliable "read on the phone" signal through this
   integration. The feed therefore holds **recent messages** and drops a chat's items when the
   user answers in that chat (`whatsapp_message_sent` to the same JID), when the device's "Mark
@@ -143,9 +155,21 @@ Risks and checks (task P6-1). **These need the owner's attention before installi
 4. The link drops if the phone is offline for 14 days or WhatsApp is reinstalled: the feed
    then silently stops. The integration has a connection `binary_sensor`; the inbox app shows
    "WhatsApp link is down" when it is off (fetch it along with the feed).
-5. Group messages: the documented event fields do not include the group name. Capture real
-   events (HA > Developer tools > Events > listen to `whatsapp_message_received`) for a direct
-   and a group message and adjust the template; save redacted samples as fixtures.
+5. Group messages: the event has no group name (shown as "Group"). Capture real events (HA > Developer tools > Events > listen to
+   `whatsapp_message_received`) for a direct and a group message and save redacted samples as fixtures; look for a way to get the group name.
+
+### Add-on security (accepted risk, 2026-11-15)
+
+- After the user set the UI password (`ui_auth_enabled` true, 20:15), from another machine on the home network and **without login** port 8066
+  answers 302/401 for the web UI, `/api/chats`, `/status`, `/stats`, `/logs` and `POST /send_message`.
+- **Still open without any login in add-on 2.1.10**: `GET /api/dashboard` (connection state, own number, last received message and sender, recent
+  lists), `GET /api/moderation/config`, and `GET` and `POST /api/autoresponder/config`. The POST handler has no auth middleware (source:
+  `whatsapp/app/src/routes/api/autoresponder.js`) and sets `enabled` and `message_template` from the body: anyone on the home network could switch on
+  auto-replies sent from the user's account. Verified only that an unauthenticated POST with an empty body returns 200 and changes nothing
+  (`enabled` stayed false); enabling was not tried. This is a defect of the add-on, not a setting.
+- **The owner chose to keep the add-on running** ("Keep running"). **Watch**: check each add-on update for auth on `/api/autoresponder/config` and
+  `/api/dashboard`.
+- The add-on's API token belongs only in the Home Assistant integration; it must **never** go on the device's SD card (the device needs only `HA_TOKEN` and `HA_URL`).
 
 ### Mail: Proton Mail Bridge + the built-in IMAP integration
 
@@ -187,7 +211,7 @@ firing events directly does not).
 The Home Assistant config is a repo of its own: **live on push to main**,
 with its own rules (its docs: check YAML, push to main, wait for
 the sync, answer the user in Dutch there). Install as its own step in that repo: copy
-`ha/paperos_inbox.yaml` to `packages/paperos_inbox.yaml`, adjust entity ids, validate, push.
+`ha/paperos_inbox.yaml` to `packages/paperos_inbox.yaml`, adjust entity ids, validate, push. (Done for the WhatsApp half on 2026-11-15; from now on the Home Assistant repo's file is the source and this copy is synced from it.)
 Add-ons and integrations set up in the UI live in `.storage/` and are not in git: record what
 was installed in that repo's `docs/HANDOVER.md`.
 

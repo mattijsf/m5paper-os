@@ -1,36 +1,45 @@
-# PaperOS inbox feeds for Home Assistant.  DRAFT: not tested against a live instance yet.
-# Tasks P6-1..P6-3 in docs/ROADMAP.md test and install it. Contract: docs/BACKEND.md "Inbox feeds".
+# PaperOS inbox feed: recent WhatsApp messages for the e-ink device (repo m5paper-os,
+# docs/BACKEND.md "Inbox feeds"). The device reads sensor.paperos_whatsapp_inbox over the
+# REST API; it never talks to WhatsApp itself.
 #
-# Needs (set up in the Home Assistant UI first):
-#   - "WhatsApp for Home Assistant" add-on + integration (events whatsapp_message_received/_sent)
-#   - IMAP integration pointed at Proton Mail Bridge (event imap_content), text enabled
+# Source: the "WhatsApp Gateway" add-on (FaserF, slug 605cee21_whatsapp) plus its `whatsapp`
+# integration, which fires whatsapp_message_received / whatsapp_message_sent. Field names
+# below come from the integration and add-on source (v2.1.10): type "message", content,
+# caption, media_type, sender_name, sender_number, from (chat JID; the group JID in a
+# group), is_group, id, raw.messageTimestamp; the sent event has "to" (chat JID).
 #
-# Install: copy to <home-assistant config>/packages/paperos_inbox.yaml. That repo goes live on
-# push: follow its rules. Replace IMAP_UNREAD_SENSOR below with the real entity id.
+# Privacy: Home Assistant has no per-user entity permissions, so the sensor is kept out of
+# the recorder (no history, no logbook) and must not be put on a dashboard. The message
+# events are excluded from the recorder as well: they carry the full raw message.
 #
-# Field names of the WhatsApp events come from the add-on docs; verify them against real
-# events (Developer tools > Events) before trusting the templates, especially for groups.
+# The feed holds recent messages, not "unread": a chat's items go when the owner answers in
+# that chat (from the phone too), when the device calls script.paperos_inbox_clear, or
+# after 48 hours. The mail feed (sensor.paperos_mail_inbox) comes with Proton Bridge + IMAP.
 
 recorder:
   exclude:
     entities:
       - sensor.paperos_whatsapp_inbox
       - sensor.paperos_mail_inbox
+    event_types:
+      - whatsapp_message_received
+      - whatsapp_message_sent
 
 script:
   paperos_inbox_clear:
     alias: PaperOS inbox clear
+    description: Empties a PaperOS inbox feed ("Mark all read" on the device).
     fields:
       feed:
         description: whatsapp or mail
+        example: whatsapp
     sequence:
       - event: paperos_inbox_clear
         event_data:
           feed: "{{ feed }}"
 
 template:
-  # ---------------------------------------------------------------- WhatsApp
-  - trigger:
+  - triggers:
       - trigger: event
         event_type: whatsapp_message_received
         id: received
@@ -52,72 +61,38 @@ template:
           items: >
             {% set max_age = 48 * 3600 %}
             {% set t = now().timestamp() | int %}
-            {% set old = (this.attributes.get('items', []) if this is defined and this.attributes is defined else [])
+            {% set old = (this.attributes.get('items') or [])
                          | selectattr('ts', 'gt', t - max_age) | list %}
+            {% set d = trigger.event.data %}
             {% if trigger.id == 'clear' %}
               {{ [] }}
             {% elif trigger.id == 'sent' %}
-              {# the user answered in this chat (from the phone too): it is no longer unread #}
-              {% set d = trigger.event.data %}
-              {{ old | rejectattr('key', 'eq', d.get('group_id') or d.get('to') or d.get('recipient')) | list }}
+              {{ old | rejectattr('key', 'eq', (d.get('to') or d.get('recipient') or '') | string) | list }}
             {% else %}
-              {% set d = trigger.event.data %}
-              {% set text = d.get('content', '') | string %}
-              {% if d.get('type') != 'chat' or text == '' %}
+              {% set chat = (d.get('from') or d.get('sender') or '') | string %}
+              {% set media = (d.get('media_type') or '') | string %}
+              {% set text = ((d.get('content') or d.get('caption') or '') | string) | trim %}
+              {% if text == '' and media != '' %}
+                {% set text = '[' ~ media ~ ']' %}
+              {% endif %}
+              {% if d.get('type') != 'message' or text == '' or chat == ''
+                    or chat.endswith('@broadcast') or chat.endswith('@newsletter') %}
                 {{ old }}
               {% else %}
-                {% set jid = d.get('sender', '') | string %}
+                {% set raw_ts = (d.get('raw') or {}).get('messageTimestamp') %}
+                {% if raw_ts is mapping %}
+                  {% set raw_ts = raw_ts.get('low') %}
+                {% endif %}
+                {% set ts = raw_ts | int(t) %}
+                {% set number = (d.get('sender_number') or '') | string %}
                 {% set item = {
-                  'id': (d.get('timestamp', t) | string) ~ '-' ~ (d.get('sender_number', '') | string),
-                  'from': d.get('sender_name') or d.get('sender_number', '?'),
-                  'chat': d.get('group_name', '') if jid.endswith('@g.us') else '',
+                  'id': (ts | string) ~ '-' ~ number ~ '-' ~ ((d.get('id') or '') | string)[-6:],
+                  'from': ((d.get('sender_name') or number or '?') | string)[:60],
+                  'chat': 'Group' if (d.get('is_group') or chat.endswith('@g.us')) else '',
                   'text': text[:500],
-                  'ts': d.get('timestamp', t) | int,
-                  'key': jid
+                  'ts': ts,
+                  'key': chat
                 } %}
                 {{ ([item] + (old | rejectattr('id', 'eq', item.id) | list))[:30] }}
-              {% endif %}
-            {% endif %}
-
-  # ---------------------------------------------------------------- Mail (Proton via Bridge + IMAP)
-  - trigger:
-      - trigger: event
-        event_type: imap_content
-        id: mail
-      - trigger: state
-        entity_id: sensor.IMAP_UNREAD_SENSOR
-        to: "0"
-        id: allread
-      - trigger: event
-        event_type: paperos_inbox_clear
-        event_data:
-          feed: mail
-        id: clear
-    sensor:
-      - name: PaperOS Mail inbox
-        unique_id: paperos_mail_inbox
-        icon: mdi:email
-        state: "{{ now().timestamp() | int }}"
-        attributes:
-          updated: "{{ now().isoformat() }}"
-          items: >
-            {% set old = this.attributes.get('items', []) if this is defined and this.attributes is defined else [] %}
-            {% if trigger.id in ['clear', 'allread'] %}
-              {{ [] }}
-            {% else %}
-              {% set d = trigger.event.data %}
-              {% if not d.get('initial', true) %}
-                {{ old }}
-              {% else %}
-                {% set item = {
-                  'id': d.get('uid', '') | string,
-                  'from': d.get('sender', '?') | string,
-                  'chat': '',
-                  'subject': (d.get('subject', '') | string)[:200],
-                  'text': (d.get('text', '') | string)[:1500],
-                  'ts': as_timestamp(d.get('date'), now().timestamp()) | int,
-                  'key': d.get('entry_id', '') | string
-                } %}
-                {{ ([item] + (old | rejectattr('id', 'eq', item.id) | list))[:20] }}
               {% endif %}
             {% endif %}

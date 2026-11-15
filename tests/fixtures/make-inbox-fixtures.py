@@ -26,12 +26,12 @@ LONG = ("Here is the plan for the weekend, in case you missed it: Saturday we st
         "Supercalifragilisticexpialidocious" + "x" * 70 + " ok?")
 
 WA = [  # newest first
-    ("Anna", "Family", "g-family@g.us", 13 * 60 + 31, "See you!"),
-    ("Anna", "Family", "g-family@g.us", 13 * 60 + 25, "I can bring the cake \U0001F382\U0001F600"),
-    ("Anna", "Family", "g-family@g.us", 13 * 60 + 20, "Are you coming at six?"),
+    ("Anna", "Group", "g-family@g.us", 13 * 60 + 31, "See you!"),
+    ("Anna", "Group", "g-family@g.us", 13 * 60 + 25, "I can bring the cake \U0001F382\U0001F600"),
+    ("Anna", "Group", "g-family@g.us", 13 * 60 + 20, "Are you coming at six?"),
     ("Bram", "", "bram@s.whatsapp.net", 12 * 60 + 50, LONG),
-    ("Carla", "Werk", "g-werk@g.us", 11 * 60 + 5, "Meeting moved to Thursday"),
-    ("Carla", "Werk", "g-werk@g.us", 11 * 60 + 2, "Can someone send the agenda?"),
+    ("Carla", "Group", "g-werk@g.us", 11 * 60 + 5, "Meeting moved to Thursday"),
+    ("Carla", "Group", "g-werk@g.us", 11 * 60 + 2, "Can someone send the agenda?"),
     ("Dirk", "", "dirk@s.whatsapp.net", -(20 * HOUR), "Thanks for yesterday!"),   # yesterday evening
     ("Emma", "", "emma@s.whatsapp.net", -(3 * DAY), "Did you see the match?"),
     ("Fleur", "", "fleur@s.whatsapp.net", -(4 * DAY), "Call me when you can"),
@@ -44,7 +44,7 @@ def wa_items():
     for i, (frm, chat, key, t, text) in enumerate(WA):
         # t > 0: minutes after local midnight today (CET = UTC+1): 13:31 -> 810 min after 00:00 local? use minutes from 00:00 UTC+1
         ts = (NOW - (NOW % DAY) - HOUR + t * MIN) if t > 0 else NOW + t
-        out.append({"id": f"{ts}-{i}", "from": frm, "chat": chat, "text": text, "ts": ts, "key": key})
+        out.append({"id": f"{ts}-3161234{i:04d}-{i:06X}"[:48], "from": frm, "chat": chat, "text": text, "ts": ts, "key": key})
     return out
 
 HTML_MAIL = ("<html><head><style>p{color:#333}</style></head><body><p>Hello Daan,</p><p>Your order <b>#4821</b> &amp; the invoice are "

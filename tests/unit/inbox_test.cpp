@@ -99,3 +99,19 @@ TEST_CASE("inbox: relative times in the local zone") {
   CHECK(fetchedText("{}") == "");
   CHECK(fetchedText("nope") == "");
 }
+
+TEST_CASE("inbox: items as the live package makes them (chat \"Group\", id is only a key, media placeholder)") {
+  Feed f;
+  REQUIRE(parseFeed(R"({"state":"1768480000","attributes":{"updated":"2026-01-15T13:34:00+01:00","items":[
+    {"id":"1768480000-31612345678-A1B2C3","from":"Anna","chat":"Group","text":"[image]","ts":1768480000,"key":"1203630000@g.us"},
+    {"id":"1768479000-31698765432-D4E5F6","from":"Bram","chat":"","text":"Hi","ts":1768479000,"key":"31698765432@s.whatsapp.net"},
+    {"id":"1768478000-31612345678-0000AB","from":"Anna","chat":"Group","text":"Earlier","ts":1768478000,"key":"1203630000@g.us"}]}})", f));
+  REQUIRE(f.items.size() == 3);
+  auto c = groupChats(f.items, 0);
+  REQUIRE(c.size() == 2);
+  CHECK(c[0].title == "Anna - Group");  // the group name is not in the event
+  CHECK(c[0].count == 2);
+  CHECK(c[0].lastText == "[image]");
+  CHECK(c[1].title == "Bram");
+  CHECK(firstLine(c[0].lastText) == "[image]");
+}
