@@ -8,6 +8,11 @@ namespace pos::ui {
 
 void ListItem::setTitle(const std::string& t) { if (t != title_) { title_ = t; invalidate(Hint::Content); } }
 void ListItem::setSubtitle(const std::string& t) { if (t != subtitle_) { subtitle_ = t; invalidate(Hint::Content); } }
+void ListItem::setSubtitleIsContent(bool content) {
+  if (content == subtitleContent_) return;
+  subtitleContent_ = content;
+  invalidate(Hint::Content);
+}
 void ListItem::setIcon(Icon i) { hasIcon_ = true; icon_ = i; invalidate(Hint::Content); }
 
 void ListItem::clearChildren() {
@@ -94,8 +99,9 @@ void ListItem::draw(Canvas& c) {
   if (subtitle_.empty()) {
     drawText(c, ellipsize(c, title_, Type::BodyStrong, textW), left, cy, Type::BodyStrong, fg, Anchor::MiddleLeft, back);
   } else {
+    const Type subType = subtitleContent_ ? Type::Body : Type::Caption;
     drawText(c, ellipsize(c, title_, Type::BodyStrong, textW), left, cy - 15, Type::BodyStrong, fg, Anchor::MiddleLeft, back);
-    drawText(c, ellipsize(c, subtitle_, Type::Caption, textW), left, cy + 17, Type::Caption, sub, Anchor::MiddleLeft, back);
+    drawText(c, ellipsize(c, subtitle_, subType, textW), left, cy + 17, subType, subtitleContent_ ? fg : sub, Anchor::MiddleLeft, back);
   }
   c.drawFastHLine(frame.x, frame.y + frame.h - 1, frame.w, pressed_ ? ink : divider);
 }

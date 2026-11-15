@@ -202,3 +202,11 @@ model, not physics: final tuning happens on the device (task P7-1).
 Settings > Developer > Display lab (task P7-1) shows: the 16-step gray ramp, a ghosting test
 (checkerboard then white), a fine-text sample, and counters for pushes per mode. Use it to tune
 `ghostLimit` and the settle delay, and to compare custom waveforms.
+
+## What the panel does to grays
+
+Frame dumps and simulator screenshots cannot show this. On the physical panel the white is itself gray, and the mid-grays read **lighter**
+than on a monitor; thin anti-aliased gray text (the 18 px caption in gray(5)) was the first thing to become hard to read. Rules that follow
+(tokens and the content rule are in UI.md "Colour"): no text lighter than gray(3); no content text in gray at all (content is `ink`); a content
+line is not set in the caption size when the row has room. Whether gray(3) metadata and the gray(11) hairlines read well still needs a person's eyes.
+

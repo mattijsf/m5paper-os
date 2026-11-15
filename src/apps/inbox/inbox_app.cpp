@@ -72,8 +72,7 @@ class DetailScreen : public Screen {
     if (kind_.mail) {
       setTitle("Mail");
       root.add<ui::Spacer>(ui::s1);
-      auto* from = root.add<ui::Label>(msg_.from, Type::Caption, ui::secondary);
-      (void)from;
+      root.add<ui::Label>(msg_.from, Type::Body);  // the sender is content: ink, body size
       auto* subject = root.add<ui::Label>(msg_.subject.empty() ? "(no subject)" : msg_.subject, Type::Title);
       subject->maxLines = 2;
       root.add<ui::Label>(relativeTime(msg_.ts, now_), Type::Caption, ui::secondary);
@@ -243,6 +242,7 @@ class ListScreen : public Screen {
       if (c.count > 1) title += " (" + std::to_string(c.count) + ")";
       row->setTitle(title);
       row->setSubtitle(firstLine(c.lastText));
+      row->setSubtitleIsContent(true);  // the message (or the mail subject) is what the list is for
       row->setTrailingText(relativeTime(c.ts, now()));
       row->onClick = [this, idx] { open(idx); };
     }

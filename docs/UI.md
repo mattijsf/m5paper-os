@@ -21,12 +21,22 @@ rules in `DISPLAY.md`.
 |---|---|---|
 | `ink` | gray(0) | text, icons, strokes, filled buttons |
 | `paper` | gray(15) | background |
-| `secondary` | gray(5) | secondary text, captions |
-| `disabled` | gray(9) | disabled text and icons |
+| `secondary` | gray(3) | **metadata only**: times, "Updated 20:21", counts, captions, hints (was gray(5): too light on the panel) |
+| `disabled` | gray(7) | disabled text and icons (was gray(9)) |
 | `divider` | gray(11) | 1 px separators |
 | `fill` | gray(13) | icon wells, quiet backgrounds |
 
 Anything that changes on touch (pressed, selected, on/off) uses only `ink` and `paper`.
+
+**Content is ink** (rule from the user's first look at the panel, 2026-11-15: "the light gray text is a bit hard to see"). What the user came
+to read is always `ink`: message preview lines, mail subjects and excerpts, senders, book authors in the library, values (a room's temperature),
+results of an action, the launcher's summary line. `secondary` is only for metadata: times, "Updated 20:21", counts, captions, hints; state lines
+such as "On - 51%" may stay secondary. **No text lighter than gray(3); no content text in gray at all.** A content line is also not set in the
+caption size (18 px) when the row has room: `ListItem::setSubtitleIsContent(true)` draws the subtitle in ink at the body size (22 px). Where this is
+applied: inbox and mail list rows (preview / subject), library rows and the continue card (author), mail detail sender (body size), Home room tiles
+(the value), Settings results (Wi-Fi status, tests), the launcher summary line (body size), the sleep screen's author, the reader's "Preparing
+book..." line. Still secondary: the reader footer, "x% read", times, status lines ("Updated ..."), Home state lines, Settings row hints, sheet hints,
+empty-state hints, captions above controls.
 
 ### Type
 

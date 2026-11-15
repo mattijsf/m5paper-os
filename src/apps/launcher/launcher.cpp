@@ -46,7 +46,7 @@ class LauncherScreen : public Screen {
   void build(ui::Column& root) override {
     root.add<ui::Spacer>(ui::s3);
     date_ = root.add<ui::Label>(dateLine(shell_.os().platform().clock), ui::Type::Title);
-    summary_ = root.add<ui::Label>(computeSummary(apps_), ui::Type::Caption, ui::secondary);
+    summary_ = root.add<ui::Label>(computeSummary(apps_), ui::Type::Body);  // content (unread, the book being read): ink, body size
     root.add<ui::Spacer>(ui::s3);
 
     const int pages = std::max(1, (static_cast<int>(apps_.size()) + kPerPage - 1) / kPerPage);

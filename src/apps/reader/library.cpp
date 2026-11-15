@@ -127,7 +127,7 @@ void LibraryScreen::rebuild() {
     auto* text = row->add<ui::Column>(ui::s1, ui::Align::Stretch);
     text->flex = 1;
     text->add<ui::Label>(e.title, Type::Title)->maxLines = 2;
-    if (!e.author.empty()) text->add<ui::Label>(e.author, Type::Body, ui::secondary);
+    if (!e.author.empty()) text->add<ui::Label>(e.author, Type::Body);  // content: ink
     text->add<ui::Spacer>(0, 1);
     text->add<ProgressBar>(e.percent);
     text->add<ui::Label>(std::to_string(e.percent) + "%  read", Type::Caption, ui::secondary);
@@ -156,6 +156,7 @@ void LibraryScreen::fill(int page) {
     const LibraryEntry& e = others_[idx];
     item->setTitle(e.title);
     item->setSubtitle(e.author);
+    item->setSubtitleIsContent(true);
     if (e.opened > 0) item->setTrailingText(std::to_string(e.percent) + "%");
     else item->clearTrailing();
     item->onClick = [this, file = e.file] { open_(file); };

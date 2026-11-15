@@ -153,6 +153,10 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 - P3-5 preparation on the device (2026-11-15): `tools/device.py cat /data/power.csv` returned the header and the boot line `1794771228,4160,idle,0,1,1,` (4160 mV, on USB). The battery sessions themselves are open.
 
+- **First feedback from a person's eyes on the panel (2026-11-15)**: "The message line in the WhatsApp list is somewhat hard to read on a real device. The light gray
+  text is a bit hard to see (the display itself is also a bit gray by itself)." Done: `secondary` gray(5) -> gray(3), `disabled` gray(9) -> gray(7), content lines in ink
+  at the body size (UI.md "Colour", DISPLAY.md). **The result needs a person's eyes once**: the WhatsApp list is left on the panel.
+
 ## Pending device checks
 
 - **P7-6**: "Sleep now" ends in the sleep screen and a power-off (not run: only the side button restarts it). The swipe from the status bar works on the device (checked 2026-11-15).

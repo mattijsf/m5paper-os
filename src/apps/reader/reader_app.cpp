@@ -67,7 +67,7 @@ class PageView : public ui::TextBlock {
   }
   void draw(Canvas& c) override {
     if (!message_.empty()) {
-      ui::drawText(c, message_, frame.x + frame.w / 2, frame.y + frame.h / 2, Type::Body, ui::secondary, ui::Anchor::MiddleCenter, bg());
+      ui::drawText(c, message_, frame.x + frame.w / 2, frame.y + frame.h / 2, Type::Body, ui::ink, ui::Anchor::MiddleCenter, bg());
       return;
     }
     TextBlock::draw(c);

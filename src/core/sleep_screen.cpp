@@ -25,7 +25,7 @@ void drawSleepScreen(Canvas& c, const SleepInfo* info, Canvas* image) {
     ui::drawText(c, ui::ellipsize(c, info->title, Type::Title, 480), cx, y, Type::Title, ui::ink, Anchor::MiddleCenter, kWhite);
     y += 40;
     if (!info->subtitle.empty()) {
-      ui::drawText(c, ui::ellipsize(c, info->subtitle, Type::Body, 480), cx, y, Type::Body, ui::secondary, Anchor::MiddleCenter, kWhite);
+      ui::drawText(c, ui::ellipsize(c, info->subtitle, Type::Body, 480), cx, y, Type::Body, ui::ink, Anchor::MiddleCenter, kWhite);
       y += 44;
     }
     if (info->percent >= 0) {

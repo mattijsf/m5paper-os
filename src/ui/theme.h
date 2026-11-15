@@ -8,8 +8,10 @@ namespace pos::ui {
 // Colour
 constexpr Color ink = gray(0);        // text, icons, strokes, filled buttons
 constexpr Color paper = gray(15);     // background
-constexpr Color secondary = gray(5);  // secondary text, captions
-constexpr Color disabled = gray(9);   // disabled text and icons
+// The panel's white is gray and its mid-grays print lighter than on a monitor (docs/DISPLAY.md): no text lighter than gray(3), and what
+// the user came to read is never gray at all (docs/UI.md "Colour").
+constexpr Color secondary = gray(3);  // metadata only: times, "Updated 20:21", counts, captions, hints
+constexpr Color disabled = gray(7);   // disabled text and icons
 constexpr Color divider = gray(11);   // 1 px separators
 constexpr Color fill = gray(13);      // icon wells, quiet backgrounds
 

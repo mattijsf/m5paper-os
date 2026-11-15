@@ -25,7 +25,7 @@ void Tile::draw(Canvas& c) {
   const int maxW = frame.w - 2 * s2;
   drawText(c, ellipsize(c, label_, Type::Title, maxW), cx, frame.y + (hasValue ? 128 : 150), Type::Title, ink, Anchor::MiddleCenter, bg());
   if (hasValue)
-    drawText(c, ellipsize(c, value_, Type::Body, maxW), cx, frame.y + 164, Type::Body, secondary, Anchor::MiddleCenter, bg());
+    drawText(c, ellipsize(c, value_, Type::Body, maxW), cx, frame.y + 164, Type::Body, ink, Anchor::MiddleCenter, bg());  // the value is the content
   if (badge_ > 0) drawBadge(c, frame.x + frame.w - s2, frame.y + s2 + 14, badge_, bg());
 }
 

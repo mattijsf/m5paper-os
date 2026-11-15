@@ -20,6 +20,9 @@ class ListItem : public Pressable {
 
   void setTitle(const std::string& t);
   void setSubtitle(const std::string& t);
+  // The subtitle is what the user came to read (a message preview, a mail subject, a book's author): drawn in ink at the body size.
+  // Default false: metadata (a state, a hint), drawn in `secondary` at the caption size.
+  void setSubtitleIsContent(bool content);
   void setIcon(Icon i);
   void setTrailingText(const std::string& t);
   void setChevron();
@@ -38,6 +41,7 @@ class ListItem : public Pressable {
  private:
   void clearChildren();
   std::string title_, subtitle_, trailingText_;
+  bool subtitleContent_ = false;
   bool hasIcon_;
   Icon icon_;
   Trailing trailing_ = Trailing::None;

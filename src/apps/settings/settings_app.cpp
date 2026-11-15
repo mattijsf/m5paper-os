@@ -156,7 +156,7 @@ class WifiPasswordPage : public Page {
       field_->setMasked(masked_);
       show_->setText(masked_ ? "Show" : "Hide");
     }, ui::Button::Kind::Text);
-    status_ = root.add<ui::Label>("", Type::Body, ui::secondary);
+    status_ = root.add<ui::Label>("", Type::Body);  // a result is content
     status_->maxLines = 3;
   }
   void onShow() override {
@@ -311,7 +311,7 @@ class WifiPage : public Page {
     root.add<ui::Spacer>(ui::s3);
     root.add<ui::Button>("Connect now", [this] { connectNow(); }, ui::Button::Kind::Secondary);
     root.add<ui::Spacer>(ui::s2);
-    note_ = root.add<ui::Label>("", Type::Body, ui::secondary);
+    note_ = root.add<ui::Label>("", Type::Body);
     note_->maxLines = 5;
     update();
   }
@@ -380,7 +380,7 @@ class HaPage : public Page {
       l->maxLines = 3;
     }
     root.add<ui::Spacer>(ui::s3);
-    result_ = root.add<ui::Label>("", Type::Body, ui::secondary);
+    result_ = root.add<ui::Label>("", Type::Body);
     result_->maxLines = 3;
     root.add<ui::Spacer>(ui::s2);
     root.add<ui::Button>("Test connection", [this] { test(); }, ui::Button::Kind::Secondary);
