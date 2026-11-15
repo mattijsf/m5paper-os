@@ -59,6 +59,7 @@ std::vector<Paragraph> parseMarked(const std::string& text) {
       else if (ch == 0x02) { flush(); bold = false; cur.bold = false; }
       else if (ch == 0x03) { flush(); italic = true; cur.italic = true; }
       else if (ch == 0x04) { flush(); italic = false; cur.italic = false; }
+      else if (ch == 0x06) p.softBreak = true;
       else if (ch == 0x05) {
         int level = 1;
         if (i + 1 < line.size() && line[i + 1] >= '1' && line[i + 1] <= '3') level = line[++i] - '0';
@@ -183,7 +184,7 @@ Page layoutPage(const std::vector<Paragraph>& paras, TextPos start, const TextSt
     };
 
     std::vector<Group> words = wordsFrom(para, plain, off);
-    const bool indentFirst = para.heading == 0 && off == 0 && p > 0 && paras[p - 1].heading == 0;
+    const bool indentFirst = para.heading == 0 && off == 0 && p > 0 && paras[p - 1].heading == 0 && !para.softBreak;
     bool firstLine = true;
     int placed = 0;
     size_t wi = 0;
@@ -269,7 +270,7 @@ Page layoutPage(const std::vector<Paragraph>& paras, TextPos start, const TextSt
       headingLines = placed;
       headingPara = p;
     }
-    y += st.paragraphGap;
+    if (!(p + 1 < total && paras[p + 1].softBreak)) y += st.paragraphGap;  // a line break keeps the lines together
     ++p;
     off = 0;
     if (y >= st.height && p < total) return breakBefore(p, 0);

@@ -26,6 +26,13 @@ for book in sim-data/sd/books/*.epub sim-data/sd/books/*.txt; do
     opened=$(grep -o "opened '.*'" "$OUT/$slug.log" | head -1)
     printf 'ok   %-62s %s, %s (%ss)\n' "$name" "$opened" "$pages" "$(( $(date +%s) - start ))"
     cp "$OUT/$slug/first-page.png" "$OUT/$slug-first.png"; cp "$OUT/$slug/last-page.png" "$OUT/$slug-last.png"
+    case "$name" in "Pride and Prejudice"*)   # the same page in every text size, and the menu
+      mkdir -p "$OUT/$slug-data3/sd/books"; cp "$book" "$OUT/$slug-data3/sd/books/"
+      if "$SIM" --headless --app read --script tests/books/sizes.script --out "$OUT/$slug" --data "$OUT/$slug-data3" --time 2026-01-15T12:34:00 >"$OUT/$slug-sizes.log" 2>&1; then
+        for a in menu size-s size-m size-l size-xl; do cp "$OUT/$slug/$a.png" "$OUT/$slug-$a.png"; done
+        echo "ok   $name: text sizes ($OUT/$slug-size-*.png)"
+      else echo "FAIL $name sizes:"; tail -3 "$OUT/$slug-sizes.log" | sed 's/^/    /'; fail=1; fi ;;
+    esac
     case "$name" in "Max Havelaar"*)   # Dutch with accents: look at pages that have them
       mkdir -p "$OUT/$slug-data2/sd/books"; cp "$book" "$OUT/$slug-data2/sd/books/"   # a fresh card: nothing opened yet
       if "$SIM" --headless --app read --script tests/books/accents.script --out "$OUT/$slug" --data "$OUT/$slug-data2" --time 2026-01-15T12:34:00 >"$OUT/$slug-accents.log" 2>&1; then

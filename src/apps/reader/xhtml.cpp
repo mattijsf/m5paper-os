@@ -58,6 +58,7 @@ class Converter {
     if (skip_ > 0) return;
     if (n == "br") {
       flush();
+      soft_ = true;  // the next line continues this block: no indent, no gap
       return;
     }
     if (n == "hr") {
@@ -85,6 +86,7 @@ class Converter {
     }
     if (isBlock(n)) {
       flush();
+      soft_ = false;
       if (n.size() == 2 && n[0] == 'h' && n[1] >= '1' && n[1] <= '6') heading_ = std::min(3, n[1] - '0');
       else if (n == "ul" || n == "ol") lists_.push_back({n == "ol", 0});
       else if (n == "li") {
@@ -112,6 +114,7 @@ class Converter {
     }
     if (isBlock(n)) {
       flush();
+      soft_ = false;
       if ((n == "ul" || n == "ol") && !lists_.empty()) lists_.pop_back();
     }
   }
@@ -159,6 +162,8 @@ class Converter {
       if (openBold_) cur_ += '\x02';
       if (openItalic_) cur_ += '\x04';
       std::string line;
+      if (soft_ && heading_ == 0) line += '\x06';
+      soft_ = false;
       if (heading_ > 0) {
         line += '\x05';
         line += static_cast<char>('0' + heading_);
@@ -183,7 +188,7 @@ class Converter {
 
   XhtmlResult res_;
   std::string cur_;
-  bool hasText_ = false, lastSpace_ = false, openBold_ = false, openItalic_ = false;
+  bool hasText_ = false, lastSpace_ = false, openBold_ = false, openItalic_ = false, soft_ = false;
   int bold_ = 0, italic_ = 0, heading_ = 0, skip_ = 0;
   std::vector<ListState> lists_;
 };

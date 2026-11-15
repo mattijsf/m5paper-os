@@ -349,3 +349,24 @@ TEST_CASE("layoutPage without lines ends every page where the full layout does")
     }
   }
 }
+
+TEST_CASE("soft breaks: no first-line indent and no gap, in parseMarked and in the layout") {
+  auto paras = parseMarked("First line\n\x06Second line\n\x06Third line\nNew paragraph\n");
+  REQUIRE(paras.size() == 4);
+  CHECK_FALSE(paras[0].softBreak);
+  CHECK(paras[1].softBreak);
+  CHECK(paras[2].softBreak);
+  CHECK_FALSE(paras[3].softBreak);
+  FakeMetrics m;
+  TextStyle st;
+  st.width = 400;
+  st.height = 600;
+  Page pg = layoutPage(paras, TextPos{0, 0}, st, m);
+  REQUIRE(pg.lines.size() == 4);
+  const int pitch = pg.lines[1].y - pg.lines[0].y;
+  CHECK(pg.lines[1].y - pg.lines[0].y == pitch);          // the lines of a block are one pitch apart
+  CHECK(pg.lines[2].y - pg.lines[1].y == pitch);
+  CHECK(pg.lines[3].y - pg.lines[2].y == pitch + st.paragraphGap);  // the gap comes only before a new paragraph
+  CHECK(pg.lines[1].segs[0].x == 0);                     // no indent on a continued line
+  CHECK(pg.lines[3].segs[0].x == st.indent);             // a real paragraph after body text is indented
+}

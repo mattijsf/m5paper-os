@@ -76,7 +76,7 @@ index and the current chapter. While it runs the page screen says "Preparing boo
 1.5 s); leaving the screen cancels the job (the worker checks a flag between chapters).
 
 What the XHTML converter (`apps/reader/xhtml`) does: block elements (p, div, h1-h6, li, blockquote, table rows,
-...) start paragraphs; `<br>` also starts one (no soft line breaks yet: poems lose their indent logic);
+...) start paragraphs; `<br>` also starts one (a `<br>` makes a "soft" paragraph, marked 0x06 in the cache format: no first-line indent and no gap above, so verse, addresses and title pages stay together);
 b/strong = bold, i/em/cite = italic; h1 = level 1, h2 = 2, h3-h6 = 3; lists get a bullet or "1." prefix;
 `<hr>` = "* * *"; images and svg = "[image]" (or "[image: alt]"); table cells are joined with " | ";
 style, script, head are ignored; white space collapses; control bytes are dropped so a book cannot forge marks.

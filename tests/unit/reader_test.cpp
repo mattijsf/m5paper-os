@@ -359,6 +359,8 @@ TEST_CASE("xhtml: paragraphs, headings, styles, entities, white space") {
   CHECK(italic);
   CHECK(text[2] == "div text");
   CHECK(text[3] == "after br");
+  CHECK_FALSE(paras[2].softBreak);
+  CHECK(paras[3].softBreak);  // after a <br>: same block, no indent, no gap
   CHECK(text[4] == "\xE2\x80\xA2 first");
   CHECK(text[5] == "\xE2\x80\xA2 second");
   CHECK(text[6] == "1. one");
