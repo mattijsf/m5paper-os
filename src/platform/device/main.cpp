@@ -11,6 +11,7 @@
 #include "core/gfx.h"
 #include "core/log.h"
 #include "core/os.h"
+#include "core/remote.h"
 #include "hal/platform.h"
 #include "platform/device/device.h"
 
@@ -52,6 +53,48 @@ DeviceNet gNet;
 DevicePower gPower;
 hal::Platform gPlatform{gDisplay, gInput, gClock, gNet, gPower, "M5PaperS3"};
 Os gOs(gPlatform);
+
+// Remote control over the USB serial port (lines starting with '>', see core/remote.h).
+class SerialRemoteHost : public RemoteHost {
+ public:
+  void inject(const hal::TouchEvent& ev) override { gInput.inject(ev); }
+  void reply(const void* data, size_t n) override {
+    const uint8_t* p = static_cast<const uint8_t*>(data);
+    int stalls = 0;
+    while (n > 0 && stalls < 500) {  // the host reads while it waits; give up after ~0.5 s of no progress
+      size_t w = Serial.write(p, n > 512 ? 512 : n);
+      if (w == 0) {
+        delay(1);
+        ++stalls;
+        continue;
+      }
+      stalls = 0;
+      p += w;
+      n -= w;
+    }
+  }
+  void reboot() override {
+    Serial.flush();
+    delay(100);
+    esp_restart();
+  }
+};
+SerialRemoteHost gRemoteHost;
+Remote gRemote(gOs, gClock, gRemoteHost);
+std::string gRxLine;
+
+void pollSerial() {
+  while (Serial.available() > 0) {
+    int ch = Serial.read();
+    if (ch < 0) break;
+    if (ch == '\n') {
+      gRemote.handleLine(gRxLine);
+      gRxLine.clear();
+    } else if (gRxLine.size() < 128) {
+      gRxLine += static_cast<char>(ch);
+    }
+  }
+}
 
 device::StorageInfo gStorage;
 std::string gCfgKeys = "(not read)";
@@ -124,7 +167,9 @@ void setup() {
 void loop() {
   M5.update();
   gInput.update();
+  pollSerial();
   gOs.loopOnce();
+  gRemote.tick();
 
   // Heartbeat: lets a host script read hardware facts without catching the boot log.
   static uint32_t lastBeat = 0;

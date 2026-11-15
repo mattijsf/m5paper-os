@@ -113,14 +113,14 @@ DisplayManager, and the simulator can run scripts and compare screenshots.
   Done when: unit tests pass; demo: tapping a tile starts a 1 s fake job on the worker and the
   tile label changes when it completes, in sim and on device.
 
-- [ ] **P1-8 Device remote control over USB: frame dump and injected touch.**
+- [x] **P1-8 Device remote control over USB: frame dump and injected touch.**
   Why: the user does not want to look at or touch the device during development. This makes
   device checks scriptable. Do it right after P1-2 (it needs only the device HAL).
   Do: a serial line reader in `platform/device` (lines starting with `>`), dispatching to
   shared handlers in `src/core/remote.{h,cpp}` so the simulator can accept the same commands
   on stdin with `--remote`:
   `>shot` replies `#shot 540 960 <bytes> <crc32>` + newline, then the current frame as raw
-  4-bit packed pixels (129600 bytes) taken from the canvas (after P1-3: from the
+  4-bit packed pixels (259200 bytes = 540*960/2; high nibble first, 0 black..15 white) taken from the canvas (after P1-3: from the
   DisplayManager's shadow, i.e. what was pushed to the panel);
   `>tap x y`, `>long x y`, `>swipe x1 y1 x2 y2` inject touch events into the input queue
   exactly as real touches; `>log` prints the last 50 log lines; `>refresh` prints the refresh
@@ -128,6 +128,8 @@ DisplayManager, and the simulator can run scripts and compare screenshots.
   `tools/device.py` (pyserial from `~/.platformio/penv/bin/python`): `shot out/device.png`
   (verifies the CRC, writes a PNG), `tap X Y`, `swipe ...`, `log`, `wait-boot`. Makefile:
   `make device-shot`.
+  The simulator accepts the same commands (`program --headless --remote`, replies on stdout;
+  `--name M5PaperS3` makes its footer match a device dump).
   Tests: handler parsing in unit tests (from P1-5 on); round trip against the simulator.
   Done when: `make device-shot` writes `out/device.png` from the real device and it is
   pixel-identical to `make shot` for the same screen; `tools/device.py tap 140 300` draws the

@@ -117,6 +117,10 @@ A task is done only when `make check` passes.
   the firmware drew (4-bit pixels over serial, converted to PNG), `tools/device.py tap 140 300`
   injects a touch. With these, device checks need neither eyes nor fingers. The dump is the
   frame buffer, not a photo: it cannot show ghosting or a half-played waveform.
+- The simulator speaks the same protocol: `program --headless --remote` reads `>` commands on
+  stdin and replies on stdout (`--name M5PaperS3` for an identical footer). Send `>shot` alone
+  and wait for its reply: it runs after earlier touches were handled, so it answers after
+  later one-line commands. Commands per line, replies end with `#ok` or `#err <reason>`.
 - Whole UI scripts on the device: task P7-2.
 - Things only the device can answer are listed per task as "Device check" in `ROADMAP.md`.
   If no device is attached, finish the task in the simulator and add the device check to

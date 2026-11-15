@@ -10,7 +10,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   Both `main.cpp` files build a `hal::Platform` and call `Os`; HAL classes are thin stubs.
 - **P1-2 is done** (2026-11-15): `src/platform/device/{display,input,clock,storage}.cpp`, SD at
   `/sd`, LittleFS at `/littlefs`; `/data/test.txt` survives reboots and reflashes.
-- **Next task: P1-8** (device remote control: frame dump, injected touch), then P1-3.
+- **P1-8 is done** (2026-11-15): `>shot`, `>tap`, `>long`, `>swipe`, `>log`, `>refresh`, `>reboot`
+  over USB serial and on the simulator's stdin; `tools/device.py`, `make device-shot`.
+- **Next task: P1-3** (DisplayManager).
 - The device runs the **spike firmware**: one static mock launcher. It is not interactive: a
   tap only draws a black dot. There are no apps or settings screens yet (the owner tried to open
   Settings on 2026-11-15; that arrives with tasks P2-5 and P2-6).
@@ -25,6 +27,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Simulator window | `make run` | click draws a dot, S saves a screenshot |
 | Firmware build | `make fw` | OK, ~665 KB (12.7% of the 5 MB slot) |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
+| Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Serial heartbeat | `make monitor` | `[beat]` and `[sd]` lines every 5 s (the refresh benchmark is gone since P1-1) |
 | Open books for the simulator | `make books` | 5 EPUB + 1 TXT in `sim-data/sd/books/` (not in git) |
 
@@ -108,7 +111,10 @@ None of these block Phase 1, Phase 2, or the reader.
 - `partitions.csv`: nvs must end before 0xE000 (otadata) and app0 must start at 0x10000.
 - `pio pkg exec -p tool-esptoolpy -- esptool` fails ("Permission denied"); call
   `~/.platformio/penv/bin/esptool` directly.
-- Reading the device log from a script: open `/dev/cu.usbmodem101` at 115200 with pyserial
+- Device scripting: use `tools/device.py` (`log`, `shot`, `tap`, `wait-boot`) with
+  `~/.platformio/penv/bin/python`. **Opening the serial port must not touch DTR/RTS**: setting
+  them (`ser.dtr = False`) reboots the board on every open; plain `serial.Serial(port)` does not.
+- Reading the device log from a script (older way): open `/dev/cu.usbmodem101` at 115200 with pyserial
   (`~/.platformio/penv/bin/python`) and read for ~10 s; the spike prints a heartbeat every 5 s.
   `pio device monitor` is interactive and does not suit scripts.
 - The project has its own git repository (branch `main`, created 2026-11-15). Its parent
@@ -138,6 +144,17 @@ None of these block Phase 1, Phase 2, or the reader.
   Verified on the device: SD overwrite via `pos::fs::writeFile` (rename over existing on FAT
   works, no `.tmp` left; temporary test code, removed), LittleFS overwrite (boot count 1..6).
 
+- P1-8 notes: the card said 129600 bytes for the 4-bit frame; the right size is 259200
+  (540*960/2), fixed in the card. The dump is taken from the Os canvas (what the firmware
+  drew), until P1-3 moves it to the DisplayManager's shadow. `>shot` replies after earlier
+  touches were processed, so its reply can arrive after replies of commands sent later: send
+  it alone (device.py does). `Remote` lives in `src/core/remote.{h,cpp}` (parser
+  `parseRemoteCommand` is pure, ready for unit tests in P1-5); `core/log.cpp` keeps the 50-line
+  ring behind `>log`. Closed gap from P1-1: the touch marker path (input queue -> Os -> Fast
+  refresh -> frame) is verified on the device with an injected tap; the GT911 translation is
+  still only verified by a real finger (see Pending device checks).
+  Limits: the dump shows what the firmware drew, not the physical panel (ghosting, waveforms).
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -154,3 +171,6 @@ None of these block Phase 1, Phase 2, or the reader.
   `pos::fs` checked with an ad-hoc host test (resolve, atomic write/overwrite, listDir, mkdirs).
 - 2026-11-15: P1-2. Device HAL split into display/input/clock/storage; storage mounts SD and
   LittleFS and reports sizes. Checked from the serial log over several reboots/reflashes.
+- 2026-11-15: P1-8. Remote control over USB serial and simulator stdin. Device frame
+  (`out/device.png`) identical to the simulator's (`out/shot-m5.png`, `--name M5PaperS3`); an
+  injected `tap 140 300` shows the marker and logs `[touch] x=140 y=300 fast refresh 257ms`.

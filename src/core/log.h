@@ -5,10 +5,17 @@
 
 #include <cstdarg>
 #include <cstdio>
+#include <string>
 
 #include "hal/platform.h"
 
 namespace pos {
+
+// The last lines logged (ring of 50), oldest first. Used by the remote `>log` command.
+std::string logTail(int maxLines = 50);
+namespace detail {
+void logRecord(const char* line);
+}
 
 inline void logf(const char* tag, const char* fmt, ...) __attribute__((format(printf, 2, 3)));
 
@@ -24,6 +31,7 @@ inline void logf(const char* tag, const char* fmt, ...) {
   if (len > sizeof buf - 2) len = sizeof buf - 2;  // truncated: keep room for '\n'
   buf[len] = '\n';
   buf[len + 1] = '\0';
+  detail::logRecord(buf);
   hal::logWrite(buf);
 }
 
