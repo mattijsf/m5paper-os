@@ -22,11 +22,16 @@ rules in `DISPLAY.md`.
 | `ink` | gray(0) | text, icons, strokes, filled buttons |
 | `paper` | gray(15) | background |
 | `secondary` | gray(3) | **metadata only**: times, "Updated 20:21", counts, captions, hints (was gray(5): too light on the panel) |
-| `disabled` | gray(7) | disabled text and icons (was gray(9)) |
-| `divider` | gray(11) | 1 px separators |
+| `disabled` | gray(5) | disabled text and icons (was gray(9), then gray(7)) |
+| `divider` | gray(9) | 1 px separators (was gray(11): barely visible on the panel) |
 | `fill` | gray(13) | icon wells, quiet backgrounds |
 
 Anything that changes on touch (pressed, selected, on/off) uses only `ink` and `paper`.
+
+**Limits measured by a person's eyes on the panel (Display lab, Text pattern, 2026-11-15)**: caption size (18 px): gray(3) is the lightest that
+reads, anything lighter is hard; body size (22 px): gray(5) is the lightest that reads; 1 px lines: gray(13) is invisible, gray(11) "very thin, too
+thin to be usable"; Read S (24 px) is a comfortable reading size. So: caption text is never lighter than gray(3), body text never lighter than gray(5),
+1 px lines never lighter than gray(9).
 
 **Content is ink** (rule from the user's first look at the panel, 2026-11-15: "the light gray text is a bit hard to see"). What the user came
 to read is always `ink`: message preview lines, mail subjects and excerpts, senders, book authors in the library, values (a room's temperature),

@@ -166,6 +166,10 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 - Home Assistant side (2026-11-15 20:43, in parallel): `ha/paperos_inbox.yaml` installed (Home Assistant repo commit 80e19b0, byte-identical), `before` and the group
   lookup tested in Home Assistant's template engine and live (BACKEND.md). Group names stay "Group" by decision (the Chats sensor stays disabled).
 
+- **User's eyes on the Display lab Text pattern (2026-11-15)**: "Caption above 3 becomes hard to read; Body above 5 is hard to read; Line 13 I can't see, 11 is VERY thin / subtly
+  visible, too thin to be usable; S24: yes." Done: `divider` gray(11) -> gray(9), `disabled` gray(7) -> gray(5); `secondary` stays gray(3) (the caption limit). Limits in UI.md.
+  Still to look at: the gray(9) dividers in a list, the gray(13) icon wells of the launcher tiles.
+
 ## Pending device checks
 
 - **Mark all read with `before`**: a device "Mark all read" with the new firmware against a feed that holds a newer item (fake events only, when the feed has no real messages); a real group message in the feed.

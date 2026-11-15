@@ -11,8 +11,8 @@ constexpr Color paper = gray(15);     // background
 // The panel's white is gray and its mid-grays print lighter than on a monitor (docs/DISPLAY.md): no text lighter than gray(3), and what
 // the user came to read is never gray at all (docs/UI.md "Colour").
 constexpr Color secondary = gray(3);  // metadata only: times, "Updated 20:21", counts, captions, hints
-constexpr Color disabled = gray(7);   // disabled text and icons
-constexpr Color divider = gray(11);   // 1 px separators
+constexpr Color disabled = gray(5);   // disabled text and icons (the lightest gray still readable at the body size on the panel)
+constexpr Color divider = gray(9);    // 1 px separators (gray(11) is barely visible on the panel, gray(13) not at all)
 constexpr Color fill = gray(13);      // icon wells, quiet backgrounds
 
 // Spacing (base unit 8 px)

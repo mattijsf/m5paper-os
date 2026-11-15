@@ -214,5 +214,7 @@ limit. Goldens `lab-*`. It is a tool for a person's eyes: nothing was tuned with
 Frame dumps and simulator screenshots cannot show this. On the physical panel the white is itself gray, and the mid-grays read **lighter**
 than on a monitor; thin anti-aliased gray text (the 18 px caption in gray(5)) was the first thing to become hard to read. Rules that follow
 (tokens and the content rule are in UI.md "Colour"): no text lighter than gray(3); no content text in gray at all (content is `ink`); a content
-line is not set in the caption size when the row has room. Whether gray(3) metadata and the gray(11) hairlines read well still needs a person's eyes.
+line is not set in the caption size when the row has room. Measured by the user with the Display lab (Text pattern) the same day: caption text reads down to gray(3), body text down to gray(5), a 1 px line in gray(11) is
+barely visible and in gray(13) invisible; Read S 24 px is fine. Tokens now: `secondary` gray(3), `disabled` gray(5), `divider` gray(9). Not yet judged: the gray(9)
+dividers in a real list, the gray(13) icon wells (an area, not a line).
 
