@@ -134,6 +134,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 ## Pending device checks
 
+- **P6-4/P6-5**: nothing of the inbox has run on the device or against real feeds: the feed sensors do not exist yet (P6-3). Unverified
+  assumptions: the exact `imap.fetch` response shape (`service_response.text`), the optional `connected` attribute for the link-down
+  notice, that a non-admin token may call `script.paperos_inbox_clear`, and the fetch with a real entry id and uid.
 - **P5-2**: verify every entity id of the default `home.json` against the live instance (`GET /api/states/<id>` returns 200 for each; the
   simulator has no card config, so run it on the device or copy the card's `paperos_config` to `sim-data/sd/` and use `--fixtures none`;
   never print the token). Measure the time for the Lights tab refresh on the device; above 3 s add the aggregate sensor (BACKEND.md).
@@ -411,3 +414,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P5-1. `core/ha` (HaClient: get, post, callService, getMany, error mapping), `ctx.ha()`, Settings test uses it.
 - 2026-11-15: P5-2. `apps/home/home_model` (home.json parser, default config with the full Avond scene, state parser, light views with group counts, states cache, call bodies).
 - 2026-11-15: P5-3, P5-4, P5-5 (simulator part). Home app (Lights with scenes, member sheet, Climate, More), optimistic actions with revert, cache first, foreground polling; goldens `home-*`.
+- 2026-11-15: P6-4, P6-5, P6-6. `core/text_clean`, Inbox app for WhatsApp and Mail (grouped chats, detail pages, full-text fetch, mark all read, seen marker, badge file), `Screen::setAction`; goldens `inbox-*`, `mail-*`.

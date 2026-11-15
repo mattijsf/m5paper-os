@@ -41,6 +41,24 @@ Both are instances of `InboxApp` parameterised by `{id, name, icon, entity, kind
   arrives (re-paginate, keep page 1). If the fetch fails the excerpt stays, with a caption
   "Showing the beginning only".
 
+## As built (simulator, 2026-11-15)
+
+- `apps/inbox/inbox_app.cpp` (list, chat and mail detail, mark all read) and `inbox_model` (contract parser, grouping, relative times,
+  seen marker; unit-tested), text through `core/text_clean` (P6-6). Registered twice (`whatsapp`, `mail`).
+- Rows are one `ListItem` (96 px): name (with a bullet when new, and "(3)" for a chat of three messages), one line of text, time at the
+  right; the spec's two text lines are not built. 6 rows per page. `Screen::setAction` puts the refresh icon in the title bar.
+- Chat detail: the conversation oldest first as text pages (sender and time in bold, then the text), tap right = next page, left third =
+  back. Mail detail: sender, subject, time, then the excerpt; the full text arrives from `imap.fetch` (`service_response.text`, or one level
+  down per entry) and replaces it from page 1; no Wi-Fi or an error leaves the excerpt and says "Showing the beginning only".
+- Seen marker: `ctx.store` key `seen` = newest `ts` shown; dots use the marker as it was when the app started, so a list opened a
+  second time has none. Badge: `/data/cache/<id>/badge` (the launcher reads it) = items newer than the marker, written after each fetch; right after
+  a look it is 0, so it only rises when a feed is fetched without being shown (background fetch, task P7-5). Mark all read clears the badge.
+- The link-down notice reads an optional `attributes.connected` (false = down) of the WhatsApp feed sensor: **an assumption**, the
+  package has to provide it (P6-3).
+- Fixtures: `tests/fixtures/make-inbox-fixtures.py` (hosts `ha`, `ha-down`, `ha-empty` .example.test; the three presets under
+  `tests/ui/data/inbox*`). Scripts: `inbox`, `inbox-mail`, `inbox-link`, `inbox-empty`, `inbox-error`. The inbox uses the fixed UI fonts, not
+  the reader's four text sizes; the chat and mail text pages use the reader's S face (24 px).
+
 ## Behaviour
 
 - `onShow`: show `/data/cache/inbox/<feed>.json` at once, then

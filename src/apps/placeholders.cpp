@@ -32,11 +32,7 @@ class ComingSoonApp : public App {
   Icon icon_;
 };
 
-struct WhatsAppApp : ComingSoonApp { WhatsAppApp() : ComingSoonApp("WhatsApp", Icon::MessageCircle) {} };
-struct MailApp : ComingSoonApp { MailApp() : ComingSoonApp("Mail", Icon::Mail) {} };
 
-POS_REGISTER_APP(WhatsAppApp, {.id = "whatsapp", .name = "WhatsApp", .icon = Icon::MessageCircle, .order = 30});
-POS_REGISTER_APP(MailApp, {.id = "mail", .name = "Mail", .icon = Icon::Mail, .order = 40});
 
 }  // namespace
 

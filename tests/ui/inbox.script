@@ -1,0 +1,27 @@
+# app: whatsapp
+# P6-4: the WhatsApp list from fixtures (tests/fixtures/make-inbox-fixtures.py): conversations grouped by chat, new dots, a
+# conversation, the seen marker after a restart, mark all read.
+wait 1500
+shot inbox-list
+expect-state rows=8
+tap 480 805
+wait 900
+shot inbox-list-p2
+tap 60 805
+wait 900
+tap 270 178             # Anna - Family (3)
+wait 900
+shot inbox-chat
+tap 400 500             # next page of the conversation (it fits one page: nothing happens)
+wait 600
+back
+wait 900
+restart                 # the newest message was seen: no dots any more
+wait 1500
+shot inbox-list-seen
+tap 270 918             # Mark all read: a confirmation sheet
+wait 700
+shot inbox-markall-sheet
+tap 270 810             # confirm: calls script.paperos_inbox_clear, the list empties
+wait 1200
+shot inbox-cleared

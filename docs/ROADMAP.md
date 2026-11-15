@@ -331,9 +331,9 @@ home-assistant repo's own rules. Read BACKEND.md fully before any of them.
   the home-assistant repo per its rules, verify: a new WhatsApp message and a new mail appear
   in the sensors within seconds; answering the chat removes its items; reading all mail empties
   the mail list; `script.paperos_inbox_clear` works with the device token.
-- [ ] **P6-4 Inbox app.** Read: apps/inbox.md. List, grouping, chat detail, mail detail with
+- [x] **P6-4 Inbox app.** (simulator, from the contract and fixtures; see apps/inbox.md "As built") Read: apps/inbox.md. List, grouping, chat detail, mail detail with
   full-text fetch, cache, errors, link-down notice, both registrations. Goldens with fixtures.
-- [ ] **P6-5 Badges and mark-all-read.** Seen marker, launcher badge, clear via the script.
+- [x] **P6-5 Badges and mark-all-read.** (simulator: seen marker, badge file for the launcher, `script.paperos_inbox_clear`) Seen marker, launcher badge, clear via the script.
 - [x] **P6-6 Text clean-up.** (`core/text_clean`; the reader's XML tokenizer shares its entity decoder) `core/text_clean`: HTML to text, entities, emoji, long words,
   links shortened to the host name. Unit tests.
 

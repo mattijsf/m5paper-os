@@ -46,6 +46,15 @@ void Screen::setTitle(const std::string& title) {
   if (shell_ && shell_->top() == this) shell_->titleBar().setTitle(title);
 }
 
+void Screen::setAction(Icon icon, std::function<void()> fn) {
+  actionIcon_ = icon;
+  actionFn_ = std::move(fn);
+  if (shell_ && shell_->top() == this) {
+    if (actionFn_) shell_->titleBar().setAction(actionIcon_, actionFn_);
+    else shell_->titleBar().clearAction();
+  }
+}
+
 void Nav::pushScreen(std::unique_ptr<Screen> s) {
   Screen* raw = s.release();
   shell_.defer([this, raw] { shell_.push(std::unique_ptr<Screen>(raw), false); });
@@ -160,6 +169,7 @@ void Shell::showTop() {
   status_->visible = !e.full;
   title_->setTitle(e.screen->title());
   title_->clearAction();
+  if (e.screen->hasAction()) title_->setAction(e.screen->actionIcon_, e.screen->actionFn_);
   e.screen->onShow();
   root_.relayout();  // whole panel: navigation is a Hint::Screen change
 }

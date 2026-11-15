@@ -1,0 +1,17 @@
+# app: mail
+# P6-4: the Mail list and a mail: the excerpt first, then the full text fetched from Home Assistant (imap.fetch); with no Wi-Fi the
+# excerpt stays and says so.
+wait 1500
+shot mail-list
+tap 270 178             # the HTML mail
+wait 1500
+shot mail-detail-full
+tap 400 500
+wait 600
+shot mail-detail-p2
+back
+wait 900
+wifi off
+tap 270 274             # a plain mail, the fetch cannot work
+wait 2500
+shot mail-detail-offline

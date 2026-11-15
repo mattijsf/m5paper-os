@@ -48,6 +48,9 @@ class Screen {
   // Title shown in the title bar while this screen is on top. Call from build() or later.
   void setTitle(const std::string& title);
   const std::string& title() const { return title_; }
+  // An icon button at the right end of the title bar while this screen is on top (a refresh button, say).
+  void setAction(Icon icon, std::function<void()> fn);
+  bool hasAction() const { return static_cast<bool>(actionFn_); }
 
  protected:
   AppContext& ctx() const { return *ctx_; }
@@ -58,6 +61,8 @@ class Screen {
   AppContext* ctx_ = nullptr;
   Shell* shell_ = nullptr;
   std::string title_;
+  Icon actionIcon_ = Icon::RefreshCw;
+  std::function<void()> actionFn_;
 };
 
 // What the sleep screen shows about the app being left (docs/POWER.md "Sleep screen"): a title with a picture and a progress,
