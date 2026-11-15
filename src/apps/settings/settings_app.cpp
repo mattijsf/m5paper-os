@@ -348,23 +348,16 @@ class HaPage : public Page {
   // GET <HA_URL>/api/ with the token: shows the HTTP status and the time it took. The token and the Authorization
   // header are never logged or shown.
   void test() {
-    if (!ctx().secrets.present("HA_TOKEN")) {
-      result_->setText("No HA_TOKEN in /sd/paperos_config.");
-      return;
-    }
-    hal::HttpRequest req;
-    req.url = ctx().os().net().haBaseUrl() + "/api/";
-    req.headers.push_back({"Authorization", "Bearer " + ctx().secrets.get("HA_TOKEN")});
-    req.headers.push_back({"Content-Type", "application/json"});
-    req.timeoutMs = 15000;
     result_->setText("Testing...");
     const uint32_t t0 = ctx().clock.millis();
-    ctx().http(req, [this, t0](hal::HttpResponse r) {
+    HaClient ha = ctx().ha();
+    ctx().async([ha]() mutable { return ha.get("/api/"); }, [this, t0](HaResult r) {
       char buf[160];
       const double sec = (ctx().clock.millis() - t0) / 1000.0;
-      if (r.status == 0) std::snprintf(buf, sizeof buf, "Failed after %.1f s: %s", sec, r.error.c_str());
-      else if (r.status == 200) std::snprintf(buf, sizeof buf, "HTTP 200 in %.1f s: %s", sec, r.body.substr(0, 60).c_str());
-      else std::snprintf(buf, sizeof buf, "HTTP %d in %.1f s", r.status, sec);
+      if (r.error == HaError::NoToken) std::snprintf(buf, sizeof buf, "No HA_TOKEN in /sd/paperos_config.");
+      else if (r.status == 0) std::snprintf(buf, sizeof buf, "%s (%.1f s): %s", haErrorText(r.error), sec, r.detail.c_str());
+      else if (r.ok()) std::snprintf(buf, sizeof buf, "HTTP %d in %.1f s: %s", r.status, sec, r.body.substr(0, 60).c_str());
+      else std::snprintf(buf, sizeof buf, "%s: HTTP %d in %.1f s", haErrorText(r.error), r.status, sec);
       result_->setText(buf);
       POS_LOG("ha", "test: status=%d %.1f s", r.status, sec);
     });

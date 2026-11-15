@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "core/config.h"
+#include "core/ha.h"
 #include "core/log.h"
 #include "core/net.h"
 #include "core/secrets.h"
@@ -162,6 +163,9 @@ class AppContext {
     NetService* net = &netService();
     async([net, request = std::move(request)] { return net->perform(request); }, std::move(onDone));
   }
+  // A Home Assistant client for jobs on the worker (ctx.async): HA_URL / HA_TOKEN from the card, requests through the net service
+  // (Wi-Fi on demand). Blocking calls: never on the UI thread. docs/BACKEND.md.
+  HaClient ha();
   // One-shot timer on the UI thread; cancelled when the screen that was on top is destroyed.
   Timers::Id timer(uint32_t ms, std::function<void()> fn);
   void toast(const std::string& text);

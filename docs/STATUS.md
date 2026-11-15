@@ -134,6 +134,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 ## Pending device checks
 
+- **P5-1**: Settings > Home Assistant "Test connection" now goes through `HaClient` (`core/ha`); re-run it on the device (it worked with the previous direct request, P3-7).
 - **P3-6**: button press to usable screen under 2.5 s after a power-off with the reader open (measure and record); how the
   sleep screen looks on the panel (cover gray ramp, contrast, that it stays sharp for hours); `Shell::prepareForPowerOff()` on the
   device takes the cover decode (about 0.3 s expected) before the Quality pass.
@@ -401,3 +402,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P4-4. XHTML to marked text, EPUB open (convert, paginate from memory, index file), "Preparing book..." with percentage and cancel, chapters converted on demand, cover in the background; `tools/books-check.sh` (six real books to their last page), `tools/books-device.py`. Device: cold index of Pride and Prejudice (609 KB EPUB, 1542 pages) 15.3 s, cached open 0.22 s.
 - 2026-11-15: P4-5. Reader menu (text size S/M/L/XL, go to by 10% and by page, contents, clean screen), cover thumbnail on the library card (decoded on the worker, box-filter scaled, `Hint::Image`), `Row` measures flex children at their own width. Goldens: `tests/ui/reader-menu.script`.
 - 2026-11-15: P3-6 (simulator part). Sleep screen (`core/sleep_screen`, `App::sleepInfo`), resume of the last app and the open book after power-off, `power-off` script command, `ui/image` (cover decoding shared by library and sleep screen).
+- 2026-11-15: P5-1. `core/ha` (HaClient: get, post, callService, getMany, error mapping), `ctx.ha()`, Settings test uses it.

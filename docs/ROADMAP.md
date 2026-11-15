@@ -286,7 +286,7 @@ simulator first; each task ends with screenshots.
 
 ## Phase 5: Home (Home Assistant)
 
-- [ ] **P5-1 HA client.** Read: BACKEND.md, DECISIONS.md D18. `src/core/ha.{h,cpp}` (the inbox
+- [x] **P5-1 HA client.** (`core/ha`, `ctx.ha()`, unit tests per error; the owner's answers: token stays during development, non-admin token later, `HA_URL` on the card. Device re-check of "Test connection" with the new client is pending.) Read: BACKEND.md, DECISIONS.md D18. `src/core/ha.{h,cpp}` (the inbox
   uses it too): `get(path)`, `post(path, json)`, `callService(domain, service, json,
   wantResponse)`, kept-alive connection, error mapping (no token, no Wi-Fi, timeout, 401,
   other), Settings > Home Assistant "Test connection". Fixtures for each case.

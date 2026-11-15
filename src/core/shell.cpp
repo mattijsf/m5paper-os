@@ -63,6 +63,7 @@ size_t Nav::depth() const { return shell_.appOpen() ? shell_.depth() - shell_.ap
 Screen* Nav::top() const { return shell_.appOpen() ? shell_.top() : nullptr; }
 
 Os& AppContext::os() { return shell_.os(); }
+HaClient AppContext::ha() { return HaClient::fromNet(shell_.os().net(), shell_.os().secrets()); }
 Worker& AppContext::worker() { return shell_.os().worker(); }
 NetService& AppContext::netService() { return shell_.os().net(); }
 std::weak_ptr<bool> AppContext::aliveToken() {
