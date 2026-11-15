@@ -334,7 +334,7 @@ home-assistant repo's own rules. Read BACKEND.md fully before any of them.
 - [ ] **P6-4 Inbox app.** Read: apps/inbox.md. List, grouping, chat detail, mail detail with
   full-text fetch, cache, errors, link-down notice, both registrations. Goldens with fixtures.
 - [ ] **P6-5 Badges and mark-all-read.** Seen marker, launcher badge, clear via the script.
-- [ ] **P6-6 Text clean-up.** `core/text_clean`: HTML to text, entities, emoji, long words,
+- [x] **P6-6 Text clean-up.** (`core/text_clean`; the reader's XML tokenizer shares its entity decoder) `core/text_clean`: HTML to text, entities, emoji, long words,
   links shortened to the host name. Unit tests.
 
 ## Phase 7: Polish
