@@ -141,6 +141,11 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   36-52 ms each, `reused=1`), below the 3 s limit: no aggregate sensor needed yet. Read-only: no toggle or scene was sent.
 - P7-6: the swipe from the status bar opens the quick panel with the real touch panel (injected swipe); Wi-Fi and battery detail show.
 
+- Power-off and resume (2026-11-15, `>poweroff 20`, now calling `prepareForPowerOff()` like auto-off, RTC wake only): the board lost power 2 s after the command and the port came back 22 s after it
+  (the 20 s alarm); the device answered 24 s after the command. The reader reopened Alice on the same page: the frame dump after the boot is
+  **identical** to the one before the power-off (crc ebda3f52); `Reading: ...` shows in the launcher summary line on the device. The book opened
+  1.6 s after the boot (cached index and the chapter converted from the EPUB).
+
 ## Pending device checks
 
 - **P7-6**: "Sleep now" ends in the sleep screen and a power-off (not run: only the side button restarts it). The swipe from the status bar works on the device (checked 2026-11-15).
@@ -151,16 +156,12 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   0.4 s; not run, a toggle changes the user's real lights); app open with Wi-Fi off to fresh data (under 4 s: warm Lights tab measured
   1.4 s, cold adds the Wi-Fi join and TLS, about 2 s: not measured); whether polling needs the Wi-Fi linger extended.
 - **P5-1**: Settings > Home Assistant "Test connection" now goes through `HaClient` (`core/ha`); re-run it on the device (it worked with the previous direct request, P3-7).
-- **P3-6**: button press to usable screen under 2.5 s after a power-off with the reader open (measure and record); how the
-  sleep screen looks on the panel (cover gray ramp, contrast, that it stays sharp for hours); `Shell::prepareForPowerOff()` on the
-  device takes the cover decode (about 0.3 s expected) before the Quality pass.
-
+- **P3-6**: how the sleep screen looks on the panel (cover gray ramp, contrast, that it stays sharp for hours: a frame dump cannot show it; the device was powered off right after drawing it); button press to usable screen (an RTC wake measured instead, see below; a real side-button press not timed).
 - **Auto-off guard** (kUsbGraceMs): built, not run on the device; check that an idle device on USB with no program holding the port stays on for more than 20 minutes.
-- **Phase 4 (reader), device state (2026-11-15, side button pressed, firmware of 91f4a64)**: Pride and Prejudice cold open 12.1 s (1577 pages;
+- **Phase 4 (reader), device state (2026-11-15, side button pressed, firmware of 91f4a64; items below marked "later" ran with the next firmware)**: Pride and Prejudice cold open 12.1 s (1577 pages;
   convert 6.6 s, paginate 5.4 s), cached open 0.22 s; Alice (EPUB 3, images) cold 6.2 s, cached 0.23 s, text size L re-index 5.0 s (432 pages);
   page-turn render 95-157 ms, Fast push call 86 ms; frame dumps of page 1, page 4 and the cached page 4 of both books **identical to the
-  simulator**; menu, contents (the books' real contents) and the text size change work with injected taps. **Not run**: the TXT book with the
-  new code, covers on the library card, the sleep screen, resume timing, "Sleep now".
+  simulator**; menu, contents (the books' real contents) and the text size change work with injected taps. **Later the same day**: the TXT book (Time Machine) cold ~1.5 s (write 0.3 s, layout 0.95 s), cached 0.22 s; the cover on the library card (first run showed the placeholder: the decode canvases were not in PSRAM; fixed in `ui/image.cpp`, then the real cover shows, `out/dev-library-cover2.png`). **Not run**: "Sleep now" from the quick panel (it needs the side button afterwards).
 
 
 - P3-4: **auto-off on battery** (the policy never powers off while USB is connected, so the automation could not run

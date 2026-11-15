@@ -234,6 +234,7 @@ void Remote::handleLine(const std::string& line) {
     case RemoteCommand::PowerOff:
       // Main power off with an RTC alarm: the board (and the SD card) lose power, then boot again after the delay.
       say("#ok");
+      if (Surface* surf = os_.surface()) surf->prepareForPowerOff();  // as auto-off does: state saved, sleep screen on the panel
       os_.platform().display.wait();
       os_.platform().power.powerOff(static_cast<uint32_t>(c.x1));
       return;

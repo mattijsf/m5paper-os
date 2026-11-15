@@ -56,6 +56,7 @@ std::shared_ptr<Canvas> loadImageFit(const std::string& virtualPath, int boxW, i
     while (div < 8 && static_cast<int64_t>(w / div) * (h / div) > 1500000) div *= 2;
   const int sw = std::max(1, w / div), sh = std::max(1, h / div);
   Canvas src;
+  src.setPsram(true);  // a decoded cover is hundreds of KB: the internal heap of the device is about 200 KB (ignored by the simulator)
   src.setColorDepth(lgfx::color_depth_t::grayscale_8bit);
   if (!src.createSprite(sw, sh)) return nullptr;
   src.fillSprite(static_cast<uint32_t>(0xFFFFFFu));
@@ -64,6 +65,7 @@ std::shared_ptr<Canvas> loadImageFit(const std::string& virtualPath, int boxW, i
   if (!ok) return nullptr;
 
   auto cv = std::make_shared<Canvas>();
+  cv->setPsram(true);
   cv->setColorDepth(lgfx::color_depth_t::grayscale_8bit);
   if (!cv->createSprite(boxW, boxH)) return nullptr;
   cv->fillSprite(static_cast<uint32_t>(0xFFFFFFu));
