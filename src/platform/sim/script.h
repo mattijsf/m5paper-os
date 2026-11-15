@@ -1,6 +1,11 @@
 // UI script runner (docs/SIMULATOR.md "UI scripts"). Plain text, one command per line:
 //   wait MS | shot NAME | tap X Y | long X Y | swipe X1 Y1 X2 Y2 | back
 //   expect-no-quality | expect-max-pushed N        (checked against pushes since the last shot)
+//   restart                                         save and close the app, build the surface again (same data)
+//   expect-state TEXT                               the top screen's debugState() contains TEXT (reader: "page=3/33")
+//   expect-shot-equal A B                           the two screenshots (shot A, shot B) are byte-identical
+//   page-through MAX [TAP_X TAP_Y]                   taps (default 400 500) until debugState says "page=N/N" (the last page),
+//                                                    at most MAX taps; fails if the end is not reached; prints the page count
 // `#` starts a comment. Time only moves through `wait` (and the short steps inside gestures)
 // when the clock is fake.
 #pragma once
@@ -22,6 +27,9 @@ class ScriptRunner {
   // Runs the file. Returns 0 on success; prints "<file>:<line>: <reason>" to stderr and returns
   // non-zero on the first failing command.
   int run(const std::string& path);
+  // What `restart` does: save and close what is open, then build the Surface again (a boot with the same data).
+  void setRestart(std::function<void()> fn) { restart_ = std::move(fn); }
+  // What `page-through` and `expect-state` read: the Surface's debugState().
 
  private:
   void step(uint32_t ms);  // advance time in 10 ms slices, running the main loop each slice
@@ -35,6 +43,7 @@ class ScriptRunner {
   Net& net_;
   std::string out_;
   std::function<void()> idle_;
+  std::function<void()> restart_;
 };
 
 }  // namespace pos::sim

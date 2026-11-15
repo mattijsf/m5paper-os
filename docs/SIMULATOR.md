@@ -74,6 +74,10 @@ battery 15            # set fake battery percent
 wifi off              # make connections fail
 expect-no-quality     # fail if the refresh log since the last 'shot' contains a Quality push
 expect-max-pushed 20000   # fail if more than N pixels were pushed since the last 'shot'
+restart               # save and close the app (as at power-off), build the surface again: a boot with the same data
+expect-state page=7/  # the top screen's debugState() contains the text (Screen::debugState(); the reader says page=N/M)
+expect-shot-equal A B # two earlier shots are byte-identical (resume after restart, same page on the second visit)
+page-through 200      # tap the right zone until the reader's last page (page=N/N); fails after 200 taps
 ```
 
 Exit code is non-zero if an `expect-*` fails or the app crashed.

@@ -265,7 +265,7 @@ simulator first; each task ends with screenshots.
   shows matching sizes. Target speed at least 100 KB/s (2 MB of books under 30 s).
   Alternative for the user at any time: take the card out and copy files into `/books/`.
 
-- [ ] **P4-1 TXT reading.** Read: apps/reader.md. Page screen with touch zones, pagination via
+- [x] **P4-1 TXT reading.** Read: apps/reader.md. Page screen with touch zones, pagination via
   TextBlock, progress save/restore, footer. Put a public-domain TXT in `sim-data/sd/books/`.
   Done when: `tests/ui/reader.script` turns 5 pages with `expect-no-quality`; position survives
   restart.

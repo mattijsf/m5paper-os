@@ -31,6 +31,8 @@ class Surface {
   virtual void prepareForPowerOff() {}
   // Id of the open app, "" if none (the launcher).
   virtual std::string currentAppId() const { return ""; }
+  // What the top screen says about itself (UI scripts: expect-state, page-through). "" if nothing.
+  virtual std::string debugState() const { return ""; }
   virtual std::vector<KeyTap> keyboardTaps(const std::string& /*text*/) { return {}; }
 };
 

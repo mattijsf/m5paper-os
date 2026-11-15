@@ -35,6 +35,8 @@ enum class Anchor : uint8_t { TopLeft, TopCenter, TopRight, MiddleLeft, MiddleCe
 // picture is not supported.
 void drawText(Canvas& c, const std::string& utf8, int x, int y, Type type, Color color,
               Anchor anchor = Anchor::TopLeft, Color bg = 0xFFFFFFu);
+// Forget which font a canvas has loaded (call when a canvas on this thread is created or destroyed).
+void forgetLoadedFont();
 // Width in pixels of the text on one line.
 int measureText(Canvas& c, const std::string& utf8, Type type);
 // Line height in pixels of the font.

@@ -2,7 +2,9 @@
 
 #include <chrono>
 #include <cstdio>
+#include <algorithm>
 #include <fstream>
+#include <iterator>
 #include <sstream>
 #include <thread>
 
@@ -128,6 +130,66 @@ bool ScriptRunner::command(const std::string& cmd, const std::string& args, std:
         return false;
       }
     }
+  } else if (cmd == "restart") {
+    if (!restart_) {
+      error = "'restart' is not available here";
+      return false;
+    }
+    restart_();
+    step(10);
+  } else if (cmd == "expect-state") {
+    std::string want;
+    std::getline(in >> std::ws, want);
+    step(0);
+    const std::string have = os_.surface() ? os_.surface()->debugState() : std::string();
+    if (have.find(want) == std::string::npos) {
+      error = "expect-state '" + want + "': the screen says '" + have + "'";
+      return false;
+    }
+  } else if (cmd == "expect-shot-equal") {
+    std::string a, b;
+    in >> a >> b;
+    auto slurp = [&](const std::string& name) {
+      std::ifstream f(out_ + "/" + name + ".png", std::ios::binary);
+      return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    };
+    const std::string da = slurp(a), db = slurp(b);
+    if (da.empty() || da != db) {
+      error = "expect-shot-equal: " + a + " and " + b + (da.empty() || db.empty() ? " (a shot is missing)" : " differ");
+      return false;
+    }
+  } else if (cmd == "page-through") {
+    if (!ints(1)) return false;
+    int x = 400, y = 500;
+    in >> x >> y;
+    const int maxTaps = n[0];
+    int last = 0;
+    for (int i = 0; i < maxTaps; ++i) {
+      step(0);
+      const std::string st = os_.surface() ? os_.surface()->debugState() : std::string();
+      int cur = 0, total = 0;
+      if (std::sscanf(st.c_str(), "page=%d/%d", &cur, &total) != 2) {
+        step(100);  // still loading
+        --i;
+        if (++last > 3000) {
+          error = "page-through: the screen never showed pages (state '" + st + "')";
+          return false;
+        }
+        continue;
+      }
+      last = 0;
+      if (cur >= total) {
+        std::fprintf(stderr, "page-through: reached page %d/%d after %d turns\n", cur, total, i);
+        return true;
+      }
+      touch(hal::TouchEvent::Down, x, y);
+      step(40);
+      touch(hal::TouchEvent::Up, x, y);
+      step(700);  // the turn, then the settle pass
+    }
+    error = "page-through: the last page was not reached in " + std::to_string(maxTaps) + " taps (" +
+            (os_.surface() ? os_.surface()->debugState() : std::string()) + ")";
+    return false;
   } else if (cmd == "expect-no-quality") {
     step(0);
     if (display_.counters().quality > 0) {

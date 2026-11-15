@@ -286,10 +286,19 @@ void TextBlock::setStyle(const TextStyle& s) {
   invalidate(Hint::Screen);
 }
 
+void TextBlock::setInsets(int l, int t, int r, int b) {
+  padL_ = l;
+  padT_ = t;
+  padR_ = r;
+  padB_ = b;
+  startsValid_ = pageValid_ = false;
+}
+
 void TextBlock::layout() {
-  if (style_.width != frame.w || style_.height != frame.h) {
-    style_.width = frame.w;
-    style_.height = frame.h;
+  const int w = frame.w - padL_ - padR_, h = frame.h - padT_ - padB_;
+  if (style_.width != w || style_.height != h) {
+    style_.width = w;
+    style_.height = h;
     startsValid_ = pageValid_ = false;
   }
   if (onLayout) onLayout();
@@ -314,6 +323,16 @@ void TextBlock::setPageStarts(std::vector<TextPos> starts) {
   if (starts_.empty()) starts_.push_back(TextPos{0, 0});
   startsValid_ = true;
   pageValid_ = false;
+}
+
+void TextBlock::setChapter(std::vector<Paragraph> paras, std::vector<TextPos> starts, TextPos pos) {
+  paras_ = std::move(paras);
+  starts_ = std::move(starts);
+  if (starts_.empty()) starts_.push_back(TextPos{0, 0});
+  startsValid_ = true;
+  pos_ = starts_[pageIndexOf(starts_, pos)];
+  pageValid_ = false;
+  invalidate(Hint::Content);
 }
 
 void TextBlock::goTo(TextPos pos) {
@@ -388,8 +407,8 @@ void TextBlock::draw(Canvas& c) {
     for (const Seg& seg : line.segs) {
       bool fake;
       const Type face = CanvasMetrics::faceFor(seg.type, seg.bold, seg.italic, fake);
-      drawText(c, seg.text, frame.x + seg.x, frame.y + line.y, face, ink, Anchor::TopLeft, bg());
-      if (fake) drawText(c, seg.text, frame.x + seg.x + 1, frame.y + line.y, face, ink, Anchor::TopLeft, ink);  // 2nd strike: no background fill
+      drawText(c, seg.text, frame.x + padL_ + seg.x, frame.y + padT_ + line.y, face, ink, Anchor::TopLeft, bg());
+      if (fake) drawText(c, seg.text, frame.x + padL_ + seg.x + 1, frame.y + padT_ + line.y, face, ink, Anchor::TopLeft, ink);  // 2nd strike: no background fill
     }
   }
 }

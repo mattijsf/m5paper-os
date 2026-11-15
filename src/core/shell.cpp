@@ -137,7 +137,9 @@ void Shell::push(std::unique_ptr<Screen> s, bool launcher) {
   }
   Entry e;
   e.launcher = launcher;
-  auto* pad = content_->add<ui::Padding>(ui::kMargin, 0, ui::kMargin, 0);
+  e.full = s->fullScreen();
+  const int margin = e.full ? 0 : ui::kMargin;
+  auto* pad = content_->add<ui::Padding>(margin, 0, margin, 0);
   auto* col = pad->add<ui::Column>(0);
   e.wrapper = pad;
   s->shell_ = this;
@@ -151,7 +153,8 @@ void Shell::push(std::unique_ptr<Screen> s, bool launcher) {
 void Shell::showTop() {
   Entry& e = stack_.back();
   e.wrapper->visible = true;
-  title_->visible = !e.launcher;
+  title_->visible = !e.launcher && !e.full;
+  status_->visible = !e.full;
   title_->setTitle(e.screen->title());
   title_->clearAction();
   e.screen->onShow();

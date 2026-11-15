@@ -345,3 +345,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P3-2, P3-3, P3-7. Net service (connect on demand, fast path, linger, SNTP), multi-network secrets, HTTP via ctx.http, Wi-Fi settings, Home Assistant test, `>status`.
 - 2026-11-15: clock in local time (TZ kept across SNTP); first HTTPS request 9.5 s -> 2.0-2.6 s (UI thread no longer blocks on the USB log).
 - 2026-11-15: P4-0. `>put/>ls/>rm` (CRC-checked, `.part` then rename, only `/sd/books` and `/sd/paperos`), `tools/push.py`, `make books`. Six books (2.16 MB) pushed to the card in 15.9 s = 121-144 KB/s; `>ls /sd/books` sizes match the files; a second push skips them.
+- 2026-11-15: P4-1. Reader app (page screen full screen, touch zones, footer, progress), TXT import, page index on the worker, `restart` / `expect-state` / `page-through` script commands.

@@ -59,7 +59,9 @@ the Os shows), `core/store.{h,cpp}` (`Store`, `Cache`), `ui/chrome` (StatusBar, 
 - `pos::Screen` is the app-level screen; the widget surface of the whole panel is `ui::Root`.
   `Screen::build(root)` gets a `ui::Column` with 24 px side margins inside the content area; the
   title bar (back arrow, title; long press on the arrow = launcher) is shown for every app screen
-  and hidden for the launcher.
+  and hidden for the launcher. A screen that returns `true` from `fullScreen()` gets the whole panel instead: no
+  status bar, no title bar, no side margins (the reader's page); it then draws its own way out (the reader's menu).
+  `Screen::debugState()` is a one-line description for UI scripts (`expect-state`, `page-through`).
 - `nav.push/pop/home` run after the current gesture or callback returns, so a button can pop its own
   screen. Back from an app's first screen leaves the app. Order when leaving: top screen `onHide`,
   `App::onStop`, then the screens and the App are destroyed (and the store is saved).

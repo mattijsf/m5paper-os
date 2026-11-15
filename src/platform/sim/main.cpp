@@ -196,6 +196,10 @@ int main(int argc, char** argv) {
     if (!headless && !display.openWindow(scale)) return 1;
     if (!os.setup()) return 1;
     sim::ScriptRunner runner(os, display, input, clock, net, outDir, [&] { display.present(); });
+    runner.setRestart([&] {
+      if (os.surface()) os.surface()->prepareForPowerOff();
+      os.setSurface(apps::createSurface(appName, os));
+    });
     int rc = runner.run(scriptPath);
     if (headless || rc != 0) return rc;
     // Windowed: leave the window open after the script, as an interactive session.

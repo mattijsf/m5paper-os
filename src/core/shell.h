@@ -48,6 +48,7 @@ class Shell : public Surface {
   bool dirty() const override { return !deferred_.empty() || root_.dirty(); }
   void prepareForPowerOff() override;
   std::string currentAppId() const override { return appId_; }
+  std::string debugState() const override { return stack_.empty() ? std::string() : stack_.back().screen->debugState(); }
   std::vector<KeyTap> keyboardTaps(const std::string& text) override { return root_.keyboardTaps(text); }
 
  private:
@@ -60,6 +61,7 @@ class Shell : public Surface {
     std::shared_ptr<bool> alive = std::make_shared<bool>(true);
     std::vector<Timers::Id> timers;
     bool launcher = false;
+    bool full = false;
   };
 
   void push(std::unique_ptr<Screen> s, bool launcher);

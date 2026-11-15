@@ -39,6 +39,10 @@ class Screen {
   virtual void build(ui::Column& root) = 0;
   virtual void onShow() {}
   virtual void onHide() {}
+  // True: the screen gets the whole panel (no status bar, no title bar, no side margins). Read before build().
+  virtual bool fullScreen() const { return false; }
+  // One line describing what is shown ("page=3/120"), for UI scripts (expect-state, page-through). "" = nothing to say.
+  virtual std::string debugState() const { return ""; }
 
   // Title shown in the title bar while this screen is on top. Call from build() or later.
   void setTitle(const std::string& title);

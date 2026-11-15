@@ -192,7 +192,9 @@ headings, a heading is never split across pages or left alone at the bottom, a p
 still advances. Bold and italic exist as faces at ReadM only; other sizes fake bold with a double strike and
 show italic as regular. Layout runs on `TextMetrics` (a fake in the tests, `CanvasMetrics` on the device),
 so a whole book can be paginated on the worker; `TextBlock::setPageStarts()` hands such an index over. Touch:
-tap on the left third = back, elsewhere forward, horizontal swipes. Test screens `widgets4` (keyboard), `widgets5`
+tap on the left third = back, elsewhere forward, horizontal swipes. `setInsets(l, t, r, b)` keeps the text inside margins while
+the widget (and its touch area) fills the frame; `setChapter(paras, starts, pos)` swaps text, page starts and position in one Content refresh.
+The reader derives `PageView` from it to use its own touch zones. Test screens `widgets4` (keyboard), `widgets5`
 (text pages); script commands `type TEXT` and `type-max N TEXT`.
 
 ## Gestures (`core/gesture`, task P2-1)

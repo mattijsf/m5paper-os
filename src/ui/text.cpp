@@ -49,8 +49,8 @@ FontId fontFor(Type t) {
 }
 
 // A canvas holds one runtime font; reloading parses the font tables, so remember what is loaded.
-const Canvas* gLoadedOn = nullptr;
-FontId gLoaded = FontId::None;
+thread_local const Canvas* gLoadedOn = nullptr;  // per thread: the worker measures text on its own canvas
+thread_local FontId gLoaded = FontId::None;
 
 void useFont(Canvas& c, FontId id) {
   if (gLoadedOn == &c && gLoaded == id) return;
@@ -116,6 +116,11 @@ textdatum_t datum(Anchor a) {
 }
 
 }  // namespace
+
+void forgetLoadedFont() {
+  gLoadedOn = nullptr;
+  gLoaded = FontId::None;
+}
 
 std::string sanitize(const std::string& s) {
   std::string out;

@@ -30,9 +30,9 @@ Touch zones:
 | left 25%, or swipe right | previous page |
 | centre 35% | toggle the menu overlay |
 
-Menu overlay (`Sheet` from the bottom + a TitleBar at the top with back): font size (Segmented
-S/M/L/XL), contents (chapter list screen), "Go to" (LevelBar by 10% + Stepper by page),
-"Clean screen". Changing the font size re-paginates the current chapter and keeps the position
+Menu overlay (a `Sheet` from the bottom; there is no TitleBar over a full-screen page, the way out is the
+"Library" button): font size (Segmented S/M/L/XL), contents (chapter list screen), "Go to" (LevelBar by 10% +
+Stepper by page), "Clean screen". The page screen is `fullScreen()` (docs/APPS.md): 540 x 960, no chrome. Changing the font size re-paginates the current chapter and keeps the position
 (character offset).
 
 ### Refresh behaviour
@@ -46,7 +46,7 @@ done at a page turn, never mid-page. Requirements checked by `tests/ui/reader.sc
 
 | Format | Support |
 |---|---|
-| `.txt` | UTF-8 (Latin-1 fallback). Blank line = paragraph. One "chapter". Task P4-1. |
+| `.txt` | UTF-8 (Windows-1252/Latin-1 fallback). Blank line = paragraph, hard-wrapped lines are joined. `_word_` is italic, a short line starting with CHAPTER / BOOK / PART ... is a heading. Project Gutenberg header and licence are cut. One "chapter" (parts of at most 512 KB for huge files); title and author from "Title - Author.txt", else the Gutenberg header. Task P4-1 (done). |
 | `.epub` (2 and 3) | Unencrypted. Text, paragraphs, headings (h1-h3), bold, italic, line breaks, block quotes, lists as indented paragraphs, horizontal rule. Cover image. Task P4-3/4. |
 | not supported in v1 | DRM, images inside chapters (skipped with a `[image]` mark), tables (rows flattened to lines), CSS, footnote popups, right-to-left |
 
@@ -83,8 +83,11 @@ boundaries into virtual chapters.
 | `cover.jpg` / `.png` | extracted cover file as-is (decoded by M5GFX when drawn) |
 | `progress.json` | `{ "chapter": 3, "offset": 18234, "percent": 42, "opened": 1763200000 }` |
 
-Position is stored as chapter + byte offset (not page number) so it survives font changes.
-Progress is saved on every 5th page turn and in `onStop()`.
+Position is stored as chapter + paragraph + byte offset inside the paragraph (`TextPos`, not a page number) so it
+survives font changes; `progress.json` is `{ "chapter", "para", "byte", "percent", "opened" }`. Progress is saved
+on every 5th page turn and when the page screen is destroyed (back, home, power-off).
+The page index file is `"PIX1"`, a u32 page count, then per page u16 chapter, u32 paragraph, u32 byte
+(little endian). `layoutKey` = face, column width and height, line spacing, indent, paragraph gap.
 
 ## Tests
 

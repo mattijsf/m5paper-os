@@ -98,11 +98,16 @@ std::vector<Paragraph> parseMarked(const std::string& text);
 class TextBlock : public Widget {
  public:
   void setParagraphs(std::vector<Paragraph> paras);
-  void setStyle(const TextStyle& s);  // width/height are taken from the frame at layout time
+  void setStyle(const TextStyle& s);  // width/height are taken from the frame (minus the insets) at layout time
+  // Space between the frame and the text; touches still reach the widget there (the reader turns pages by zones).
+  void setInsets(int l, int t, int r, int b);
   const TextStyle& style() const { return style_; }
   // Pages: computed on first use (synchronously: for a whole book compute them on the worker and hand them over).
   const std::vector<TextPos>& pageStarts();
   void setPageStarts(std::vector<TextPos> starts);
+  // Replaces the text, its page starts (computed elsewhere, e.g. on the worker) and the shown position in one step;
+  // one Content refresh. For chapter changes in the reader.
+  void setChapter(std::vector<Paragraph> paras, std::vector<TextPos> starts, TextPos pos);
   int pageCount() { return static_cast<int>(pageStarts().size()); }
   int pageIndex() { return pageIndexOf(pageStarts(), pos_); }
   TextPos position() const { return pos_; }
@@ -124,6 +129,7 @@ class TextBlock : public Widget {
   void relayout();
   std::vector<Paragraph> paras_;
   TextStyle style_;
+  int padL_ = 0, padT_ = 0, padR_ = 0, padB_ = 0;
   TextPos pos_;
   std::vector<TextPos> starts_;
   bool startsValid_ = false;
