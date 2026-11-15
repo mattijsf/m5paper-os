@@ -112,11 +112,15 @@ Shell::Shell(Os& os) : os_(os), root_(os.canvas(), os.displayManager(), &os.time
   root_.setRoot(std::move(top));
   updateStatus();
   os_.net().onChange = [this] { updateStatus(); };  // Wi-Fi came up or went off, the clock was synced
+  os_.net().onChangeOwner = this;
   statusTimer_ = os_.timers().every(60000, [this] { updateStatus(); });
 }
 
 Shell::~Shell() {
-  os_.net().onChange = nullptr;
+  if (os_.net().onChangeOwner == this) {  // the new Shell of a screen change registered itself before this one died
+    os_.net().onChange = nullptr;
+    os_.net().onChangeOwner = nullptr;
+  }
   os_.timers().cancel(statusTimer_);
   if (app_) app_->onStop();
   // The widget tree dies with root_; screens must go first (their widgets may be referenced).

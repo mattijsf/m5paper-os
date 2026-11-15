@@ -1,0 +1,9 @@
+# app: whatsapp
+# The status bar follows the net service across a screen change: after `restart` (a new Shell replaces the old one) the Wi-Fi icon is
+# on while the connection lingers. (On the device the old Shell used to clear the new one's callback: icon off right after a fetch.)
+wait 1500
+shot wifi-before-restart
+restart
+wait 1500
+shot wifi-after-restart
+# (the list differs by the new-message dots; the golden of wifi-after-restart guards the icon)

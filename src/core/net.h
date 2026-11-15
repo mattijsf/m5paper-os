@@ -61,6 +61,8 @@ class NetService {
   void setWorker(Worker* w) { worker_ = w; }
   // Wi-Fi or the clock changed (status bar): set by the Shell.
   std::function<void()> onChange;
+  // Who set onChange: a Shell that is replaced by a new one (set screen, restart) must not clear the new one's callback when it dies.
+  const void* onChangeOwner = nullptr;
 
   WifiStore& store() { return store_; }
   std::vector<WifiCred> known() const { return knownNetworks(secrets_, store_); }
