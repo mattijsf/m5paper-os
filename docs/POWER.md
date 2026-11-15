@@ -55,7 +55,7 @@ Shell writes `lastApp` to `/data/system.json` and closes the app so it saves), t
 ### Auto-off
 
 - After `power.autoOffMin` minutes without input (default 15, reader 30, 0 = never while on USB):
-  draw the sleep screen (below), `display.wait()`, then `power.powerOff(0)`.
+  draw the sleep screen (below), `display.wait()`, then `power.powerOff(0)` (or with an RTC alarm: "Scheduled refresh" below).
 - Not while USB (a host on the data link, or the charger) was seen in the last 12 hours of this boot (`kUsbGraceMs`): a Mac
   suspends a port nobody has open, the device then sees no host, and only the side button could undo an unwanted power-off.
 - Before power-off every app gets `onPause()` to save state (reading position).
@@ -70,6 +70,7 @@ layout with the current book cover and progress, or the PaperOS mark, plus "Pres
 button to wake". Task P3-6 (simulator part done): `Shell::prepareForPowerOff()` asks the open app for `App::sleepInfo()`
 (title, subtitle, percent, cover path; the reader keeps these in its store while a book is open), closes the app, draws
 `core/sleep_screen` into the canvas and calls `forceClean()` (one Quality pass); the Shell draws nothing after that.
+One caption-sized line above the hint shows the cached unread count (and the time of the last scheduled refresh, see below).
 
 ### Resume after power-off
 
@@ -93,7 +94,7 @@ No Wi-Fi at boot. `>set screen launcher` never resumes.
   extended so toggles respond fast. The device does not light-sleep during that window.
 - Time sync: SNTP after a connect when the clock was never set or the last sync is over a day old, written to the BM8563 RTC on
   the UI thread; the status bar updates at once (measured: the clock was set after the first connect).
-- No background polling in v1. Scheduled wake-ups to pre-fetch the inbox are task P7-5.
+- No background polling while the device is on. While it is off, the scheduled refresh below can fetch the inbox feeds (off by default).
 - TLS handshakes are expensive (~1.5 s, ~45 KB RAM); free heap measured: ~200 KB idle, ~150 KB with Wi-Fi up, ~104 KB during
   a TLS request. HTTPS to the public Home Assistant address is the expected case (BACKEND.md); the device keeps one
   connection alive per refresh.
@@ -122,6 +123,39 @@ info are cached by the net service: the stack's locks are held during connects a
 (`https phases: dns= tls+tcp= request+headers= body= cpu= reused=`) and `[perf] UI loop gap` for passes later than 400 ms.
 The handshake itself is ~0.6 s, well under the 2 s worry; the request/response of the Home Assistant server is the rest.
 
+## Scheduled refresh (task P7-5, `apps/inbox/scheduled_refresh`)
+
+Settings > Power > "While off, wake to check the inbox every" Off / 1 h / 2 h / 4 h / 8 h (`power.refreshHours`, default 0 = off).
+
+- Every power-off for sleep (auto-off, "Sleep now") goes through `Os::powerOffForSleep()`: with the setting on **and the clock set** it
+  powers off with an RTC alarm (`power.powerOff(hours * 3600)`) and remembers the alarm time as `wakeAt` in `/data/system.json`.
+  Without a clock there is no alarm: the wake could not be told from the side button.
+- Boot (`apps::createBootSurface`): if the clock is within -90 s .. +180 s of `wakeAt` the boot is a scheduled wake
+  (`isScheduledWake`; the RTC flag is not read, so a side-button press inside that window also counts: a touch during the refresh
+  ends it in a normal boot). `wakeAt` is forgotten at every boot, so an earlier side-button press is an ordinary boot.
+- A scheduled wake builds no launcher and no app. It keeps the panel as it is (no first Quality refresh), fetches both inbox feed
+  sensors (`GET /api/states/<entity>`, one Wi-Fi attempt as always), writes each feed's cache and badge file
+  (`/data/cache/<id>/badge` = items newer than that app's seen marker), then redraws the sleep screen of the last power-off (kept as
+  `sleep.*` in `system.json`) with one more line, "3 unread - updated 14:05", in one Quality pass, and powers off with the next
+  alarm. If no feed answered the panel is left alone. Hard limit: 45 s awake, then off.
+- The sleep screen shows a count only, never a sender or text. The line is also drawn at an ordinary power-off when badges are
+  cached ("3 unread").
+- Log: one line per wake in `/data/refresh.log`, `unix,msSinceBoot,refreshMs,feedsAnswered,unread`
+  (`tools/device.py cat /data/refresh.log`).
+- Test without stranding the device: `tools/device.py poweroff N` (RTC wake after N s, the refresh runs, then an ordinary boot) and
+  `poweroff N M` (the refresh powers off once more for M s, the wake after that stays on).
+
+**Measured on the device (2026-11-15, four RTC wakes on USB power, known network on the fast path, HTTPS to the public address)**:
+refresh 2.8 / 5.2 / 2.9 / 3.0 s from the first loop pass to "done" (Wi-Fi join 1.2-1.4 s, first HTTPS request 1.2-3.4 s of which
+TLS 0.6-2.9 s, second request 37 ms on the kept-alive connection); 3.5 / 6.1 / 3.6 / 3.7 s since `setup()`. Not in those numbers:
+ROM and bootloader before `setup()` (about 1.3 s, from the time between two chained wakes) and the Quality refresh that plays
+before the power goes (1.5-1.9 s). Total per wake: **about 6.5 s, up to 9 s** with a slow TLS handshake.
+
+**Estimate (not measured: there is no current meter)**: at an assumed 120 mA average while awake with Wi-Fi up, one wake costs
+about 0.2 mAh (0.15-0.3). Per day: 1 h = ~5 mAh, 2 h = ~2.5 mAh, 4 h = ~1.3 mAh, 8 h = ~0.6 mAh, against 1800 mAh: well under
+1% a day. Bad case: Home Assistant does not answer and every wake runs to the 45 s limit, about 1.5 mAh per wake (1 h: ~36 mAh a
+day, 2%).
+
 ## CPU
 
 `setCpuFrequencyMhz(80)` when Wi-Fi is off (rendering text at 80 MHz is fine; measure page turn
@@ -141,6 +175,7 @@ Voltage under load sags, so sample only when Wi-Fi is off, average 8 samples, an
 | Home app, active use | Wi-Fi up, 100 mA | 100 mA | 18 h continuous |
 | Checking inbox | 15 s Wi-Fi per check, 10 checks a day | ~0.5 mAh per check | negligible |
 | Off | 9 uA | | years (self-discharge dominates) |
+| Off with scheduled refresh | ~6.5 s awake at 120 mA per wake (time measured, current assumed) | ~0.2 mAh per wake | 2 h interval: ~2.5 mAh a day |
 
 ## Measuring (task P3-5)
 

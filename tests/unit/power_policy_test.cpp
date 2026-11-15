@@ -6,6 +6,7 @@
 #include "core/fs.h"
 #include "core/power_policy.h"
 #include "core/shell.h"
+#include "core/sleep_screen.h"
 #include "core/store.h"
 
 using namespace pos;
@@ -70,10 +71,10 @@ namespace {
 
 class FakeDisplay : public hal::Display {
  public:
-  void push(const Canvas&, Rect, Refresh) override {}
+  void push(const Canvas&, Rect, Refresh) override { ++pushes; }
   bool busy() override { return false; }
   void wait() override { ++waits; }
-  int waits = 0;
+  int waits = 0, pushes = 0;
 };
 class FakeInput : public hal::Input {
  public:
@@ -88,7 +89,8 @@ class FakeInput : public hal::Input {
 class FakeClock : public hal::Clock {
  public:
   uint32_t millis() override { return ms; }
-  int64_t now() override { return 0; }
+  int64_t now() override { return unix; }
+  int64_t unix = 0;
   void set(int64_t) override {}
   uint32_t ms = 1000;
 };
@@ -290,4 +292,90 @@ TEST_CASE("PowerPolicy::idle: USB seen once this boot keeps the device on when t
   c.clock.ms += 30 * 60 * 1000;
   c.policy.idle(1000);
   CHECK(c.power.offs.empty());
+}
+
+TEST_CASE("isScheduledWake: only a boot near the remembered alarm time") {
+  CHECK_FALSE(isScheduledWake(1000000, 0));            // no alarm was set
+  CHECK_FALSE(isScheduledWake(0, 1000000));            // the clock is not set
+  CHECK(isScheduledWake(1000000, 1000000));
+  CHECK(isScheduledWake(1000000 - 90, 1000000));       // the RTC alarm has minute resolution
+  CHECK(isScheduledWake(1000000 + 180, 1000000));
+  CHECK_FALSE(isScheduledWake(1000000 - 91, 1000000)); // the side button, earlier
+  CHECK_FALSE(isScheduledWake(1000000 + 181, 1000000));
+}
+
+TEST_CASE("Os::powerOffForSleep: the refresh setting becomes the wake alarm, a boot at that time is a scheduled wake") {
+  Env e;
+  e.clock.unix = 1768480440;
+  e.os.powerOffForSleep();  // refresh off: until the button
+  REQUIRE(e.power.offs.size() == 1);
+  CHECK(e.power.offs[0] == 0);
+  CHECK_FALSE(e.os.takeScheduledWake());
+
+  e.os.config().power.refreshHours = 2;
+  e.os.powerOffForSleep();
+  REQUIRE(e.power.offs.size() == 2);
+  CHECK(e.power.offs[1] == 7200);
+  e.clock.unix += 600;  // the side button after ten minutes: an ordinary boot, and the alarm is forgotten
+  CHECK_FALSE(e.os.takeScheduledWake());
+  e.clock.unix += 6600;
+  CHECK_FALSE(e.os.takeScheduledWake());
+
+  e.os.powerOffForSleep();
+  e.clock.unix += 7200 + 20;  // the alarm (the boot takes a moment)
+  CHECK(e.os.takeScheduledWake());
+  CHECK_FALSE(e.os.stayOnAfterRefresh());
+  CHECK_FALSE(e.os.takeScheduledWake());  // asked once
+
+  e.os.powerOffForSleep(30, true);  // >poweroff 30: one refresh, then stay on
+  CHECK(e.power.offs.back() == 30);
+  e.clock.unix += 31;
+  CHECK(e.os.takeScheduledWake());
+  CHECK(e.os.stayOnAfterRefresh());
+
+  e.os.powerOffForSleep(30, true, 45);  // >poweroff 30 45: the refresh switches off once more
+  e.clock.unix += 30;
+  CHECK(e.os.takeScheduledWake());
+  CHECK(e.os.offAgainAfterRefresh() == 45);
+  e.os.powerOffForSleep(45, true);
+  e.clock.unix += 45;
+  CHECK(e.os.takeScheduledWake());
+  CHECK(e.os.offAgainAfterRefresh() == 0);
+  CHECK(e.os.stayOnAfterRefresh());
+
+  e.clock.unix = 0;  // no clock: a wake could not be told from the side button, so no alarm
+  e.os.powerOffForSleep();
+  CHECK(e.power.offs.back() == 0);
+  CHECK_FALSE(e.os.takeScheduledWake());
+}
+
+TEST_CASE("sleepNote: unread count and the time of the refresh") {
+  CHECK(sleepNote(0, "") == "");
+  CHECK(sleepNote(3, "") == "3 unread");
+  CHECK(sleepNote(3, "14:05") == "3 unread - updated 14:05");
+  CHECK(sleepNote(0, "14:05") == "Updated 14:05");
+}
+
+TEST_CASE("Os::setup: a surface that keeps the panel (scheduled refresh) gets no first refresh") {
+  struct Quiet : Surface {
+    bool keeps = false;
+    void onGesture(const Gesture&) override {}
+    bool dirty() const override { return false; }
+    void render(Canvas& c, DisplayManager&) override { c.fillScreen(kWhite); }
+    bool keepsPanelAtBoot() const override { return keeps; }
+  };
+  for (bool keeps : {false, true}) {
+    FakeDisplay display;
+    FakeInput input;
+    FakeClock clock;
+    FakeNet net;
+    FakePower power;
+    hal::Platform platform{display, input, clock, net, power, "test"};
+    Os os{platform};
+    auto s = std::make_unique<Quiet>();
+    s->keeps = keeps;
+    os.setSurface(std::move(s));
+    REQUIRE(os.setup());
+    CHECK((display.pushes == 0) == keeps);
+  }
 }

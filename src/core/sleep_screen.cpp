@@ -1,13 +1,54 @@
 #include "core/sleep_screen.h"
 
 #include <algorithm>
+#include <cstdlib>
+
+#include "core/fs.h"
+#include "core/store.h"
 
 #include "ui/text.h"
 #include "ui/theme.h"
 
 namespace pos {
 
-void drawSleepScreen(Canvas& c, const SleepInfo* info, Canvas* image) {
+std::string sleepNote(int unread, const std::string& updated) {
+  std::string s;
+  if (unread > 0) s = std::to_string(unread) + " unread";
+  if (!updated.empty()) s += (s.empty() ? "Updated " : " - updated ") + updated;
+  return s;
+}
+
+int cachedUnread() {
+  int n = 0;
+  for (const AppEntry* a : AppRegistry::instance().sorted()) {
+    std::string raw;
+    fs::readFile(std::string("/data/cache/") + a->info.id + "/badge", raw);
+    n += std::max(0, std::atoi(raw.c_str()));
+  }
+  return n;
+}
+
+void saveSleepInfo(const SleepInfo* info) {
+  Store sys("/data/system.json");
+  sys.set("sleep.has", info != nullptr);
+  sys.set("sleep.title", info ? info->title : std::string());
+  sys.set("sleep.subtitle", info ? info->subtitle : std::string());
+  sys.set("sleep.percent", info ? info->percent : -1);
+  sys.set("sleep.image", info ? info->image : std::string());
+  sys.save();
+}
+
+bool loadSleepInfo(SleepInfo& info) {
+  Store sys("/data/system.json");
+  if (!sys.get("sleep.has", false)) return false;
+  info.title = sys.get("sleep.title", std::string());
+  info.subtitle = sys.get("sleep.subtitle", std::string());
+  info.percent = sys.get("sleep.percent", -1);
+  info.image = sys.get("sleep.image", std::string());
+  return !info.title.empty();
+}
+
+void drawSleepScreen(Canvas& c, const SleepInfo* info, Canvas* image, const std::string& note) {
   using ui::Anchor;
   using ui::Type;
   c.fillRect(0, 0, kScreenW, kScreenH, kWhite);
@@ -38,6 +79,7 @@ void drawSleepScreen(Canvas& c, const SleepInfo* info, Canvas* image) {
     ui::drawIcon(c, Icon::BookOpen, cx, 360, 64, ui::ink, kWhite);
     ui::drawText(c, "PaperOS", cx, 450, Type::Headline, ui::ink, Anchor::MiddleCenter, kWhite);
   }
+  if (!note.empty()) ui::drawText(c, ui::ellipsize(c, note, Type::Body, 492), cx, 800, Type::Body, ui::ink, Anchor::MiddleCenter, kWhite);  // content: ink
   ui::drawText(c, "Press the side button to wake", cx, 860, Type::Body, ui::secondary, Anchor::MiddleCenter, kWhite);
 }
 

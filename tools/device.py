@@ -4,7 +4,7 @@
 Run with PlatformIO's Python (it has pyserial):
     ~/.platformio/penv/bin/python tools/device.py shot out/device.png
     ~/.platformio/penv/bin/python tools/device.py tap 140 300
-Commands: ls [DIR] | cat /data/power.csv | rm PATH | status (key names + lengths, Wi-Fi, heap) | diff A.png B.png [FIRST_ROW] | shot OUT.png | tap X Y | long X Y | swipe X1 Y1 X2 Y2 | log | refresh | set KEY VALUE | poweroff SECONDS | wait-boot | diff A.png B.png
+Commands: ls [DIR] | cat /data/power.csv | rm PATH | status (key names + lengths, Wi-Fi, heap) | diff A.png B.png [FIRST_ROW] | shot OUT.png | tap X Y | long X Y | swipe X1 Y1 X2 Y2 | log | refresh | set KEY VALUE | poweroff SECONDS [THEN_SECONDS] | wait-boot | diff A.png B.png
 Options:  --port /dev/cu.usbmodemXXXX (default: the first /dev/cu.usbmodem*)
           --sim   talk to .pio/build/sim/program --headless --remote instead of a device
           -v      also print device log lines seen while waiting for a reply
@@ -166,6 +166,8 @@ SCRIPT_UNSUPPORTED = {
     "wifi": "the fake Wi-Fi world exists only in the simulator",
     "restart": "a restart on the device is a real power cycle (use >poweroff N by hand)",
     "power-off": "never powers the device off from a script",
+    "timer-wake": "an RTC wake on the device is a real power cycle (use >poweroff N by hand)",
+    "expect-off": "the device cannot answer while it is off",
 }
 
 
@@ -405,10 +407,11 @@ def main():
                 sys.exit(1)
         elif a.cmd == "poweroff":
             # Cuts the board's power (and the SD card's: the way to unwedge a card) and boots again after SECONDS.
-            if len(a.args) != 1 or not a.args[0].isdigit() or not 1 <= int(a.args[0]) <= 3600:
-                sys.exit("usage: poweroff SECONDS (1..3600)")
+            # With a clock the wake runs the scheduled refresh (P7-5) and stays on; THEN_SECONDS: that refresh switches off once more.
+            if len(a.args) not in (1, 2) or not all(x.isdigit() and 1 <= int(x) <= 3600 for x in a.args):
+                sys.exit("usage: poweroff SECONDS [THEN_SECONDS] (1..3600)")
             try:
-                status, _, _ = request(link, ">poweroff " + a.args[0], a.verbose, timeout=3, retries=0)
+                status, _, _ = request(link, ">poweroff " + " ".join(a.args), a.verbose, timeout=3, retries=0)
                 print(status)
             except TimeoutError:
                 print("no reply (the board lost power first)")

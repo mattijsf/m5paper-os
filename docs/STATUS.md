@@ -144,6 +144,13 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   line read "Updated", no "not found"); the Lights tab refresh took 1.4 s with Wi-Fi up (18 requests over one kept-alive TLS connection,
   36-52 ms each, `reused=1`), below the 3 s limit: no aggregate sensor needed yet. Read-only: no toggle or scene was sent.
 - P7-6: the swipe from the status bar opens the quick panel with the real touch panel (injected swipe); Wi-Fi and battery detail show.
+- **P7-5 scheduled refresh (later the same day, RTC wakes only, on USB power)**: `poweroff 20` three times and `poweroff 20 30` once. Each
+  RTC wake was recognised as a scheduled wake, skipped the first panel refresh (`[boot] the panel keeps its image`), fetched the feeds and
+  logged a line in `/data/refresh.log`: refresh 2.8 / 5.2 / 2.9 / 3.0 s, 3.5 / 6.1 / 3.6 / 3.7 s since `setup()` (Wi-Fi join 1.2-1.4 s, TLS
+  0.6-2.9 s). `poweroff 20 30`: the first wake refreshed and **powered off again by itself**, the second wake came 35 s later, refreshed
+  and stayed on (launcher). One of the two feeds answered each time (WhatsApp; the mail sensor does not exist yet, P6-2) with 0 unread.
+  Numbers and the mAh estimate (an estimate: no current meter): POWER.md "Scheduled refresh". Found on the first run and fixed: the boot
+  pushed a blank first frame before the refresh (now `Surface::keepsPanelAtBoot`).
 
 - Power-off and resume (2026-11-15, `>poweroff 20`, now calling `prepareForPowerOff()` like auto-off, RTC wake only): the board lost power 2 s after the command and the port came back 22 s after it
   (the 20 s alarm); the device answered 24 s after the command. The reader reopened Alice on the same page: the frame dump after the boot is
@@ -171,6 +178,13 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   Still to look at: the gray(9) dividers in a list, the gray(13) icon wells of the launcher tiles.
 
 ## Pending device checks
+
+- **P7-5**: (1) the real path: auto-off or "Sleep now" on battery with the setting at 1 h, the device waking by itself an hour later and
+  switching off again (the device tests used `>poweroff N [M]`, which calls the same `Os::powerOffForSleep`, with 20-30 s alarms; the
+  hour-long alarm and the Settings value on the device were not run); (2) the sleep screen with the summary line on the panel (the device
+  is off right after drawing it: no frame dump, only the simulator golden `sched-refreshed.png`); (3) a count above 0 (the live feed had
+  nothing newer than the seen marker) and the mail feed; (4) the current while awake (the mAh figures are estimates); (5) a side-button
+  press that lands within -90 s .. +180 s of the alarm runs the refresh first (a touch then ends it in a normal boot: simulator only).
 
 - **Mark all read with `before`**: a device "Mark all read" with the new firmware against a feed that holds a newer item (fake events only, when the feed has no real messages); a real group message in the feed.
 
@@ -218,6 +232,10 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 None of these block Phase 1, Phase 2, or the reader.
 
 ## Notes for later tasks
+
+- **UI test flake seen once (2026-11-15)**: `inbox-error.png` differed from its golden in one of five `make ui-test` runs and matched in the
+  next run with no change in between (the image looked right: the error state). The worker runs in real time while the script's clock is
+  fake, so a result can land one pass earlier or later. If it shows up again: look at `out/ui/inbox-error.png`, re-run, do not accept.
 
 - LovyanGFX picks the colour format from the C++ type of the colour argument. The spike first
   passed `uint8_t` grays and got RGB332 colours (wrong gray ramp). `pos::Color` is `uint32_t`
@@ -448,6 +466,7 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P5-2. `apps/home/home_model` (home.json parser, default config with the full Avond scene, state parser, light views with group counts, states cache, call bodies).
 - 2026-11-15: P5-3, P5-4, P5-5 (simulator part). Home app (Lights with scenes, member sheet, Climate, More), optimistic actions with revert, cache first, foreground polling; goldens `home-*`.
 - 2026-11-15: P6-4, P6-5, P6-6. `core/text_clean`, Inbox app for WhatsApp and Mail (grouped chats, detail pages, full-text fetch, mark all read, seen marker, badge file), `Screen::setAction`; goldens `inbox-*`, `mail-*`.
+- 2026-11-15: P7-5 scheduled refresh: `power.refreshHours` (Settings > Power), `Os::powerOffForSleep` / `takeScheduledWake`, `apps/inbox/scheduled_refresh`, sleep screen summary line, `/data/refresh.log`, script commands `timer-wake` / `expect-off`, `>poweroff N [M]`; goldens `sched-*`; four RTC wakes measured on the device.
 - 2026-11-15: P7-6 quick panel (`core/quick_panel`, `Shell::sleepNow`); Home light sheet shows the brightness value.
 - 2026-11-15: launcher summary line (`summaryLine`, golden with and without data).
 - 2026-11-15: P6-3 (WhatsApp half, done in parallel): `ha/paperos_inbox.yaml` synced from the Home Assistant repo; BACKEND.md event fields and feed mapping corrected; D20; add-on security facts.

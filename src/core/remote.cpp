@@ -42,9 +42,18 @@ RemoteCommand parseRemoteCommand(const std::string& raw) {
              : word == "refresh" ? RemoteCommand::Refresh
                                  : word == "status" ? RemoteCommand::Status : RemoteCommand::Reboot;
   } else if (word == "poweroff") {
-    if (!ints(1) || n[0] < 1 || n[0] > 3600) return bad("usage: poweroff SECONDS (1..3600)");
+    // "poweroff N" or "poweroff N M": M = after the scheduled refresh of that wake, off once more for M seconds (never until the button)
+    if (!(in >> n[0]) || n[0] < 1 || n[0] > 3600) return bad("usage: poweroff SECONDS [THEN_SECONDS] (1..3600)");
+    n[1] = 0;
+    if (in >> n[1]) {
+      std::string extra;
+      if (n[1] < 1 || n[1] > 3600 || (in >> extra)) return bad("usage: poweroff SECONDS [THEN_SECONDS] (1..3600)");
+    } else if (!in.eof()) {
+      return bad("usage: poweroff SECONDS [THEN_SECONDS] (1..3600)");
+    }
     c.kind = RemoteCommand::PowerOff;
     c.x1 = n[0];
+    c.y1 = n[1];
   } else if (word == "tap" || word == "long") {
     if (!ints(2)) return bad("usage: tap|long x y");
     c.kind = word == "tap" ? RemoteCommand::Tap : RemoteCommand::Long;
@@ -220,7 +229,7 @@ void Remote::handleLine(const std::string& line) {
     }
     case RemoteCommand::Cat: {
       // Only the power log (docs/POWER.md "Measuring"): the card's secrets are not here, but nothing else needs reading either.
-      if (c.path != "/data/power.csv" && c.path != "/data/power.old.csv") {
+      if (c.path != "/data/power.csv" && c.path != "/data/power.old.csv" && c.path != "/data/refresh.log") {
         say("#err path not allowed");
         return;
       }
@@ -267,8 +276,8 @@ void Remote::handleLine(const std::string& line) {
       // Main power off with an RTC alarm: the board (and the SD card) lose power, then boot again after the delay.
       say("#ok");
       if (Surface* surf = os_.surface()) surf->prepareForPowerOff();  // as auto-off does: state saved, sleep screen on the panel
-      os_.platform().display.wait();
-      os_.platform().power.powerOff(static_cast<uint32_t>(c.x1));
+      // The RTC wake then runs the scheduled refresh (if there is a clock) and, being a test, stays on afterwards.
+      os_.powerOffForSleep(static_cast<uint32_t>(c.x1), true, static_cast<uint32_t>(c.y1));
       return;
   }
   say("#ok");

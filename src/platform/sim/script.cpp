@@ -142,6 +142,21 @@ bool ScriptRunner::command(const std::string& cmd, const std::string& args, std:
     }
     restart_();
     step(10);
+  } else if (cmd == "timer-wake") {
+    if (!timerWake_) {
+      error = "'timer-wake' is not available here";
+      return false;
+    }
+    error = timerWake_();
+    if (!error.empty()) return false;  // no step here: the refresh starts with the next command (a `tap` right after is "touched during it")
+  } else if (cmd == "expect-off") {
+    int want = -1;
+    in >> want;
+    const int have = offState_ ? offState_() : -1;
+    if (have != want) {
+      error = "expect-off " + std::to_string(want) + ": " + (have < 0 ? std::string("the device is on") : "the device is off with a wake alarm in " + std::to_string(have) + " s");
+      return false;
+    }
   } else if (cmd == "expect-state") {
     std::string want;
     std::getline(in >> std::ws, want);

@@ -29,6 +29,9 @@ class Surface {
   // Screen points to tap, in order, to type `text` on the on-screen keyboard that is showing (UI scripts).
   // Called before an auto power-off: save state (the open app gets onStop) and remember what was open.
   virtual void prepareForPowerOff() {}
+  // True if the panel already shows what this surface wants (the sleep screen, after an RTC wake): Os::setup() then skips the
+  // full Quality refresh of the first frame.
+  virtual bool keepsPanelAtBoot() const { return false; }
   // Id of the open app, "" if none (the launcher).
   virtual std::string currentAppId() const { return ""; }
   // What the top screen says about itself (UI scripts: expect-state, page-through). "" if nothing.

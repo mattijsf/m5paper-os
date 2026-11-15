@@ -23,6 +23,9 @@
 
 namespace pos {
 
+// Whether a boot at `now` is the RTC wake that was set for `wakeAt` (unix seconds; 0 = none set).
+bool isScheduledWake(int64_t now, int64_t wakeAt);
+
 class Os {
  public:
   explicit Os(hal::Platform& platform)
@@ -36,6 +39,19 @@ class Os {
   // Shows a widget screen (or app): touches become gestures for it. Before setup().
   // After setup() it swaps at once: redraws and cleans the panel (one Quality flash).
   void setSurface(std::unique_ptr<Surface> s);
+  // Replaces the surface at the start of the next loop pass (safe to call from the surface that is being replaced).
+  void requestSurface(std::unique_ptr<Surface> s) { pendingSurface_ = std::move(s); hasPendingSurface_ = true; }
+  // The power-off of auto-off and "Sleep now": with power.refreshHours > 0 the RTC wakes the device after that time for a scheduled
+  // refresh (the wake time is remembered in /data/system.json), else it stays off until the side button. `seconds` overrides the
+  // config (the remote >poweroff). Call Surface::prepareForPowerOff() first. Does not return on the device.
+  // `thenOffSeconds` (a test, >poweroff N M): the refresh of that wake switches off once more for that long, then stays on.
+  void powerOffForSleep(uint32_t seconds = 0, bool stayOnAfterRefresh = false, uint32_t thenOffSeconds = 0);
+  // True right after a boot that the RTC alarm of powerOffForSleep() caused (not the side button): decided from the remembered
+  // wake time, which is then forgotten.
+  bool takeScheduledWake();
+  // Whether the boot after a scheduled refresh should stay on (a test started with >poweroff) instead of switching off again.
+  bool stayOnAfterRefresh() const { return stayOn_; }
+  uint32_t offAgainAfterRefresh() const { return thenOff_; }
   Surface* surface() { return surface_.get(); }
   bool setup();
   // Steps 1-4 of the main loop: drain input, run finished worker callbacks, run due timers, draw
@@ -84,6 +100,10 @@ class Os {
   GestureRecognizer gestures_;
   uint32_t lastInputMs_ = 0;
   Worker worker_;
+  std::unique_ptr<Surface> pendingSurface_;
+  bool hasPendingSurface_ = false;
+  bool stayOn_ = false;
+  uint32_t thenOff_ = 0;
   bool ready_ = false;
   std::string screen_;
 };

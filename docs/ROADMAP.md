@@ -348,8 +348,9 @@ home-assistant repo's own rules. Read BACKEND.md fully before any of them.
   an HTTP upload endpoint), using the second app slot; rollback if the new image does not boot.
 - [ ] **P7-4 Book upload over Wi-Fi.** Reader menu "Add books": device shows its address, a
   small web page accepts uploads into `/sd/books`.
-- [ ] **P7-5 Scheduled refresh.** RTC wake every N hours to fetch inbox feeds and redraw the
-  sleep screen with a summary; off by default; measure the cost.
+- [x] **P7-5 Scheduled refresh.** RTC wake every N hours to fetch inbox feeds and redraw the
+  sleep screen with a summary; off by default; measure the cost. (2026-11-15: simulator and device with RTC wakes; awake time
+  measured, the mAh figure in POWER.md is an estimate: no current meter)
 - [x] **P7-6 Quick panel** (swipe down): Wi-Fi state, battery, sleep now, clean screen. (simulator; Sleep now on the device is a pending check)
 
 ## Phase 8: Optional, ask the owner first

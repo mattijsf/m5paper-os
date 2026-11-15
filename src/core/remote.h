@@ -48,7 +48,7 @@ struct RemoteCommand {
   std::string path;        // Put, Ls, Rm
   uint64_t size = 0;       // Put
   uint32_t crc = 0;        // Put
-  // PowerOff: seconds in x1 (1..3600). 0 (power off until the side button is pressed) is refused: nobody can press it remotely.
+  // PowerOff: seconds in x1 (1..3600), y1 = seconds of a second power-off after the scheduled refresh (0 = none). 0 (power off until the side button is pressed) is refused: nobody can press it remotely.
   int x1 = 0, y1 = 0, x2 = 0, y2 = 0;
   std::string error;  // set when parsing fails (kind stays None)
 };

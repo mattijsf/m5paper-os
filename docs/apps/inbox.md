@@ -52,7 +52,7 @@ Both are instances of `InboxApp` parameterised by `{id, name, icon, entity, kind
   down per entry) and replaces it from page 1; no Wi-Fi or an error leaves the excerpt and says "Showing the beginning only".
 - Seen marker: `ctx.store` key `seen` = newest `ts` shown; dots use the marker as it was when the app started, so a list opened a
   second time has none. Badge: `/data/cache/<id>/badge` (the launcher reads it) = items newer than the marker, written after each fetch; right after
-  a look it is 0, so it only rises when a feed is fetched without being shown (background fetch, task P7-5). Mark all read clears the badge.
+  a look it is 0, so it only rises when a feed is fetched without being shown: the scheduled refresh (P7-5, POWER.md) does that while the device is off. Mark all read clears the badge.
 - The link-down notice reads an optional `attributes.connected` (false = down) of the WhatsApp feed sensor: **an assumption**, the
   package has to provide it (P6-3).
 - Fixtures: `tests/fixtures/make-inbox-fixtures.py` (hosts `ha`, `ha-down`, `ha-empty` .example.test; the three presets under

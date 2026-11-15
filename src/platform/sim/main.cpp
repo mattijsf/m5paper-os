@@ -73,7 +73,14 @@ class SimPower : public hal::Power {
     SDL_Delay(maxMs < 1000 ? maxMs : 1000);
     return hal::Wake::Timer;
   }
-  void powerOff(uint32_t) override { std::exit(0); }
+  void powerOff(uint32_t wakeAfterSec) override {
+    if (exitOnOff) std::exit(0);
+    off = true;  // a UI script goes on: `timer-wake` and `expect-off` look at this
+    offSeconds = wakeAfterSec;
+  }
+  bool exitOnOff = true;
+  bool off = false;
+  uint32_t offSeconds = 0;
 };
 
 // Remote control on stdin/stdout (--remote), same commands as the device (core/remote.h).
@@ -169,7 +176,7 @@ int main(int argc, char** argv) {
   Os os(platform);
   os.loadConfig();
   os.setScreen(appName);
-  if (auto s = apps::createSurface(appName, os, true)) os.setSurface(std::move(s));
+  if (auto s = apps::createBootSurface(appName, os)) os.setSurface(std::move(s));
   os.setWakeup([] {  // a finished job wakes the idle wait
     SDL_Event e = {};
     e.type = SDL_USEREVENT;
@@ -198,8 +205,21 @@ int main(int argc, char** argv) {
     sim::ScriptRunner runner(os, display, input, clock, net, outDir, [&] { display.present(); });
     runner.setRestart([&] {
       if (os.surface()) os.surface()->prepareForPowerOff();
-      os.setSurface(apps::createSurface(appName, os, true));
+      power.off = false;
+      os.setSurface(apps::createBootSurface(appName, os));
     });
+    power.exitOnOff = false;
+    runner.setTimerWake([&]() -> std::string {
+      power.off = false;
+      if (os.surface()) os.surface()->prepareForPowerOff();
+      os.powerOffForSleep();
+      if (!power.off || power.offSeconds == 0) return "no wake timer was set (Settings > Power: the refresh is off)";
+      clock.advance(power.offSeconds * 1000u);  // the RTC alarm
+      power.off = false;
+      os.setSurface(apps::createBootSurface(appName, os));
+      return "";
+    });
+    runner.setOffState([&] { return power.off ? static_cast<int>(power.offSeconds) : -1; });
     int rc = runner.run(scriptPath);
     if (headless || rc != 0) return rc;
     // Windowed: leave the window open after the script, as an interactive session.

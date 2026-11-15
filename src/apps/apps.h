@@ -13,4 +13,7 @@ namespace pos::apps {
 // `resume` (the boot path): with name "" the app that was open at the last power-off is opened again.
 std::unique_ptr<Surface> createSurface(const std::string& name, Os& os, bool resume = false);
 
+// What a boot shows: the scheduled refresh (P7-5) if the RTC alarm of the last power-off woke the device, else createSurface(name, os, true).
+std::unique_ptr<Surface> createBootSurface(const std::string& name, Os& os);
+
 }  // namespace pos::apps

@@ -75,6 +75,8 @@ wifi off              # make connections fail
 expect-no-quality     # fail if the refresh log since the last 'shot' contains a Quality push
 expect-max-pushed 20000   # fail if more than N pixels were pushed since the last 'shot'
 restart               # save and close the app (as at power-off), build the surface again: a boot with the same data
+timer-wake            # power-off, then the RTC alarm: the clock jumps and the device boots into the scheduled refresh (P7-5)
+expect-off 7200       # the device switched itself off with a wake alarm in N seconds (0 = no alarm, -1 = it is on)
 expect-state page=7/  # the top screen's debugState() contains the text (Screen::debugState(); the reader says page=N/M)
 expect-shot-equal A B # two earlier shots are byte-identical (resume after restart, same page on the second visit)
 page-through 200      # tap the right zone until the reader's last page (page=N/N); fails after 200 taps
@@ -166,7 +168,7 @@ A task is done only when `make check` passes.
   - **data** (runs, but the goldens come from preset card data and HTTP fixtures the device does not have): `home`, `inbox-empty`, `inbox-link`,
     `launcher-summary`, `library`, `reader-menu`, `settings`.
   - **cannot**: scripts with `type` / `type-max` (key positions are not exposed: `keyboard`, `wifi`), `wifi on|off` (simulator only: `home-offline`,
-    `inbox-error`, `inbox-mail`), `restart` (`epub`, `inbox`, `inbox-wifi`, `reader`), `power-off` (`sleep`, `sleep-reader`), and `fonts` (drawn by the Os).
+    `inbox-error`, `inbox-mail`), `restart` (`epub`, `inbox`, `inbox-wifi`, `reader`), `power-off` (`sleep`, `sleep-reader`), `timer-wake` (`sched-refresh`; on the device: `poweroff N M`), and `fonts` (drawn by the Os).
   Time is real on the device: a shot right after a tap can catch the frame before or after the settle pass, so it may differ from the golden by a few
   hundred anti-aliased pixels (seen in `widgets3-stepper` and `-level` even against the simulator's remote mode).
 - Things only the device can answer are listed per task as "Device check" in `ROADMAP.md`.

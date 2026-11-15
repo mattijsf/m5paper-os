@@ -9,7 +9,7 @@ System configuration and developer tools.
 | Settings (list) | Wi-Fi, Display, Power, Reading, Home Assistant, Storage, Developer, About |
 | Wi-Fi | current network + signal; "Scan" lists networks (name, signal bars, lock); tap one, enter the password on `ui::Keyboard`, connect, save. Saved networks with "Forget". |
 | Display | "Clean screen now"; ghost limit (Stepper 4..16); settle delay (Segmented 300/600/1000 ms) |
-| Power | auto-off (Segmented 5/15/30/never-on-USB); battery mV and percent |
+| Power | auto-off (Segmented 5/15/30/never-on-USB); scheduled inbox refresh while off (Segmented Off/1/2/4/8 h, POWER.md); stay awake on USB; battery mV and percent |
 | Reading | default font size (S/M/L/XL), margins (narrow/normal/wide), line spacing |
 | Home Assistant | base URL (read-only here), token present yes/no, "Test connection" (GET `/api/`), last error |
 | Storage | SD card present/size/free; `/data` used/free; "Clear caches" |

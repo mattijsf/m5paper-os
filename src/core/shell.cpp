@@ -249,14 +249,14 @@ void Shell::prepareForPowerOff() {
   std::shared_ptr<Canvas> image;
   if (haveInfo && !info.image.empty()) image = ui::loadImageFit(info.image, kSleepImageW, kSleepImageH);
   sleeping_ = true;  // nothing else draws over the sleep screen
-  drawSleepScreen(os_.canvas(), haveInfo ? &info : nullptr, image.get());
+  saveSleepInfo(haveInfo ? &info : nullptr);  // a scheduled refresh redraws the same screen with a new summary
+  drawSleepScreen(os_.canvas(), haveInfo ? &info : nullptr, image.get(), sleepNote(cachedUnread(), ""));
   os_.displayManager().forceClean();
 }
 
 void Shell::sleepNow() {
   prepareForPowerOff();
-  os_.platform().display.wait();
-  os_.platform().power.powerOff(0);
+  os_.powerOffForSleep();
 }
 
 void Shell::onGesture(const Gesture& g) {

@@ -1,0 +1,27 @@
+# P7-5: scheduled refresh. Settings > Power: wake every 2 h. Power-off, the RTC alarm, the device fetches the inbox feeds (fixtures),
+# puts the summary on the sleep screen and switches off again with the next alarm. The button boot after it shows the badges.
+wait 300
+tap 140 700             # launcher: Settings tile
+wait 900
+tap 270 364             # Power
+wait 900
+tap 270 330             # wake to check the inbox every: 2 h
+wait 900
+shot sched-power-setting
+back
+wait 900
+back
+wait 900
+timer-wake              # sleep screen, two hours pass, the alarm boots the device
+wait 4000
+shot sched-refreshed
+expect-off 7200
+restart                 # the side button: an ordinary boot
+wait 900
+shot sched-launcher
+expect-off -1
+timer-wake              # once more, but somebody touches the panel during the refresh (the side button was pressed at alarm time)
+tap 270 500
+wait 4000
+expect-off -1           # it ends in an ordinary boot, not off
+shot sched-touched

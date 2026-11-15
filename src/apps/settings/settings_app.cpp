@@ -86,6 +86,14 @@ class PowerPage : public Page {
       cfg().power.autoOffMin = kMin[i];
       save();
     };
+    caption(root, "While off, wake to check the inbox every");
+    const int h = cfg().power.refreshHours;
+    auto* refresh = root.add<ui::Segmented>(std::vector<std::string>{"Off", "1 h", "2 h", "4 h", "8 h"}, h == 1 ? 1 : h == 2 ? 2 : h == 4 ? 3 : h == 8 ? 4 : 0);
+    refresh->onChange = [this](int i) {
+      static const int kHours[] = {0, 1, 2, 4, 8};
+      cfg().power.refreshHours = kHours[i];
+      save();
+    };
     root.add<ui::Spacer>(ui::s2);
     auto* usb = root.add<ui::ListItem>("Stay awake on USB", "Sleeping would cut the serial link", true, ui::Icon::Power);
     usb->setToggle(cfg().power.stayAwakeOnUsb, [this](bool on) {

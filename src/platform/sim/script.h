@@ -2,6 +2,9 @@
 //   wait MS | shot NAME | tap X Y | long X Y | swipe X1 Y1 X2 Y2 | back
 //   expect-no-quality | expect-max-pushed N        (checked against pushes since the last shot)
 //   power-off                                       what auto-off does before the power goes: state saved, sleep screen on the panel
+//   timer-wake                                      power-off as above, then the RTC alarm fires (the clock jumps) and the device boots
+//                                                   into the scheduled refresh (task P7-5); fails if no alarm was set
+//   expect-off SECONDS                              the device switched itself off with an RTC alarm in SECONDS (0 = no alarm)
 //   restart                                         save and close the app, build the surface again (same data)
 //   expect-state TEXT                               the top screen's debugState() contains TEXT (reader: "page=3/33")
 //   expect-shot-equal A B                           the two screenshots (shot A, shot B) are byte-identical
@@ -31,6 +34,10 @@ class ScriptRunner {
   int run(const std::string& path);
   // What `restart` does: save and close what is open, then build the Surface again (a boot with the same data).
   void setRestart(std::function<void()> fn) { restart_ = std::move(fn); }
+  // What `timer-wake` does; returns "" or why it could not.
+  void setTimerWake(std::function<std::string()> fn) { timerWake_ = std::move(fn); }
+  // What `expect-off` reads: -1 = on, else the seconds of the wake alarm the device switched off with.
+  void setOffState(std::function<int()> fn) { offState_ = std::move(fn); }
   // What `page-through` and `expect-state` read: the Surface's debugState().
 
  private:
@@ -46,6 +53,8 @@ class ScriptRunner {
   std::string out_;
   std::function<void()> idle_;
   std::function<void()> restart_;
+  std::function<std::string()> timerWake_;
+  std::function<int()> offState_;
 };
 
 }  // namespace pos::sim

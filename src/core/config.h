@@ -19,6 +19,9 @@ struct PowerConfig {
   bool stayAwakeOnUsb = true;
   // One line every 10 minutes in /data/power.csv (battery voltage, state, Wi-Fi time, refreshes): the data of the battery runs (POWER.md "Measuring").
   bool log = true;
+  // Scheduled refresh (P7-5): while switched off, wake by the RTC every this many hours, fetch the inbox feeds, redraw the sleep screen
+  // with the new summary and switch off again. 0 = off (default): the device then stays off until the side button.
+  int refreshHours = 0;
 };
 struct NetConfig {
   int lingerSec = 20;

@@ -248,7 +248,16 @@ TEST_CASE("remote: poweroff needs 1..3600 seconds, never 0") {
   CHECK(parseRemoteCommand(">poweroff").kind == RemoteCommand::None);
   CHECK(parseRemoteCommand(">poweroff 3601").kind == RemoteCommand::None);
   CHECK(parseRemoteCommand(">poweroff -5").kind == RemoteCommand::None);
-  CHECK(parseRemoteCommand(">poweroff 5 6").kind == RemoteCommand::None);
+  auto two = parseRemoteCommand(">poweroff 20 30");  // off 20 s, scheduled refresh, off 30 s more
+  CHECK(two.kind == RemoteCommand::PowerOff);
+  CHECK(two.x1 == 20);
+  CHECK(two.y1 == 30);
+  CHECK(parseRemoteCommand(">poweroff 20").y1 == 0);
+  CHECK(parseRemoteCommand(">poweroff 20 0").kind == RemoteCommand::None);
+  CHECK(parseRemoteCommand(">poweroff 20 x").kind == RemoteCommand::None);
+  CHECK(parseRemoteCommand(">poweroff 20 30 40").kind == RemoteCommand::None);
+  CHECK(parseRemoteCommand(">poweroff 20 3601").kind == RemoteCommand::None);
+  CHECK(parseRemoteCommand(">poweroff 5 6").kind == RemoteCommand::PowerOff);  // since P7-5: a second power-off after the refresh
 }
 
 TEST_CASE("remote: state takes no arguments") {

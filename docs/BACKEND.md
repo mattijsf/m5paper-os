@@ -249,6 +249,7 @@ both sensors from the recorder so text is not written to the history database. N
 a third party beyond what WhatsApp and Proton already hold. Never expose the two sensors under
 `www/` (public) or on a dashboard shared with guests. Someone else also uses this Home Assistant:
 the feeds contain the user's private messages, so they must not appear on shared dashboards.
+The device's sleep screen, which anyone near it can read, shows the unread count only ("3 unread"), never a sender or text.
 
 ## Fallback kept in reserve
 

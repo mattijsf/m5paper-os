@@ -6,6 +6,7 @@
 
 #include "core/demo.h"
 #include "core/log.h"
+#include "core/store.h"
 #include "hal/system.h"
 #include "core/timefmt.h"
 
@@ -24,9 +25,13 @@ bool Os::setup() {
 
   uint32_t t0 = p_.clock.millis();
   worker_.start();
-  dm_.forceClean();  // first frame: Quality over the whole screen
-  p_.display.wait();
-  POS_LOG("boot", "full quality refresh %ums", static_cast<unsigned>(p_.clock.millis() - t0));
+  if (surface_ && surface_->keepsPanelAtBoot()) {
+    POS_LOG("boot", "the panel keeps its image: no first refresh");
+  } else {
+    dm_.forceClean();  // first frame: Quality over the whole screen
+    p_.display.wait();
+    POS_LOG("boot", "full quality refresh %ums", static_cast<unsigned>(p_.clock.millis() - t0));
+  }
   ready_ = true;
   return true;
 }
@@ -57,8 +62,43 @@ void Os::setSurface(std::unique_ptr<Surface> s) {
   dm_.forceClean();
 }
 
+// A wake counts as the scheduled one when the clock is within this window around the remembered alarm time (the RTC alarm has a
+// resolution of up to a minute for long sleeps; a side-button press in exactly that window is taken for the alarm).
+bool isScheduledWake(int64_t now, int64_t wakeAt) { return wakeAt > 0 && now > 0 && now >= wakeAt - 90 && now <= wakeAt + 180; }
+
+void Os::powerOffForSleep(uint32_t seconds, bool stayOnAfterRefresh, uint32_t thenOffSeconds) {
+  const int64_t now = p_.clock.now();
+  // Without a clock the wake could not be told from the side button: it would boot into the launcher and stay on until auto-off,
+  // every N hours. So no alarm then.
+  if (seconds == 0 && config_.power.refreshHours > 0 && now > 0) seconds = static_cast<uint32_t>(config_.power.refreshHours) * 3600u;
+  Store sys("/data/system.json");
+  sys.set("wakeAt", seconds > 0 && now > 0 ? static_cast<int>(now + seconds) : 0);
+  sys.set("stayOn", stayOnAfterRefresh);
+  sys.set("thenOff", static_cast<int>(thenOffSeconds));
+  sys.save();
+  p_.display.wait();
+  p_.power.powerOff(seconds);
+}
+
+bool Os::takeScheduledWake() {
+  Store sys("/data/system.json");
+  const int64_t wakeAt = sys.get("wakeAt", 0);
+  if (wakeAt == 0) return false;
+  stayOn_ = sys.get("stayOn", false);
+  thenOff_ = static_cast<uint32_t>(std::max(0, sys.get("thenOff", 0)));
+  sys.set("wakeAt", 0);
+  sys.set("stayOn", false);
+  sys.set("thenOff", 0);
+  sys.save();
+  return isScheduledWake(p_.clock.now(), wakeAt);
+}
+
 void Os::loopOnce() {
   if (!ready_) return;
+  if (hasPendingSurface_) {
+    hasPendingSurface_ = false;
+    setSurface(std::move(pendingSurface_));
+  }
   static uint32_t lastPass = 0;
   {  // a pass that starts long after the previous one: the UI thread was blocked or asleep
     const uint32_t now = p_.clock.millis();
