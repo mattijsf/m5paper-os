@@ -65,16 +65,51 @@ void Column::layout() {
   }
 }
 
+// Children without flex are measured at the full width; the rest of the width is shared among the flex children by their
+// weights and each of those is measured at its own share (a label that wraps in a narrow column is taller than at full width).
+namespace {
+struct RowSizes {
+  std::vector<Size> sizes;
+  int fixed = 0, flexSum = 0;
+};
+RowSizes measureRow(const std::vector<Widget*>& kids, int width, int gap) {
+  RowSizes r;
+  r.sizes.assign(kids.size(), Size{});
+  for (size_t i = 0; i < kids.size(); ++i) {
+    if (kids[i]->flex > 0) {
+      r.flexSum += kids[i]->flex;
+    } else {
+      r.sizes[i] = kids[i]->measure(width);
+      r.fixed += r.sizes[i].w;
+    }
+  }
+  if (!kids.empty()) r.fixed += gap * static_cast<int>(kids.size() - 1);
+  const int left = std::max(0, width - r.fixed);
+  int given = 0, flexSeen = 0;
+  for (size_t i = 0; i < kids.size(); ++i) {
+    if (kids[i]->flex <= 0) continue;
+    flexSeen += kids[i]->flex;
+    const int upto = left * flexSeen / r.flexSum;
+    const int share = upto - given;
+    given = upto;
+    r.sizes[i] = kids[i]->measure(share);
+    r.sizes[i].w = share;
+  }
+  return r;
+}
+}  // namespace
+
 Size Row::measure(int availW) {
-  int w = 0, h = 0, n = 0;
-  for (auto& c : children()) {
-    if (!c->visible) continue;
-    Size s = c->measure(availW);
+  std::vector<Widget*> kids;
+  for (auto& c : children())
+    if (c->visible) kids.push_back(c.get());
+  const RowSizes r = measureRow(kids, availW, gap);
+  int w = 0, h = 0;
+  for (const Size& s : r.sizes) {
     w += s.w;
     h = std::max(h, s.h);
-    ++n;
   }
-  if (n > 1) w += gap * (n - 1);
+  if (kids.size() > 1) w += gap * static_cast<int>(kids.size() - 1);
   return {w, h};
 }
 
@@ -82,25 +117,12 @@ void Row::layout() {
   std::vector<Widget*> kids;
   for (auto& c : children())
     if (c->visible) kids.push_back(c.get());
-  int fixed = 0, flexSum = 0;
-  std::vector<Size> sizes(kids.size());
+  const RowSizes r = measureRow(kids, frame.w, gap);
+  int x = frame.x;
   for (size_t i = 0; i < kids.size(); ++i) {
-    sizes[i] = kids[i]->measure(frame.w);
-    if (kids[i]->flex > 0) flexSum += kids[i]->flex;
-    else fixed += sizes[i].w;
-  }
-  if (!kids.empty()) fixed += gap * static_cast<int>(kids.size() - 1);
-  int left = std::max(0, frame.w - fixed), given = 0, flexSeen = 0, x = frame.x;
-  for (size_t i = 0; i < kids.size(); ++i) {
-    int w = sizes[i].w;
-    if (kids[i]->flex > 0) {
-      flexSeen += kids[i]->flex;
-      int upto = left * flexSeen / flexSum;
-      w = upto - given;
-      given = upto;
-    }
+    const int w = r.sizes[i].w;
     int off, h;
-    crossPlace(align, frame.h, sizes[i].h, off, h);
+    crossPlace(align, frame.h, r.sizes[i].h, off, h);
     kids[i]->frame = rect(x, frame.y + off, w, h);
     kids[i]->layout();
     x += w + gap;

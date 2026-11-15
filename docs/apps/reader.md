@@ -35,9 +35,11 @@ Touch zones:
 | centre 35% | toggle the menu overlay |
 
 Menu overlay (a `Sheet` from the bottom; there is no TitleBar over a full-screen page, the way out is the
-"Library" button): font size (Segmented S/M/L/XL), contents (chapter list screen), "Go to" (LevelBar by 10% +
-Stepper by page), "Clean screen". The page screen is `fullScreen()` (docs/APPS.md): 540 x 960, no chrome. Changing the font size re-paginates the current chapter and keeps the position
-(character offset).
+"Library" button): book title, "Text size" (Segmented S/M/L/XL), "Go to" (LevelBar by 10% + Stepper by page, "Page 21 of 34"),
+and a row of three buttons: Contents (a chapter list screen: seven rows per Pager page, "reading now" on the current chapter,
+the page where each chapter starts; a tap jumps), Clean (forces the Quality clean pass) and Library. The page screen is `fullScreen()` (docs/APPS.md): 540 x 960, no chrome. Changing the font size saves the position, paginates the whole book again for the new size (instant when that
+index is cached; "Preparing book..." otherwise) and opens on the page that holds the saved position. The size is
+remembered (`ctx.store` key `font`, 0..3).
 
 ### Refresh behaviour
 

@@ -155,6 +155,7 @@ struct LibraryEntry {
   bool epub = false;
   int percent = 0;     // reading progress
   int64_t opened = 0;  // unix seconds of the last time it was opened, 0 = never
+  std::string cover;   // real path of the extracted cover image, "" if none (yet)
 };
 // Books in /sd/books (.epub, .txt) with title and author (from the cache once a book was opened, else from the
 // file name) and reading progress. Blocking: run on the worker. Sorted by sortLibrary().

@@ -613,6 +613,7 @@ std::vector<LibraryEntry> scanLibrary() {
     if (readMeta(e.id, meta)) {
       if (!meta.title.empty()) e.title = meta.title;
       if (!meta.author.empty()) e.author = meta.author;
+      e.cover = coverFile(meta);
     }
     Progress p;
     if (readProgress(e.id, p)) {

@@ -278,7 +278,7 @@ simulator first; each task ends with screenshots.
   chapter cache files, `pages-<key>.idx`, "Preparing book..." progress, opening from cache.
   Unit tests per reader.md. Add one Project Gutenberg EPUB to `sim-data/sd/books/`.
   Done when: the EPUB opens, chapters and bold/italic render, reopening is instant.
-- [ ] **P4-5 Reader menu.** Font size, contents, go to, clean screen; cover on the library card
+- [x] **P4-5 Reader menu.** Font size, contents, go to, clean screen; cover on the library card
   (`Hint::Image`). Goldens.
 - [ ] **P4-6 Reader on the device.** Device check and tuning: page turn time, ghosting over 30
   pages, cold open of a 1 MB EPUB, index time. Record numbers; adjust `ghostLimit`/settle

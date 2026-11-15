@@ -1,0 +1,58 @@
+# app: read
+# P4-5: the page menu (text size, go to, contents, clean screen) and the cover on the library card. EPUB fixture with a cover.
+wait 600
+tap 270 178
+wait 1500
+shot menu-p1-m
+tap 270 500             # centre: the menu
+wait 700
+shot menu-open
+tap 330 598             # text size L: the book is paginated again for it
+wait 2000
+expect-state page=1/
+shot menu-size-l
+tap 270 500
+wait 700
+tap 453 598             # XL
+wait 2000
+shot menu-size-xl
+tap 270 500
+wait 700
+tap 85 598              # S
+wait 2000
+shot menu-size-s
+tap 270 500
+wait 700
+tap 207 598             # M again
+wait 2000
+shot menu-size-m
+tap 270 500
+wait 700
+tap 295 724             # go to: the sixth segment (60%)
+wait 1500
+expect-no-quality
+shot menu-goto-60
+tap 480 811             # one page on
+wait 1200
+shot menu-goto-60-next
+tap 270 200             # outside the sheet: closes it
+wait 900
+tap 270 500
+wait 700
+tap 100 900             # Contents
+wait 1000
+shot menu-contents
+tap 270 270             # the second chapter
+wait 1500
+shot menu-contents-jump
+expect-no-quality
+tap 270 500
+wait 700
+tap 270 900             # Clean: the one Quality refresh
+wait 2500
+shot menu-cleaned
+tap 270 500
+wait 700
+tap 432 900             # Library
+wait 1500
+shot menu-library-cover # the book is the continue card, with its cover

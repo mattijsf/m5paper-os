@@ -2,6 +2,7 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -25,6 +26,7 @@ class LibraryScreen : public Screen {
   void fill(int page);
 
   std::function<void(const std::string&)> open_;
+  std::shared_ptr<Canvas> thumb_;  // the card book's cover, decoded on the worker
   std::vector<LibraryEntry> entries_;  // all books, most recent first
   std::vector<LibraryEntry> others_;   // the list rows: entries_ without the card's book
   int firstRows_ = 7;
@@ -33,6 +35,7 @@ class LibraryScreen : public Screen {
   ui::Pager* pager_ = nullptr;
   ui::Column* list_ = nullptr;
   ui::Column* card_ = nullptr;
+  ui::Widget* cover_ = nullptr;
   std::vector<ui::ListItem*> rows_;
   int page_ = 0;
 };

@@ -690,3 +690,29 @@ TEST_CASE("Pressable: a quick tap never shows the pressed look; holding past 120
   f.timers.runDue();           // fires the stale timer: must be a no-op
   CHECK(clicks == 2);
 }
+
+namespace {
+// Asks for a height that shrinks as the width grows (like wrapping text).
+struct WrapLike : pos::ui::Widget {
+  pos::ui::Size measure(int w) override { return {w, 10000 / std::max(1, w)}; }
+};
+struct FixedBox : pos::ui::Widget {
+  FixedBox(int w, int h) : w_(w), h_(h) {}
+  pos::ui::Size measure(int) override { return {w_, h_}; }
+  int w_, h_;
+};
+}  // namespace
+
+TEST_CASE("Row measures flex children at their own share of the width") {
+  using namespace pos::ui;
+  Row row(24);
+  row.add<FixedBox>(120, 50);
+  auto* wrap = row.add<WrapLike>();
+  wrap->flex = 1;
+  CHECK(row.measure(540).h == 50);   // share 396: 25 high
+  CHECK(row.measure(200).h == 178);  // share 56: 178 high (measured at the full 200 it would be 50)
+  row.frame = pos::Rect{0, 0, 200, 178};
+  row.layout();
+  CHECK(wrap->frame.w == 56);
+  CHECK(wrap->frame.h == 178);
+}
