@@ -376,3 +376,79 @@ TEST_CASE("store: round trip, types, defaults, atomic file") {
   std::string cmd = "rm -rf '" + dir + "'";
   (void)!std::system(cmd.c_str());
 }
+
+// ---- launcher
+
+#include "apps/launcher/launcher.h"
+
+namespace {
+
+struct LEnv {
+  FakeDisplay display;
+  FakeInput input;
+  FakeClock clock;
+  FakeNet net;
+  FakePower power;
+  hal::Platform platform{display, input, clock, net, power, "test"};
+  Os os{platform};
+  Shell* shell = nullptr;
+  LEnv() {
+    auto sh = std::make_unique<Shell>(os);
+    shell = sh.get();
+    apps::launcher::install(*shell);
+    os.setSurface(std::move(sh));
+    os.setup();
+  }
+  void tapAt(int x, int y) {
+    Gesture g;
+    g.type = Gesture::Down;
+    g.x = g.startX = static_cast<int16_t>(x);
+    g.y = g.startY = static_cast<int16_t>(y);
+    shell->onGesture(g);
+    g.type = Gesture::Tap;
+    shell->onGesture(g);
+    shell->render(os.canvas(), os.displayManager());
+  }
+};
+
+void collectTiles(ui::Widget* w, std::vector<ui::Tile*>& out) {
+  if (auto* t = dynamic_cast<ui::Tile*>(w)) out.push_back(t);
+  for (auto& c : w->children()) collectTiles(c.get(), out);
+}
+
+}  // namespace
+
+TEST_CASE("launcher: tiles come from the registry in order; a tap opens the app; paging beyond six apps") {
+  LEnv env;
+  std::vector<ui::Tile*> tiles;
+  collectTiles(env.shell->root().root(), tiles);
+  REQUIRE(tiles.size() == 6);  // a 2 x 3 grid, reused per page
+  auto apps = AppRegistry::instance().sorted();
+  REQUIRE(apps.size() > 6);  // the placeholders plus the test apps: more than one page
+  for (int i = 0; i < 6; ++i) CHECK(tiles[i]->label() == apps[i]->info.name);
+  CHECK(tiles[0]->label() == "Read");  // order 10 comes first
+
+  // tap the Read tile: the placeholder app opens with a "Coming soon" screen
+  const Rect r = tiles[0]->frame;
+  env.tapAt(r.x + 30, r.y + 30);
+  CHECK(env.shell->appOpen());
+  CHECK(env.shell->appId() == "read");
+  CHECK(env.shell->titleBar().title() == "Read");
+  env.shell->closeApp();
+  CHECK_FALSE(env.shell->appOpen());
+
+  // next page shows the following apps
+  ui::Widget* root = env.shell->root().root();
+  std::function<ui::Pager*(ui::Widget*)> findPager = [&](ui::Widget* w) -> ui::Pager* {
+    if (auto* p = dynamic_cast<ui::Pager*>(w)) return p;
+    for (auto& c : w->children())
+      if (auto* p = findPager(c.get())) return p;
+    return nullptr;
+  };
+  ui::Pager* pager = findPager(root);
+  REQUIRE(pager != nullptr);
+  CHECK(pager->bar()->visible);
+  CHECK(pager->pages() == static_cast<int>((apps.size() + 5) / 6));
+  pager->next();
+  CHECK(tiles[0]->label() == apps[6]->info.name);
+}

@@ -8,19 +8,20 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   the simulator and on the device: HAL, display manager (fast-then-settle, ghost budget), e-ink
   emulation with a refresh log, gestures, widget tree, fonts and icons (Inter, Literata, Lucide),
   main loop with timers and a worker thread, remote control over USB (`tools/device.py`), UI
-  scripts with golden screenshots, 69 host unit tests.
+  scripts with golden screenshots, 70 host unit tests.
 - **P2-1 to P2-3 are done** (2026-11-15): `core/gesture`, `core/surface`, `ui/{widget,screen,layout,
   label,controls,list,tile,inputs,panels}`, `apps/uitest` (test screens `widgets1`, `widgets2`,
   `widgets2rows`, `widgets2list`, `widgets3`: `--app NAME` in the simulator, `>set screen NAME` on
   simulator and device). The widget kit is complete; next the app framework (P2-4), launcher
   (P2-5, P2-7) and settings (P2-6).
-- **What the device runs**: the Phase 1 demo (a mock launcher with Inter text and Lucide icons;
-  tapping a tile runs a fake 1 s job on the worker; tapping elsewhere draws a touch marker). The
-  real launcher and apps arrive with P2-4 to P2-7; the owner asked for Settings on 2026-11-15.
-- **P2-4 is done** (2026-11-15): app framework (`core/app`, `core/shell`, `core/store`, `ui/chrome`), the
-  `hello` app compiles verbatim in the unit tests. The widget surface is now `ui::Root` (renamed from
-  `ui::Screen`; `pos::Screen` is the app screen). The launcher is a temporary list until P2-5.
-- **Next task: P2-5** (launcher grid, app template, `tools/new-app.sh`, placeholder apps).
+- **What the device runs**: the launcher with placeholder apps. Settings (asked for by the user on
+  2026-11-15) arrives with P2-6.
+- **P2-4 and P2-5 are done** (2026-11-15): app framework (`core/app`, `core/shell`, `core/store`,
+  `ui/chrome`); the `hello` app compiles verbatim in the unit tests. The widget surface is `ui::Root`
+  (renamed from `ui::Screen`; `pos::Screen` is the app screen). The device boots into the launcher
+  (tiles Read, Home, WhatsApp, Mail, Settings; all show "Coming soon"); `tools/new-app.sh` creates apps.
+  The Phase 1 demo screen is gone (Os without a Surface draws the font sheet or a blank screen).
+- **Next task: P2-6** (config service, Settings skeleton).
 - The factory firmware is saved in `backup/factory-16MB.bin` (restore command in HARDWARE.md).
 
 ## What works today
@@ -30,8 +31,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Simulator build | `make sim` | OK (first build ~3 min, then seconds) |
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
-| Firmware build | `make fw` | OK, 1.41 MB (27.0% of the 5 MB slot) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 69 tests; 30 goldens; `out/gallery.html` |
+| Firmware build | `make fw` | OK, 1.42 MB (27.0% of the 5 MB slot) |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 70 tests; 30 goldens; `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Serial heartbeat | `make monitor` | `[beat]` and `[sd]` lines every 5 s (the refresh benchmark is gone since P1-1) |
@@ -227,6 +228,16 @@ None of these block Phase 1, Phase 2, or the reader.
 - P2-4 notes: the device now boots into the Shell with the (temporary, empty) launcher list; the
   demo launcher survives as `--app demo` for its goldens until P2-5. ArduinoJson 7.4.2 added.
 
+- P2-5 device check (2026-11-15, `>set epd-timing on`, injected taps): launcher, then Read opened by a
+  tap on its tile (t=13748): the pressed tile's Fast pass done 296 ms after the touch, the app screen
+  (492 x 719 changed rectangle) Fast pass done 428 ms later (two serial waits because the timing mode
+  blocks; ~0.72 s from touch to the app on screen), then one Text settle (1252 ms). Opening and closing
+  Read, Home, WhatsApp, Mail and Settings: refresh log of 33 entries holds the boot Quality push only
+  (F 21, T 11): **no Quality push for open/close**. Device frames (launcher, Read, Home, Mail,
+  Settings, and the launcher again after back) are pixel-identical to the simulator's below the status bar
+  (`out/dev-*.png` vs `out/sim-*.png`, `device.py diff A B 56`; the status bar shows live battery).
+  Not verified: how a tap feels on the physical panel.
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -255,3 +266,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P2-2. Button, IconButton, Toggle, Badge, ListItem, Tile, Pager; three test screens with goldens.
 - 2026-11-15: P2-3. Segmented, Stepper, LevelBar, EmptyState, Sheet, Toast; overlays in Screen; widgets3 test screen.
 - 2026-11-15: P2-4. App framework, Shell, store/cache, chrome widgets; ui::Screen renamed ui::Root.
+- 2026-11-15: P2-5. Launcher grid, placeholder apps, app template, new-app.sh; demo screen removed.

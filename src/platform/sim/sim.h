@@ -26,9 +26,11 @@ class Clock : public hal::Clock {
   void setFakeStart(int64_t unixSeconds) { fakeStartUnix_ = unixSeconds; }
   bool fake() const { return fake_; }
   void advance(uint32_t ms) { fakeMs_ += ms; }
+  void setRtcUnset(bool unset) { rtcUnset_ = unset; }
 
  private:
   bool fake_ = false;
+  bool rtcUnset_ = false;
   std::atomic<uint32_t> fakeMs_{0};  // read by the worker thread
   int64_t fakeStartUnix_ = 1700000000;
   std::chrono::steady_clock::time_point start_ = std::chrono::steady_clock::now();

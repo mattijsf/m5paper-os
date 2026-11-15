@@ -4,7 +4,7 @@
 Run with PlatformIO's Python (it has pyserial):
     ~/.platformio/penv/bin/python tools/device.py shot out/device.png
     ~/.platformio/penv/bin/python tools/device.py tap 140 300
-Commands: shot OUT.png | tap X Y | long X Y | swipe X1 Y1 X2 Y2 | log | refresh | set KEY VALUE | wait-boot | diff A.png B.png
+Commands: diff A.png B.png [FIRST_ROW] | shot OUT.png | tap X Y | long X Y | swipe X1 Y1 X2 Y2 | log | refresh | set KEY VALUE | wait-boot | diff A.png B.png
 Options:  --port /dev/cu.usbmodemXXXX (default: the first /dev/cu.usbmodem*)
           --sim   talk to .pio/build/sim/program --headless --remote instead of a device
           -v      also print device log lines seen while waiting for a reply
@@ -153,13 +153,14 @@ def main():
     a = ap.parse_args()
 
     if a.cmd == "diff":
-        if len(a.args) != 2:
-            sys.exit("usage: diff A.png B.png")
+        if len(a.args) not in (2, 3):
+            sys.exit("usage: diff A.png B.png [FIRST_ROW]   (compare only rows from FIRST_ROW: skips the status bar, which shows live battery and time)")
         wa, ha, pa = read_png(a.args[0])
         wb, hb, pb = read_png(a.args[1])
         if (wa, ha) != (wb, hb):
             sys.exit(f"DIFFERENT size {wa}x{ha} vs {wb}x{hb}")
-        bad = sum(1 for x, y in zip(pa, pb) if x != y)
+        first = int(a.args[2]) if len(a.args) == 3 else 0
+        bad = sum(1 for x, y in zip(pa[first * wa:], pb[first * wa:]) if x != y)
         print("IDENTICAL" if bad == 0 else f"DIFFERENT: {bad} of {len(pa)} pixels")
         sys.exit(0 if bad == 0 else 1)
 

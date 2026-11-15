@@ -76,7 +76,7 @@ class Pager : public Widget {
   void setPage(int p);
   void next() { setPage(page_ + 1); }
   void prev() { setPage(page_ - 1); }
-  PagerBar* bar() const { return bar_; }
+  PagerBar* bar() const { return bar_; }  // bar()->visible = false hides it (single page)
 
   Size measure(int availW) override;
   void layout() override;

@@ -87,9 +87,9 @@ class SerialRemoteHost : public RemoteHost {
     }
   }
   bool option(const std::string& key, const std::string& value) override {
-    if (key == "screen") {  // ">set screen widgets2": show a UI test screen (apps/uitest); "demo" = the demo
+    if (key == "screen") {  // ">set screen widgets2": a UI test screen, an app id, or "launcher"
       auto s = apps::createSurface(value == "launcher" ? "" : value, gOs);
-      if (!s && value != "demo") return false;
+      if (!s) return false;
       gOs.setSurface(std::move(s));
       return true;
     }

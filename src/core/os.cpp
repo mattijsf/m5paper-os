@@ -18,7 +18,7 @@ bool Os::setup() {
   }
   if (surface_) surface_->render(canvas_, dm_);
   else if (screen_ == "fonts") drawFontSheet(canvas_);
-  else drawDemo(canvas_, p_.name);
+  else canvas_.fillScreen(kWhite);
 
   uint32_t t0 = p_.clock.millis();
   worker_.start();
@@ -34,7 +34,7 @@ void Os::setSurface(std::unique_ptr<Surface> s) {
   if (!ready_) return;
   gestures_ = GestureRecognizer();
   if (surface_) surface_->render(canvas_, dm_);
-  else drawDemo(canvas_, p_.name);
+  else canvas_.fillScreen(kWhite);
   dm_.forceClean();
 }
 
@@ -53,13 +53,8 @@ void Os::loopOnce() {
     if (ev.type != hal::TouchEvent::Down) continue;
     POS_LOG("touch", "x=%d y=%d t=%u", static_cast<int>(ev.x), static_cast<int>(ev.y),
             static_cast<unsigned>(p_.clock.millis()));
-    const int tile = (screen_.empty() || screen_ == "demo") ? demoTileAt(ev.x, ev.y) : -1;
-    if (tile >= 0) {
-      startTileJob(tile);
-    } else {
-      Rect r = drawTouchMarker(canvas_, ev.x, ev.y);
-      dm_.invalidate(r, Hint::Feedback);
-    }
+    Rect r = drawTouchMarker(canvas_, ev.x, ev.y);  // no Surface: just mark the touch
+    dm_.invalidate(r, Hint::Feedback);
   }
   if (surface_) {
     gestures_.tick(p_.clock.millis(), gs);
@@ -72,27 +67,6 @@ void Os::loopOnce() {
   if (surface_) surface_->render(canvas_, dm_);
   if (dm_.dirty()) dm_.commit();
   dm_.tick(p_.clock.millis());
-}
-
-// Demo: a tap on a tile shows "Working…" at once, runs a 1 s fake job on the worker (waiting on
-// the platform clock, so it also works with the simulator's fake clock) and shows the result.
-void Os::startTileJob(int tile) {
-  if (tileBusy_[tile]) return;
-  tileBusy_[tile] = true;
-  drawDemoTile(canvas_, tile, "Working\xE2\x80\xA6");
-  dm_.invalidate(demoTileRect(tile), Hint::Feedback);
-  hal::Clock* clock = &p_.clock;
-  worker_.async(
-      [clock, tile] {
-        const uint32_t t0 = clock->millis();
-        while (clock->millis() - t0 < 1000) std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        return tile;
-      },
-      [this](int t) {
-        tileBusy_[t] = false;
-        drawDemoTile(canvas_, t, "Done in 1.0 s");
-        dm_.invalidate(demoTileRect(t), Hint::Content);
-      });
 }
 
 uint32_t Os::idleWaitMs() {

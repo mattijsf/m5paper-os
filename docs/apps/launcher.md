@@ -15,6 +15,18 @@ Pager (only if more than 6 apps)
 
 The Phase 0 mock (`make shot`) shows the proportions; replace letters with icons.
 
+## As built (P2-5)
+
+`src/apps/launcher/launcher.{h,cpp}`: the first screen of the Shell (no title bar), header with the
+date ("Sunday 15 November", or "PaperOS" while the RTC is unset), a 2 x 3 grid of `ui::Tile` (each
+234 x 196: the 246 above is a typo; margins 24, gap 24) inside a `ui::Pager` whose bar is hidden when
+there are at most six apps. Unused cells of the last row are blank tiles (no draw, no touch). Tiles
+come from the registry, a tap calls `Shell::requestOpen`. Badges are read from
+`/data/cache/<id>/badge` in `onShow()`. Not built yet: the summary line, the quick panel
+(swipe down), resume-last-app. Placeholder apps (`src/apps/placeholders.cpp`: Read, Home, WhatsApp,
+Mail, Settings) show an `EmptyState` "Coming soon" until the real apps replace them. UI test:
+`tests/ui/launcher.script` (open an app, back, long press on the back arrow).
+
 ## Behaviour
 
 - Tiles come from the app registry sorted by `order`. Tap opens the app (`Hint::Screen`).

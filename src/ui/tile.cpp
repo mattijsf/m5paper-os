@@ -7,7 +7,15 @@ void Tile::setValue(const std::string& t) { if (t != value_) { value_ = t; inval
 void Tile::setBadge(int n) { if (n != badge_) { badge_ = n; invalidate(Hint::Content); } }
 void Tile::setIcon(Icon i) { if (i != icon_) { icon_ = i; invalidate(Hint::Content); } }
 
+void Tile::setBlank(bool b) {
+  if (b == blank_) return;
+  blank_ = b;
+  touchable = !b;
+  invalidate(Hint::Content);
+}
+
 void Tile::draw(Canvas& c) {
+  if (blank_) return;
   strokeRound(c, frame, kRadius, pressed_ ? 4 : kStroke, ink);
   const int cx = frame.x + frame.w / 2;
   const bool hasValue = !value_.empty();

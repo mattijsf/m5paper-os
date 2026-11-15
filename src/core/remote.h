@@ -7,7 +7,7 @@
 //   >log                        #log <bytes>\n + the last 50 log lines, then #ok
 //   >refresh                    #refresh <bytes>\n + the last 50 refresh-log lines, then #ok
 //   >set key value              platform debug switch: ">set epd-timing on" (device), ">set screen widgets2"
-//                               (show a UI test screen; "demo" = the demo launcher)
+//                               (a UI test screen, an app id, or "launcher")
 //   >reboot                     #ok, then restart
 // Every command ends with "#ok" or "#err <reason>" on its own line.
 #pragma once

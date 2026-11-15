@@ -11,6 +11,7 @@ uint32_t Clock::millis() {
 }
 
 int64_t Clock::now() {
+  if (rtcUnset_) return 0;
   if (fake_) return fakeStartUnix_ + fakeMs_.load() / 1000;  // fixed start so screenshots do not depend on the day
   return static_cast<int64_t>(std::time(nullptr));
 }

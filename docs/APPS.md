@@ -74,6 +74,11 @@ the Os shows), `core/store.{h,cpp}` (`Store`, `Cache`), `ui/chrome` (StatusBar, 
 - The status bar clock shows UTC for now (the time zone setting comes with P2-6); "--:--" while the
   RTC is unset.
 
+New apps: `tools/new-app.sh <id> "<Name>" <Icon>` copies `src/apps/_template/` (excluded from every
+build), writes `tests/ui/<id>.script` and a `docs/apps/<id>.md` stub; `make ui-test` then reports the
+new screenshot, `make ui-accept` after looking at it. Checked with `tools/new-app.sh demo "Demo" Info`
+(a sixth tile appeared; the demo files were deleted afterwards).
+
 ## Lifecycle
 
 ```

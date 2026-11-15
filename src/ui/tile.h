@@ -15,6 +15,8 @@ class Tile : public Pressable {
   void setValue(const std::string& t);  // e.g. "21.5 °C": a second line below the label
   void setBadge(int count);             // 0 hides it
   void setIcon(Icon icon);
+  // A blank tile keeps its grid cell but draws nothing and takes no touches (the last row of a grid).
+  void setBlank(bool blank);
   const std::string& label() const { return label_; }
 
   Size measure(int availW) override { return {availW, 196}; }
@@ -24,6 +26,7 @@ class Tile : public Pressable {
   Icon icon_;
   std::string label_, value_;
   int badge_ = 0;
+  bool blank_ = false;
 };
 
 }  // namespace pos::ui

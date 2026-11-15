@@ -1,6 +1,6 @@
 // The OS object: owns the frame canvas, the DisplayManager, timers and the worker, and drives the
-// platform's HAL. Phase 1 skeleton: shows the demo launcher; tapping a tile runs a 1 s fake job on
-// the worker, tapping elsewhere marks the touch. The App framework (Phase 2) replaces the demo.
+// platform's HAL. The Surface it shows (the Shell with the launcher and apps) is set by the platform main.
+// Without a Surface it draws the font sheet (`fonts`) or a blank screen and marks touches.
 #pragma once
 
 #include <string>
@@ -10,7 +10,6 @@
 #include <memory>
 
 #include "core/display_manager.h"
-#include "core/demo.h"
 #include "core/gesture.h"
 #include "core/gfx.h"
 #include "core/surface.h"
@@ -26,10 +25,10 @@ class Os {
       : p_(platform), dm_(platform.display, canvas_, platform.clock), timers_(platform.clock) {}
 
   // Allocates the canvas, draws the first screen and pushes it. False if allocation failed.
-  // Which screen to draw: "" = the demo launcher, "fonts" = the font specimen sheet. Before setup().
+  // Without a Surface: "fonts" = the font specimen sheet, else a blank screen. Before setup().
   void setScreen(const std::string& name) { screen_ = name; }
   // Starts the worker thread: on the device set its stack size first (esp_pthread_set_cfg).
-  // Shows a widget screen (or app) instead of the demo: touches become gestures for it. Before setup().
+  // Shows a widget screen (or app): touches become gestures for it. Before setup().
   // After setup() it swaps at once: redraws and cleans the panel (one Quality flash).
   void setSurface(std::unique_ptr<Surface> s);
   Surface* surface() { return surface_.get(); }
@@ -52,8 +51,6 @@ class Os {
   std::vector<uint8_t> frame4();
 
  private:
-  void startTileJob(int tile);
-
   hal::Platform& p_;
   Canvas canvas_;
   DisplayManager dm_;
@@ -61,7 +58,6 @@ class Os {
   std::unique_ptr<Surface> surface_;
   GestureRecognizer gestures_;
   Worker worker_;
-  bool tileBusy_[kDemoTiles] = {};
   bool ready_ = false;
   std::string screen_;
 };

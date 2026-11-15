@@ -168,20 +168,21 @@ void Pager::setPage(int p) {
 }
 
 Size Pager::measure(int availW) {
-  Size m{availW, kTouchMin};
+  Size m{availW, bar_->visible ? kTouchMin : 0};
   for (auto& ch : children())
     if (ch.get() != bar_ && ch->visible) m.h += ch->measure(availW).h;
   return m;
 }
 
 void Pager::layout() {
-  const int contentH = std::max(0, frame.h - kTouchMin);
+  const int barH = bar_->visible ? kTouchMin : 0;
+  const int contentH = std::max(0, frame.h - barH);
   for (auto& ch : children()) {
     if (ch.get() == bar_) continue;
     ch->frame = Rect{frame.x, frame.y, frame.w, static_cast<int16_t>(contentH)};
     ch->layout();
   }
-  bar_->frame = Rect{frame.x, static_cast<int16_t>(frame.y + contentH), frame.w, kTouchMin};
+  bar_->frame = Rect{frame.x, static_cast<int16_t>(frame.y + contentH), frame.w, static_cast<int16_t>(barH)};
 }
 
 bool Pager::onTouch(const Gesture& g) {

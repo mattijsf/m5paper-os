@@ -1,0 +1,19 @@
+# The home screen and opening / closing apps. Navigation is a Screen change: Fast passes, no Quality flash.
+wait 300
+shot launcher
+tap 140 260             # Read tile
+wait 300
+expect-no-quality
+shot launcher-read
+back                    # the title bar's back arrow
+wait 900
+expect-no-quality
+shot launcher-back      # same as the settled launcher
+tap 400 480             # Mail tile
+wait 300
+expect-no-quality
+shot launcher-mail
+long 36 92              # long press on the back arrow: straight to the launcher
+wait 900
+expect-no-quality
+shot launcher-home

@@ -171,7 +171,7 @@ simulator first; each task ends with screenshots.
   Done when: the `hello` app from APPS.md compiles unchanged, opens from a temporary launcher
   list, counts taps, and back returns; unit test for store round-trip.
 
-- [ ] **P2-5 Launcher, app template, new-app script.**
+- [x] **P2-5 Launcher, app template, new-app script.**
   Read: apps/launcher.md.
   Do: `src/apps/launcher/`, `src/apps/_template/` (the hello app, excluded from the build),
   `tools/new-app.sh`. Placeholder apps registered for Read, Home, WhatsApp, Mail (an

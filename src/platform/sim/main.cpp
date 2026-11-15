@@ -4,6 +4,7 @@
 //                                G = ghost-residue overlay, L = print refresh log tail, Q/Esc = quit
 //   program --script FILE [--headless]  run a UI script (docs/SIMULATOR.md); --data DIR (default sim-data)
 //                                roots for /sd and /data; --time YYYY-MM-DDTHH:MM:SS fake clock start
+//   program --no-rtc                    now() = 0 as on a device with an unset RTC (status bar "--:--")
 //   program --out DIR --scale N  where shots and refresh.log go (default out/); window scale
 //   program --headless --shot out.png   render the first frame to a PNG and exit (no window)
 //   program ... --name M5PaperS3       platform name shown in the footer (to compare with a device dump)
@@ -98,7 +99,7 @@ class StdioRemoteHost : public RemoteHost {
   bool option(const std::string& key, const std::string& value) override {
     if (key != "screen" || !os_) return false;
     auto s = apps::createSurface(value == "launcher" ? "" : value, *os_);
-    if (!s && value != "demo") return false;
+    if (!s) return false;
     os_->setSurface(std::move(s));
     return true;
   }
@@ -128,7 +129,7 @@ bool readStdinLines(std::string& buf, Remote& remote, int waitMs) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  bool headless = false, remoteMode = false;
+  bool headless = false, remoteMode = false, noRtc = false;
   std::string shot, name = "simulator", outDir = "out", scriptPath, dataDir = "sim-data", startTime, appName;
   int scale = 1;
   for (int i = 1; i < argc; ++i) {
@@ -138,6 +139,7 @@ int main(int argc, char** argv) {
     else if (!std::strcmp(argv[i], "--shot") && i + 1 < argc) shot = argv[++i];
     else if (!std::strcmp(argv[i], "--script") && i + 1 < argc) scriptPath = argv[++i];
     else if (!std::strcmp(argv[i], "--data") && i + 1 < argc) dataDir = argv[++i];
+    else if (!std::strcmp(argv[i], "--no-rtc")) noRtc = true;
     else if (!std::strcmp(argv[i], "--time") && i + 1 < argc) startTime = argv[++i];
     else if (!std::strcmp(argv[i], "--app") && i + 1 < argc) appName = argv[++i];  // "fonts" = specimen sheet; apps arrive in P2
     else if (!std::strcmp(argv[i], "--fixtures") && i + 1 < argc) ++i;               // P5
@@ -154,6 +156,7 @@ int main(int argc, char** argv) {
 
   display.setOutDir(outDir);
   fs::setRoots(dataDir + "/sd", dataDir + "/data");
+  clock.setRtcUnset(noRtc);  // like a device whose RTC was never set: now() = 0
   if (!startTime.empty()) {
     struct tm tmv = {};
     if (!strptime(startTime.c_str(), "%Y-%m-%dT%H:%M:%S", &tmv)) {
