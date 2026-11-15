@@ -1,0 +1,108 @@
+#include "ui/label.h"
+
+#include <algorithm>
+
+namespace pos::ui {
+
+namespace {
+
+// Length in bytes of the UTF-8 sequence starting at s[i].
+size_t cpLen(const std::string& s, size_t i) {
+  unsigned char b = static_cast<unsigned char>(s[i]);
+  size_t n = b < 0x80 ? 1 : (b >> 5) == 6 ? 2 : (b >> 4) == 14 ? 3 : (b >> 3) == 30 ? 4 : 1;
+  return std::min(n, s.size() - i);
+}
+
+}  // namespace
+
+void Label::setText(const std::string& t, Hint h) {
+  if (t == text_) return;
+  text_ = t;
+  invalidate(h);
+}
+
+std::vector<std::string> Label::lines(Canvas& c, int width) const {
+  const std::string s = sanitize(text_);
+  std::vector<std::string> out;
+  std::string line;
+  size_t i = 0;
+  auto fits = [&](const std::string& t) { return measureText(c, t, type) <= width; };
+  while (i < s.size()) {
+    if (s[i] == ' ') {  // spaces only separate words
+      ++i;
+      continue;
+    }
+    // next word
+    size_t j = i;
+    while (j < s.size() && s[j] != ' ') j += cpLen(s, j);
+    std::string word = s.substr(i, j - i);
+    std::string trial = line.empty() ? word : line + " " + word;
+    if (fits(trial)) {
+      line = trial;
+      i = j;
+      continue;
+    }
+    if (!line.empty()) {  // break before the word
+      out.push_back(line);
+      line.clear();
+      continue;
+    }
+    // A single word wider than the line: break it by code points.
+    std::string part;
+    size_t k = 0;
+    while (k < word.size()) {
+      size_t n = cpLen(word, k);
+      if (!part.empty() && !fits(part + word.substr(k, n))) break;
+      part += word.substr(k, n);
+      k += n;
+    }
+    out.push_back(part);
+    i += k;
+  }
+  if (!line.empty()) out.push_back(line);
+  if (out.empty()) out.push_back("");
+
+  if (maxLines > 0 && static_cast<int>(out.size()) > maxLines) {
+    // Rejoin the cut text into the last allowed line and ellipsize it.
+    std::string last;
+    for (size_t k = maxLines - 1; k < out.size(); ++k) last += (last.empty() ? "" : " ") + out[k];
+    out.resize(maxLines);
+    out.back() = ellipsize(c, last, type, width);
+  }
+  return out;
+}
+
+Size Label::measure(int availW) {
+  Canvas* c = canvas();
+  if (!c) return {0, 0};
+  auto ls = lines(*c, availW);
+  int w = 0;
+  for (auto& l : ls) w = std::max(w, measureText(*c, l, type));
+  const int lh = lineHeight(*c, type);
+  return {w, static_cast<int>(ls.size()) * lh + (static_cast<int>(ls.size()) - 1) * lineGap};
+}
+
+void Label::draw(Canvas& c) {
+  auto ls = lines(c, frame.w);
+  const int lh = lineHeight(c, type);
+  int y = frame.y;
+  for (auto& l : ls) {
+    int x = frame.x;
+    Anchor a = Anchor::TopLeft;
+    if (align == TextAlign::Center) {
+      x = frame.x + frame.w / 2;
+      a = Anchor::TopCenter;
+    } else if (align == TextAlign::Right) {
+      x = frame.x + frame.w;
+      a = Anchor::TopRight;
+    }
+    drawText(c, l, x, y, type, color, a, bg());
+    y += lh + lineGap;
+  }
+}
+
+void IconView::draw(Canvas& c) {
+  drawIcon(c, icon, frame.x + frame.w / 2, frame.y + frame.h / 2, size, color, bg());
+}
+
+}  // namespace pos::ui

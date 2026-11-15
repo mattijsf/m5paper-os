@@ -92,7 +92,7 @@ loop:
 
 There is no fixed frame rate. Nothing is drawn unless something was invalidated.
 
-As built (P1-7): `Os::loopOnce()` runs steps 1-4 (input, `Worker::runCompleted()`,
+As built (P1-7; with a `Surface` set, touches go through `GestureRecognizer` to it and step 4 calls `Surface::render`): `Os::loopOnce()` runs steps 1-4 (input, `Worker::runCompleted()`,
 `Timers::runDue()`, commit + `DisplayManager::tick`); `Loop::iterate()` (`core/loop.h`) adds step 5:
 `PowerPolicy::idle(Os::idleWaitMs())`, where the wait is the time to the next timer or
 DisplayManager deadline (0 if work is waiting, at most 1 s). Device policy: `delay(min(wait, 10))`

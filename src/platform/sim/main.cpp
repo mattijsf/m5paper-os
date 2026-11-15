@@ -30,6 +30,7 @@
 #include "core/os.h"
 #include "core/remote.h"
 #include "hal/platform.h"
+#include "apps/uitest/uitest.h"
 #include "core/fs.h"
 #include "core/loop.h"
 #include "platform/sim/script.h"
@@ -158,6 +159,7 @@ int main(int argc, char** argv) {
 
   Os os(platform);
   os.setScreen(appName);
+  if (auto s = apps::uitest::create(appName, os.canvas(), os.displayManager())) os.setSurface(std::move(s));
   os.setWakeup([] {  // a finished job wakes the idle wait
     SDL_Event e = {};
     e.type = SDL_USEREVENT;

@@ -130,6 +130,23 @@ class Widget {
 Loading is shown with `EmptyState` ("Loading..." + icon), never a spinner. Stale cached data is
 shown immediately with a "Updated 12:30" caption, then replaced when the fetch finishes.
 
+## As implemented (P2-1)
+
+`ui::Screen` (a `core::Surface`) owns the widget tree: `setRoot()` lays it out, `render()` redraws
+only dirty widgets (a dirty ancestor covers its children; each is cleared to `bg()`, clipped to its
+frame, drawn) and passes the rectangles to the DisplayManager with the hint given to
+`invalidate()`. The Os feeds gestures to it. `Widget::bg()` is the colour behind the content
+(own, else the parent's, else paper): text is anti-aliased against it. Layout: `Column`/`Row`
+(`gap`, cross-axis `Align`), `Stack`, `Spacer(size, flex)`, `Padding`; `flex` on any child shares
+the leftover main-axis space in proportion, no pixel lost. `Label` wraps at spaces, breaks long
+words, ends the last allowed line with an ellipsis; `IconView` is a 32 or 64 px glyph. Test
+screens: `apps/uitest` (`program --app widgets1`).
+
+Gesture details beyond the table: every touch emits Down, then Cancel as soon as the finger is 24 px
+away (a pressed widget lets go), then at most one of Tap / LongPress / Swipe*. Down is delivered
+to the deepest widget under the finger and bubbles up until a widget consumes it; that widget
+gets Tap, LongPress and Cancel; swipes bubble from it (a Pager above a Button sees them).
+
 ## Gestures (`core/gesture`, task P2-1)
 
 | Gesture | Definition |

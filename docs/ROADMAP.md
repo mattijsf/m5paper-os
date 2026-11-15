@@ -142,7 +142,7 @@ DisplayManager, and the simulator can run scripts and compare screenshots.
 Goal: launcher with real tiles, apps open and close, settings exists. Everything in the
 simulator first; each task ends with screenshots.
 
-- [ ] **P2-1 Widget base, gestures, layout, Label, IconView.**
+- [x] **P2-1 Widget base, gestures, layout, Label, IconView.**
   Read: UI.md (Foundations, Widgets, Gestures).
   Do: `src/ui/widget.{h,cpp}`, `src/core/gesture.{h,cpp}`, `Column/Row/Stack/Spacer/Padding`,
   `Label` (wrapping, maxLines, ellipsis), `IconView`. Root widget tree drawn by the loop;

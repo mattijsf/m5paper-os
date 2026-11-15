@@ -16,7 +16,8 @@ bool Os::setup() {
     POS_LOG("os", "canvas alloc failed");
     return false;
   }
-  if (screen_ == "fonts") drawFontSheet(canvas_);
+  if (surface_) surface_->render(canvas_, dm_);
+  else if (screen_ == "fonts") drawFontSheet(canvas_);
   else drawDemo(canvas_, p_.name);
 
   uint32_t t0 = p_.clock.millis();
@@ -32,7 +33,14 @@ void Os::loopOnce() {
   if (!ready_) return;
   // 1. input
   hal::TouchEvent ev;
+  std::vector<Gesture> gs;
   while (p_.input.poll(ev)) {
+    if (surface_) {
+      if (ev.type == hal::TouchEvent::Down)
+        POS_LOG("touch", "x=%d y=%d t=%u", static_cast<int>(ev.x), static_cast<int>(ev.y), static_cast<unsigned>(p_.clock.millis()));
+      gestures_.feed(ev, gs);
+      continue;
+    }
     if (ev.type != hal::TouchEvent::Down) continue;
     POS_LOG("touch", "x=%d y=%d t=%u", static_cast<int>(ev.x), static_cast<int>(ev.y),
             static_cast<unsigned>(p_.clock.millis()));
@@ -44,10 +52,15 @@ void Os::loopOnce() {
       dm_.invalidate(r, Hint::Feedback);
     }
   }
+  if (surface_) {
+    gestures_.tick(p_.clock.millis(), gs);
+    for (const Gesture& g : gs) surface_->onGesture(g);
+  }
   // 2. finished worker jobs, 3. due timers
   worker_.runCompleted();
   timers_.runDue();
-  // 4. draw happened above (widgets draw when they change); commit what was invalidated
+  // 4. draw what changed (widgets mark themselves dirty), then commit what was invalidated
+  if (surface_) surface_->render(canvas_, dm_);
   if (dm_.dirty()) dm_.commit();
   dm_.tick(p_.clock.millis());
 }
@@ -75,10 +88,10 @@ void Os::startTileJob(int tile) {
 
 uint32_t Os::idleWaitMs() {
   constexpr uint32_t kMaxIdleMs = 1000;
-  if (dm_.dirty() || worker_.hasCompleted()) return 0;
+  if (dm_.dirty() || worker_.hasCompleted() || (surface_ && surface_->dirty())) return 0;
   const uint32_t now = p_.clock.millis();
   uint32_t wait = kMaxIdleMs;
-  for (uint32_t deadline : {dm_.nextDeadlineMs(), timers_.nextDeadlineMs()}) {
+  for (uint32_t deadline : {dm_.nextDeadlineMs(), timers_.nextDeadlineMs(), gestures_.nextDeadlineMs()}) {
     if (deadline == kNoDeadline) continue;
     int32_t d = static_cast<int32_t>(deadline - now);
     wait = std::min<uint32_t>(wait, d < 0 ? 0 : static_cast<uint32_t>(d));

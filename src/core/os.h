@@ -7,10 +7,13 @@
 #include <vector>
 
 #include <functional>
+#include <memory>
 
 #include "core/display_manager.h"
 #include "core/demo.h"
+#include "core/gesture.h"
 #include "core/gfx.h"
+#include "core/surface.h"
 #include "core/timers.h"
 #include "core/worker.h"
 #include "hal/platform.h"
@@ -26,6 +29,9 @@ class Os {
   // Which screen to draw: "" = the demo launcher, "fonts" = the font specimen sheet. Before setup().
   void setScreen(const std::string& name) { screen_ = name; }
   // Starts the worker thread: on the device set its stack size first (esp_pthread_set_cfg).
+  // Shows a widget screen (or app) instead of the demo: touches become gestures for it. Before setup().
+  void setSurface(std::unique_ptr<Surface> s) { surface_ = std::move(s); }
+  Surface* surface() { return surface_.get(); }
   bool setup();
   // Steps 1-4 of the main loop: drain input, run finished worker callbacks, run due timers, draw
   // and commit (docs/ARCHITECTURE.md). Never blocks. core/loop.h adds the idle step.
@@ -50,6 +56,8 @@ class Os {
   Canvas canvas_;
   DisplayManager dm_;
   Timers timers_;
+  std::unique_ptr<Surface> surface_;
+  GestureRecognizer gestures_;
   Worker worker_;
   bool tileBusy_[kDemoTiles] = {};
   bool ready_ = false;

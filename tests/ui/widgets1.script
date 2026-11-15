@@ -1,0 +1,4 @@
+# app: widgets1
+# P2-1: Label in every type token, wrapping with ellipsis, IconView at 32 and 64 px, Column/Row/Spacer layout.
+wait 200
+shot widgets1

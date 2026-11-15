@@ -4,29 +4,18 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 ## Now
 
-- **Phase 0 is done** (2026-11-15). The repository holds: build setup for simulator and device,
-  a spike that draws one mock home screen from shared code on both, and the full plan/docs.
-- **P1-1 is done** (2026-11-15): HAL interfaces (`src/hal`), `POS_LOG`, `pos::fs`, `pos::Os`.
-  Both `main.cpp` files build a `hal::Platform` and call `Os`; HAL classes are thin stubs.
-- **P1-2 is done** (2026-11-15): `src/platform/device/{display,input,clock,storage}.cpp`, SD at
-  `/sd`, LittleFS at `/littlefs`; `/data/test.txt` survives reboots and reflashes.
-- **P1-8 is done** (2026-11-15): `>shot`, `>tap`, `>long`, `>swipe`, `>log`, `>refresh`, `>reboot`
-  over USB serial and on the simulator's stdin; `tools/device.py`, `make device-shot`.
-- **P1-3 is done** (2026-11-15): `core/display_manager`, 14 unit tests, the demo goes through it.
-  The unit harness (doctest via PlatformIO, `env:test`, `make test`) was done here, ahead of P1-5.
-- **P1-4 is done** (2026-11-15): `platform/sim/{display,input,clock}.cpp` + `sim.h`; emulated panel,
-  `out/refresh.log`, `>shot` and screenshots from the panel.
-- **P1-5 is done** (2026-11-15): `sim/script.{h,cpp}`, `tools/ui-test.sh`, `tools/gallery.sh`,
-  `make test ui-test ui-accept gallery`, `check` = sim + test + ui-test + fw; first script
-  `tests/ui/demo.script` with three goldens. 21 unit tests (DisplayManager, remote parser, log ring, fs).
-- **P1-6 is done** (2026-11-15): Inter, Literata and Lucide baked by `tools/gen-assets.sh` into
-  `src/gen/`; `ui/theme.h`, `ui/text.{h,cpp}`; the demo uses Inter text and Lucide icons.
-- **P1-7 is done** (2026-11-15): `core/{loop,timers,worker}`; the demo tile job runs on the worker
-  in the simulator and on the device. **Phase 1 is complete.**
-- **Next task: P2-1** (widget base, layout and gestures; see `ROADMAP.md` Phase 2).
-- The device runs the **spike firmware**: one static mock launcher. It is not interactive: a
-  tap only draws a black dot. There are no apps or settings screens yet (the owner tried to open
-  Settings on 2026-11-15; that arrives with tasks P2-5 and P2-6).
+- **Phase 0 and Phase 1 are done** (2026-11-15). Shared code (`core`, `hal`, `ui`, `apps`) runs on
+  the simulator and on the device: HAL, display manager (fast-then-settle, ghost budget), e-ink
+  emulation with a refresh log, gestures, widget tree, fonts and icons (Inter, Literata, Lucide),
+  main loop with timers and a worker thread, remote control over USB (`tools/device.py`), UI
+  scripts with golden screenshots, 49 host unit tests.
+- **P2-1 is done** (2026-11-15): `core/gesture`, `core/surface`, `ui/{widget,screen,layout,label}`,
+  `apps/uitest` (test screens, `--app widgets1`). Phase 2 continues with P2-2 and P2-3 (more
+  widgets), then the app framework (P2-4), launcher (P2-5/P2-7) and settings.
+- **What the device runs**: the Phase 1 demo (a mock launcher with Inter text and Lucide icons;
+  tapping a tile runs a fake 1 s job on the worker; tapping elsewhere draws a touch marker). The
+  real launcher and apps arrive with P2-4 to P2-7; the owner asked for Settings on 2026-11-15.
+- **Next task: P2-2** (Button, IconButton, Toggle, ListItem, Tile, Badge, Pager).
 - The factory firmware is saved in `backup/factory-16MB.bin` (restore command in HARDWARE.md).
 
 ## What works today
@@ -35,14 +24,15 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 |---|---|---|
 | Simulator build | `make sim` | OK (first build ~3 min, then seconds) |
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
-| Simulator window | `make run` | click draws a dot, S saves a screenshot |
-| Firmware build | `make fw` | OK, ~665 KB (12.7% of the 5 MB slot) |
+| Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
+| Firmware build | `make fw` | OK, 1.37 MB (26% of the 5 MB slot) |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 49 tests; 7 goldens; `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Serial heartbeat | `make monitor` | `[beat]` and `[sd]` lines every 5 s (the refresh benchmark is gone since P1-1) |
 | Open books for the simulator | `make books` | 5 EPUB + 1 TXT in `sim-data/sd/books/` (not in git) |
 
-## Measurements and checks on the device (2026-11-15, spike firmware)
+## Measurements and checks on the device (2026-11-15)
 
 - Board detected by M5Unified as id 19 (M5PaperS3); display reports 540x960 without extra rotation.
 - PSRAM 8388608 bytes; ~6.5 MB free after the 518 KB canvas and M5GFX's EPD buffers.
