@@ -77,6 +77,11 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 ## Not verified yet (do not assume)
 
+- **Reader on the physical panel (P4-6 stays open)**: ghosting after 10 and 30 page turns (the Quality clean cadence of the ghost
+  budget, `ghostLimit`), how the Fast pass then 16-gray settle looks at the four text sizes (is S 24 px still comfortable, is the
+  bold double strike at S/L/XL acceptable), the cover thumbnail's gray quality, the flash feel of "Clean", the menu sheet's feel,
+  and the real page-turn time as felt. The refresh log says a turn is ~150-210 ms render + 87 ms push call + about 0.3 s of waveform.
+  Needs a person's eyes once, batched.
 - **What the panel physically shows after Fast then settle** (ghosting, edge quality of the
   touch marker, flash feel): no tool can see it. Frame dumps show the firmware's frame only.
 
@@ -113,6 +118,13 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   "Pending device checks". The policy should look at VBUS instead of the data link (follow-up, not changed here).
 
 ## Pending device checks
+
+- **Phase 4 (reader), device state**: the device powered itself off during a long pause (see the pitfalls above) and no tool can
+  bring it back: it needs the side button once. Done on the device before that (firmware of P4-4, commit 9f8d440): Pride and
+  Prejudice cold open 15.3 s (1542 pages), cached open 0.22 s, frame dumps of page 1, page 4 and the cached page 4 identical to the
+  simulator's; Alice (EPUB 3 with images) page 1 and 4 identical to the simulator. **Not run on the device**: the menu, contents,
+  text sizes, cover (P4-5 firmware is built, not flashed), Alice's cached open, the TXT book (Time Machine) with the new code, a
+  second `tools/books-device.py` run. Re-run `tools/books-device.py` (`make flash` first) once the device is on again.
 
 
 - P3-4: **auto-off on battery** (the policy never powers off while USB is connected, so the automation could not run
