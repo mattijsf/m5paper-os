@@ -155,7 +155,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 - **First feedback from a person's eyes on the panel (2026-11-15)**: "The message line in the WhatsApp list is somewhat hard to read on a real device. The light gray
   text is a bit hard to see (the display itself is also a bit gray by itself)." Done: `secondary` gray(5) -> gray(3), `disabled` gray(9) -> gray(7), content lines in ink
-  at the body size (UI.md "Colour", DISPLAY.md). **The result needs a person's eyes once**: the WhatsApp list is left on the panel.
+  at the body size (UI.md "Colour", DISPLAY.md). **Confirmed by the user on the panel (2026-11-15): "Readable now"** (the WhatsApp list: message line in ink at the body size). Not yet looked at: gray(3) metadata on other screens, the gray(11) hairlines.
 
 - Display lab on the device (2026-11-15, firmware 497b441): the four patterns were opened with injected taps and dumped (`out/dev-lab-ramp.png`, `-checker`, `-white`, `-text`);
   they equal the simulator goldens except the counters line (1812 to 2866 differing pixels, the push counts and ghost score differ). Checker and White went out as Fast
