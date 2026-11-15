@@ -141,7 +141,7 @@ TEST_CASE("zip: directory, stored and deflated entries, checksums") {
   CHECK(ch2->method == 8);
   REQUIRE(z.read(*ch2, s));
   CHECK(s.size() == ch2->size);
-  CHECK(s.find("<h2>Second chapter</h2>") != std::string::npos);
+  CHECK(s.find("<h2 id=\"top\">Second chapter</h2>") != std::string::npos);
   CHECK(zip::crc32(0, reinterpret_cast<const uint8_t*>(s.data()), s.size()) == ch2->crc);
   CHECK(z.find("/mimetype") == mt);  // leading slash tolerated
   CHECK(z.find("nope") == nullptr);

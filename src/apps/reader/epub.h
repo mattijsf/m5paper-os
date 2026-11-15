@@ -14,11 +14,17 @@ struct EpubChapter {
   std::string title;  // from the table of contents, "" if it has none for this document
 };
 
+// One link of the table of contents: a document of the zip, optionally an anchor (#id) inside it.
+struct TocEntry {
+  std::string path, fragment, title;
+};
+
 struct EpubInfo {
   std::string title, author;
   std::string opfPath;
   std::string cover;      // zip path of the cover image, "" if none
   std::string coverType;  // media type of the cover ("image/jpeg", "image/png"), "" if unknown
+  std::vector<TocEntry> toc;          // the table of contents in reading order (anchors included)
   std::vector<EpubChapter> chapters;  // the spine, in reading order (documents only)
 };
 

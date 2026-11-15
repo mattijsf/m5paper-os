@@ -271,9 +271,11 @@ bool epubMeta(const std::string& virtualPath, BookMeta& meta, std::string& error
   if (!info.title.empty()) meta.title = info.title;
   if (!info.author.empty()) meta.author = info.author;
   meta.cover = info.cover;
+  meta.tocEntries = info.toc;
   meta.chapters.clear();
   for (size_t i = 0; i < info.chapters.size(); ++i)
-    meta.chapters.push_back(Chapter{info.chapters[i].title.empty() ? "Chapter " + std::to_string(i + 1) : info.chapters[i].title, info.chapters[i].href});
+    meta.chapters.push_back(Chapter{info.chapters[i].title.empty() ? "Chapter " + std::to_string(i + 1) : info.chapters[i].title, info.chapters[i].href,
+                                    !info.chapters[i].title.empty(), 0, 0});
   return true;
 }
 
@@ -326,13 +328,58 @@ bool convertEpub(const std::string& virtualPath, BookMeta& meta, std::vector<std
     timing().convertMs += since(tc);
     xhtml.clear();
     if (r.marked.empty()) continue;
-    std::string title = src.title;
-    if (title == "Chapter " + std::to_string(i + 1) && !r.firstHeading.empty()) title = r.firstHeading;  // the contents had no title for it
-    int part = 0;
-    for (const auto& range : splitRanges(r.marked, kMaxChapterBytes)) {
-      texts.push_back(r.marked.substr(range.first, range.second - range.first));
-      kept.push_back(Chapter{part == 0 ? title : title + " (" + std::to_string(part + 1) + ")", src.href, part});
-      ++part;
+
+    // Where the contents cut this document: its entries' anchors, in text order.
+    struct Cut {
+      size_t at;
+      std::string title;
+    };
+    std::vector<Cut> cuts;
+    for (const TocEntry& t : meta.tocEntries) {
+      if (t.path != src.href) continue;
+      size_t at = 0;
+      if (!t.fragment.empty()) {
+        bool found = false;
+        for (const auto& a : r.anchors)
+          if (a.first == t.fragment) {
+            at = a.second;
+            found = true;
+            break;
+          }
+        if (!found) continue;
+      }
+      cuts.push_back({at, t.title});
+    }
+    std::stable_sort(cuts.begin(), cuts.end(), [](const Cut& a, const Cut& b) { return a.at < b.at; });
+    std::vector<Cut> uniq;  // one chapter per place
+    for (const Cut& c : cuts)
+      if (uniq.empty() || c.at != uniq.back().at) uniq.push_back(c);
+
+    struct Section {
+      size_t from, to;
+      std::string title;
+      bool toc;
+    };
+    std::vector<Section> sections;
+    if (uniq.size() < 2) {
+      std::string title = src.title;
+      if (title == "Chapter " + std::to_string(i + 1) && !r.firstHeading.empty()) title = r.firstHeading;  // no contents title: for the list only
+      sections.push_back({0, r.marked.size(), title, src.toc});
+    } else {
+      if (uniq[0].at > 0) sections.push_back({0, uniq[0].at, "Beginning", false});  // text before the first entry
+      for (size_t k = 0; k < uniq.size(); ++k) sections.push_back({uniq[k].at, k + 1 < uniq.size() ? uniq[k + 1].at : r.marked.size(), uniq[k].title, true});
+    }
+    for (const Section& sec : sections) {
+      bool hasText = false;
+      for (size_t k = sec.from; k < sec.to && !hasText; ++k) hasText = !std::isspace(static_cast<unsigned char>(r.marked[k]));
+      if (!hasText) continue;
+      int part = 0;
+      for (const auto& range : splitRanges(r.marked.substr(sec.from, sec.to - sec.from), kMaxChapterBytes)) {
+        const size_t from = sec.from + range.first, to = sec.from + range.second;
+        texts.push_back(r.marked.substr(from, to - from));
+        kept.push_back(Chapter{part == 0 ? sec.title : sec.title + " (" + std::to_string(part + 1) + ")", src.href, sec.toc, from, to});
+        ++part;
+      }
     }
   }
   if (kept.empty()) {
@@ -340,6 +387,7 @@ bool convertEpub(const std::string& virtualPath, BookMeta& meta, std::vector<std
     return false;
   }
   meta.chapters = std::move(kept);
+  meta.tocEntries.clear();
   return true;
 }
 
@@ -358,9 +406,9 @@ bool ChapterLoader::load(int n, std::string& marked) {
     doc_ = xhtmlToMarked(xhtml).marked;
     docHref_ = ch.href;
   }
-  const auto ranges = splitRanges(doc_, kMaxChapterBytes);
-  if (ch.part < 0 || ch.part >= static_cast<int>(ranges.size())) return false;
-  marked = doc_.substr(ranges[ch.part].first, ranges[ch.part].second - ranges[ch.part].first);
+  const size_t to = ch.to == 0 ? doc_.size() : std::min(ch.to, doc_.size());
+  if (ch.from >= to) return false;
+  marked = doc_.substr(ch.from, to - ch.from);
   return true;
 }
 
@@ -414,6 +462,11 @@ bool writeMeta(const BookMeta& m) {
     JsonObject o = ch.add<JsonObject>();
     o["title"] = c.title;
     if (!c.href.empty()) o["href"] = c.href;
+    if (c.toc) o["toc"] = true;
+    if (c.to) {
+      o["from"] = static_cast<uint32_t>(c.from);
+      o["to"] = static_cast<uint32_t>(c.to);
+    }
   }
   std::string out;
   serializeJson(doc, out);
@@ -432,7 +485,7 @@ bool readMeta(const std::string& id, BookMeta& m) {
   m.author = doc["author"] | "";
   m.epub = doc["epub"] | false;
   m.cover = doc["cover"] | "";
-  for (JsonVariant v : doc["chapters"].as<JsonArray>()) m.chapters.push_back(Chapter{v["title"] | "", v["href"] | ""});
+  for (JsonVariant v : doc["chapters"].as<JsonArray>()) m.chapters.push_back(Chapter{v["title"] | "", v["href"] | "", v["toc"] | false, v["from"] | static_cast<uint32_t>(0), v["to"] | static_cast<uint32_t>(0)});
   return !m.chapters.empty();
 }
 
@@ -681,7 +734,7 @@ OpenResult openBook(const std::string& fileName, const ui::TextStyle& style, ui:
       }
       auto tw = TimerClock::now();
       for (size_t i = 0; i < imp.chapters.size(); ++i) {
-        meta.chapters.push_back(Chapter{imp.chapters.size() == 1 ? meta.title : "Part " + std::to_string(i + 1), "", 0});
+        meta.chapters.push_back(Chapter{imp.chapters.size() == 1 ? meta.title : "Part " + std::to_string(i + 1), "", false, 0, 0});
         if (!writeChapter(id, static_cast<int>(i), imp.chapters[i])) {
           r.error = "Cannot write to the card";
           return r;

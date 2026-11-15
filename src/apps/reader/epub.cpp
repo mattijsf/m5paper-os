@@ -65,13 +65,19 @@ bool hasWord(const std::string& list, const std::string& word) {
 }
 
 // href (with fragment stripped, resolved) -> first title, in document order.
-using TitleMap = std::map<std::string, std::string>;
+struct TitleMap {
+  std::map<std::string, std::string> first;  // document -> its first entry's title
+  std::vector<TocEntry> entries;
+  bool empty() const { return entries.empty(); }
+};
 
 void addTitle(TitleMap& m, const std::string& baseDir, const std::string& href, const std::string& title) {
   const std::string path = resolveHref(baseDir, href);
   const std::string t = trim(title);
   if (path.empty() || t.empty()) return;
-  m.emplace(path, t);  // the first one wins
+  m.first.emplace(path, t);  // the first one wins
+  const size_t hash = href.find('#');
+  m.entries.push_back(TocEntry{path, hash == std::string::npos ? "" : percentDecode(href.substr(hash + 1)), t});
 }
 
 // EPUB 3 navigation document: <nav epub:type="toc"><ol><li><a href="ch1.xhtml">Title</a>...
@@ -292,14 +298,15 @@ bool parseEpub(zip::Archive& zip, EpubInfo& out, std::string& error) {
     }
   }
 
+  out.toc = titles.entries;
   for (const std::string& id : spineIds) {
     auto it = manifest.find(id);
     if (it == manifest.end() || !isDocument(it->second.type)) continue;
     EpubChapter c;
     c.href = resolveHref(base, it->second.href);
     if (c.href.empty() || !zip.find(c.href)) continue;  // listed but not in the zip: skip
-    auto t = titles.find(c.href);
-    if (t != titles.end()) c.title = t->second;
+    auto t = titles.first.find(c.href);
+    if (t != titles.first.end()) c.title = t->second;
     out.chapters.push_back(std::move(c));
   }
   if (out.chapters.empty()) {

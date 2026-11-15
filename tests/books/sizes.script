@@ -1,6 +1,6 @@
 # app: read
 # One page of a real book in each text size (tools/books-check.sh runs this for Pride and Prejudice): the position is kept
-# when the size changes. The menu is opened with a tap in the centre; the size buttons are S 85, M 207, L 330, XL 453 at y 598.
+# when the size changes. The menu is opened with a tap in the centre; the size buttons are S 85, M 207, L 330, XL 453 at y 558.
 wait 600
 tap 270 178
 wait 3000
@@ -18,16 +18,16 @@ shot size-m
 tap 270 500
 wait 700
 shot menu
-tap 85 598
+tap 85 558
 wait 4000
 shot size-s
 tap 270 500
 wait 700
-tap 330 598
+tap 330 558
 wait 4000
 shot size-l
 tap 270 500
 wait 700
-tap 453 598
+tap 453 558
 wait 4000
 shot size-xl

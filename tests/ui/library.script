@@ -12,7 +12,7 @@ wait 900
 tap 270 500             # centre: the menu
 wait 600
 shot library-menu
-tap 270 812             # Library
+tap 432 900             # Library
 wait 900
 shot library-recent     # the book just read is the card on top, with its progress
 tap 480 925             # next page of the list

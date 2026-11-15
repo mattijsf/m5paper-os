@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "apps/reader/epub.h"
 #include "core/zip.h"
 #include "ui/textblock.h"
 
@@ -18,7 +19,9 @@ constexpr const char* kCacheRoot = "/sd/books/.paperos";
 struct Chapter {
   std::string title;
   std::string href;  // EPUB: the chapter's XHTML document inside the zip; "" for TXT
-  int part = 0;      // EPUB: a document of more than 512 KB of text is split into parts; the chapter is this part of it
+  bool toc = false;  // the title comes from the book's table of contents (the footer shows it; otherwise the book title)
+  size_t from = 0, to = 0;  // EPUB: the chapter is this byte range of the converted document (a document with several contents
+                            // entries, or of more than 512 KB, makes several chapters); to = 0: the whole document
 };
 
 struct BookMeta {
@@ -28,6 +31,7 @@ struct BookMeta {
   bool epub = false;
   std::string cover;  // EPUB: path of the cover image inside the zip, "" if none (extractCover() copies it to the cache folder)
   std::vector<Chapter> chapters;
+  std::vector<TocEntry> tocEntries;  // EPUB, while importing: the contents with anchors (not stored)
 };
 
 // A page of the whole book: chapter and the position inside it.

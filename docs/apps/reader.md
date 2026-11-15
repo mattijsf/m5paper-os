@@ -35,7 +35,7 @@ Touch zones:
 | centre 35% | toggle the menu overlay |
 
 Menu overlay (a `Sheet` from the bottom; there is no TitleBar over a full-screen page, the way out is the
-"Library" button): book title, "Text size" (Segmented S/M/L/XL), "Go to" (LevelBar by 10% + Stepper by page, "Page 21 of 34"),
+"Library" button): book title, "Text size" (Segmented S/M/L/XL), "Go to" (LevelBar by 10%, with 10 20 ... 100 printed under the ten boxes, + Stepper by page, "Page 21 of 34"),
 and a row of three buttons: Contents (a chapter list screen: seven rows per Pager page, "reading now" on the current chapter,
 the page where each chapter starts; a tap jumps), Clean (forces the Quality clean pass) and Library. The page screen is `fullScreen()` (docs/APPS.md): 540 x 960, no chrome. Changing the font size saves the position, paginates the whole book again for the new size (instant when that
 index is cached; "Preparing book..." otherwise) and opens on the page that holds the saved position. The size is
@@ -54,7 +54,7 @@ done at a page turn, never mid-page. Requirements checked by `tests/ui/reader.sc
 |---|---|
 | `.txt` | UTF-8 (Windows-1252/Latin-1 fallback). Blank line = paragraph, hard-wrapped lines are joined. `_word_` is italic, a short line starting with CHAPTER / BOOK / PART ... is a heading. Project Gutenberg header and licence are cut. One "chapter" (parts of at most 512 KB for huge files); title and author from "Title - Author.txt", else the Gutenberg header. Task P4-1 (done). |
 | `.epub` (2 and 3) | Unencrypted. Text, paragraphs, headings (h1-h3), bold, italic, line breaks, block quotes, lists as indented paragraphs, horizontal rule. Cover image. Task P4-3/4. |
-| not supported in v1 | DRM, images inside chapters (skipped with a `[image]` mark), tables (rows flattened to lines), CSS, footnote popups, right-to-left |
+| not supported in v1 | DRM, images inside chapters (not built: they leave no placeholder, only real alt text such as a caption stays; inline pictures are a later feature), tables (each cell is a line, the lines of a row stay together), CSS, footnote popups, right-to-left |
 
 ## Pipeline
 
@@ -78,11 +78,14 @@ index and the current chapter. While it runs the page screen says "Preparing boo
 What the XHTML converter (`apps/reader/xhtml`) does: block elements (p, div, h1-h6, li, blockquote, table rows,
 ...) start paragraphs; `<br>` also starts one (a `<br>` makes a "soft" paragraph, marked 0x06 in the cache format: no first-line indent and no gap above, so verse, addresses and title pages stay together);
 b/strong = bold, i/em/cite = italic; h1 = level 1, h2 = 2, h3-h6 = 3; lists get a bullet or "1." prefix;
-`<hr>` = "* * *"; images and svg = "[image]" (or "[image: alt]"); table cells are joined with " | ";
+`<hr>` = "* * *"; images and svg leave nothing (real alt text stays as text, so a cover page has no text and is dropped); each table cell is its own soft line;
 style, script, head are ignored; white space collapses; control bytes are dropped so a book cannot forge marks.
-Chapters are the spine documents. The contents list is the table of contents mapped to those documents (the first
-entry per document): a book whose contents point at many anchors inside one big document shows one entry for it.
-Documents over 512 KB of text are split into "Title (2)", ... Documents with no text are dropped.
+Chapters follow the table of contents: a spine document with several contents entries that point at anchors (`#id`) inside
+it is cut at those anchors (the converter records where each `id` / `name` lands), text before the first anchor is a
+"Beginning" chapter; a document with one entry (or none) is one chapter. A chapter is stored as a byte range of its converted
+document (`from`, `to` in meta.json). Documents over 512 KB of text are split into "Title (2)", ... Chapters with no text are
+dropped. The footer shows the contents title of the chapter; chapters named only from their first heading (no contents entry)
+and the "Beginning" part show the book title.
 
 Memory: one chapter at a time. A chapter larger than 512 KB of text is split at paragraph
 boundaries into virtual chapters.

@@ -37,7 +37,7 @@ def chapter1():
                  '<p>Text after the rule with a <span class="x"><strong>strong <i>and italic</i></strong></span> run.</p>')
 
 def chapter2():
-    return XH % ("Two", '<h2>Second chapter</h2>\n' + ''.join('<p>%s%s</p>\n' % (LOREM * (1 + i % 4), "Paragraph %d." % i) for i in range(1, 30)))
+    return XH % ("Two", '<h2 id="top">Second chapter</h2>\n' + ''.join('<p%s>%s%s</p>\n' % (' id="sub"' if i == 15 else '', LOREM * (1 + i % 4), "Paragraph %d." % i) for i in range(1, 30)))
 
 def chapter3():
     return XH % ("Three", '<h1>The End</h1>\n<p>Last words, with a very long word: ' + 'x' * 90 + ' and the end.</p>\n<h3>Afterword</h3>\n<p>Thanks.</p>')

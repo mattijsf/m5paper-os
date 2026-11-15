@@ -340,8 +340,8 @@ TEST_CASE("xhtml: paragraphs, headings, styles, entities, white space") {
       "<p>It was   a\n <b>bold</b> start &amp; an <em>italic</em> one.<!-- <p>no</p> --></p>"
       "<div>div text<br/>after br</div><p>   </p><p></p>"
       "<ul><li>first</li><li>second</li></ul><ol><li>one</li><li>two</li></ol><hr/>"
-      "<p>pic <img src='a.png' alt='A cat'/> and <img src='b.png'/></p><svg><image href='c.png'/></svg>"
-      "<table><tr><td>a</td><td>b</td></tr></table></body></html>");
+      "<p>pic <img src='a.png' alt='A cat on a mat'/> and <img src='b.png'/> <img alt='cover'/></p><p><img src='x.png' alt='Illustration'/></p><svg><image href='c.png'/></svg>"
+      "<table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td></td><td>d</td></tr></table></body></html>");
   auto paras = ui::parseMarked(r.marked);
   std::vector<std::string> text;
   for (const auto& p : paras) text.push_back(ui::plainText(p));
@@ -366,11 +366,17 @@ TEST_CASE("xhtml: paragraphs, headings, styles, entities, white space") {
   CHECK(text[6] == "1. one");
   CHECK(text[7] == "2. two");
   CHECK(text[8] == "* * *");
-  CHECK(text[9] == "pic [image: A cat] and [image]");
-  CHECK(text[10] == "[image]");
-  CHECK(text[11] == "a | b");
+  CHECK(text[9] == "pic A cat on a mat and");  // pictures leave no placeholder; real alt text stays
+  REQUIRE(text.size() == 14);                   // image-only blocks and empty cells make no paragraph at all
+  CHECK(text[10] == "a");                       // table cells: one line each, no bars
+  CHECK(text[11] == "b");
+  CHECK(paras[11].softBreak);
+  CHECK(text[12] == "c");
+  CHECK_FALSE(paras[12].softBreak);             // the next row is a new block
+  CHECK(text[13] == "d");
   CHECK(r.marked.find("not text") == std::string::npos);
   CHECK(r.marked.find("<p>") == std::string::npos);
+  CHECK(r.marked.find('|') == std::string::npos);
 }
 
 TEST_CASE("xhtml: style marks balance inside each paragraph, broken markup is survived") {
@@ -428,9 +434,26 @@ TEST_CASE("reader: open an EPUB, cache it, reopen, cover, chapters from the cont
   REQUIRE(extractCover(a.meta));
   CHECK(coverFile(a.meta) == cacheDir(a.meta.id) + "/cover.png");
   CHECK(fs::exists(cacheDir(a.meta.id) + "/cover.png"));
-  REQUIRE(a.meta.chapters.size() == 3);
+  // The contents cut the second document at its "sub" anchor: four chapters, titles from the contents, each a byte range.
+  REQUIRE(a.meta.chapters.size() == 4);
   CHECK(a.meta.chapters[0].title == "Chapter & One");
-  CHECK(lastTotal == 6);  // 3 chapters imported, 3 paginated
+  CHECK(a.meta.chapters[1].title == "The Second Chapter");
+  CHECK(a.meta.chapters[2].title == "A section of two");
+  CHECK(a.meta.chapters[3].title == "The End");
+  for (const Chapter& c : a.meta.chapters) CHECK(c.toc);
+  CHECK(a.meta.chapters[1].to == a.meta.chapters[2].from);
+  CHECK(a.meta.chapters[1].href == a.meta.chapters[2].href);
+  {
+    std::string s1, s2;
+    ChapterLoader l(a.meta);
+    REQUIRE(l.load(1, s1));
+    REQUIRE(l.load(2, s2));
+    CHECK(ui::plainText(ui::parseMarked(s1)[0]) == "Second chapter");
+    CHECK(s1.find("Paragraph 14.") != std::string::npos);
+    CHECK(s1.find("Paragraph 15.") == std::string::npos);  // the cut is before the paragraph with id="sub"
+    CHECK(s2.find("Paragraph 15.") != std::string::npos);
+  }
+  CHECK(lastTotal == 6);  // 3 documents imported, 3 paginated
   CHECK(lastDone >= 3);
   CHECK(a.pages.size() > 10);
   // Chapter text: headings, styles, images, entities. An EPUB writes no chapter files: the text is converted on demand.
@@ -443,14 +466,16 @@ TEST_CASE("reader: open an EPUB, cache it, reopen, cover, chapters from the cont
   CHECK(paras[0].heading == 1);
   CHECK(ui::plainText(paras[0]) == "Chapter One");
   CHECK(ui::plainText(paras[1]).find("caf\xC3\xA9 & cr\xC3\xA8me \xE2\x80\x94") != std::string::npos);
-  CHECK(ch.find("[image: a picture]") != std::string::npos);
+  CHECK(ch.find("a picture") != std::string::npos);  // alt text that says something stays
+  CHECK(ch.find("[image") == std::string::npos);
   CHECK(ch.find("not text") == std::string::npos);
 
   OpenResult b = openBook("Fixture - Someone.epub", smallPage(), m);
   REQUIRE(b.ok);
   CHECK(b.fromCache);
   CHECK(b.pages == a.pages);
-  CHECK(b.meta.chapters.size() == 3);
+  CHECK(b.meta.chapters.size() == 4);
+  CHECK(b.meta.chapters[2].to > b.meta.chapters[2].from);  // ranges survive meta.json
   CHECK(b.meta.cover == "OEBPS/images/cover.png");
   // Another font size: a new index from the EPUB itself (no cache of the text).
   ui::TextStyle big = smallPage();

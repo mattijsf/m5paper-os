@@ -5,12 +5,16 @@
 #pragma once
 
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace pos::reader {
 
 struct XhtmlResult {
   std::string marked;        // paragraphs, each ending in '\n'
   std::string firstHeading;  // plain text of the first heading, "" if none (a chapter title fallback)
+  // id / name attributes: the byte offset in `marked` of the paragraph that follows them (where a table-of-contents link lands).
+  std::vector<std::pair<std::string, size_t>> anchors;
 };
 
 XhtmlResult xhtmlToMarked(const std::string& xhtml);

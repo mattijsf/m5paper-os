@@ -158,6 +158,19 @@ class ContentsScreen : public Screen {
   std::vector<ui::ListItem*> rows_;
 };
 
+// 10 20 ... 100 under the segments of the "Go to" bar (same geometry as ui::LevelBar::draw): each box is "this far into the book".
+class SegmentLabels : public ui::Widget {
+ public:
+  ui::Size measure(int availW) override { return {availW, 24}; }
+  void draw(Canvas& c) override {
+    const int gap = 6;
+    const int segW = (frame.w - 9 * gap) / 10;
+    const int x0 = frame.x + (frame.w - (10 * segW + 9 * gap)) / 2;
+    for (int i = 0; i < 10; ++i)
+      ui::drawText(c, std::to_string((i + 1) * 10), x0 + i * (segW + gap) + segW / 2, frame.y + frame.h / 2, Type::Caption, ui::secondary, ui::Anchor::MiddleCenter, bg());
+  }
+};
+
 class PageScreen : public Screen {
  public:
   PageScreen(std::string file, int fontIndex) : file_(std::move(file)), font_(fontIndex) {}
@@ -300,7 +313,8 @@ class PageScreen : public Screen {
     char right[32];
     std::snprintf(right, sizeof right, "%d / %zu", cur_ + 1, pages_.size());
     const int pct = ctx().os().platform().power.batteryPercent();
-    footer_->set(ch >= 0 ? meta_.chapters[ch].title : "", right, pct >= 0 && pct < 20 && !ctx().os().platform().power.charging());
+    // The contents title of the chapter when the book has one for it, else the book's title (never a piece of a heading).
+    footer_->set(ch >= 0 && meta_.chapters[ch].toc ? meta_.chapters[ch].title : meta_.title, right, pct >= 0 && pct < 20 && !ctx().os().platform().power.charging());
   }
 
   void onZone(PageView::Zone z) {
@@ -343,9 +357,10 @@ class PageScreen : public Screen {
       raw->close();
       changeFont(i);
     };
-    caption("Go to");
+    caption("Go to: percent of the book, or page by page");
     const int total = static_cast<int>(pages_.size());
     auto* level = c->add<ui::LevelBar>(std::max(10, (percentOf(cur_, pages_.size()) + 9) / 10 * 10));
+    c->add<SegmentLabels>();
     auto* stepper = c->add<ui::Stepper>(cur_ + 1, 1, std::max(1, total), 1, [total](int v) { return "Page " + std::to_string(v) + " of " + std::to_string(total); });
     level->onChange = [this, stepper](int pct) {
       const int target = std::min(static_cast<int>(pages_.size()) - 1, (static_cast<int>(pages_.size()) - 1) * pct / 100);
