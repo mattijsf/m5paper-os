@@ -14,6 +14,7 @@
 #include "core/gesture.h"
 #include "core/secrets.h"
 #include "core/gfx.h"
+#include "core/net.h"
 #include "core/surface.h"
 #include "core/timers.h"
 #include "core/worker.h"
@@ -24,7 +25,8 @@ namespace pos {
 class Os {
  public:
   explicit Os(hal::Platform& platform)
-      : p_(platform), dm_(platform.display, canvas_, platform.clock), timers_(platform.clock) {}
+      : p_(platform), dm_(platform.display, canvas_, platform.clock), timers_(platform.clock),
+        net_(platform, config_, secrets_) {}
 
   // Allocates the canvas, draws the first screen and pushes it. False if allocation failed.
   // Without a Surface: "fonts" = the font specimen sheet, else a blank screen. Before setup().
@@ -47,6 +49,9 @@ class Os {
   // parameters and the time zone. Call before creating the Surface.
   void loadConfig();
   Config& config() { return config_; }
+  NetService& net() { return net_; }
+  // Plain-text status for the >status command: key names and lengths (never values), Wi-Fi, memory.
+  std::string statusText();
   const Secrets& secrets() const { return secrets_; }
   // Applies config().display to the DisplayManager (Settings calls this after a change).
   void applyDisplayConfig();
@@ -71,6 +76,7 @@ class Os {
   Timers timers_;
   Config config_;
   Secrets secrets_;
+  NetService net_;
   std::unique_ptr<Surface> surface_;
   GestureRecognizer gestures_;
   uint32_t lastInputMs_ = 0;

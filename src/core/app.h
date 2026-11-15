@@ -12,6 +12,7 @@
 
 #include "core/config.h"
 #include "core/log.h"
+#include "core/net.h"
 #include "core/secrets.h"
 #include "core/store.h"
 #include "core/timers.h"
@@ -140,11 +141,12 @@ class AppContext {
       onDone(std::forward<decltype(r)>(r)...);
     });
   }
-  // async over hal::Net::request: `onDone(hal::HttpResponse)`. (Wi-Fi bring-up and the linger policy: P3.)
+  // async over NetService::perform: brings Wi-Fi up if needed (known networks, one fast attempt + one scan), sends the
+  // request, keeps Wi-Fi up for net.lingerSec. `onDone(hal::HttpResponse)`: status 0 and error "No Wi-Fi: ..." if offline.
   template <class Done>
   void http(hal::HttpRequest request, Done onDone) {
-    hal::Net* net = &netHal();
-    async([net, request = std::move(request)] { return net->request(request); }, std::move(onDone));
+    NetService* net = &netService();
+    async([net, request = std::move(request)] { return net->perform(request); }, std::move(onDone));
   }
   // One-shot timer on the UI thread; cancelled when the screen that was on top is destroyed.
   Timers::Id timer(uint32_t ms, std::function<void()> fn);
@@ -160,7 +162,7 @@ class AppContext {
   AppContext(Shell& shell, Nav& nav, Store& store, Cache& cache, hal::Clock& clock, const Config& config, const Secrets& secrets, std::string id)
       : nav(nav), store(store), cache(cache), clock(clock), config(config), secrets(secrets), shell_(shell), id_(std::move(id)) {}
   Worker& worker();
-  hal::Net& netHal();
+  NetService& netService();
   std::weak_ptr<bool> aliveToken();
   Shell& shell_;
   std::string id_;

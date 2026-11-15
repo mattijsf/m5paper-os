@@ -92,6 +92,14 @@ bool ScriptRunner::command(const std::string& cmd, const std::string& args, std:
     }
     touch(hal::TouchEvent::Up, n[2], n[3]);
     step(10);
+  } else if (cmd == "wifi") {
+    std::string state;
+    in >> state;
+    if (state != "on" && state != "off") {
+      error = "usage: wifi on|off";
+      return false;
+    }
+    net_.setWifiAvailable(state == "on");
   } else if (cmd == "type" || cmd == "type-max") {
     // Taps the keys of the on-screen keyboard that spells the text (switching layers as needed). type-max N:
     // every character key press (until just after it) may push at most N pixels; layer switches repaint all keys.

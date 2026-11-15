@@ -29,13 +29,13 @@ RemoteCommand parseRemoteCommand(const std::string& raw) {
     c.error = why;
     return c;
   };
-  if (word == "shot" || word == "log" || word == "refresh" || word == "reboot") {
+  if (word == "shot" || word == "log" || word == "refresh" || word == "reboot" || word == "status") {
     std::string extra;
     if (in >> extra) return bad("no arguments expected");
     c.kind = word == "shot" ? RemoteCommand::Shot
              : word == "log" ? RemoteCommand::Log
              : word == "refresh" ? RemoteCommand::Refresh
-                                 : RemoteCommand::Reboot;
+                                 : word == "status" ? RemoteCommand::Status : RemoteCommand::Reboot;
   } else if (word == "tap" || word == "long") {
     if (!ints(2)) return bad("usage: tap|long x y");
     c.kind = word == "tap" ? RemoteCommand::Tap : RemoteCommand::Long;
@@ -114,6 +114,12 @@ void Remote::handleLine(const std::string& line) {
     {
       std::string text = os_.displayManager().refreshLogTail(50);
       say("#refresh " + std::to_string(text.size()));
+      host_.reply(text.data(), text.size());
+      break;
+    }
+    case RemoteCommand::Status: {
+      std::string text = os_.statusText();
+      say("#status " + std::to_string(text.size()));
       host_.reply(text.data(), text.size());
       break;
     }

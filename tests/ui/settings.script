@@ -40,6 +40,9 @@ wait 900
 tap 270 556             # Home Assistant
 wait 900
 shot settings-ha
+tap 270 555             # Test connection: GET /api/ with the token (fixture in the simulator)
+wait 600
+shot settings-ha-tested
 back
 wait 900
 tap 270 652             # Storage

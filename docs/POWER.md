@@ -70,16 +70,21 @@ button to wake". Task P3-6.
 ## Wi-Fi policy (`core/net`, task P3-2)
 
 - Off at boot. Apps never switch Wi-Fi on themselves: they call `ctx.http(...)` and the net
-  service connects if needed (known network, stored BSSID and channel for a ~1 s connect).
+  service connects if needed. **Several networks**: known = `WIFI_SSID[_2.._8]` from the card + networks added on the
+  device (the card wins duplicates). It tries the last network that worked with its stored BSSID and channel (fast path,
+  ~1.2 s measured), and if that fails or there is none, scans once and joins the known network with the strongest signal
+  (~5.3 s measured). One attempt each, never a loop; a failure is reported to the caller. **2.4 GHz only**: the SSID must
+  also exist on 2.4 GHz (mesh routers normally do).
 - After the last request finishes, Wi-Fi stays up for `net.lingerSec` (default 20 s) in case
   another request follows, then switches off.
 - While the Home app is in the foreground and was touched in the last 2 minutes, linger is
   extended so toggles respond fast. The device does not light-sleep during that window.
-- Time sync: SNTP once per day when Wi-Fi happens to be up, written to the BM8563 RTC.
+- Time sync: SNTP after a connect when the clock was never set or the last sync is over a day old, written to the BM8563 RTC on
+  the UI thread; the status bar updates at once (measured: the clock was set after the first connect).
 - No background polling in v1. Scheduled wake-ups to pre-fetch the inbox are task P7-5.
-- TLS handshakes are expensive (~1.5 s, ~45 KB RAM). If Home Assistant is reachable on the LAN
-  by plain `http://`, the user can set that URL; the token then travels unencrypted on the home
-  network, which is the owner's call (documented in `BACKEND.md`).
+- TLS handshakes are expensive (~1.5 s, ~45 KB RAM); free heap measured: ~200 KB idle, ~150 KB with Wi-Fi up, ~104 KB during
+  a TLS request. HTTPS to the public Home Assistant address is the expected case (BACKEND.md); the device keeps one
+  connection alive per refresh.
 
 ## CPU
 

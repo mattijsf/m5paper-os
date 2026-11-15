@@ -62,7 +62,7 @@ Screen* Nav::top() const { return shell_.appOpen() ? shell_.top() : nullptr; }
 
 Os& AppContext::os() { return shell_.os(); }
 Worker& AppContext::worker() { return shell_.os().worker(); }
-hal::Net& AppContext::netHal() { return shell_.os().platform().net; }
+NetService& AppContext::netService() { return shell_.os().net(); }
 std::weak_ptr<bool> AppContext::aliveToken() {
   auto* e = shell_.stack_.empty() ? nullptr : &shell_.stack_.back();
   return e ? std::weak_ptr<bool>(e->alive) : std::weak_ptr<bool>();
@@ -98,10 +98,12 @@ Shell::Shell(Os& os) : os_(os), root_(os.canvas(), os.displayManager(), &os.time
   title_->onHome = [this] { closeApp(); };
   root_.setRoot(std::move(top));
   updateStatus();
+  os_.net().onChange = [this] { updateStatus(); };  // Wi-Fi came up or went off, the clock was synced
   statusTimer_ = os_.timers().every(60000, [this] { updateStatus(); });
 }
 
 Shell::~Shell() {
+  os_.net().onChange = nullptr;
   os_.timers().cancel(statusTimer_);
   if (app_) app_->onStop();
   // The widget tree dies with root_; screens must go first (their widgets may be referenced).

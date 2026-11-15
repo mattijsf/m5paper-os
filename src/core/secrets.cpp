@@ -54,3 +54,22 @@ std::vector<std::string> Secrets::keys() const {
 }
 
 }  // namespace pos
+
+namespace pos {
+
+std::vector<WifiCred> Secrets::wifiNetworks() const {
+  std::vector<WifiCred> out;
+  for (int i = 1; i <= 8; ++i) {
+    const std::string suffix = i == 1 ? "" : "_" + std::to_string(i);
+    const std::string ssid = get("WIFI_SSID" + suffix);
+    if (ssid.empty()) continue;
+    WifiCred c;
+    c.ssid = ssid;
+    c.password = get("WIFI_PASSWORD" + suffix);
+    c.fromCard = true;
+    out.push_back(c);
+  }
+  return out;
+}
+
+}  // namespace pos

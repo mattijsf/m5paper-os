@@ -64,20 +64,6 @@ std::string macAddress() { return ""; }
 
 namespace {
 
-class SimNet : public hal::Net {
- public:
-  bool wifiConnect(const std::string&, const std::string&, uint32_t) override { return false; }
-  void wifiOff() override {}
-  bool wifiConnected() override { return false; }
-  int rssi() override { return 0; }
-  std::vector<hal::WifiNetwork> scan() override { return {}; }
-  hal::HttpResponse request(const hal::HttpRequest&) override {
-    hal::HttpResponse r;
-    r.error = "not implemented in the simulator yet";
-    return r;
-  }
-};
-
 class SimPower : public hal::Power {
  public:
   int batteryMv() override { return 3900; }
@@ -134,7 +120,7 @@ bool readStdinLines(std::string& buf, Remote& remote, int waitMs) {
 
 int main(int argc, char** argv) {
   bool headless = false, remoteMode = false, noRtc = false;
-  std::string shot, name = "simulator", outDir = "out", scriptPath, dataDir = "sim-data", startTime, appName;
+  std::string shot, name = "simulator", outDir = "out", scriptPath, dataDir = "sim-data", startTime, appName, fixtures = "tests/fixtures/http";
   int scale = 1;
   for (int i = 1; i < argc; ++i) {
     if (!std::strcmp(argv[i], "--headless")) headless = true;
@@ -146,7 +132,7 @@ int main(int argc, char** argv) {
     else if (!std::strcmp(argv[i], "--no-rtc")) noRtc = true;
     else if (!std::strcmp(argv[i], "--time") && i + 1 < argc) startTime = argv[++i];
     else if (!std::strcmp(argv[i], "--app") && i + 1 < argc) appName = argv[++i];  // "fonts" = specimen sheet; apps arrive in P2
-    else if (!std::strcmp(argv[i], "--fixtures") && i + 1 < argc) ++i;               // P5
+    else if (!std::strcmp(argv[i], "--fixtures") && i + 1 < argc) fixtures = argv[++i];  // dir, or "none" = real network
     else if (!std::strcmp(argv[i], "--out") && i + 1 < argc) outDir = argv[++i];
     else if (!std::strcmp(argv[i], "--scale") && i + 1 < argc) scale = std::max(1, std::atoi(argv[++i]));
   }
@@ -154,7 +140,8 @@ int main(int argc, char** argv) {
   sim::Clock clock;
   sim::Display display(clock);
   sim::Input input(clock);
-  SimNet net;
+  sim::Net net;
+  net.setFixturesDir(fixtures == "none" ? "" : fixtures);
   SimPower power;
   hal::Platform platform{display, input, clock, net, power, name.c_str()};
 
@@ -201,7 +188,7 @@ int main(int argc, char** argv) {
   if (!scriptPath.empty()) {
     if (!headless && !display.openWindow(scale)) return 1;
     if (!os.setup()) return 1;
-    sim::ScriptRunner runner(os, display, input, clock, outDir, [&] { display.present(); });
+    sim::ScriptRunner runner(os, display, input, clock, net, outDir, [&] { display.present(); });
     int rc = runner.run(scriptPath);
     if (headless || rc != 0) return rc;
     // Windowed: leave the window open after the script, as an interactive session.

@@ -183,3 +183,9 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   it or provisioning over serial, and the card is as readable as the internal flash anyway.
 - The device never writes, logs or displays the values. Optional keys: `HA_URL`, `WIFI_SSID`,
   `WIFI_PASSWORD`. Details: `apps/settings.md`.
+- **2026-11-15 addendum: several Wi-Fi networks.** `WIFI_SSID`/`WIFI_PASSWORD` is the first network,
+  `WIFI_SSID_2`/`WIFI_PASSWORD_2` ... `_8` more; no password key = open network; the value is everything after the first
+  `=` (SSIDs may contain `/`, `.`, spaces, `=`). Device-added networks live in `/data/wifi.json`; known networks = card +
+  device, the card wins duplicates. Connect: last network first with its stored BSSID/channel, else one scan and the
+  strongest known network; never loop. The radio is 2.4 GHz only. The card on the device holds `HA_TOKEN`, `WIFI_SSID`,
+  `WIFI_PASSWORD`, `HA_URL` (names and lengths only, checked 2026-11-15).

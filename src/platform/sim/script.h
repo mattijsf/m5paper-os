@@ -16,8 +16,8 @@ namespace pos::sim {
 class ScriptRunner {
  public:
   // `idle` is called after every simulated step (the window presents a frame; headless: nothing).
-  ScriptRunner(Os& os, Display& display, Input& input, Clock& clock, std::string outDir, std::function<void()> idle)
-      : os_(os), display_(display), input_(input), clock_(clock), out_(std::move(outDir)), idle_(std::move(idle)) {}
+  ScriptRunner(Os& os, Display& display, Input& input, Clock& clock, Net& net, std::string outDir, std::function<void()> idle)
+      : os_(os), display_(display), input_(input), clock_(clock), net_(net), out_(std::move(outDir)), idle_(std::move(idle)) {}
 
   // Runs the file. Returns 0 on success; prints "<file>:<line>: <reason>" to stderr and returns
   // non-zero on the first failing command.
@@ -32,6 +32,7 @@ class ScriptRunner {
   Display& display_;
   Input& input_;
   Clock& clock_;
+  Net& net_;
   std::string out_;
   std::function<void()> idle_;
 };

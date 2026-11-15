@@ -13,6 +13,7 @@
 #include "hal/clock.h"
 #include "hal/display.h"
 #include "hal/input.h"
+#include "hal/net.h"
 
 namespace pos::sim {
 
@@ -77,6 +78,35 @@ class Display : public hal::Display {
   SDL_Window* win_ = nullptr;
   SDL_Renderer* ren_ = nullptr;
   SDL_Texture* tex_ = nullptr;
+};
+
+// A fake Wi-Fi world (HomeNet on two access points, Neighbour, CafeFree) and HTTP from fixture files or libcurl.
+class Net : public hal::Net {
+ public:
+  ~Net() override;
+  bool wifiConnect(const std::string& ssid, const std::string& pass, uint32_t timeoutMs, const std::string& bssid = "",
+                   int channel = 0) override;
+  void wifiOff() override;
+  bool wifiConnected() override { return link_.connected; }
+  int rssi() override { return link_.rssi; }
+  hal::WifiLink link() override { return link_; }
+  std::vector<hal::WifiNetwork> scan() override;
+  hal::HttpResponse request(const hal::HttpRequest& req) override;
+  int64_t syncTime(uint32_t timeoutMs) override;
+
+  // "" = real network through libcurl; else answer from <dir>/<fixture name> (core/http_fixture.h).
+  void setFixturesDir(const std::string& dir) { fixturesDir_ = dir; }
+  // Script `wifi off` / `wifi on`: no network is reachable.
+  void setWifiAvailable(bool on) {
+    wifiAvailable_ = on;
+    if (!on) link_ = hal::WifiLink{};
+  }
+
+ private:
+  hal::WifiLink link_;
+  bool wifiAvailable_ = true;
+  std::string fixturesDir_;
+  std::vector<std::string> missing_;
 };
 
 class Input : public hal::Input {

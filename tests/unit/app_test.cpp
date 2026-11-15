@@ -70,9 +70,15 @@ class FakeClock : public hal::Clock {
 };
 class FakeNet : public hal::Net {
  public:
-  bool wifiConnect(const std::string&, const std::string&, uint32_t) override { return false; }
+  bool wifiConnect(const std::string&, const std::string&, uint32_t, const std::string& = "", int = 0) override { return false; }
+  hal::WifiLink link() override {
+    hal::WifiLink l;
+    l.connected = true;
+    l.ssid = "Fake";
+    return l;
+  }
   void wifiOff() override {}
-  bool wifiConnected() override { return false; }
+  bool wifiConnected() override { return true; }
   int rssi() override { return 0; }
   std::vector<hal::WifiNetwork> scan() override { return {}; }
   hal::HttpResponse request(const hal::HttpRequest& r) override {

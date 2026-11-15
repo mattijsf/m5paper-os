@@ -8,6 +8,13 @@
 
 namespace pos {
 
+// One Wi-Fi network: from the card (`WIFI_SSID`, `WIFI_PASSWORD`, `WIFI_SSID_2` ... `_8`) or added on the device.
+struct WifiCred {
+  std::string ssid, password;  // empty password = open network
+  bool open() const { return password.empty(); }
+  bool fromCard = false;
+};
+
 class Secrets {
  public:
   explicit Secrets(std::string path = "/sd/paperos_config") : path_(std::move(path)) {}
@@ -20,6 +27,12 @@ class Secrets {
   // Key names in file order (no values).
   std::vector<std::string> keys() const;
   bool fileFound() const { return found_; }
+  // Value length without exposing the value (for status output).
+  size_t valueLength(const std::string& key) const { return get(key).size(); }
+  // Wi-Fi networks of the card in order: WIFI_SSID + WIFI_PASSWORD, then WIFI_SSID_2 ... WIFI_SSID_8. The SSID is
+  // everything after the first '=' of its line, trimmed (it may contain '/', '.', spaces and '='). A network
+  // without a password key (or with an empty one) is open. Passwords are never logged.
+  std::vector<WifiCred> wifiNetworks() const;
 
  private:
   std::string path_;

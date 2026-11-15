@@ -4,7 +4,7 @@
 Run with PlatformIO's Python (it has pyserial):
     ~/.platformio/penv/bin/python tools/device.py shot out/device.png
     ~/.platformio/penv/bin/python tools/device.py tap 140 300
-Commands: diff A.png B.png [FIRST_ROW] | shot OUT.png | tap X Y | long X Y | swipe X1 Y1 X2 Y2 | log | refresh | set KEY VALUE | wait-boot | diff A.png B.png
+Commands: status (key names + lengths, Wi-Fi, heap) | diff A.png B.png [FIRST_ROW] | shot OUT.png | tap X Y | long X Y | swipe X1 Y1 X2 Y2 | log | refresh | set KEY VALUE | wait-boot | diff A.png B.png
 Options:  --port /dev/cu.usbmodemXXXX (default: the first /dev/cu.usbmodem*)
           --sim   talk to .pio/build/sim/program --headless --remote instead of a device
           -v      also print device log lines seen while waiting for a reply
@@ -85,7 +85,7 @@ def request(link, cmd, verbose=False, timeout=20):
         if line.startswith("#shot "):
             header = line.split()
             payload = link.read(int(header[3]))
-        elif line.startswith("#log ") or line.startswith("#refresh "):
+        elif line.startswith("#log ") or line.startswith("#refresh ") or line.startswith("#status "):
             header = line.split()
             payload = link.read(int(header[1]))
         elif line.startswith("#ok") or line.startswith("#err"):
@@ -148,7 +148,7 @@ def main():
     ap.add_argument("--port")
     ap.add_argument("--sim", action="store_true")
     ap.add_argument("-v", "--verbose", action="store_true")
-    ap.add_argument("cmd", choices=["shot", "tap", "long", "swipe", "log", "refresh", "set", "wait-boot", "diff"])
+    ap.add_argument("cmd", choices=["shot", "tap", "long", "swipe", "log", "refresh", "status", "set", "wait-boot", "diff"])
     ap.add_argument("args", nargs="*")
     a = ap.parse_args()
 
@@ -188,6 +188,9 @@ def main():
                 sys.exit(1)
             if a.sim:
                 time.sleep(0.3)  # the simulator exits when we close stdin: let timed events play out
+        elif a.cmd == "status":
+            status, payload, _ = request(link, ">status", a.verbose)
+            sys.stdout.write((payload or b"").decode(errors="replace"))
         elif a.cmd == "refresh":
             status, payload, _ = request(link, ">refresh", a.verbose)
             sys.stdout.write((payload or b"").decode(errors="replace"))

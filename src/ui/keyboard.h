@@ -79,6 +79,21 @@ class TextField : public Widget {
   std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
 };
 
+// The keyboard as a full-width overlay at the bottom of the screen (screens whose content column has side margins):
+// Root::addOverlay(std::make_unique<KeyboardPanel>()). Touches outside the keyboard reach the screen below.
+class KeyboardPanel : public Widget {
+ public:
+  KeyboardPanel() { kb_ = add<Keyboard>(); }
+  Keyboard* keyboard() const { return kb_; }
+  void layout() override {
+    frame = Rect{0, static_cast<int16_t>(kScreenH - Keyboard::kKeyH * Keyboard::kRows), kScreenW, static_cast<int16_t>(Keyboard::kKeyH * Keyboard::kRows)};
+    kb_->frame = frame;
+  }
+
+ private:
+  Keyboard* kb_;
+};
+
 // Connects a keyboard to a text field (typing, backspace); Enter calls `onEnter`.
 void bindKeyboard(Keyboard& kb, TextField& field, std::function<void()> onEnter = {}, size_t maxLen = 128);
 

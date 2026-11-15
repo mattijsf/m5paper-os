@@ -1,0 +1,32 @@
+# Wi-Fi settings in the fake Wi-Fi world (HomeNet and Office/Guest 2.4 are on the card; Neighbour and CafeFree are
+# strangers). Data: tests/ui/data/wifi/sd/paperos_config.
+wait 300
+tap 140 700             # Settings tile
+wait 300
+tap 270 172             # Wi-Fi
+wait 900
+shot wifi-status
+tap 270 520             # Connect now
+wait 600
+shot wifi-connected
+tap 270 330             # Join a network
+wait 900
+shot wifi-scan
+tap 270 400             # Neighbour (secured, not saved): asks for the password
+wait 900
+shot wifi-password
+type-max 8000 secret12
+wait 900
+shot wifi-password-typed
+tap 480 927             # Enter on the keyboard: joins, saves, goes back
+wait 900
+shot wifi-joined
+back                    # to the Wi-Fi page: the status bar shows the connection now
+wait 900
+shot wifi-after-join
+tap 270 420             # Saved networks
+wait 900
+shot wifi-saved
+tap 270 400             # Neighbour was added on the device: tap = forget
+wait 900
+shot wifi-forgotten

@@ -57,24 +57,10 @@ std::string macAddress() {
 
 namespace {
 
-class DeviceNet : public hal::Net {
- public:
-  bool wifiConnect(const std::string&, const std::string&, uint32_t) override { return false; }
-  void wifiOff() override {}
-  bool wifiConnected() override { return false; }
-  int rssi() override { return 0; }
-  std::vector<hal::WifiNetwork> scan() override { return {}; }
-  hal::HttpResponse request(const hal::HttpRequest&) override {
-    hal::HttpResponse r;
-    r.error = "not implemented on the device yet";
-    return r;
-  }
-};
-
 device::Display gDisplay;
 device::Input gInput;
 device::Clock gClock;
-DeviceNet gNet;
+device::Net gNet;
 device::Power gPower;
 hal::Platform gPlatform{gDisplay, gInput, gClock, gNet, gPower, "M5PaperS3"};
 Os gOs(gPlatform);

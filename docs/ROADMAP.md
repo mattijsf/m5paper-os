@@ -209,7 +209,7 @@ simulator first; each task ends with screenshots.
   Device check: touch wakes from light sleep and the waking tap is delivered; power off works;
   the button powers on; RTC timer power-on works.
 
-- [ ] **P3-2 Net service and HTTP.**
+- [x] **P3-2 Net service and HTTP.**
   Read: POWER.md (Wi-Fi policy), ARCHITECTURE.md (HAL Net), SIMULATOR.md (HTTP fixtures).
   Do: `platform/device/net.cpp` (WiFi STA, stored BSSID/channel fast connect, `HTTPClient` +
   `NetworkClientSecure` with CA bundle, body cap 512 KB, timeouts); `platform/sim/net.cpp`
@@ -220,7 +220,7 @@ simulator first; each task ends with screenshots.
   Device check: HTTPS GET to a public site works; connect time and heap logged; Wi-Fi goes off
   after the linger time.
 
-- [ ] **P3-3 Secrets from the SD card, serial commands.**
+- [x] **P3-3 Secrets from the SD card, serial commands.**
   Read: apps/settings.md (Secrets and provisioning), BACKEND.md (Connection), DECISIONS.md D19.
   Do: `src/core/secrets.{h,cpp}`: parse `/sd/paperos_config` (KEY=VALUE) at boot, `get(key)`,
   `has(key)`; never log values. Net service tries `WIFI_SSID`/`WIFI_PASSWORD` first. Add to the
@@ -248,7 +248,7 @@ simulator first; each task ends with screenshots.
   Do: sleep screen before power-off; boot path restores the last app without Wi-Fi.
   Device check: button press to usable screen under 2.5 s (measure, record).
 
-- [ ] **P3-7 Wi-Fi settings, time sync, status bar.**
+- [x] **P3-7 Wi-Fi settings, time sync, status bar.**
   Do: Settings > Wi-Fi (scan, pick, keyboard, connect, save, forget); SNTP to RTC with the
   timezone from config; status bar shows time, Wi-Fi state, battery (icons by level).
   Done when: goldens with fixture scan results. Device check: join the home network from the

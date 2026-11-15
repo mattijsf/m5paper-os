@@ -92,6 +92,14 @@ make ui-accept          # copy out/ui/*.png over the goldens after looking at th
 A mismatch is not automatically a bug: look at the new image; if it is the intended change,
 accept it and commit the golden with the code.
 
+### Wi-Fi world and test data
+
+The simulator's `hal::Net` is a small fake Wi-Fi world: HomeNet (two access points, channels 6 and 11), Neighbour, CafeFree
+(open); script commands `wifi off` / `wifi on` make no network reachable. A script can come with preset data:
+`tests/ui/data/<script name>/` is copied into that script's data root before the run (`sd/paperos_config` with fake values
+for the Settings and Wi-Fi scripts). HTTP is answered from `--fixtures DIR` (default `tests/fixtures/http`), or from the real
+network through libcurl with `--fixtures none`; missing fixtures are listed on stderr at exit.
+
 ### HTTP fixtures
 
 `hal::Net::request` in fixture mode maps a request to a file:

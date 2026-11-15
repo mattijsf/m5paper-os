@@ -20,6 +20,9 @@ shopt -s nullglob
 scripts=(tests/ui/*.script)
 [ ${#scripts[@]} -gt 0 ] || { echo "ui-test: no scripts in tests/ui"; exit 2; }
 for s in "${scripts[@]}"; do
+  name=$(basename "$s" .script)
+  rm -rf "out/ui-data/$name"; mkdir -p "out/ui-data/$name"
+  [ -d "tests/ui/data/$name" ] && cp -R "tests/ui/data/$name/." "out/ui-data/$name/"   # optional preset data (card file etc.)
   app=$(sed -n 's/^# app: *//p' "$s" | head -1)   # optional "# app: NAME" header line
   if ! "$SIM" --headless ${app:+--app "$app"} --script "$s" --out "$OUT" --data "out/ui-data/$(basename "$s" .script)" --time 2026-01-15T12:34:00 >"$OUT/$(basename "$s").log" 2>&1; then
     echo "FAIL script $s:"

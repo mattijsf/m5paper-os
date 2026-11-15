@@ -35,6 +35,15 @@ simulator reports fixed fake storage and memory values so screenshots are determ
 A unit test walks every Settings page with a secrets file holding recognisable values and checks that
 none of them appears in any widget text or in the log.
 
+## As built: Wi-Fi screens and Home Assistant test (P3-7)
+
+Settings > Wi-Fi: status row (network, signal, IP; "Off: turns on when an app needs it"), "Join a network" (scan, one row
+per SSID with the strongest access point, signal and channel, Secured/Open; a known or open network joins at once, else a
+password page with the on-screen keyboard as a bottom overlay, masked with a Show/Hide button, Enter joins and saves),
+"Saved networks" (card entries marked, device entries can be forgotten by a tap), "Connect now". Settings > Home Assistant >
+"Test connection": `GET <base URL>/api/` with the token; the page shows the HTTP status, the time and the start of the reply;
+the token and the Authorization header are never shown or logged. Developer > "HTTP test": HTTPS GET of a public page.
+
 ## Config schema
 
 `/data/config.json` (no secrets; all keys optional; defaults in `core/config.cpp`):
@@ -64,11 +73,24 @@ WIFI_PASSWORD=<password>                   #   on-screen keyboard exists (task P
 
 - The user created this file by putting the card in a computer. The device reads it at boot
   (`core/secrets`, task P3-3) and **never writes to it, logs its values, or shows them**; the
-  Settings screens show "token present" and the key names only.
+  Settings screens show "token present" and the key names only. `>status` (and `tools/device.py status`) prints key names and
+  value lengths, Wi-Fi state, heap, and a count of how often the first 8 characters of any secret value occur in the last
+  50 log lines (must be 0).
 - Parsing: split at the first `=`, trim spaces and carriage returns, ignore blank lines,
   `#` lines and unknown keys. Missing file or key = "not configured", never a crash.
-- Wi-Fi networks added on the device (Wi-Fi screen) are stored in `/data/wifi.json` (internal
-  flash), also never logged. `WIFI_SSID`/`WIFI_PASSWORD` from the card are tried first.
+- **Several Wi-Fi networks**: `WIFI_SSID` + `WIFI_PASSWORD` for the first
+  network, `WIFI_SSID_2` + `WIFI_PASSWORD_2` ... up to `_8` for more. A network without a password key (or an
+  empty one) is open. The value is everything after the **first** `=` of the line, trimmed, so an SSID may
+  contain `/`, `.`, spaces and `=` (the real one on the card has a `/` and a `.`).
+- Networks added on the device (Wi-Fi screen) are stored in `/data/wifi.json` (internal flash, never logged), with
+  the network that worked last and, per network, the BSSID and channel of the access point. **Known networks =
+  card entries + device entries; the card wins on duplicates** (same SSID).
+- **Connecting** (`core/net`): the network that worked last first, straight to its stored BSSID/channel (the fast
+  path, measured 1.2 s on the device); if that fails or there is none, one scan and a join of the known network
+  with the strongest signal (measured 5.3 s with the scan); BSSID/channel are remembered after each success.
+  Never a loop: one fast attempt, one scan attempt, then the failure goes to the caller (apps show "No Wi-Fi").
+  The radio is **2.4 GHz only**: a network that exists only on 5 GHz is not found; the scan result (SSIDs, signal,
+  channel, no passwords) is logged and shown ("No known network in range") and nothing is retried.
 - The simulator reads the same file from `sim-data/sd/paperos_config` (gitignored). Tests use
   fixtures and need no token.
 - No SD card: the device still boots; Home and inbox apps show "No Home Assistant token:

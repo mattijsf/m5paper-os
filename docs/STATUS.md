@@ -24,7 +24,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 - **P2-7**: keyboard, text field and TextBlock with pagination (`ui/keyboard`, `ui/textblock`), 14 unit tests for
   pagination (no overlong line, strictly increasing page starts, nothing lost, position survives re-layout,
   headings, long words, tiny pages, parser). **P2-6**: config service, secrets reader, time zone, Settings (all sections). The device shows the real
-  Settings. **Next: Phase 3** (P3-1 device power HAL, P3-4 idle policy; Wi-Fi tasks wait for credentials).
+  Settings. **Phase 3 continues** (P3-1 device power HAL, P3-4 idle policy; Wi-Fi tasks wait for credentials).
 - The factory firmware is saved in `backup/factory-16MB.bin` (restore command in HARDWARE.md).
 
 ## What works today
@@ -285,6 +285,17 @@ None of these block Phase 1, Phase 2, or the reader.
   Unit tests: `decideSleep` table (every condition), sleep ends at the next deadline and is capped at 60 s, auto-off
   limits (normal, reader, 0, USB), state saved and `lastApp` remembered, USB rule and its flag.
 
+- P3-2/P3-3/P3-7 (2026-11-15, device with the owner's card: keys `HA_TOKEN(183) WIFI_SSID(19) WIFI_PASSWORD(12) HA_URL(26)`,
+  checked after a reboot because the card was swapped): **joined the home network** (an SSID with `/` and `.` in it, 2.4 GHz channel 3,
+  RSSI -52..-56). Scan path: 5298 ms (scan + join); fast path (stored BSSID/channel): **1245 ms**; Wi-Fi went off after 21 s idle
+  (linger 20 s). SNTP set the clock after the first connect (status bar shows 15:45 CET with the Wi-Fi icon). HTTPS
+  `GET <HA_URL>/api/` with the token (Settings > Home Assistant > Test connection): **HTTP 200 in 2.5 s**, reply "API running.";
+  heap 200 KB idle -> 150 KB Wi-Fi up -> 104 KB during the TLS request (worker stack 16 KB was enough). The firmware grew to 2.30 MB
+  (Wi-Fi + TLS; the budget is 3 MB). `tools/device.py status` shows key names and lengths, networks, Wi-Fi, heap and a leak
+  count; the log ring never contained any secret value (0 occurrences).
+  Not verified: networks beyond the first (only one is on the card); joining a network from the Wi-Fi screen on the device with
+  the keyboard (only in the simulator); a failure path on the device (no known network in range); behaviour on 5 GHz-only.
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -319,3 +330,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P2-7. Keyboard, TextField, TextBlock with pagination; type / type-max script commands.
 - 2026-11-15: P3-1. Device power HAL: battery average, light sleep with wake cause, RTC power-off; Settings Sleep test / Power off.
 - 2026-11-15: P3-4. PowerPolicy: light sleep when idle (not on USB by default), auto-off on battery.
+- 2026-11-15: P3-2, P3-3, P3-7. Net service (connect on demand, fast path, linger, SNTP), multi-network secrets, HTTP via ctx.http, Wi-Fi settings, Home Assistant test, `>status`.

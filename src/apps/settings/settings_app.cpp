@@ -1,6 +1,7 @@
 // Settings (docs/apps/settings.md): list of sections; Display, Power, Reading, Home Assistant, Storage,
 // Developer and About are built; Wi-Fi shows a notice until the connectivity phase. Secret values are never
 // shown: only key names and "present".
+#include <algorithm>
 #include <cstdio>
 
 #include "core/app.h"
@@ -137,16 +138,239 @@ class ReadingPage : public Page {
   }
 };
 
+// ---- Wi-Fi: status, scan and join, saved networks
+
+std::string signalText(int rssi) { return std::to_string(rssi) + " dBm"; }
+
+class WifiPasswordPage : public Page {
+ public:
+  explicit WifiPasswordPage(hal::WifiNetwork ap) : ap_(std::move(ap)) {}
+  void build(ui::Column& root) override {
+    setTitle(ap_.ssid.empty() ? "Join network" : ap_.ssid);
+    root.add<ui::Spacer>(ui::s2);
+    root.add<ui::Label>("Password", Type::Caption, ui::secondary);
+    field_ = root.add<ui::TextField>("Network password");
+    field_->setMasked(true);
+    show_ = root.add<ui::Button>("Show", [this] {
+      masked_ = !masked_;
+      field_->setMasked(masked_);
+      show_->setText(masked_ ? "Show" : "Hide");
+    }, ui::Button::Kind::Text);
+    status_ = root.add<ui::Label>("", Type::Body, ui::secondary);
+    status_->maxLines = 3;
+  }
+  void onShow() override {
+    auto panel = std::make_unique<ui::KeyboardPanel>();
+    panel_ = panel.get();
+    ui::bindKeyboard(*panel->keyboard(), *field_, [this] { join(); }, 63);
+    field_->host()->addOverlay(std::move(panel));
+  }
+  void onHide() override {
+    if (panel_ && field_ && field_->host()) field_->host()->closeOverlay(panel_);
+    panel_ = nullptr;
+  }
+
+ private:
+  void join() {
+    if (joining_) return;
+    joining_ = true;
+    status_->setText("Joining...");
+    const std::string ssid = ap_.ssid, pass = field_->text();
+    NetService* net = &ctx().os().net();
+    ctx().async([net, ssid, pass] { return net->connectTo(ssid, pass, true); }, [this](NetService::Result r) {
+      joining_ = false;
+      if (r.ok) {
+        ctx().toast("Joined " + r.ssid + ", saved");
+        ctx().nav.pop();
+      } else {
+        status_->setText(r.error + ". Check the password.");
+      }
+    });
+  }
+  hal::WifiNetwork ap_;
+  ui::TextField* field_ = nullptr;
+  ui::Button* show_ = nullptr;
+  ui::Label* status_ = nullptr;
+  ui::KeyboardPanel* panel_ = nullptr;
+  bool masked_ = true, joining_ = false;
+};
+
+class WifiScanPage : public Page {
+ public:
+  void build(ui::Column& root) override {
+    setTitle("Join a network");
+    root.add<ui::Spacer>(ui::s1);
+    info_ = root.add<ui::Label>("Scanning... (2.4 GHz networks only)", Type::Caption, ui::secondary);
+    list_ = root.add<ui::Column>(0);
+  }
+  void onShow() override { scan(); }
+
+ private:
+  void scan() {
+    NetService* net = &ctx().os().net();
+    info_->setText("Scanning... (2.4 GHz networks only)");
+    ctx().async([net] { return net->scan(); }, [this](std::vector<hal::WifiNetwork> aps) {
+      std::sort(aps.begin(), aps.end(), [](const hal::WifiNetwork& a, const hal::WifiNetwork& b) { return a.rssi > b.rssi; });
+      // one row per SSID (the strongest access point), at most seven rows
+      std::vector<hal::WifiNetwork> rows;
+      for (const auto& ap : aps) {
+        if (ap.ssid.empty()) continue;
+        bool dup = false;
+        for (const auto& r : rows)
+          if (r.ssid == ap.ssid) dup = true;
+        if (!dup) rows.push_back(ap);
+        if (rows.size() == 7) break;
+      }
+      while (!list_->children().empty()) list_->remove(list_->children().back().get());
+      info_->setText(rows.empty() ? "No networks found. The device sees 2.4 GHz only." : "Tap a network to join it.");
+      for (const auto& ap : rows) {
+        auto* item = list_->add<ui::ListItem>(ap.ssid, signalText(ap.rssi) + "  ch " + std::to_string(ap.channel), true,
+                                              ap.secure ? ui::Icon::Wifi : ui::Icon::Wifi);
+        item->setTrailingText(ap.secure ? "Secured" : "Open");
+        item->onClick = [this, ap] { choose(ap); };
+      }
+      list_->host()->relayout();
+    });
+  }
+  void choose(const hal::WifiNetwork& ap) {
+    // A known network joins without asking; an open one too; else ask for the password.
+    for (const auto& k : ctx().os().net().known())
+      if (k.ssid == ap.ssid) {
+        NetService* net = &ctx().os().net();
+        const std::string ssid = k.ssid, pass = k.password;
+        ctx().async([net, ssid, pass] { return net->connectTo(ssid, pass, false); }, [this](NetService::Result r) {
+          ctx().toast(r.ok ? "Joined " + r.ssid : r.error);
+        });
+        return;
+      }
+    if (!ap.secure) {
+      NetService* net = &ctx().os().net();
+      const std::string ssid = ap.ssid;
+      ctx().async([net, ssid] { return net->connectTo(ssid, "", true); }, [this](NetService::Result r) {
+        ctx().toast(r.ok ? "Joined " + r.ssid : r.error);
+      });
+      return;
+    }
+    ctx().nav.push<WifiPasswordPage>(ap);
+  }
+  ui::Label* info_ = nullptr;
+  ui::Column* list_ = nullptr;
+};
+
+class WifiSavedPage : public Page {
+ public:
+  void build(ui::Column& root) override {
+    setTitle("Saved networks");
+    root.add<ui::Spacer>(ui::s1);
+    list_ = root.add<ui::Column>(0);
+    fill();
+  }
+
+ private:
+  void fill() {
+    while (!list_->children().empty()) list_->remove(list_->children().back().get());
+    auto known = ctx().os().net().known();
+    if (known.empty()) {
+      list_->add<ui::Label>("No saved networks. Add WIFI_SSID and WIFI_PASSWORD to /sd/paperos_config, or join one from the scan.", Type::Body, ui::secondary)->maxLines = 4;
+    }
+    for (const auto& k : known) {
+      auto* item = list_->add<ui::ListItem>(k.ssid, k.fromCard ? "From the SD card" : "Added on this device", true, ui::Icon::Wifi);
+      if (k.fromCard) {
+        item->setTrailingText(k.open() ? "Open" : "Secured");
+      } else {
+        item->setTrailingText("Forget");
+        const std::string ssid = k.ssid;
+        item->onClick = [this, ssid] {
+          ctx().os().net().store().forget(ssid);
+          ctx().os().net().store().save();
+          ctx().toast("Forgot " + ssid);
+          ctx().timer(0, [this] {  // not inside the handler of the row that is being removed
+            fill();
+            list_->host()->relayout();
+          });
+        };
+      }
+    }
+  }
+  ui::Column* list_ = nullptr;
+};
+
 class WifiPage : public Page {
  public:
   void build(ui::Column& root) override {
     setTitle("Wi-Fi");
-    auto* es = root.add<ui::EmptyState>(ui::Icon::WifiOff, "Wi-Fi setup", "Joining networks arrives with the connectivity update.");
-    es->flex = 1;
+    root.add<ui::Spacer>(ui::s2);
+    status_ = root.add<ui::ListItem>("Status", "", true, ui::Icon::Wifi);
+    root.add<ui::Spacer>(ui::s2);
+    auto* scan = root.add<ui::ListItem>("Join a network", "Scan for networks", true, ui::Icon::RefreshCw);
+    scan->setChevron();
+    scan->onClick = [this] { ctx().nav.push<WifiScanPage>(); };
+    auto* saved = root.add<ui::ListItem>("Saved networks", "", true, ui::Icon::Folder);
+    saved->setChevron();
+    saved->onClick = [this] { ctx().nav.push<WifiSavedPage>(); };
+    root.add<ui::Spacer>(ui::s3);
+    root.add<ui::Button>("Connect now", [this] { connectNow(); }, ui::Button::Kind::Secondary);
+    root.add<ui::Spacer>(ui::s2);
+    note_ = root.add<ui::Label>("", Type::Body, ui::secondary);
+    note_->maxLines = 5;
+    update();
   }
+  void onShow() override { update(); }
+
+ private:
+  void connectNow() {
+    note_->setText("Connecting...");
+    NetService* net = &ctx().os().net();
+    ctx().async([net] { return net->ensureConnected(); }, [this](NetService::Result r) {
+      char buf[200];
+      if (r.ok) std::snprintf(buf, sizeof buf, "Connected to %s in %.1f s%s.", r.ssid.c_str(), r.ms / 1000.0, r.fast ? " (fast path)" : "");
+      else std::snprintf(buf, sizeof buf, "%s. %s", r.error.c_str(), r.scan.c_str());
+      note_->setText(buf);
+      update();
+    });
+  }
+  void update() {
+    hal::WifiLink l = ctx().os().net().link();
+    if (l.connected) {
+      status_->setSubtitle("Connected to " + l.ssid + ", " + signalText(l.rssi));
+      status_->setTrailingText(l.ip);
+    } else {
+      status_->setSubtitle("Off: turns on when an app needs it");
+      status_->setTrailingText("");
+    }
+  }
+  ui::ListItem* status_ = nullptr;
+  ui::Label* note_ = nullptr;
 };
 
 class HaPage : public Page {
+ private:
+  // GET <HA_URL>/api/ with the token: shows the HTTP status and the time it took. The token and the Authorization
+  // header are never logged or shown.
+  void test() {
+    if (!ctx().secrets.present("HA_TOKEN")) {
+      result_->setText("No HA_TOKEN in /sd/paperos_config.");
+      return;
+    }
+    hal::HttpRequest req;
+    req.url = ctx().os().net().haBaseUrl() + "/api/";
+    req.headers.push_back({"Authorization", "Bearer " + ctx().secrets.get("HA_TOKEN")});
+    req.headers.push_back({"Content-Type", "application/json"});
+    req.timeoutMs = 15000;
+    result_->setText("Testing...");
+    const uint32_t t0 = ctx().clock.millis();
+    ctx().http(req, [this, t0](hal::HttpResponse r) {
+      char buf[160];
+      const double sec = (ctx().clock.millis() - t0) / 1000.0;
+      if (r.status == 0) std::snprintf(buf, sizeof buf, "Failed after %.1f s: %s", sec, r.error.c_str());
+      else if (r.status == 200) std::snprintf(buf, sizeof buf, "HTTP 200 in %.1f s: %s", sec, r.body.substr(0, 60).c_str());
+      else std::snprintf(buf, sizeof buf, "HTTP %d in %.1f s", r.status, sec);
+      result_->setText(buf);
+      POS_LOG("ha", "test: status=%d %.1f s", r.status, sec);
+    });
+  }
+  ui::Label* result_ = nullptr;
+
  public:
   void build(ui::Column& root) override {
     setTitle("Home Assistant");
@@ -163,7 +387,10 @@ class HaPage : public Page {
       l->maxLines = 3;
     }
     root.add<ui::Spacer>(ui::s3);
-    root.add<ui::Button>("Test connection", [this] { ctx().toast("Not available yet"); }, ui::Button::Kind::Secondary);
+    result_ = root.add<ui::Label>("", Type::Body, ui::secondary);
+    result_->maxLines = 3;
+    root.add<ui::Spacer>(ui::s2);
+    root.add<ui::Button>("Test connection", [this] { test(); }, ui::Button::Kind::Secondary);
   }
 };
 
@@ -232,12 +459,33 @@ class DeveloperPage : public Page {
       off->host()->addOverlay(std::move(sheet));
     };
     root.add<ui::Spacer>(ui::s1);
-    root.add<ui::Button>("Reboot", [] { hal::restart(); }, ui::Button::Kind::Secondary);
+    auto* row2 = root.add<ui::Row>(ui::s2);
+    auto* http = row2->add<ui::Button>("HTTP test", [this] { httpTest(); }, ui::Button::Kind::Secondary);
+    http->flex = 1;
+    auto* reboot = row2->add<ui::Button>("Reboot", [] { hal::restart(); }, ui::Button::Kind::Secondary);
+    reboot->flex = 1;
     update();
   }
   void onShow() override { update(); }
 
  private:
+  // HTTPS GET of a public page: brings Wi-Fi up if needed; shows the status, time and free heap right after.
+  void httpTest() {
+    hal::HttpRequest req;
+    req.url = "https://www.example.com/";
+    ctx().toast("HTTP test...");
+    const uint32_t t0 = ctx().clock.millis();
+    ctx().http(req, [this, t0](hal::HttpResponse r) {
+      char buf[120];
+      const double sec = (ctx().clock.millis() - t0) / 1000.0;
+      if (r.status == 0) std::snprintf(buf, sizeof buf, "HTTP test failed: %s", r.error.c_str());
+      else std::snprintf(buf, sizeof buf, "HTTP %d, %u bytes in %.1f s, heap %u KB free", r.status, static_cast<unsigned>(r.body.size()), sec,
+                         static_cast<unsigned>(hal::memoryInfo().heapFree / 1024));
+      ctx().toast(buf);
+      POS_LOG("net", "http test: status=%d %.1f s", r.status, sec);
+    });
+  }
+
   void update() {
     hal::MemoryInfo m = hal::memoryInfo();
     heap_->setTrailingText(kbText(m.heapFree) + " / " + kbText(m.heapTotal));

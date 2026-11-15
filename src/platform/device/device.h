@@ -7,6 +7,7 @@
 #include "hal/clock.h"
 #include "hal/display.h"
 #include "hal/input.h"
+#include "hal/net.h"
 #include "hal/power.h"
 
 namespace pos::device {
@@ -42,6 +43,20 @@ class Clock : public hal::Clock {
   uint32_t millis() override;
   int64_t now() override;
   void set(int64_t unixSeconds) override;
+};
+
+// WiFi STA + HTTPClient (TLS with the built-in certificate bundle, one kept-alive connection, bodies capped at 512 KB).
+class Net : public hal::Net {
+ public:
+  bool wifiConnect(const std::string& ssid, const std::string& pass, uint32_t timeoutMs, const std::string& bssid = "",
+                   int channel = 0) override;
+  void wifiOff() override;
+  bool wifiConnected() override;
+  int rssi() override;
+  hal::WifiLink link() override;
+  std::vector<hal::WifiNetwork> scan() override;
+  hal::HttpResponse request(const hal::HttpRequest& req) override;
+  int64_t syncTime(uint32_t timeoutMs) override;
 };
 
 // Battery (8 samples averaged, 5 % steps), light sleep with touch + timer wake, power off.

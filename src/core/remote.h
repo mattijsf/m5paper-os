@@ -6,6 +6,7 @@
 //   >tap x y   >long x y   >swipe x1 y1 x2 y2    inject touch events as a real touch would
 //   >log                        #log <bytes>\n + the last 50 log lines, then #ok
 //   >refresh                    #refresh <bytes>\n + the last 50 refresh-log lines, then #ok
+//   >status                     #status <bytes>\n + key names and lengths (never values), Wi-Fi, memory; then #ok
 //   >set key value              platform debug switch: ">set epd-timing on" (device), ">set screen widgets2"
 //                               (a UI test screen, an app id, or "launcher")
 //   >reboot                     #ok, then restart
@@ -35,7 +36,7 @@ class RemoteHost {
 };
 
 struct RemoteCommand {
-  enum Kind { None, Shot, Tap, Long, Swipe, Log, Refresh, Reboot, Set } kind = None;
+  enum Kind { None, Shot, Tap, Long, Swipe, Log, Refresh, Reboot, Set, Status } kind = None;
   std::string key, value;  // Set
   int x1 = 0, y1 = 0, x2 = 0, y2 = 0;
   std::string error;  // set when parsing fails (kind stays None)
