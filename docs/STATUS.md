@@ -42,6 +42,14 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 - **`/sd/paperos_config` exists** with one key: `HA_TOKEN` (183 characters). Checked by key
   name and length only. No `HA_URL`, `WIFI_SSID` or `WIFI_PASSWORD` yet.
 
+## How the owner wants to work (2026-11-15)
+
+- Autonomous: no git questions (commit to `main`), no "please look at the device". Show
+  progress with simulator screenshots sent to the user; verify the device through serial log,
+  frame dump and injected taps (task P1-8, scheduled right after P1-2).
+- Design previews (mockups of launcher, reader, Home, inbox) were shown in chat on 2026-11-15;
+  no objections recorded yet. The source of truth for the look stays `UI.md`.
+
 ## Decisions taken with the owner (2026-11-15)
 
 | Topic | Answer | Recorded in |

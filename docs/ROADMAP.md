@@ -82,7 +82,8 @@ DisplayManager, and the simulator can run scripts and compare screenshots.
   Do: `src/platform/sim/script.cpp` (commands: wait, shot, tap, swipe, long, back,
   expect-no-quality, expect-max-pushed; battery/wifi/type can come with their features);
   CLI flags `--script --out --data --time --app`; `tools/ui-test.sh`; Makefile targets `test`,
-  `ui-test`, `ui-accept`, and `check` = sim + test + ui-test + fw; doctest header in
+  `ui-test`, `ui-accept`, `gallery` (writes `out/gallery.html`: every UI test screenshot with
+  its name, for the user to browse), and `check` = sim + test + ui-test + fw; doctest header in
   `tests/unit/`; first script `tests/ui/demo.script` with golden.
   Done when: `make check` runs all four stages and passes; changing a pixel in the demo makes
   `make ui-test` fail and name the image.
@@ -111,6 +112,28 @@ DisplayManager, and the simulator can run scripts and compare screenshots.
   generation drops the callback.
   Done when: unit tests pass; demo: tapping a tile starts a 1 s fake job on the worker and the
   tile label changes when it completes, in sim and on device.
+
+- [ ] **P1-8 Device remote control over USB: frame dump and injected touch.**
+  Why: the user does not want to look at or touch the device during development. This makes
+  device checks scriptable. Do it right after P1-2 (it needs only the device HAL).
+  Do: a serial line reader in `platform/device` (lines starting with `>`), dispatching to
+  shared handlers in `src/core/remote.{h,cpp}` so the simulator can accept the same commands
+  on stdin with `--remote`:
+  `>shot` replies `#shot 540 960 <bytes> <crc32>` + newline, then the current frame as raw
+  4-bit packed pixels (129600 bytes) taken from the canvas (after P1-3: from the
+  DisplayManager's shadow, i.e. what was pushed to the panel);
+  `>tap x y`, `>long x y`, `>swipe x1 y1 x2 y2` inject touch events into the input queue
+  exactly as real touches; `>log` prints the last 50 log lines; `>refresh` prints the refresh
+  log tail (after P1-3); `>reboot`.
+  `tools/device.py` (pyserial from `~/.platformio/penv/bin/python`): `shot out/device.png`
+  (verifies the CRC, writes a PNG), `tap X Y`, `swipe ...`, `log`, `wait-boot`. Makefile:
+  `make device-shot`.
+  Tests: handler parsing in unit tests (from P1-5 on); round trip against the simulator.
+  Done when: `make device-shot` writes `out/device.png` from the real device and it is
+  pixel-identical to `make shot` for the same screen; `tools/device.py tap 140 300` draws the
+  touch marker on the device (visible in the next `device-shot`).
+  Limits to state in reports: the dump shows what the firmware drew, not what the panel
+  physically shows (ghosting, incomplete waveforms).
 
 ## Phase 2: UI kit and app framework
 
@@ -198,9 +221,8 @@ simulator first; each task ends with screenshots.
 - [ ] **P3-3 Secrets from the SD card, serial commands.**
   Read: apps/settings.md (Secrets and provisioning), BACKEND.md (Connection), DECISIONS.md D19.
   Do: `src/core/secrets.{h,cpp}`: parse `/sd/paperos_config` (KEY=VALUE) at boot, `get(key)`,
-  `has(key)`; never log values. Net service tries `WIFI_SSID`/`WIFI_PASSWORD` first. Serial
-  line reader on the device (`>cmd args`): `>status` (key names + lengths, Wi-Fi, heap),
-  `>reboot`, `>log`. Simulator reads `sim-data/sd/paperos_config`.
+  `has(key)`; never log values. Net service tries `WIFI_SSID`/`WIFI_PASSWORD` first. Add to the
+  serial commands from P1-8: `>status` (key names + lengths, Wi-Fi, heap). Simulator reads `sim-data/sd/paperos_config`.
   Tests: parser (comments, blank lines, CRLF, `=` inside the value, missing file).
   Done when: unit tests pass; `>status` on the device lists `HA_TOKEN(183)` and no value; a
   grep of the firmware log for the first 8 characters of the token finds nothing (do the grep
@@ -317,7 +339,9 @@ home-assistant repo's own rules. Read BACKEND.md fully before any of them.
 
 - [ ] **P7-1 Display lab and tuning.** Developer > Display lab; tune defaults on the device;
   sub-rectangle push optimisation; optional custom Text waveform (DECISIONS.md D6).
-- [ ] **P7-2 Scripted tests on the device** over the serial command channel (`>tap`, `>shot`).
+- [ ] **P7-2 UI scripts on the device.** `tools/device.py script tests/ui/<name>.script` runs
+  the simulator's script commands against the device through the P1-8 commands and compares
+  the frame dumps with the goldens (pixel-identical expected: same code, same fonts).
 - [ ] **P7-3 Over-the-air update.** `make ota` uploads to the device over Wi-Fi (ArduinoOTA or
   an HTTP upload endpoint), using the second app slot; rollback if the new image does not boot.
 - [ ] **P7-4 Book upload over Wi-Fi.** Reader menu "Add books": device shows its address, a
@@ -344,7 +368,7 @@ home-assistant repo's own rules. Read BACKEND.md fully before any of them.
 | Consistent modern UI with icons | UI.md; P1-6, P2-1..P2-7 |
 | Fast | Fast-then-settle (D6), cache-first apps, fast resume (P3-6) |
 | Fits the device | budgets in ARCHITECTURE.md (firmware < 3 MB of 5 MB slot) |
-| Testable with and without device | SIMULATOR.md; P1-4, P1-5, P7-2 |
+| Testable with and without device | SIMULATOR.md; P1-4, P1-5, P1-8 (device frame dump + injected touch), P7-2 |
 | E-books | P4; open books fetched by `tools/fetch-books.sh`, pushed to the card in P4-0 |
 | Easy to add apps | APPS.md; P2-4, P2-5 |
 | WhatsApp unread | P6 (Home Assistant WhatsApp add-on, D16) |
