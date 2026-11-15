@@ -35,6 +35,8 @@ struct RefreshEntry {
   Rect rect;
   uint32_t changed = 0;  // pixels that differed from the shadow (settle and clean passes: region area)
   const char* why = "";   // "feedback", "content", "screen", "image", "settle", "clean", "boot"
+  uint32_t diffMs = 0;    // time spent comparing the canvas with the shadow before the push
+  uint32_t pushMs = 0;    // time the hal::Display::push call itself took (it may block)
 };
 
 constexpr uint32_t kNoDeadline = 0xFFFFFFFFu;
@@ -71,8 +73,8 @@ class DisplayManager {
   // Last lines of the refresh log as text: "t=<ms> mode=<Q|T|F> rect=x,y,w,h changed=<n> why=<..>".
   std::string refreshLogTail(int maxLines = 20) const;
   // What the panel was last given, 4 bits per pixel (two per byte, high nibble first, 0 black .. 15
-  // white): the same format as the >shot dump.
-  const std::vector<uint8_t>& shadowPacked() const { return shadow_; }
+  // white): the same format as the >shot dump. Built on demand from the shadow copy.
+  std::vector<uint8_t> shadowPacked() const;
 
  private:
   struct Pending {
@@ -86,19 +88,17 @@ class DisplayManager {
   };
 
   void pushPass(Rect r, Hint hint);
-  void push(Rect r, Refresh mode, uint32_t changed, const char* why);
+  void push(Rect r, Refresh mode, uint32_t changed, const char* why, uint32_t diffMs = 0);
   // Diff `r` against the shadow: returns the bounding box of changed pixels (empty if none).
-  Rect diff(Rect r, uint32_t& changed, bool& onlyBlackWhite) const;
+  Rect diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool wantBw) const;
   void updateShadow(Rect r);
   void addSettle(Rect r, float added, uint32_t nowMs);
-  uint8_t level(int x, int y) const;
-  uint8_t shadowAt(size_t i) const;
 
   hal::Display& display_;
   Canvas& canvas_;
   hal::Clock& clock_;
   DisplayParams params_;
-  std::vector<uint8_t> shadow_;
+  std::vector<uint8_t> shadow_;  // the canvas as last pushed (8-bit, exact copy): unchanged rows are found with memcmp
   bool shadowValid_ = false;
   std::vector<Pending> pending_;
   std::vector<Settle> settles_;

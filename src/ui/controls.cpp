@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "ui/root.h"
+
 namespace pos::ui {
 
 void strokeRound(Canvas& c, Rect r, int radius, int stroke, Color color) {
@@ -17,20 +19,38 @@ void Pressable::setPressed(bool p) {
   invalidate(Hint::Feedback);
 }
 
+Pressable::~Pressable() { *alive_ = false; }
+
+void Pressable::beginPress() {
+  pos::Timers* timers = host() ? host()->timers() : nullptr;
+  if (!timers) {
+    setPressed(true);
+    return;
+  }
+  const uint32_t seq = ++pressSeq_;
+  timers->after(kPressDelayMs, [this, seq, alive = std::weak_ptr<bool>(alive_)] {
+    auto a = alive.lock();
+    if (a && *a && seq == pressSeq_) setPressed(true);
+  });
+}
+
 bool Pressable::onTouch(const Gesture& g) {
   switch (g.type) {
     case Gesture::Down:
-      if (enabled) setPressed(true);
+      if (enabled) beginPress();
       return true;
     case Gesture::Tap:
+      cancelPress();
       setPressed(false);
       if (enabled) activate();  // last: the handler may rebuild the screen
       return true;
     case Gesture::LongPress:
+      cancelPress();
       setPressed(false);
       if (enabled && onLongPress) onLongPress();
       return true;
     case Gesture::Cancel:
+      cancelPress();
       setPressed(false);
       return true;
     default:

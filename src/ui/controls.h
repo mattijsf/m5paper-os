@@ -4,6 +4,7 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <string>
 
 #include "ui/label.h"
@@ -18,6 +19,7 @@ class Pressable : public Widget {
   std::function<void()> onLongPress;
   bool enabled = true;
 
+  ~Pressable() override;
   bool pressed() const { return pressed_; }
   // Forces the look (tests, specimen sheets); a real touch sets it on Down and clears it on Tap/Cancel.
   void setPressed(bool p);
@@ -26,6 +28,12 @@ class Pressable : public Widget {
  protected:
   virtual void activate() { if (onClick) onClick(); }  // Tap
   bool pressed_ = false;
+
+ private:
+  void beginPress();   // shows the pressed look after kPressDelayMs (at once without timers)
+  void cancelPress() { ++pressSeq_; }
+  uint32_t pressSeq_ = 0;
+  std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
 };
 
 class Button : public Pressable {

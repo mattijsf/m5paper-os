@@ -22,6 +22,9 @@ constexpr int kRowH = 96;             // preferred row height
 constexpr int kRadius = 16;           // tiles and buttons
 constexpr int kRadiusSmall = 8;       // chips
 constexpr int kStroke = 2;
+// A pressed look is drawn only if the finger is still down after this long: a quick tap goes straight to its
+// result (one Fast pass instead of two, and no waveform still running when the next screen is built).
+constexpr uint32_t kPressDelayMs = 120;
 
 // Screen anatomy
 constexpr int kStatusBarH = 56;

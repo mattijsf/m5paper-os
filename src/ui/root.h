@@ -19,6 +19,7 @@ class Root : public Surface {
   ~Root() override;
 
   Canvas& canvas() { return canvas_; }
+  Timers* timers() { return timers_; }
   DisplayManager& displayManager() { return dm_; }
 
   // Takes the root, gives it the full screen and lays it out. Marks everything dirty (Screen hint).

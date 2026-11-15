@@ -80,7 +80,12 @@ void Os::loopOnce() {
   worker_.runCompleted();
   timers_.runDue();
   // 4. draw what changed (widgets mark themselves dirty), then commit what was invalidated
-  if (surface_) surface_->render(canvas_, dm_);
+  if (surface_) {
+    const uint32_t t0 = p_.clock.millis();
+    surface_->render(canvas_, dm_);
+    const uint32_t dt = p_.clock.millis() - t0;
+    if (dt >= 30) POS_LOG("perf", "render took %ums", static_cast<unsigned>(dt));  // layout + drawing of a screen change
+  }
   if (dm_.dirty()) dm_.commit();
   dm_.tick(p_.clock.millis());
 }

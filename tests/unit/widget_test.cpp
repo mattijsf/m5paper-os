@@ -645,3 +645,48 @@ TEST_CASE("EmptyState: icon, title, hint and an optional button, centered") {
   auto bare = std::make_unique<EmptyState>(Icon::Mail, "Nothing here");
   CHECK(bare->button() == nullptr);
 }
+
+// ---- press feedback delay (navigation speed rule)
+
+TEST_CASE("Pressable: a quick tap never shows the pressed look; holding past 120 ms does") {
+  TFixture f;
+  auto root = std::make_unique<Column>();
+  auto* b = root->add<Button>("Open");
+  int clicks = 0;
+  b->onClick = [&] { ++clicks; };
+  f.screen.setRoot(std::move(root));
+  f.screen.render(f.canvas, f.dm);
+  f.dm.commit();
+
+  // quick tap: Down, then Tap before the delay
+  f.screen.onGesture(g(Gesture::Down, 20, 20));
+  CHECK_FALSE(b->pressed());
+  CHECK_FALSE(f.screen.dirty());  // nothing queued: no Feedback push
+  f.clock.ms += kPressDelayMs - 1;
+  f.timers.runDue();
+  CHECK_FALSE(b->pressed());
+  f.screen.onGesture(g(Gesture::Tap, 20, 20));
+  CHECK(clicks == 1);
+  CHECK_FALSE(b->pressed());
+  f.clock.ms += 1000;  // the cancelled press timer must not fire later
+  f.timers.runDue();
+  CHECK_FALSE(b->pressed());
+  CHECK_FALSE(f.screen.dirty());
+
+  // held: the pressed look appears after the delay and goes with the Tap
+  f.screen.onGesture(g(Gesture::Down, 20, 20));
+  f.clock.ms += kPressDelayMs;
+  f.timers.runDue();
+  CHECK(b->pressed());
+  CHECK(f.screen.dirty());
+  f.screen.onGesture(g(Gesture::Tap, 20, 20));
+  CHECK_FALSE(b->pressed());
+  CHECK(clicks == 2);
+
+  // a widget destroyed while its press timer is pending must not be touched
+  f.screen.onGesture(g(Gesture::Down, 20, 20));
+  f.screen.root()->remove(b);  // destroys the Button (the returned owner is dropped)
+  f.clock.ms += 1000;
+  f.timers.runDue();           // fires the stale timer: must be a no-op
+  CHECK(clicks == 2);
+}

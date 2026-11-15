@@ -248,6 +248,13 @@ None of these block Phase 1, Phase 2, or the reader.
   device: that the Display settings change real behaviour over time (ghost cleans), and "Clean screen now"
   (Quality flash) was not run on the panel.
 
+- Navigation speed (2026-11-15, commit "Display: do not wait for press feedback"): tap to the new screen's Fast pass
+  done went from 925 ms (Read tile; ~1 s for a row) to **605 ms** on the device (injected taps, epd timing
+  mode); diff 107-229 -> 21-29 ms, render 116 -> 57 ms, push call 531 -> 88 ms. Cause and fixes (press
+  look after 120 ms of holding, cheaper diff) in `docs/DISPLAY.md` "Navigation speed". Unit tests:
+  `Pressable: a quick tap never shows the pressed look`, the diff span tests. Not verified: how the delayed
+  pressed look feels under a real finger (a hold >120 ms shows it).
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -278,3 +285,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P2-4. App framework, Shell, store/cache, chrome widgets; ui::Screen renamed ui::Root.
 - 2026-11-15: P2-5. Launcher grid, placeholder apps, app template, new-app.sh; demo screen removed.
 - 2026-11-15: P2-6. Config, secrets, time zone, Settings; ui-test uses one data root per script.
+- 2026-11-15: navigation speed: press look delayed 120 ms, cheaper diff; 925 -> 605 ms to a new screen.

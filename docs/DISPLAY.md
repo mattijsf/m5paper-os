@@ -58,7 +58,7 @@ The DisplayManager maps hints to panel modes:
 
 | Hint | First pass | Settle pass | Notes |
 |---|---|---|---|
-| Feedback | Fast, immediately | none if the *changed pixels* are pure black/white, else Text | must reach the panel within 100 ms of the touch |
+| Feedback | Fast, immediately (a pressed look: after 120 ms of holding, see "Navigation speed") | none if the *changed pixels* are pure black/white, else Text | the result of a tap must reach the panel within 100 ms of the Up |
 | Content | Fast | Text after 600 ms without further changes in the region | "fast then settle" |
 | Screen | Fast full screen | Text after 600 ms; **Quality instead** if the ghost budget is spent | navigation is the natural place to hide a clean |
 | Image | Quality on the image rect | none | only place a flash is expected |
@@ -111,6 +111,39 @@ can be tuned on the device without rebuilding (task P7-1).
   M5GFX queues up to 8 updates itself and merges overlapping ones. `>set epd-timing on` makes the
   device wait after each push and log `[epd] ... push+waveform <ms> done t=<ms>` (blocks the UI:
   debug only).
+
+## Navigation speed (2026-11-15)
+
+Measured on the device with `tools/device.py tap` and `refresh` (injected taps, so Down and Up are
+60 ms apart), opening a screen from a row or tile:
+
+| | before | after |
+|---|---|---|
+| tap to the new screen's Fast pass done (epd timing mode) | 925 ms (Read tile), ~1 s (row) | **605 ms** (tile and back arrow; row alike) |
+| `diff` of the new screen against the shadow | 107-229 ms | 21-29 ms |
+| layout + drawing the new screen (`[perf] render`) | 116 ms | 56-60 ms |
+| `hal::Display::push` call of the screen pass | 531 ms | 88 ms |
+
+What was slow: (1) the pressed look of the tapped row was pushed on Down and its waveform (~250 ms) was
+still running when the screen was built and pushed. **While an EPD waveform runs, every access to PSRAM is
+several times slower** (the EPD task streams frame buffers from PSRAM): the diff, the drawing and the
+`pushSprite` conversion of the next screen all crawled, and the push call even waited ~0.5 s. (2) The diff
+looked at every pixel of the 400 000 changed ones.
+
+Fixes: (1) **Press feedback delay**: `Pressable` shows its pressed look only if the finger is still down
+after `ui::kPressDelayMs` = 120 ms; a quick tap goes straight to its result, one Fast pass, no waveform
+running while the next screen is built (and half the Fast passes, so less ghost budget). The 100 ms
+Feedback promise now applies to what the tap *does*, not to a pressed look for taps shorter than 120 ms.
+Segmented, LevelBar and TabBar still preview on Down (their result is the preview). (2) **Cheaper diff**: the
+shadow is an exact 8-bit copy of the last pushed canvas; per row 8 bytes at a time find the first and last
+changed pixel (sub-level noise trimmed at the ends), `changed` counts the changed span of each row (the
+ghost score is a hair high when pixels inside a span are unchanged), and the black/white check only runs for
+Feedback regions. The refresh log now prints `diff=<ms>` and `call=<ms>` per push, and the loop logs
+`[perf] render took <ms>` for passes of 30 ms or more.
+
+Remaining cost of a screen change: Up (60-150 ms) + render 57 + diff 25 + push call 88 + the Fast waveform
+(~400 ms for a 492 x 824 area; fixed by the panel). Further savings would need a smaller changed area or a
+cheaper layout pass, not different scheduling.
 
 ## Rules for UI code (enforced in review, see UI.md)
 

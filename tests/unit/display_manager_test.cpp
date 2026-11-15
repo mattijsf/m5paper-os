@@ -259,3 +259,42 @@ TEST_CASE("refresh log text lists the pushes") {
   std::string log = f.dm.refreshLogTail(5);
   CHECK(log.find("mode=F rect=200,300,10,10 changed=100 why=screen") != std::string::npos);
 }
+
+TEST_CASE("diff: only the changed span of each row counts; unchanged rows cost nothing") {
+  Fixture f;
+  f.fill(Rect{100, 50, 30, 4}, kBlack);    // rows 50..53, x 100..129
+  f.fill(Rect{300, 700, 5, 1}, kBlack);    // a far away single row
+  f.dm.invalidate(kFull, Hint::Screen);
+  f.dm.commit();
+  REQUIRE(f.display.pushes.size() == 1);
+  const Rect r = f.display.pushes[0].rect;
+  CHECK(r.x == 100);
+  CHECK(r.y == 50);
+  CHECK(r.x + r.w == 305);
+  CHECK(r.y + r.h == 701);
+  // changed = 4 rows x 30 + 1 row x 5
+  CHECK(f.dm.refreshLogTail(1).find("changed=125") != std::string::npos);
+}
+
+TEST_CASE("diff: noise at the ends of a span is trimmed, a changed pixel inside is kept") {
+  Fixture f;
+  f.fill(Rect{10, 10, 40, 1}, 0xF8F8F8u);  // 248 still level 15: no change at all
+  f.fill(Rect{20, 10, 1, 1}, kBlack);      // one real change in the middle
+  f.dm.invalidate(kFull, Hint::Screen);
+  f.dm.commit();
+  REQUIRE(f.display.pushes.size() == 1);
+  CHECK(f.display.pushes[0].rect.x == 20);
+  CHECK(f.display.pushes[0].rect.w == 1);
+}
+
+TEST_CASE("navigation: a screen change right after a Down pushes one Screen pass, no Feedback first") {
+  Fixture f;
+  // the pressed look is not queued on Down (see Pressable); the tap then replaces the screen
+  f.fill(kFull, gray(4));
+  f.dm.invalidateAll(Hint::Screen);
+  f.dm.commit();
+  REQUIRE(f.display.pushes.size() == 1);
+  CHECK(f.display.pushes[0].mode == Refresh::Fast);
+  CHECK(f.dm.refreshLogTail(1).find("why=screen") != std::string::npos);
+  CHECK(f.dm.refreshLogTail(1).find("why=feedback") == std::string::npos);
+}

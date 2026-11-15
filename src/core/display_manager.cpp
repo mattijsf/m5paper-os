@@ -1,6 +1,7 @@
 #include "core/display_manager.h"
 
 #include <algorithm>
+#include <cstring>
 #include <cstdio>
 
 #include "core/log.h"
@@ -38,16 +39,24 @@ constexpr float kScreenPixels = static_cast<float>(kScreenW) * kScreenH;
 
 DisplayManager::DisplayManager(hal::Display& display, Canvas& canvas, hal::Clock& clock, DisplayParams params)
     : display_(display), canvas_(canvas), clock_(clock), params_(params),
-      shadow_(static_cast<size_t>(kScreenW) * kScreenH / 2, 0xFF) {}
+      shadow_(static_cast<size_t>(kScreenW) * kScreenH, 0xFF) {}
 
-uint8_t DisplayManager::level(int x, int y) const {
-  const auto* src = static_cast<const uint8_t*>(canvas_.getBuffer());
-  return static_cast<uint8_t>((src[static_cast<size_t>(y) * kScreenW + x] + 8) / 17);
-}
+namespace {
+// 8-bit gray -> panel level 0..15 (what the panel can show).
+struct QuantTable {
+  uint8_t q[256];
+  QuantTable() {
+    for (int i = 0; i < 256; ++i) q[i] = static_cast<uint8_t>((i + 8) / 17);
+  }
+};
+const QuantTable kQuant;
+}  // namespace
 
-uint8_t DisplayManager::shadowAt(size_t i) const {
-  uint8_t b = shadow_[i / 2];
-  return (i & 1) ? (b & 15) : (b >> 4);
+std::vector<uint8_t> DisplayManager::shadowPacked() const {
+  std::vector<uint8_t> out(shadow_.size() / 2);
+  for (size_t i = 0; i < out.size(); ++i)
+    out[i] = static_cast<uint8_t>((kQuant.q[shadow_[2 * i]] << 4) | kQuant.q[shadow_[2 * i + 1]]);
+  return out;
 }
 
 void DisplayManager::invalidate(Rect r, Hint hint) {
@@ -62,23 +71,52 @@ void DisplayManager::invalidate(Rect r, Hint hint) {
   pending_.push_back({r, hint});
 }
 
-Rect DisplayManager::diff(Rect r, uint32_t& changed, bool& onlyBlackWhite) const {
+Rect DisplayManager::diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool wantBw) const {
   const auto* src = static_cast<const uint8_t*>(canvas_.getBuffer());
+  const uint8_t* old = shadow_.data();
   int minX = r.x + r.w, minY = r.y + r.h, maxX = -1, maxY = -1;
   changed = 0;
   onlyBlackWhite = true;
   for (int y = r.y; y < r.y + r.h; ++y) {
-    const uint8_t* row = src + static_cast<size_t>(y) * kScreenW;
-    size_t base = static_cast<size_t>(y) * kScreenW;
-    for (int x = r.x; x < r.x + r.w; ++x) {
-      uint8_t q = static_cast<uint8_t>((row[x] + 8) / 17);
-      if (shadowValid_ && q == shadowAt(base + x)) continue;
-      ++changed;
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
-      if (q != 0 && q != 15) onlyBlackWhite = false;
+    const size_t base = static_cast<size_t>(y) * kScreenW;
+    const uint8_t* row = src + r.x + base;
+    const uint8_t* orow = old + r.x + base;
+    const int w = r.w;
+    int lo = 0, hi = w - 1;
+    if (shadowValid_) {
+      // First and last differing pixel of the row, 8 bytes at a time; sub-level noise (different raw
+      // values, same panel level) is then trimmed off both ends. Unchanged rows cost one pass.
+      int i = 0;
+      while (i + 8 <= w) {
+        uint64_t a, b;
+        std::memcpy(&a, row + i, 8);
+        std::memcpy(&b, orow + i, 8);
+        if (a != b) break;
+        i += 8;
+      }
+      while (i < w && row[i] == orow[i]) ++i;
+      if (i >= w) continue;
+      lo = i;
+      int j = w - 1;
+      while (j > lo && row[j] == orow[j]) --j;
+      hi = j;
+      while (lo <= hi && kQuant.q[row[lo]] == kQuant.q[orow[lo]]) ++lo;
+      while (hi >= lo && kQuant.q[row[hi]] == kQuant.q[orow[hi]]) --hi;
+      if (lo > hi) continue;
+    }
+    changed += static_cast<uint32_t>(hi - lo + 1);  // the changed span of the row (interior noise included)
+    minX = std::min(minX, r.x + lo);
+    maxX = std::max(maxX, r.x + hi);
+    minY = std::min(minY, y);
+    maxY = y;
+    if (wantBw && onlyBlackWhite) {
+      for (int x = lo; x <= hi; ++x) {
+        const uint8_t q = kQuant.q[row[x]];
+        if (q != 0 && q != 15) {
+          onlyBlackWhite = false;
+          break;
+        }
+      }
     }
   }
   if (changed == 0) return Rect{};
@@ -87,32 +125,31 @@ Rect DisplayManager::diff(Rect r, uint32_t& changed, bool& onlyBlackWhite) const
 }
 
 void DisplayManager::updateShadow(Rect r) {
+  const auto* src = static_cast<const uint8_t*>(canvas_.getBuffer());
   for (int y = r.y; y < r.y + r.h; ++y) {
-    size_t base = static_cast<size_t>(y) * kScreenW;
-    for (int x = r.x; x < r.x + r.w; ++x) {
-      size_t i = base + x;
-      uint8_t q = level(x, y);
-      uint8_t& b = shadow_[i / 2];
-      b = (i & 1) ? static_cast<uint8_t>((b & 0xF0) | q) : static_cast<uint8_t>((b & 0x0F) | (q << 4));
-    }
+    const size_t i = static_cast<size_t>(y) * kScreenW + r.x;
+    std::memcpy(shadow_.data() + i, src + i, r.w);
   }
 }
 
-void DisplayManager::push(Rect r, Refresh mode, uint32_t changed, const char* why) {
+void DisplayManager::push(Rect r, Refresh mode, uint32_t changed, const char* why, uint32_t diffMs) {
   uint32_t now = clock_.millis();
   display_.push(canvas_, r, mode);
+  const uint32_t pushMs = clock_.millis() - now;
   RefreshEntry e;
   e.t = now;
   e.mode = mode == Refresh::Quality ? 'Q' : mode == Refresh::Text ? 'T' : 'F';
   e.rect = r;
   e.changed = changed;
   e.why = why;
+  e.diffMs = diffMs;
+  e.pushMs = pushMs;
   log_.push_back(e);
   if (log_.size() > kLogMax) log_.erase(log_.begin(), log_.begin() + (log_.size() - kLogMax));
   lastActivityMs_ = now;
   (mode == Refresh::Quality ? counts_.quality : mode == Refresh::Text ? counts_.text : counts_.fast)++;
-  POS_LOG("disp", "push %c rect=%d,%d,%d,%d changed=%u why=%s", e.mode, r.x, r.y, r.w, r.h,
-          static_cast<unsigned>(changed), why);
+  POS_LOG("disp", "push %c rect=%d,%d,%d,%d changed=%u why=%s diff=%ums call=%ums", e.mode, r.x, r.y, r.w, r.h,
+          static_cast<unsigned>(changed), why, static_cast<unsigned>(diffMs), static_cast<unsigned>(pushMs));
 }
 
 void DisplayManager::addSettle(Rect r, float added, uint32_t nowMs) {
@@ -133,20 +170,22 @@ void DisplayManager::addSettle(Rect r, float added, uint32_t nowMs) {
 void DisplayManager::pushPass(Rect r, Hint hint) {
   uint32_t changed = 0;
   bool bw = true;
-  Rect box = diff(r, changed, bw);
+  const uint32_t t0 = clock_.millis();
+  Rect box = diff(r, changed, bw, hint == Hint::Feedback);
   if (box.empty()) return;
   const uint32_t now = clock_.millis();
+  const uint32_t dms = now - t0;
   const float added = static_cast<float>(changed) / kScreenPixels;
 
   switch (hint) {
     case Hint::Feedback:
-      push(box, Refresh::Fast, changed, "feedback");
+      push(box, Refresh::Fast, changed, "feedback", dms);
       score_ += added;
       updateShadow(box);
       if (!bw) addSettle(box, added, now);
       break;
     case Hint::Content:
-      push(box, Refresh::Fast, changed, "content");
+      push(box, Refresh::Fast, changed, "content", dms);
       score_ += added;
       updateShadow(box);
       addSettle(box, added, now);
@@ -155,20 +194,20 @@ void DisplayManager::pushPass(Rect r, Hint hint) {
       if (score_ >= params_.ghostLimit) {
         // Navigation hides the clean: one Quality flash over the whole screen.
         Rect full{0, 0, kScreenW, kScreenH};
-        push(full, Refresh::Quality, changed, "screen");
+        push(full, Refresh::Quality, changed, "screen", dms);
         updateShadow(full);
         shadowValid_ = true;
         score_ = 0;
         settles_.clear();
       } else {
-        push(box, Refresh::Fast, changed, "screen");
+        push(box, Refresh::Fast, changed, "screen", dms);
         score_ += added;
         updateShadow(box);
         addSettle(box, added, now);
       }
       break;
     case Hint::Image:
-      push(box, Refresh::Quality, changed, "image");
+      push(box, Refresh::Quality, changed, "image", dms);
       updateShadow(box);
       // The image area no longer needs a settle pass.
       for (size_t i = 0; i < settles_.size();) {
@@ -249,8 +288,9 @@ std::string DisplayManager::refreshLogTail(int maxLines) const {
   for (size_t i = from; i < n; ++i) {
     const RefreshEntry& e = log_[i];
     char buf[120];
-    std::snprintf(buf, sizeof buf, "t=%u mode=%c rect=%d,%d,%d,%d changed=%u why=%s\n", static_cast<unsigned>(e.t),
-                  e.mode, e.rect.x, e.rect.y, e.rect.w, e.rect.h, static_cast<unsigned>(e.changed), e.why);
+    std::snprintf(buf, sizeof buf, "t=%u mode=%c rect=%d,%d,%d,%d changed=%u why=%s diff=%u call=%u\n", static_cast<unsigned>(e.t),
+                  e.mode, e.rect.x, e.rect.y, e.rect.w, e.rect.h, static_cast<unsigned>(e.changed), e.why,
+                  static_cast<unsigned>(e.diffMs), static_cast<unsigned>(e.pushMs));
     out += buf;
   }
   return out;
