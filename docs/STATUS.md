@@ -8,7 +8,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   a spike that draws one mock home screen from shared code on both, and the full plan/docs.
 - **P1-1 is done** (2026-11-15): HAL interfaces (`src/hal`), `POS_LOG`, `pos::fs`, `pos::Os`.
   Both `main.cpp` files build a `hal::Platform` and call `Os`; HAL classes are thin stubs.
-- **Next task: P1-2** (device HAL: display, touch, clock, storage) in `ROADMAP.md`.
+- **P1-2 is done** (2026-11-15): `src/platform/device/{display,input,clock,storage}.cpp`, SD at
+  `/sd`, LittleFS at `/littlefs`; `/data/test.txt` survives reboots and reflashes.
+- **Next task: P1-8** (device remote control: frame dump, injected touch), then P1-3.
 - The device runs the **spike firmware**: one static mock launcher. It is not interactive: a
   tap only draws a black dot. There are no apps or settings screens yet (the owner tried to open
   Settings on 2026-11-15; that arrives with tasks P2-5 and P2-6).
@@ -75,7 +77,14 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 ## Pending device checks
 
-(none: P1-1 device check was run, see Log)
+- P1-2: **real finger tap** logging `[touch] x= y=` through `Input::update()` (no tool can
+  press the GT911). Injected taps (P1-8) cover everything after the input queue, not the
+  translation from `M5.Touch`. Batch with the next time the user looks at the device.
+- P1-2: boot without an SD card must log `no SD card` and continue (code path written, not
+  run: the card stays in the device).
+- P1-2: `Clock::set()` and RTC reads of a *set* RTC are not run on the device (the RTC is
+  unset, `now()` = 0; setting it would write a made-up time). The date math was checked on the
+  host against `date`. Do it when time sync exists (P3-2).
 
 ## Open questions for the user
 
@@ -119,6 +128,16 @@ None of these block Phase 1, Phase 2, or the reader.
   directory. `src/ui` and `src/apps` do not exist yet, so the P1-1 grep only covers core and hal.
   `hal/display.h` includes `core/gfx.h` for `Canvas`/`Rect`/`Refresh`.
 
+- P1-2: device boot logs `[boot] clock now=`, `[storage] ...`, `[fs] /data/test.txt ...`,
+  `[fs] boot count N` (`/data/boot_count`, rewritten every boot: a permanent check that
+  rename-over-existing works on LittleFS). Remove the `dataFileCheck()` test file code in
+  `device/main.cpp` when P2 has real settings in `/data`.
+  `SD.h` (Arduino) puts a global `fs` namespace in scope: in `device/*.cpp` write `pos::fs::`.
+  The LittleFS partition is the one named `storage` in `partitions.csv` (not `spiffs`): 6016 KB.
+  `device/device.h` declares the HAL classes; `Input::inject()` exists for P1-8.
+  Verified on the device: SD overwrite via `pos::fs::writeFile` (rename over existing on FAT
+  works, no `.tmp` left; temporary test code, removed), LittleFS overwrite (boot count 1..6).
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -133,3 +152,5 @@ None of these block Phase 1, Phase 2, or the reader.
   flashed and checked from the serial log: boots, board 19, `[boot] full quality refresh 1363ms`,
   `[beat]` and `[sd]` every 5 s (config key HA_TOKEN, length only). Touch dot not re-tested.
   `pos::fs` checked with an ad-hoc host test (resolve, atomic write/overwrite, listDir, mkdirs).
+- 2026-11-15: P1-2. Device HAL split into display/input/clock/storage; storage mounts SD and
+  LittleFS and reports sizes. Checked from the serial log over several reboots/reflashes.

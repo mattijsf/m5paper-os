@@ -45,7 +45,7 @@ DisplayManager, and the simulator can run scripts and compare screenshots.
   Done when: `make check` passes; `make shot` output is pixel-identical to before; no platform
   header is included outside `src/platform/` (`grep -rE "Arduino.h|M5Unified.h|SDL.h" src/core src/ui src/apps src/hal` prints nothing).
 
-- [ ] **P1-2 Device HAL: display, touch, clock, storage.**
+- [x] **P1-2 Device HAL: display, touch, clock, storage.**
   Read: HARDWARE.md, DISPLAY.md (Device implementation notes).
   Do: `src/platform/device/{display,input,clock,storage}.cpp`. Display = the `pushRect` code
   from the spike. Input: `M5.update()`, translate `M5.Touch.getDetail()` to Down/Move/Up

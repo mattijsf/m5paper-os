@@ -113,8 +113,8 @@ void push(const Canvas& frame, Rect r, Refresh mode) {
 }
 ```
 
-- This exact code runs in the spike (`src/platform/device/main.cpp`) and produced the numbers
-  above. A cheaper transfer for small rects (push only the sub-rectangle with `pushImage` from
+- This code is `src/platform/device/display.cpp` (the pushSprite call needs a `const_cast`: it
+  is not const in LovyanGFX). The same code ran in the spike and produced the numbers above. A cheaper transfer for small rects (push only the sub-rectangle with `pushImage` from
   the canvas buffer) is an optimisation for task P7-1, not before.
 - `M5.Display.waitDisplay()` before light sleep and before power-off, or the image is left
   half-driven.

@@ -1,16 +1,18 @@
 // Device entry point. Builds the PaperS3 Platform and hands it to pos::Os.
-// The HAL classes here are thin (P1-1); P1-2 moves them into display/input/clock/storage.cpp.
-// Also keeps the Phase 0 diagnostics: boot report, SD / config-key check, serial heartbeat.
+// Display, input, clock and storage live in display/input/clock/storage.cpp; Net and Power are
+// still stubs here (P3). Also keeps the boot report, SD config-key check and serial heartbeat.
 
 #include <Arduino.h>
 #include <M5Unified.h>
-#include <SD.h>
-#include <SPI.h>
 
+#include <string>
+
+#include "core/fs.h"
 #include "core/gfx.h"
 #include "core/log.h"
 #include "core/os.h"
 #include "hal/platform.h"
+#include "platform/device/device.h"
 
 using namespace pos;
 
@@ -19,54 +21,6 @@ void logWrite(const char* line) { Serial.print(line); }
 }  // namespace pos::hal
 
 namespace {
-
-class DeviceDisplay : public hal::Display {
- public:
-  void push(const Canvas& frame, Rect r, Refresh mode) override {
-    auto epd = mode == Refresh::Quality ? lgfx::epd_quality : mode == Refresh::Text ? lgfx::epd_text : lgfx::epd_fast;
-    M5.Display.setEpdMode(epd);
-    M5.Display.setClipRect(r.x, r.y, r.w, r.h);
-    const_cast<Canvas&>(frame).pushSprite(&M5.Display, 0, 0);
-    M5.Display.clearClipRect();
-  }
-  bool busy() override { return M5.Display.displayBusy(); }
-  void wait() override { M5.Display.waitDisplay(); }
-};
-
-class DeviceInput : public hal::Input {
- public:
-  // Call once per loop after M5.update().
-  void update() {
-    auto t = M5.Touch.getDetail();
-    if (t.wasPressed()) queue(hal::TouchEvent::Down, t);
-    else if (t.wasReleased()) queue(hal::TouchEvent::Up, t);
-    else if (t.isPressed() && (t.deltaX() != 0 || t.deltaY() != 0)) queue(hal::TouchEvent::Move, t);
-  }
-  bool poll(hal::TouchEvent& out) override {
-    if (!has_) return false;
-    out = ev_;
-    has_ = false;
-    return true;
-  }
-
- private:
-  void queue(hal::TouchEvent::Type type, const m5::touch_detail_t& t) {
-    ev_.type = type;
-    ev_.x = t.x;
-    ev_.y = t.y;
-    ev_.ms = millis();
-    has_ = true;
-  }
-  hal::TouchEvent ev_;
-  bool has_ = false;
-};
-
-class DeviceClock : public hal::Clock {
- public:
-  uint32_t millis() override { return ::millis(); }
-  int64_t now() override { return 0; }  // RTC arrives with P1-2
-  void set(int64_t) override {}
-};
 
 class DeviceNet : public hal::Net {
  public:
@@ -91,17 +45,55 @@ class DevicePower : public hal::Power {
   void powerOff(uint32_t) override {}                                   // P3-1
 };
 
-DeviceDisplay gDisplay;
-DeviceInput gInput;
-DeviceClock gClock;
+device::Display gDisplay;
+device::Input gInput;
+device::Clock gClock;
 DeviceNet gNet;
 DevicePower gPower;
 hal::Platform gPlatform{gDisplay, gInput, gClock, gNet, gPower, "M5PaperS3"};
 Os gOs(gPlatform);
 
-bool sdOk = false;
-String cfgKeys = "(not read)";
-uint32_t sdSizeMb = 0, sdFreeMb = 0;
+device::StorageInfo gStorage;
+std::string gCfgKeys = "(not read)";
+
+// Provisioning file check: report key names and value lengths only, never values.
+std::string configKeyReport() {
+  if (!gStorage.sdOk) return "(no SD card)";
+  std::string text;
+  if (!pos::fs::readFile("/sd/paperos_config", text)) return "(file missing)";
+  std::string out;
+  size_t pos = 0;
+  while (pos < text.size()) {
+    size_t end = text.find('\n', pos);
+    if (end == std::string::npos) end = text.size();
+    std::string line = text.substr(pos, end - pos);
+    pos = end + 1;
+    while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) line.pop_back();
+    size_t eq = line.find('=');
+    if (line.empty() || line[0] == '#' || eq == std::string::npos || eq == 0) continue;
+    out += line.substr(0, eq) + "(" + std::to_string(line.size() - eq - 1) + ") ";
+  }
+  return out.empty() ? "(no keys)" : out;
+}
+
+// Storage check: /data/test.txt is created on the first boot and must be found unchanged after.
+void dataFileCheck() {
+  if (!gStorage.dataOk) return;
+  std::string content;
+  if (pos::fs::readFile("/data/test.txt", content)) {
+    POS_LOG("fs", "/data/test.txt found after reboot: %u bytes: %s", (unsigned)content.size(), content.c_str());
+  } else {
+    char buf[48];
+    snprintf(buf, sizeof buf, "P1-2 test %08x", (unsigned)esp_random());
+    bool ok = pos::fs::writeFile("/data/test.txt", buf);
+    POS_LOG("fs", "/data/test.txt created (write %s): %s", ok ? "ok" : "FAILED", buf);
+  }
+  // Boot counter: rewritten every boot, so it also exercises the rename-over-existing path.
+  std::string n;
+  int count = pos::fs::readFile("/data/boot_count", n) ? atoi(n.c_str()) : 0;
+  bool ok = pos::fs::writeFile("/data/boot_count", std::to_string(count + 1));
+  POS_LOG("fs", "boot count %d (write %s)", count + 1, ok ? "ok" : "FAILED");
+}
 
 }  // namespace
 
@@ -120,33 +112,11 @@ void setup() {
   POS_LOG("boot", "battery=%dmV level=%d%% charging=%d", (int)M5.Power.getBatteryVoltage(),
           (int)M5.Power.getBatteryLevel(), (int)M5.Power.isCharging());
 
-  // SD card check (pins: docs/HARDWARE.md). Mounted at /sd. Real storage code arrives with P1-2.
-  SPI.begin(39, 40, 38, 47);
-  sdOk = SD.begin(47, SPI, 25000000, "/sd");
-  if (sdOk) {
-    sdSizeMb = (uint32_t)(SD.totalBytes() / (1024 * 1024));
-    sdFreeMb = (uint32_t)((SD.totalBytes() - SD.usedBytes()) / (1024 * 1024));
-  }
-  POS_LOG("boot", "sd=%d type=%d size=%uMB free=%uMB", (int)sdOk, (int)SD.cardType(), (unsigned)sdSizeMb,
-          (unsigned)sdFreeMb);
-
-  // Provisioning file check: report key names and value lengths only, never values.
-  if (sdOk) {
-    File f = SD.open("/paperos_config", FILE_READ);
-    if (!f) {
-      cfgKeys = "(file missing)";
-    } else {
-      cfgKeys = "";
-      while (f.available()) {
-        String line = f.readStringUntil('\n');
-        line.trim();
-        int eq = line.indexOf('=');
-        if (line.length() == 0 || line[0] == '#' || eq <= 0) continue;
-        cfgKeys += line.substring(0, eq) + "(" + String(line.length() - eq - 1) + ") ";
-      }
-      f.close();
-    }
-  }
+  POS_LOG("boot", "clock now=%lld (0 = RTC never set)", (long long)gClock.now());
+  gStorage = device::mountStorage();
+  gCfgKeys = configKeyReport();
+  POS_LOG("boot", "config keys(len): %s", gCfgKeys.c_str());
+  dataFileCheck();
 
   gOs.setup();
 }
@@ -164,8 +134,8 @@ void loop() {
             (unsigned)(millis() / 1000), (int)M5.getBoard(), (int)M5.Display.width(), (int)M5.Display.height(),
             (unsigned)ESP.getFreePsram(), (unsigned)ESP.getPsramSize(), (unsigned)ESP.getFreeHeap(),
             (int)M5.Power.getBatteryVoltage(), (int)M5.Power.getBatteryLevel(), (int)M5.Power.isCharging());
-    POS_LOG("sd", "ok=%d size=%uMB free=%uMB config keys(len): %s", (int)sdOk, (unsigned)sdSizeMb, (unsigned)sdFreeMb,
-            cfgKeys.c_str());
+    POS_LOG("sd", "ok=%d size=%uMB free=%uMB data=%d config keys(len): %s", (int)gStorage.sdOk,
+            (unsigned)gStorage.sdTotalMb, (unsigned)gStorage.sdFreeMb, (int)gStorage.dataOk, gCfgKeys.c_str());
   }
   delay(10);
 }
