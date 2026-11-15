@@ -162,7 +162,7 @@ simulator first; each task ends with screenshots.
   Do: as in UI.md. Sheet restores what was under it when closed (redraw parent).
   Done when: `tests/ui/widgets3.script` goldens accepted.
 
-- [ ] **P2-4 App framework.**
+- [x] **P2-4 App framework.**
   Read: APPS.md (all).
   Do: `src/core/app.{h,cpp}`: `App`, `Screen`, `Nav`, `AppContext` (nav, async, timer, toast,
   clock, log; `store` and `cache` on top of core/fs with ArduinoJson: add the library here and

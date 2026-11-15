@@ -23,7 +23,7 @@ class Label : public Widget {
   int lineGap = 4;   // extra px between lines
 
   const std::string& text() const { return text_; }
-  // Changes the text and redraws the label; the size is not recomputed (call Screen::relayout() if it changes).
+  // Changes the text and redraws the label; the size is not recomputed (call Root::relayout() if it changes).
   void setText(const std::string& t, Hint h = Hint::Content);
 
   Size measure(int availW) override;

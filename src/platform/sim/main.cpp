@@ -30,7 +30,7 @@
 #include "core/os.h"
 #include "core/remote.h"
 #include "hal/platform.h"
-#include "apps/uitest/uitest.h"
+#include "apps/apps.h"
 #include "core/fs.h"
 #include "core/loop.h"
 #include "platform/sim/script.h"
@@ -97,7 +97,7 @@ class StdioRemoteHost : public RemoteHost {
   void reboot() override { std::exit(0); }  // the simulator has no reboot: a new run is a fresh boot
   bool option(const std::string& key, const std::string& value) override {
     if (key != "screen" || !os_) return false;
-    auto s = apps::uitest::create(value, *os_);
+    auto s = apps::createSurface(value == "launcher" ? "" : value, *os_);
     if (!s && value != "demo") return false;
     os_->setSurface(std::move(s));
     return true;
@@ -167,7 +167,7 @@ int main(int argc, char** argv) {
 
   Os os(platform);
   os.setScreen(appName);
-  if (auto s = apps::uitest::create(appName, os)) os.setSurface(std::move(s));
+  if (auto s = apps::createSurface(appName, os)) os.setSurface(std::move(s));
   os.setWakeup([] {  // a finished job wakes the idle wait
     SDL_Event e = {};
     e.type = SDL_USEREVENT;

@@ -1,3 +1,4 @@
+# app: demo
 # Phase 1 demo screen: boot frame; a tap on empty space (touch marker: Fast pass, then the settled
 # gray); a tap on a tile (label changes at once, a 1 s fake job on the worker completes later).
 wait 500

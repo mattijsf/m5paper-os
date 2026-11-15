@@ -2,12 +2,12 @@
 
 #include <algorithm>
 
-#include "ui/screen.h"
+#include "ui/root.h"
 
 namespace pos::ui {
 
 Widget::~Widget() {
-  if (Screen* s = screen()) s->forget(this);
+  if (Root* s = host()) s->forget(this);
 }
 
 Widget* Widget::adopt(std::unique_ptr<Widget> child) {
@@ -19,7 +19,7 @@ Widget* Widget::adopt(std::unique_ptr<Widget> child) {
 std::unique_ptr<Widget> Widget::remove(Widget* child) {
   for (size_t i = 0; i < children_.size(); ++i) {
     if (children_[i].get() == child) {
-      if (Screen* s = screen()) s->forgetTree(child);
+      if (Root* s = host()) s->forgetTree(child);
       std::unique_ptr<Widget> out = std::move(children_[i]);
       children_.erase(children_.begin() + i);
       out->parent_ = nullptr;
@@ -29,19 +29,19 @@ std::unique_ptr<Widget> Widget::remove(Widget* child) {
   return nullptr;
 }
 
-Screen* Widget::screen() const {
+Root* Widget::host() const {
   for (const Widget* w = this; w; w = w->parent_)
     if (w->screen_) return w->screen_;
   return nullptr;
 }
 
 Canvas* Widget::canvas() const {
-  Screen* s = screen();
+  Root* s = host();
   return s ? &s->canvas() : nullptr;
 }
 
 void Widget::invalidate(Hint h) {
-  if (Screen* s = screen()) s->markDirty(this, h);
+  if (Root* s = host()) s->markDirty(this, h);
 }
 
 Color Widget::bg() const {

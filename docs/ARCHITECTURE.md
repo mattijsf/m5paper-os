@@ -242,7 +242,7 @@ network input (cap response bodies at 512 KB); check every allocation that can e
 |---|---|---|---|
 | M5GFX | 0.3.0 | sprite drawing, fonts, PNG/JPEG decode, device EPD + touch drivers | shared |
 | M5Unified | 0.3.0 | board bring-up, power, RTC, touch, SD | device only |
-| ArduinoJson | 7.x | JSON | shared (add in task P3-3) |
+| ArduinoJson | 7.4.2 | JSON: `core/store` (app key/value files), config (P2-6) | shared (added in P2-4) |
 | miniz (tinfl only) | 3.x, vendored in `lib/miniz` | EPUB unzip | shared (add in task P4-3) |
 | SDL2 | Homebrew (`sdl2-compat`) | window and input | sim only |
 | libcurl | macOS system | HTTP | sim only |

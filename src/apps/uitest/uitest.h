@@ -6,11 +6,11 @@
 #include <string>
 
 #include "core/os.h"
-#include "ui/screen.h"
+#include "ui/root.h"
 
 namespace pos::apps::uitest {
 
 // nullptr if `name` is not a test screen.
-std::unique_ptr<ui::Screen> create(const std::string& name, Os& os);
+std::unique_ptr<ui::Root> create(const std::string& name, Os& os);
 
 }  // namespace pos::apps::uitest

@@ -132,7 +132,7 @@ shown immediately with a "Updated 12:30" caption, then replaced when the fetch f
 
 ## As implemented (P2-1)
 
-`ui::Screen` (a `core::Surface`) owns the widget tree: `setRoot()` lays it out, `render()` redraws
+`ui::Root` (a `core::Surface`; not the app-level `pos::Screen` of `core/app.h`) owns the widget tree: `setRoot()` lays it out, `render()` redraws
 only dirty widgets (a dirty ancestor covers its children; each is cleared to `bg()`, clipped to its
 frame, drawn) and passes the rectangles to the DisplayManager with the hint given to
 `invalidate()`. The Os feeds gestures to it. `Widget::bg()` is the colour behind the content
@@ -163,9 +163,9 @@ P2-3 widgets (`ui/inputs`, `ui/panels`): `Segmented` (2-4 options, 72 high; a Do
 under the finger as selected, Tap commits), `Stepper` (two 72 px IconButtons that grey out at the
 limits around the value text; optional formatter), `LevelBar` (10 segments, 10..100 %, tap sets
 (k+1) x 10), `EmptyState` (a Column: 64 px icon, title, hint, optional button), `Sheet`, `Toast`.
-Overlays: `Screen::addOverlay(widget)` puts a widget above the root (it gets touches first; its
+Overlays: `Root::addOverlay(widget)` puts a widget above the root (it gets touches first; its
 frame starts as the full screen and `layout()` may shrink it); `closeOverlay` redraws the area
-below (`Screen::invalidateRect`) and is safe to call from the overlay's own button handlers (the
+below (`Root::invalidateRect`) and is safe to call from the overlay's own button handlers (the
 widget is destroyed on the next pass). `Widget::transparent` skips the clear-to-bg before drawing
 (overlays draw over the screen), `Widget::touchable = false` lets touches fall through (Toast).
 `Sheet`: modal widget whose frame is just the panel at the bottom (max 60% of the height, 2 px ink
@@ -173,7 +173,7 @@ top edge, grab handle); the screen behind stays untouched (no dimming: a hatch w
 panel twice and cost ghost budget). `Widget::modal` makes the Screen send every touch that hits nothing
 else to the sheet, so a tap outside closes it without reaching the widgets below; a swipe down closes
 it too. Only the sheet's rectangle is invalidated on open and on close. Put controls into
-`sheet->content()`. `Screen::showToast(text)`: ink pill at the bottom (y 864..936), 3 s, then the
+`sheet->content()`. `Root::showToast(text)`: ink pill at the bottom (y 864..936), 3 s, then the
 screen below is restored pixel for pixel (checked: `widgets3-toast-gone` == `widgets3-base`).
 
 ## Gestures (`core/gesture`, task P2-1)

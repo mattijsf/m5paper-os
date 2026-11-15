@@ -1,4 +1,4 @@
-#include "ui/screen.h"
+#include "ui/root.h"
 
 #include <algorithm>
 
@@ -6,13 +6,13 @@
 
 namespace pos::ui {
 
-Screen::~Screen() {
+Root::~Root() {
   // Widgets must not call back into a dead screen while the tree is destroyed.
   if (root_) root_->screen_ = nullptr;
   for (auto& o : overlays_) o->screen_ = nullptr;
 }
 
-void Screen::setRoot(std::unique_ptr<Widget> root) {
+void Root::setRoot(std::unique_ptr<Widget> root) {
   dirty_.clear();
   target_ = consumer_ = nullptr;
   toast_ = nullptr;
@@ -23,7 +23,7 @@ void Screen::setRoot(std::unique_ptr<Widget> root) {
   relayout();
 }
 
-void Screen::relayout() {
+void Root::relayout() {
   if (!root_) return;
   root_->frame = Rect{0, 0, kScreenW, kScreenH};
   root_->layout();
@@ -35,13 +35,13 @@ void Screen::relayout() {
   markDirty(root_.get(), Hint::Screen);
 }
 
-bool Screen::isAncestor(const Widget* a, const Widget* b) {
+bool Root::isAncestor(const Widget* a, const Widget* b) {
   for (const Widget* w = b->parent(); w; w = w->parent())
     if (w == a) return true;
   return false;
 }
 
-void Screen::markDirty(Widget* w, Hint h) {
+void Root::markDirty(Widget* w, Hint h) {
   for (auto& d : dirty_)
     if (d.w == w && !d.hasRect) {
       if (static_cast<int>(h) > static_cast<int>(d.hint) && d.hint != Hint::Feedback) d.hint = h;
@@ -50,18 +50,18 @@ void Screen::markDirty(Widget* w, Hint h) {
   dirty_.push_back({w, h, false, Rect{}});
 }
 
-void Screen::invalidateRect(Rect r, Hint hint) {
+void Root::invalidateRect(Rect r, Hint hint) {
   if (root_ && !r.empty()) dirty_.push_back({root_.get(), hint, true, r});
 }
 
-void Screen::forget(Widget* w) {
+void Root::forget(Widget* w) {
   if (consumer_ == w) consumer_ = nullptr;
   if (target_ == w) target_ = nullptr;
   if (toast_ == w) toast_ = nullptr;
   dirty_.erase(std::remove_if(dirty_.begin(), dirty_.end(), [w](const Dirty& d) { return d.w == w && !d.hasRect; }), dirty_.end());
 }
 
-void Screen::forgetTree(Widget* w) {
+void Root::forgetTree(Widget* w) {
   auto inTree = [w](const Widget* x) {
     for (; x; x = x->parent())
       if (x == w) return true;
@@ -73,14 +73,14 @@ void Screen::forgetTree(Widget* w) {
   dirty_.erase(std::remove_if(dirty_.begin(), dirty_.end(), [&](const Dirty& d) { return !d.hasRect && inTree(d.w); }), dirty_.end());
 }
 
-Widget* Screen::overlayOf(Widget* w) const {
+Widget* Root::overlayOf(Widget* w) const {
   while (w->parent()) w = w->parent();
   for (auto& o : overlays_)
     if (o.get() == w) return w;
   return nullptr;
 }
 
-Widget* Screen::addOverlay(std::unique_ptr<Widget> w) {
+Widget* Root::addOverlay(std::unique_ptr<Widget> w) {
   Widget* raw = w.get();
   w->screen_ = this;
   w->frame = Rect{0, 0, kScreenW, kScreenH};
@@ -90,7 +90,7 @@ Widget* Screen::addOverlay(std::unique_ptr<Widget> w) {
   return raw;
 }
 
-void Screen::closeOverlay(Widget* w) {
+void Root::closeOverlay(Widget* w) {
   for (size_t i = 0; i < overlays_.size(); ++i) {
     if (overlays_[i].get() != w) continue;
     const Rect f = w->frame;
@@ -104,14 +104,14 @@ void Screen::closeOverlay(Widget* w) {
   }
 }
 
-void Screen::hideToast() {
+void Root::hideToast() {
   if (timers_ && toastTimer_) timers_->cancel(toastTimer_);
   toastTimer_ = 0;
   if (toast_) closeOverlay(toast_);
   toast_ = nullptr;
 }
 
-void Screen::render(Canvas& canvas, DisplayManager& dm) {
+void Root::render(Canvas& canvas, DisplayManager& dm) {
   retired_.clear();
   if (dirty_.empty()) return;
   std::vector<Dirty> work;
@@ -142,7 +142,7 @@ void Screen::render(Canvas& canvas, DisplayManager& dm) {
   }
 }
 
-bool Screen::deliver(Widget* start, const Gesture& g) {
+bool Root::deliver(Widget* start, const Gesture& g) {
   for (Widget* w = start; w; w = w->parent())
     if (w->onTouch(g)) {
       if (g.type == Gesture::Down) consumer_ = w;
@@ -151,7 +151,7 @@ bool Screen::deliver(Widget* start, const Gesture& g) {
   return false;
 }
 
-void Screen::onGesture(const Gesture& g) {
+void Root::onGesture(const Gesture& g) {
   retired_.clear();
   if (!root_) return;
   switch (g.type) {
@@ -184,7 +184,7 @@ void Screen::onGesture(const Gesture& g) {
 
 namespace pos::ui {
 
-void Screen::showToast(const std::string& text, uint32_t ms) {
+void Root::showToast(const std::string& text, uint32_t ms) {
   hideToast();
   toast_ = addOverlay(std::make_unique<Toast>(text));
   if (timers_) toastTimer_ = timers_->after(ms, [this] { toastTimer_ = 0; hideToast(); });

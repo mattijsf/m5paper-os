@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include "ui/screen.h"
+#include "ui/root.h"
 
 namespace pos::ui {
 
@@ -52,7 +52,7 @@ bool Sheet::onTouch(const Gesture& g) {
 
 void Sheet::close() {
   if (onClose) onClose();
-  if (Screen* s = screen()) s->closeOverlay(this);
+  if (Root* s = host()) s->closeOverlay(this);
 }
 
 // ---- Toast

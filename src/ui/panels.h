@@ -1,5 +1,5 @@
 // Overlays and panels: Sheet (modal bottom sheet), Toast (timed one-liner), EmptyState.
-// docs/UI.md "Widgets". Overlays are added with Screen::addOverlay / showToast.
+// docs/UI.md "Widgets". Overlays are added with Root::addOverlay / showToast.
 #pragma once
 
 #include <functional>
@@ -12,7 +12,7 @@ namespace pos::ui {
 
 // Bottom sheet drawn over the untouched screen with a 2 px ink top edge, at most 60% of the height.
 // Modal: a tap anywhere outside it closes it and does not reach the widgets below; swipe down closes too. Put the controls into `content()` (a Column with 24 px margins).
-// Open with Screen::addOverlay(std::make_unique<Sheet>()); close() restores what was under it.
+// Open with Root::addOverlay(std::make_unique<Sheet>()); close() restores what was under it.
 class Sheet : public Widget {
  public:
   Sheet();
@@ -31,7 +31,7 @@ class Sheet : public Widget {
   Rect panel_;
 };
 
-// One line at the bottom, ink pill with paper text. Created by Screen::showToast; touches pass through.
+// One line at the bottom, ink pill with paper text. Created by Root::showToast; touches pass through.
 class Toast : public Widget {
  public:
   explicit Toast(std::string text);

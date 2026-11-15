@@ -168,7 +168,7 @@ std::unique_ptr<Widget> widgets3() {
   auto* row = col->add<Row>(s2);
   auto* toastBtn = row->add<Button>("Toast", Button::Kind::Secondary);
   auto* sheetBtn = row->add<Button>("Sheet", Button::Kind::Primary);
-  toastBtn->onClick = [toastBtn] { toastBtn->screen()->showToast("No Wi-Fi: showing saved data"); };
+  toastBtn->onClick = [toastBtn] { toastBtn->host()->showToast("No Wi-Fi: showing saved data"); };
   sheetBtn->onClick = [sheetBtn] {
     auto sheet = std::make_unique<Sheet>();
     Column* c = sheet->content();
@@ -178,19 +178,19 @@ std::unique_ptr<Widget> widgets3() {
     auto* done = c->add<Button>("Done", Button::Kind::Primary);
     Sheet* raw = sheet.get();
     done->onClick = [raw] { raw->close(); };
-    sheetBtn->screen()->addOverlay(std::move(sheet));
+    sheetBtn->host()->addOverlay(std::move(sheet));
   };
 
   auto* empty = col->add<EmptyState>(Icon::WifiOff, "No connection", "Connect to Wi-Fi to load messages.", "Retry");
   empty->flex = 1;
   Button* retry = empty->button();
-  retry->onClick = [retry] { retry->screen()->showToast("Still offline"); };
+  retry->onClick = [retry] { retry->host()->showToast("Still offline"); };
   return root;
 }
 
 }  // namespace
 
-std::unique_ptr<Screen> create(const std::string& name, Os& os) {
+std::unique_ptr<Root> create(const std::string& name, Os& os) {
   std::unique_ptr<Widget> root;
   if (name == "widgets1") root = widgets1();
   if (name == "widgets2") root = widgets2();
@@ -198,7 +198,7 @@ std::unique_ptr<Screen> create(const std::string& name, Os& os) {
   if (name == "widgets3") root = widgets3();
   if (name == "widgets2list") root = widgets2list();
   if (!root) return nullptr;
-  auto screen = std::make_unique<Screen>(os.canvas(), os.displayManager(), &os.timers());
+  auto screen = std::make_unique<Root>(os.canvas(), os.displayManager(), &os.timers());
   screen->setRoot(std::move(root));
   return screen;
 }

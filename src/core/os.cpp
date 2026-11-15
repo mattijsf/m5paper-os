@@ -53,7 +53,7 @@ void Os::loopOnce() {
     if (ev.type != hal::TouchEvent::Down) continue;
     POS_LOG("touch", "x=%d y=%d t=%u", static_cast<int>(ev.x), static_cast<int>(ev.y),
             static_cast<unsigned>(p_.clock.millis()));
-    const int tile = screen_.empty() ? demoTileAt(ev.x, ev.y) : -1;
+    const int tile = (screen_.empty() || screen_ == "demo") ? demoTileAt(ev.x, ev.y) : -1;
     if (tile >= 0) {
       startTileJob(tile);
     } else {

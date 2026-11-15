@@ -32,6 +32,9 @@ class Button : public Pressable {
  public:
   enum class Kind : uint8_t { Primary, Secondary, Text };
   explicit Button(std::string text = "", Kind kind = Kind::Primary) : kind(kind), text_(std::move(text)) {}
+  Button(std::string text, std::function<void()> onClickFn, Kind kind = Kind::Primary) : kind(kind), text_(std::move(text)) {
+    onClick = std::move(onClickFn);
+  }
   Kind kind;
   const std::string& text() const { return text_; }
   void setText(const std::string& t) { if (t != text_) { text_ = t; invalidate(Hint::Content); } }

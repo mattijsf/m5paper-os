@@ -11,7 +11,7 @@
 #include "core/fs.h"
 #include "core/gfx.h"
 #include "core/log.h"
-#include "apps/uitest/uitest.h"
+#include "apps/apps.h"
 #include "core/loop.h"
 #include "core/os.h"
 #include "core/remote.h"
@@ -88,7 +88,7 @@ class SerialRemoteHost : public RemoteHost {
   }
   bool option(const std::string& key, const std::string& value) override {
     if (key == "screen") {  // ">set screen widgets2": show a UI test screen (apps/uitest); "demo" = the demo
-      auto s = apps::uitest::create(value, gOs);
+      auto s = apps::createSurface(value == "launcher" ? "" : value, gOs);
       if (!s && value != "demo") return false;
       gOs.setSurface(std::move(s));
       return true;
@@ -192,6 +192,7 @@ void setup() {
   pcfg.stack_size = 16 * 1024;
   pcfg.thread_name = "worker";
   esp_pthread_set_cfg(&pcfg);
+  gOs.setSurface(apps::createSurface("", gOs));  // the launcher
   gOs.setup();
 }
 

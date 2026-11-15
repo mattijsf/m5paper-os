@@ -48,6 +48,32 @@ That is the whole app. `POS_REGISTER_APP` adds it to a static registry that the 
 (The registry uses a static initialiser; `platformio.ini` keeps app object files from being
 dropped by the linker. If a new app does not show up in the launcher, check that first.)
 
+## As built (P2-4)
+
+`core/app.h` (App, Screen, Nav, AppContext, registry, `POS_REGISTER_APP`), `core/shell.{h,cpp}` (the
+Shell: status bar, title bar, a stack of screens with the launcher at the bottom; it is the `Surface`
+the Os shows), `core/store.{h,cpp}` (`Store`, `Cache`), `ui/chrome` (StatusBar, TitleBar, TabBar),
+`ui/widgets.h` (umbrella). The `hello` app of this document is compiled verbatim in
+`tests/unit/app_test.cpp` and tested. Details that go beyond the text above:
+
+- `pos::Screen` is the app-level screen; the widget surface of the whole panel is `ui::Root`.
+  `Screen::build(root)` gets a `ui::Column` with 24 px side margins inside the content area; the
+  title bar (back arrow, title; long press on the arrow = launcher) is shown for every app screen
+  and hidden for the launcher.
+- `nav.push/pop/home` run after the current gesture or callback returns, so a button can pop its own
+  screen. Back from an app's first screen leaves the app. Order when leaving: top screen `onHide`,
+  `App::onStop`, then the screens and the App are destroyed (and the store is saved).
+- `ctx.async` / `ctx.http` results are dropped if the screen that was on top at the call is gone, and
+  all pending results are dropped when the app is left. `ctx.http` calls `hal::Net::request` on the
+  worker; bringing Wi-Fi up and the linger policy are not implemented yet (P3). `ctx.timer` timers are
+  cancelled with the screen. `ctx.config` and `ctx.secrets` arrive with the config service (P2-6, P3-3).
+- Registration is a static initialiser in the app's `.cpp`. PlatformIO links `src/` objects directly
+  (no archive), so nothing is dropped; no extra linker flag was needed.
+- `apps::createSurface(name, os)` (src/apps/apps.cpp) is what the platform mains call: "" = launcher,
+  a registered id = that app opened, a UI test screen name, else the old demo.
+- The status bar clock shows UTC for now (the time zone setting comes with P2-6); "--:--" while the
+  RTC is unset.
+
 ## Lifecycle
 
 ```

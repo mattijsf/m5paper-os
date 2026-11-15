@@ -1,4 +1,4 @@
-// A widget tree shown on the whole panel: owns the root, lays it out, redraws dirty widgets and
+// A widget tree shown on the whole panel (not the app-level pos::Screen of core/app.h): owns the root, lays it out, redraws dirty widgets and
 // dispatches gestures. Implements core's Surface so the Os can drive it.
 #pragma once
 
@@ -11,12 +11,12 @@
 
 namespace pos::ui {
 
-class Screen : public Surface {
+class Root : public Surface {
  public:
   // The canvas and DisplayManager are the Os's (or a test's) and must outlive the screen.
   // `timers` (optional) lets Toast time out.
-  Screen(Canvas& canvas, DisplayManager& dm, Timers* timers = nullptr) : canvas_(canvas), dm_(dm), timers_(timers) {}
-  ~Screen() override;
+  Root(Canvas& canvas, DisplayManager& dm, Timers* timers = nullptr) : canvas_(canvas), dm_(dm), timers_(timers) {}
+  ~Root() override;
 
   Canvas& canvas() { return canvas_; }
   DisplayManager& displayManager() { return dm_; }

@@ -5,7 +5,7 @@
 
 #include "ui/label.h"
 #include "ui/layout.h"
-#include "ui/screen.h"
+#include "ui/root.h"
 
 using namespace pos;
 using namespace pos::ui;
@@ -49,7 +49,7 @@ struct Fixture {
   FakeDisplay display;
   FakeClock clock;
   DisplayManager dm;
-  Screen screen;
+  Root screen;
   static Canvas& prep(Canvas& c) {
     c.setColorDepth(lgfx::color_depth_t::grayscale_8bit);
     c.createSprite(kScreenW, kScreenH);
@@ -189,7 +189,7 @@ TEST_CASE("Label: wrapping, long words, ellipsis, measure") {
   CHECK(empty.lines(f2.canvas, 100) == std::vector<std::string>{""});
 }
 
-TEST_CASE("Screen: Down goes to the deepest widget and bubbles until consumed") {
+TEST_CASE("Root: Down goes to the deepest widget and bubbles until consumed") {
   Fixture f;
   auto root = std::make_unique<Column>();
   auto* top = root->add<Box>(100, 100, false);   // does not consume
@@ -210,7 +210,7 @@ TEST_CASE("Screen: Down goes to the deepest widget and bubbles until consumed") 
   CHECK(low->got == std::vector<Gesture::Type>{Gesture::Down, Gesture::Cancel, Gesture::SwipeLeft});
 }
 
-TEST_CASE("Screen: the widget that consumed Down gets Tap; swipes bubble to a parent") {
+TEST_CASE("Root: the widget that consumed Down gets Tap; swipes bubble to a parent") {
   Fixture f;
   struct Pager : Box {
     Pager() : Box(kScreenW, 300, false) {}
@@ -244,7 +244,7 @@ TEST_CASE("Screen: the widget that consumed Down gets Tap; swipes bubble to a pa
   CHECK(pager->got == std::vector<Gesture::Type>{Gesture::SwipeLeft});  // bubbled
 }
 
-TEST_CASE("Screen: only dirty widgets redraw, a dirty ancestor covers its children") {
+TEST_CASE("Root: only dirty widgets redraw, a dirty ancestor covers its children") {
   Fixture f;
   auto root = std::make_unique<Column>(10);
   auto* a = root->add<Box>(100, 40);
@@ -271,7 +271,7 @@ TEST_CASE("Screen: only dirty widgets redraw, a dirty ancestor covers its childr
   CHECK(inner->draws == i0 + 1);  // drawn once, by its parent
 }
 
-TEST_CASE("Screen: removing a widget forgets it") {
+TEST_CASE("Root: removing a widget forgets it") {
   Fixture f;
   auto root = std::make_unique<Column>();
   auto* a = root->add<Box>(100, 40, true);
@@ -461,12 +461,12 @@ struct TFixture {
   } clock;
   DisplayManager dm;
   Timers timers;
-  Screen screen;
+  Root screen;
   TFixture() : dm(display, Fixture::prep(canvas), clock), timers(clock), screen(canvas, dm, &timers) { dm.forceClean(); }
   uint8_t px(int x, int y) { return static_cast<const uint8_t*>(canvas.getBuffer())[y * kScreenW + x]; }
 };
 
-void tap(Screen& s, int x, int y) {
+void tap(Root& s, int x, int y) {
   s.onGesture(g(Gesture::Down, x, y));
   s.onGesture(g(Gesture::Tap, x, y));
 }

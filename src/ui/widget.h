@@ -1,5 +1,5 @@
 // Widget base (docs/UI.md "Widgets"). A tree of widgets draws into the canvas; widgets mark
-// themselves dirty with invalidate(), the Screen redraws only dirty widgets once per loop pass and
+// themselves dirty with invalidate(), the Root redraws only dirty widgets once per loop pass and
 // hands the rectangles to the DisplayManager.
 #pragma once
 
@@ -14,7 +14,7 @@
 
 namespace pos::ui {
 
-class Screen;
+class Root;
 
 struct Size {
   int w = 0, h = 0;
@@ -45,7 +45,7 @@ class Widget {
   // Swipe* bubbles from there.
   virtual bool onTouch(const Gesture& /*g*/) { return false; }
 
-  // Marks the frame dirty. Cheap; the Screen redraws and commits once per loop pass.
+  // Marks the frame dirty. Cheap; the Root redraws and commits once per loop pass.
   void invalidate(Hint h = Hint::Content);
 
   // Tree
@@ -60,7 +60,7 @@ class Widget {
   std::unique_ptr<Widget> remove(Widget* child);  // gives the child back; nothing is redrawn by itself
   Widget* parent() const { return parent_; }
   const std::vector<std::unique_ptr<Widget>>& children() const { return children_; }
-  Screen* screen() const;
+  Root* host() const;
   Canvas* canvas() const;
 
   // Background colour behind this widget's content: its own if set, else the parent's, else paper.
@@ -71,13 +71,13 @@ class Widget {
   // Deepest visible widget containing the point (this if no child does), nullptr if outside.
   Widget* hit(int x, int y);
   // Draws this widget, then its children, everything clipped to `clip` (and each child to its own
-  // frame). Used by the Screen.
+  // frame). Used by the Root.
   void drawTree(Canvas& c, Rect clip);
 
  private:
-  friend class Screen;
+  friend class Root;
   Widget* parent_ = nullptr;
-  Screen* screen_ = nullptr;  // set on the root by Screen
+  Root* screen_ = nullptr;  // set on the root by Root
   std::vector<std::unique_ptr<Widget>> children_;
   Color bg_ = 0;
   bool hasBg_ = false;

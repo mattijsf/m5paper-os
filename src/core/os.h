@@ -41,6 +41,7 @@ class Os {
   uint32_t idleWaitMs();
   // Called from the worker thread when a result is ready (the simulator wakes its event wait).
   void setWakeup(std::function<void()> fn) { worker_.setWakeup(std::move(fn)); }
+  hal::Platform& platform() { return p_; }
   Timers& timers() { return timers_; }
   Worker& worker() { return worker_; }
 
