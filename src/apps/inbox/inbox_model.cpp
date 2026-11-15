@@ -128,6 +128,15 @@ std::string firstLine(const std::string& text) {
   return nl == std::string::npos ? text : text.substr(0, nl);
 }
 
+std::string clearBody(const std::string& feed, int64_t before) {
+  JsonDocument doc;
+  doc["feed"] = feed;
+  if (before > 0) doc["before"] = before;
+  std::string out;
+  serializeJson(doc, out);
+  return out;
+}
+
 std::string fetchedText(const std::string& json) {
   JsonDocument doc;
   if (deserializeJson(doc, json)) return "";

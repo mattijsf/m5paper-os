@@ -329,7 +329,9 @@ class ListScreen : public Screen {
   void markAllRead() {
     HaClient ha = ctx().ha();
     const std::string feed = kind_.mail ? "mail" : "whatsapp";
-    ctx().async([ha, feed]() mutable { return ha.callService("script", "paperos_inbox_clear", "{\"feed\":\"" + feed + "\"}"); },
+    // Only what the list showed is cleared: messages that came in after the fetch stay in the feed.
+    const std::string body = clearBody(feed, newestTs(feed_.items));
+    ctx().async([ha, body]() mutable { return ha.callService("script", "paperos_inbox_clear", body); },
                 [this](HaResult r) {
                   if (!r.ok()) {
                     ctx().toast(haErrorText(r.error));  // nothing was cleared: the list stays

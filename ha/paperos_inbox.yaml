@@ -33,10 +33,17 @@ script:
       feed:
         description: whatsapp or mail
         example: whatsapp
+      before:
+        description: >
+          Optional unix time. Only items with ts <= before are dropped (what the device had shown when "Mark all read" was tapped);
+          newer messages stay. Without it, or 0, the whole feed is cleared.
+        required: false
+        example: 1768480000
     sequence:
       - event: paperos_inbox_clear
         event_data:
           feed: "{{ feed }}"
+          before: "{{ before | default(0) | int(0) }}"
 
 template:
   - triggers:
@@ -65,7 +72,8 @@ template:
                          | selectattr('ts', 'gt', t - max_age) | list %}
             {% set d = trigger.event.data %}
             {% if trigger.id == 'clear' %}
-              {{ [] }}
+              {% set before = (d.get('before') or 0) | int(0) %}
+              {{ old | selectattr('ts', 'gt', before) | list if before > 0 else [] }}
             {% elif trigger.id == 'sent' %}
               {{ old | rejectattr('key', 'eq', (d.get('to') or d.get('recipient') or '') | string) | list }}
             {% else %}

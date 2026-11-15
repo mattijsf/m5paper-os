@@ -45,6 +45,9 @@ int newCount(const std::vector<Msg>& items, int64_t seen);
 int64_t newestTs(const std::vector<Msg>& items);
 // The first line of a text, for a list row ("" for an empty text).
 std::string firstLine(const std::string& text);
+// The body of the call that clears a feed: {"feed":"whatsapp","before":<newest ts the list showed>}. The feed then keeps messages that arrived
+// after the list was fetched (script.paperos_inbox_clear `before`); without a time (<= 0) the field is left out and everything is cleared.
+std::string clearBody(const std::string& feed, int64_t before);
 // The text of a service_response of imap.fetch ("service_response":{"text":...}); "" if there is none.
 std::string fetchedText(const std::string& json);
 

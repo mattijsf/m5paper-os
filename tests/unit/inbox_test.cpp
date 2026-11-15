@@ -115,3 +115,9 @@ TEST_CASE("inbox: items as the live package makes them (chat \"Group\", id is on
   CHECK(c[1].title == "Bram");
   CHECK(firstLine(c[0].lastText) == "[image]");
 }
+
+TEST_CASE("inbox: the clear call carries the newest time shown, so newer messages survive") {
+  CHECK(clearBody("whatsapp", 1768480000) == "{\"feed\":\"whatsapp\",\"before\":1768480000}");
+  CHECK(clearBody("mail", 0) == "{\"feed\":\"mail\"}");  // nothing shown: clear everything, as before
+  CHECK(clearBody("mail", -5) == "{\"feed\":\"mail\"}");
+}

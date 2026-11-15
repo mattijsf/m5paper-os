@@ -215,9 +215,12 @@ decrypts mail locally and serves IMAP on port 1143 with its own generated passwo
 
 ### "Mark all read" from the device
 
-The package defines `script.paperos_inbox_clear` (field `feed`: `whatsapp` or `mail`) which
-fires the `paperos_inbox_clear` event the sensors listen to. The device calls
-`POST /api/services/script/paperos_inbox_clear` (a service call works for a non-admin user;
+The package defines `script.paperos_inbox_clear` (field `feed`: `whatsapp` or `mail`; optional **`before`**, a unix time) which
+fires the `paperos_inbox_clear` event the sensors listen to. **`before`** (2026-11-15): the device sends the newest `ts` its list showed, and the
+template drops only items with `ts <= before` (`old | selectattr('ts', 'gt', before)`); without it, or 0, everything is cleared as before. So a message that
+arrived after the list was fetched is not lost by "Mark all read" (it was, with a real one). The change is in `ha/paperos_inbox.yaml` of this repo; it has
+not been installed or run in Home Assistant's engine yet (the Home Assistant repo is updated separately). `event_data.before` is rendered with `| int(0)`. The device calls
+`POST /api/services/script/paperos_inbox_clear` with `{"feed":"whatsapp","before":<ts>}` (a service call works for a non-admin user;
 firing events directly does not).
 
 ### Installing the package
