@@ -293,7 +293,7 @@ simulator first; each task ends with screenshots.
   Ask the owner (once): which Home Assistant user does the token on the card belong to? It
   should be a dedicated non-admin user; and what LAN URL to use (`HA_URL` on the card).
   Device check: "Test connection" succeeds from the device on the home Wi-Fi.
-- [ ] **P5-2 States and `home.json`.** Per-entity state reads (visible tab first), response
+- [x] **P5-2 States and `home.json`.** (model, parser, default file, cache and tests done in the simulator; live entity check and the Lights-tab timing are pending device checks: no card config in `sim-data`, device off) Per-entity state reads (visible tab first), response
   parser to item view models, default `home.json` (complete the Avond scene from the dashboard
   repo). Verify every entity id against the live instance from the simulator
   (`--fixtures none`, token in `sim-data/sd/paperos_config`: ask the owner to copy the file
