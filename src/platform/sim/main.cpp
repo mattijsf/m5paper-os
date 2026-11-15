@@ -78,21 +78,6 @@ class SimNet : public hal::Net {
   }
 };
 
-// Idle step of the main loop: wait for an SDL event (touch, key, worker wakeup) up to the deadline.
-class SimPolicy : public PowerPolicy {
- public:
-  void idle(uint32_t maxWaitMs) override {
-    maxWaitMs = std::min<uint32_t>(maxWaitMs, 16);  // keep stdin and the window responsive
-    if (maxWaitMs == 0) return;
-    if (!SDL_WasInit(SDL_INIT_VIDEO)) {
-      SDL_Delay(maxWaitMs);
-      return;
-    }
-    SDL_Event e;
-    if (SDL_WaitEventTimeout(&e, static_cast<int>(maxWaitMs)) == 1) SDL_PushEvent(&e);  // let pump() see it
-  }
-};
-
 class SimPower : public hal::Power {
  public:
   int batteryMv() override { return 3900; }
@@ -196,7 +181,17 @@ int main(int argc, char** argv) {
     e.type = SDL_USEREVENT;
     SDL_PushEvent(&e);
   });
-  SimPolicy policy;
+  // Idle step: wait for an SDL event (touch, key, worker wakeup) up to the deadline (the simulator never light-sleeps).
+  PowerPolicy policy(os, [](uint32_t maxWaitMs) {
+    maxWaitMs = std::min<uint32_t>(maxWaitMs, 16);  // keep stdin and the window responsive
+    if (maxWaitMs == 0) return;
+    if (!SDL_WasInit(SDL_INIT_VIDEO)) {
+      SDL_Delay(maxWaitMs);
+      return;
+    }
+    SDL_Event e;
+    if (SDL_WaitEventTimeout(&e, static_cast<int>(maxWaitMs)) == 1) SDL_PushEvent(&e);  // let pump() see it
+  });
   Loop loop(os, policy);
   StdioRemoteHost remoteHost(input);
   remoteHost.os_ = &os;

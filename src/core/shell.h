@@ -46,6 +46,8 @@ class Shell : public Surface {
   void onGesture(const Gesture& g) override;
   void render(Canvas& canvas, DisplayManager& dm) override;
   bool dirty() const override { return !deferred_.empty() || root_.dirty(); }
+  void prepareForPowerOff() override;
+  std::string currentAppId() const override { return appId_; }
   std::vector<KeyTap> keyboardTaps(const std::string& text) override { return root_.keyboardTaps(text); }
 
  private:

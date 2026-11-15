@@ -39,6 +39,19 @@ Sleep duration = time until the next timer (settle pass, status bar minute tick,
 capped at 60 s. On touch wake, the GT911 still holds the touch data, so the tap that woke the
 device is delivered normally: the user never has to "tap twice".
 
+**As built (P3-4)**: `core/power_policy.{h,cpp}`. `PowerPolicy::idle(maxWaitMs)` (called by `Loop`) takes the
+platform's short wait as a callback and decides with the pure functions `decideSleep` and `autoOffDue`. It
+sleeps when the platform can (device only), no worker job runs or waits, the panel is not busy, nothing is
+dirty, no finger is down, Wi-Fi is off, 300 ms have passed since the last touch, and **no USB host is connected
+(`power.stayAwakeOnUsb`, default true)**. The sleep lasts until the next deadline (timer, settle or clean pass,
+long press, auto-off), at most 60 s, and not at all if that is within 50 ms. Reason for the USB rule: light
+sleep kills the USB serial session and drops everything sent during it (HARDWARE.md), so a sleeping device
+cannot be driven by `tools/device.py`. Setting it to false (Settings > Power, or in `config.json`) lets the
+device sleep on USB too. Auto-off: `power.autoOffMin` (default 15), `autoOffMinReader` (30, while the reader app
+`read` is open), 0 = never; **never while a USB host is connected**; then `Surface::prepareForPowerOff()` (the
+Shell writes `lastApp` to `/data/system.json` and closes the app so it saves), the panel finishes, and
+`power.powerOff(0)`. Resuming the last app and the sleep screen come with P3-6.
+
 ### Auto-off
 
 - After `power.autoOffMin` minutes without input (default 15, reader 30, 0 = never while on USB):

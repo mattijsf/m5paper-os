@@ -51,6 +51,7 @@ class Power : public hal::Power {
   int batteryPercent() override;
   bool charging() override;
   bool usbConnected() override;
+  bool canLightSleep() override { return true; }
   hal::Wake lightSleep(uint32_t maxMs) override;
   void powerOff(uint32_t wakeAfterSec) override;  // > 0: RTC alarm power-on after that many seconds
 };

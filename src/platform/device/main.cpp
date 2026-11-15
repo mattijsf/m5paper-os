@@ -79,14 +79,10 @@ device::Power gPower;
 hal::Platform gPlatform{gDisplay, gInput, gClock, gNet, gPower, "M5PaperS3"};
 Os gOs(gPlatform);
 
-// Idle step: a short delay for now (touch is polled every pass); light sleep arrives with P3.
-class DevicePolicy : public PowerPolicy {
- public:
-  void idle(uint32_t maxWaitMs) override {
-    if (maxWaitMs > 0) delay(maxWaitMs < 10 ? maxWaitMs : 10);
-  }
-};
-DevicePolicy gPolicy;
+// Idle step: PowerPolicy light-sleeps when everything allows it (core/power_policy.h), else a short delay.
+PowerPolicy gPolicy(gOs, [](uint32_t ms) {
+  if (ms > 0) delay(ms < 10 ? ms : 10);
+});
 Loop gLoop(gOs, gPolicy);
 
 // Remote control over the USB serial port (lines starting with '>', see core/remote.h).
@@ -119,6 +115,14 @@ class SerialRemoteHost : public RemoteHost {
     // an RTC alarm after 20 s (">set poweroff 0": only the side button brings it back).
     if (key == "sleep") {
       gPower.lightSleep(static_cast<uint32_t>(atoi(value.c_str())));
+      return true;
+    }
+    if (key == "usbsleep") {
+      // Test aid: allow light sleep on USB for N seconds, then switch it off again by itself. While it sleeps the
+      // device cannot be reached; read the log after the window ends (">set usbsleep 30", wait, ">log").
+      const int sec = atoi(value.c_str());
+      gOs.config().power.stayAwakeOnUsb = false;
+      gOs.timers().after(static_cast<uint32_t>(sec) * 1000u, [] { gOs.config().power.stayAwakeOnUsb = true; });
       return true;
     }
     if (key == "poweroff") {

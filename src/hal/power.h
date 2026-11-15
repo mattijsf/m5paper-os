@@ -15,6 +15,8 @@ class Power {
   virtual bool charging() = 0;
   // True while a USB host is connected (the device is then reachable by tools/device.py: do not light-sleep).
   virtual bool usbConnected() { return false; }
+  // False in the simulator: the idle policy never calls lightSleep() there.
+  virtual bool canLightSleep() { return false; }
   virtual Wake lightSleep(uint32_t maxMs) = 0;       // returns on touch, button or timeout
   virtual void powerOff(uint32_t wakeAfterSec) = 0;  // 0 = until the button is pressed
 };

@@ -230,7 +230,7 @@ simulator first; each task ends with screenshots.
   grep of the firmware log for the first 8 characters of the token finds nothing (do the grep
   with a script that reads the token from the simulator copy without printing it).
 
-- [ ] **P3-4 PowerPolicy: idle sleep and auto-off.**
+- [x] **P3-4 PowerPolicy: idle sleep and auto-off.**
   Read: POWER.md (Idle rules, Auto-off).
   Do: `src/core/power_policy.{h,cpp}` implementing the rules with `hal::Power`; app state
   save on `onStop`; last app remembered.

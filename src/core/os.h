@@ -51,6 +51,11 @@ class Os {
   // Applies config().display to the DisplayManager (Settings calls this after a change).
   void applyDisplayConfig();
   Timers& timers() { return timers_; }
+  // Time of the last touch event (boot time before the first one).
+  uint32_t lastInputMs() const { return lastInputMs_; }
+  bool touching() const { return gestures_.touching(); }
+  // Milliseconds until the loop next has work of its own (timers, settle / clean, long press); kNoDeadline if none.
+  uint32_t msToNextDeadline();
   Worker& worker() { return worker_; }
 
   Canvas& canvas() { return canvas_; }
@@ -68,6 +73,7 @@ class Os {
   Secrets secrets_;
   std::unique_ptr<Surface> surface_;
   GestureRecognizer gestures_;
+  uint32_t lastInputMs_ = 0;
   Worker worker_;
   bool ready_ = false;
   std::string screen_;

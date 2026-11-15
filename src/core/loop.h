@@ -6,16 +6,9 @@
 #include <cstdint>
 
 #include "core/os.h"
+#include "core/power_policy.h"
 
 namespace pos {
-
-// Step 5. The platform decides how to wait: device = a short delay for now (light sleep: P3),
-// simulator = wait for an SDL event. May return early (input, worker result).
-class PowerPolicy {
- public:
-  virtual ~PowerPolicy() = default;
-  virtual void idle(uint32_t maxWaitMs) = 0;
-};
 
 class Loop {
  public:

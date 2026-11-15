@@ -14,6 +14,9 @@ struct DisplayConfig {
 struct PowerConfig {
   int autoOffMin = 15;        // 0 = never (on USB)
   int autoOffMinReader = 30;
+  // Do not light-sleep while a USB host is connected: sleep breaks the serial link (tools/device.py). Auto-off
+  // never happens on USB either.
+  bool stayAwakeOnUsb = true;
 };
 struct NetConfig {
   int lingerSec = 20;

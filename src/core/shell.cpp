@@ -213,6 +213,14 @@ void Shell::runDeferred() {
   }
 }
 
+void Shell::prepareForPowerOff() {
+  // Remember what was open (the launcher can resume it), then leave the app so it saves its state.
+  Store sys("/data/system.json");
+  sys.set("lastApp", appId_);
+  sys.save();
+  if (app_) closeApp();
+}
+
 void Shell::onGesture(const Gesture& g) {
   root_.onGesture(g);
   runDeferred();

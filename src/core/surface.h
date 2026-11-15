@@ -27,6 +27,10 @@ class Surface {
   // True while something waits to be rendered.
   virtual bool dirty() const = 0;
   // Screen points to tap, in order, to type `text` on the on-screen keyboard that is showing (UI scripts).
+  // Called before an auto power-off: save state (the open app gets onStop) and remember what was open.
+  virtual void prepareForPowerOff() {}
+  // Id of the open app, "" if none (the launcher).
+  virtual std::string currentAppId() const { return ""; }
   virtual std::vector<KeyTap> keyboardTaps(const std::string& /*text*/) { return {}; }
 };
 

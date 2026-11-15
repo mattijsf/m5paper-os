@@ -57,6 +57,7 @@ bool Config::load() {
   JsonVariantConst p = doc["power"];
   readInt(p["autoOffMin"], power.autoOffMin, 0, 240);
   readInt(p["autoOffMinReader"], power.autoOffMinReader, 0, 240);
+  if (p["stayAwakeOnUsb"].is<bool>()) power.stayAwakeOnUsb = p["stayAwakeOnUsb"].as<bool>();
 
   JsonVariantConst n = doc["net"];
   readInt(n["lingerSec"], net.lingerSec, 0, 600);
@@ -80,6 +81,7 @@ bool Config::save() const {
   doc["display"]["idleCleanMs"] = display.idleCleanMs;
   doc["power"]["autoOffMin"] = power.autoOffMin;
   doc["power"]["autoOffMinReader"] = power.autoOffMinReader;
+  doc["power"]["stayAwakeOnUsb"] = power.stayAwakeOnUsb;
   doc["net"]["lingerSec"] = net.lingerSec;
   doc["net"]["timezone"] = net.timezone;
   doc["reader"]["fontSize"] = reader.fontSize;

@@ -93,6 +93,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 ## Pending device checks
 
+- P3-4: **auto-off on battery** (the policy never powers off while USB is connected, so the automation could not run
+  it; covered by unit tests only) and that the UI still feels immediate when the device sleeps between taps
+  (needs real touches); `UI feels immediate` after a touch wake.
 - P3-1: **real touch wakes light sleep** and the waking tap is delivered (an injected tap cannot wake the chip);
   **side button powers on** after `powerOff(0)`; `powerOff(0)` itself (only the button brings the device back, so it
   was not run by the automation). Batch with the next time the user is at the device.
@@ -272,6 +275,12 @@ None of these block Phase 1, Phase 2, or the reader.
   Settings > Developer has Sleep test and Power off (sheet). Side-button detection by a running program: not possible
   (no `BtnPWR` for the PaperS3 in M5Unified; the button is wired to the PMS150G).
 
+- P3-4 (2026-11-15): `PowerPolicy` (idle sleep + auto-off). Device: on USB, idle 12 s -> 0 light sleeps, device
+  reachable; with `>set usbsleep 30` (test aid: allow sleep on USB for 30 s) the device slept once for 30 s (asked
+  30000 ms, woke after 29992 ms: the sleep ends exactly at the next deadline), then answered `>log` again.
+  Unit tests: `decideSleep` table (every condition), sleep ends at the next deadline and is capped at 60 s, auto-off
+  limits (normal, reader, 0, USB), state saved and `lastApp` remembered, USB rule and its flag.
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -305,3 +314,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: navigation speed: press look delayed 120 ms, cheaper diff; 925 -> 605 ms to a new screen.
 - 2026-11-15: P2-7. Keyboard, TextField, TextBlock with pagination; type / type-max script commands.
 - 2026-11-15: P3-1. Device power HAL: battery average, light sleep with wake cause, RTC power-off; Settings Sleep test / Power off.
+- 2026-11-15: P3-4. PowerPolicy: light sleep when idle (not on USB by default), auto-off on battery.

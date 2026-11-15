@@ -60,6 +60,7 @@ void Os::loopOnce() {
   hal::TouchEvent ev;
   std::vector<Gesture> gs;
   while (p_.input.poll(ev)) {
+    lastInputMs_ = p_.clock.millis();
     if (surface_) {
       if (ev.type == hal::TouchEvent::Down)
         POS_LOG("touch", "x=%d y=%d t=%u", static_cast<int>(ev.x), static_cast<int>(ev.y), static_cast<unsigned>(p_.clock.millis()));
@@ -90,17 +91,22 @@ void Os::loopOnce() {
   dm_.tick(p_.clock.millis());
 }
 
-uint32_t Os::idleWaitMs() {
-  constexpr uint32_t kMaxIdleMs = 1000;
-  if (dm_.dirty() || worker_.hasCompleted() || (surface_ && surface_->dirty())) return 0;
+uint32_t Os::msToNextDeadline() {
   const uint32_t now = p_.clock.millis();
-  uint32_t wait = kMaxIdleMs;
+  uint32_t best = kNoDeadline;
   for (uint32_t deadline : {dm_.nextDeadlineMs(), timers_.nextDeadlineMs(), gestures_.nextDeadlineMs()}) {
     if (deadline == kNoDeadline) continue;
     int32_t d = static_cast<int32_t>(deadline - now);
-    wait = std::min<uint32_t>(wait, d < 0 ? 0 : static_cast<uint32_t>(d));
+    best = std::min<uint32_t>(best == kNoDeadline ? 0xFFFFFFFEu : best, d < 0 ? 0 : static_cast<uint32_t>(d));
   }
-  return wait;
+  return best;
+}
+
+uint32_t Os::idleWaitMs() {
+  constexpr uint32_t kMaxIdleMs = 1000;
+  if (dm_.dirty() || worker_.hasCompleted() || (surface_ && surface_->dirty())) return 0;
+  const uint32_t next = msToNextDeadline();
+  return next == kNoDeadline ? kMaxIdleMs : std::min<uint32_t>(kMaxIdleMs, next);
 }
 
 std::vector<uint8_t> Os::frame4() {

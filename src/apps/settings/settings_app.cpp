@@ -86,6 +86,11 @@ class PowerPage : public Page {
       save();
     };
     root.add<ui::Spacer>(ui::s2);
+    auto* usb = root.add<ui::ListItem>("Stay awake on USB", "Sleeping would cut the serial link", true, ui::Icon::Power);
+    usb->setToggle(cfg().power.stayAwakeOnUsb, [this](bool on) {
+      cfg().power.stayAwakeOnUsb = on;
+      save();
+    });
     battery_ = root.add<ui::ListItem>("Battery", "", true, ui::Icon::Battery);
     update();
   }
