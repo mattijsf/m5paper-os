@@ -175,6 +175,8 @@ A task is done only when `make check` passes.
     `inbox-error`, `inbox-mail`), `restart` (`epub`, `inbox`, `inbox-wifi`, `reader`), `power-off` (`sleep`, `sleep-reader`), `timer-wake` (`sched-refresh`; on the device: `poweroff N M`), and `fonts` (drawn by the Os).
   Time is real on the device: a shot right after a tap can catch the frame before or after the settle pass, so it may differ from the golden by a few
   hundred anti-aliased pixels (seen in `widgets3-stepper` and `-level` even against the simulator's remote mode).
+- **Camera (P7-7)**: what the panel physically shows (ghosting, flash, refresh timing on the panel, gray levels) comes from a webcam:
+  `make cam-shot`, `make cam-video`, `make cam-compare`, `tools/cam.py around tap X Y`. Details and limits: DISPLAY.md "Camera on the panel".
 - Things only the device can answer are listed per task as "Device check" in `ROADMAP.md`.
   If no device is attached, finish the task in the simulator and add the device check to
   `STATUS.md` under "Pending device checks". Never claim a device check passed without running it.

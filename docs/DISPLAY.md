@@ -218,3 +218,41 @@ line is not set in the caption size when the row has room. Measured by the user 
 barely visible and in gray(13) invisible; Read S 24 px is fine. Tokens now: `secondary` gray(3), `disabled` gray(5), `divider` gray(9). Not yet judged: the gray(9)
 dividers in a real list, the gray(13) icon wells (an area, not a line).
 
+## Camera on the panel (P7-7, `tools/cam.py`)
+
+A webcam pointed at the device sees what frame dumps cannot: ghosting, the Fast-then-settle sequence, the flash of a Quality pass, how
+grays and thin lines come out. It is the tool for those checks; a person's eyes are asked only for what the camera cannot tell (touch feel,
+whether text is comfortable to read, ghosting too faint for the camera), batched as before.
+
+**The set-up is not stable**: the camera can be moved, daylight changes over the day. So:
+
+- Every run finds the panel again: a SIFT match of the camera image against the frame dump of the same moment (`make device-shot`).
+  The outline is saved in `out/cam-corners.json` (gitignored) and reused only within the hour (`--max-age`), for pages without
+  features (a blank white page). Four ArUco markers (4x4_50, ids 0-3) stuck on the bezel are optional: if the calibration sees them, it
+  stores their panel coordinates and later images of the session are registered by the markers.
+- Every number is normalised by the same image: the light is a smooth surface fitted through the white areas, black and contrast are a
+  robust fit of camera value against the frame's gray. A number is "% of this image's white-to-black contrast".
+- Numbers are compared only within one session (before and after a change, A against B). No camera goldens, no thresholds in `make check`.
+- Exposure, focus and white balance: macOS's avfoundation cannot lock them; `uvc-util` (not installed) could for a UVC camera. The
+  normalisation makes stills robust to auto exposure; in a video a big flash can make auto exposure hunt for a few frames.
+
+Commands (`uv run --script tools/cam.py ...`; every command has a run limit and prints progress, like `tools/device.py`):
+
+| Command | What it does |
+|---|---|
+| `devices` | cameras and their modes. Screen-capture devices are never used; the built-in camera only with `--camera`. |
+| `make cam-shot` | `shot`: one still to `out/cam.png` after 2 s of warm-up. |
+| `make cam-video SECONDS=5` | `video`: `out/cam.mp4`, 60 fps if the camera offers it, else its best rate. |
+| `make cam-compare` | `device-shot` + `cam-shot` + `compare`: warp to 540x960, residual against the frame dump. Prints the **ghost number** (mean, p95) overall and per region (3 columns x 4 rows), the measured lightness per gray level on flat areas (the Display lab Ramp), and writes `out/cam-diff.png` (camera, frame dump, ghost heat map). |
+| `calibrate` | registers `out/cam.png` against `out/device.png`, saves the outline, draws it into `out/cam-calibrated.png`. |
+| `around tap X Y` / `long X Y` / `swipe X1 Y1 X2 Y2` | frame dump, video, the input through the serial port, the serial log read line by line, `>refresh`, frame dump after. Each push in the refresh log gets a host time (its `[disp] push` line arrives when the push call returns), and the video says per push when its rect starts and stops changing on the panel. Writes `out/cam-timing.png` (change per frame, push markers), `out/cam-frames.png` (frames with the most change), `out/cam-around.mp4`, and `compare` of the last frame against the frame dump after. Refuses a serial port that another process holds. |
+| `selftest` | synthetic camera images (perspective, uneven light, blur, noise): registration within 0.5 px, the ghost of Checker under White found in the right region and rising with the amount, timing of a synthetic Fast push within a frame. |
+
+What "ghost" measures: pixels the frame dump says are white and at least 3 px away from any ink, and how much darker than expected the
+camera sees them. The known page for it is the Display lab: Checker, then White (one Fast pass each), then `make cam-compare`; "Clean
+(Quality)", then `make cam-compare` again gives the floor of the same session. On a reader page the previous page's lines sit in the
+same rows as the current ones, so a reader ghost shows mostly in the word gaps and margins: compare turns within one session.
+
+`--source FILE` replays a video in real time instead of a camera (tests of the pipeline without a camera). The panel can show private
+messages: the images stay in `out/` (gitignored); never commit, upload or paste them, and do not record screens that show secrets.
+

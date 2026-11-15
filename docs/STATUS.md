@@ -38,6 +38,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 93 tests; 55 goldens; `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
+| Camera on the panel | `make cam-shot` / `cam-video` / `cam-compare`, `tools/cam.py around tap X Y` | built and self-tested (synthetic images; `around` against the device with a replayed video); webcam not connected yet |
 | Serial heartbeat | `make monitor` | `[beat]` and `[sd]` lines every 5 s (the refresh benchmark is gone since P1-1) |
 | Open books for the simulator | `make books` | 5 EPUB + 1 TXT in `sim-data/sd/books/` (not in git) |
 
@@ -80,17 +81,10 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 ## Not verified yet (do not assume)
 
-- **Reader on the physical panel (P4-6 stays open)**: ghosting after 10 and 30 page turns (the Quality clean cadence of the ghost
-  budget, `ghostLimit`), how the Fast pass then 16-gray settle looks at the four text sizes (is S 24 px still comfortable, is the
-  bold double strike at S/L/XL acceptable), the cover thumbnail's gray quality, the flash feel of "Clean", the menu sheet's feel,
-  and the real page-turn time as felt. The refresh log says a turn is ~150-210 ms render + 87 ms push call + about 0.3 s of waveform.
-  Needs a person's eyes once, batched.
-- **What the panel physically shows after Fast then settle** (ghosting, edge quality of the
-  touch marker, flash feel): no tool can see it. Frame dumps show the firmware's frame only.
-
-- **What the panel shows**: the user saw the mock launcher well enough to aim at the Settings
-  tile, but nobody has confirmed the gray ramp order, sharpness, ghosting, or that the black
-  dot appears under the finger. Ask once, or have the user send a photo.
+- **Reader on the physical panel (P4-6 stays open)**: the measurable part (ghosting after 10 and 30 turns, Fast then settle, the cover's
+  grays, the Clean flash, the turn time on the panel) moved to "To verify with the camera". Still for a person's eyes, once, batched: is S
+  24 px comfortable to read, is the bold double strike at S/L/XL acceptable, how the menu sheet feels.
+- **What the panel physically shows** (Fast then settle, ghosting, gray ramp, sharpness, the touch dot): see "To verify with the camera".
 - Light-sleep current, touch wake from light sleep, power-off and RTC wake (task P3-1).
 - Whether a side-button click is readable by a running program (task P3-1).
 - Home Assistant: entity ids come from the dashboard repo, not from the live instance; nothing
@@ -188,6 +182,24 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   visible, too thin to be usable; S24: yes." Done: `divider` gray(11) -> gray(9), `disabled` gray(7) -> gray(5); `secondary` stays gray(3) (the caption limit). Limits in UI.md.
   Still to look at: the gray(9) dividers in a list, the gray(13) icon wells of the launcher tiles.
 
+## To verify with the camera (P7-7)
+
+The webcam (`tools/cam.py`, DISPLAY.md "Camera on the panel") checks these instead of a person's eyes. Not run yet: **the webcam is not
+connected** (2026-11-15: macOS lists only the built-in camera; the user will plug it in). Numbers are per session (the set-up moves).
+
+- **Ghosting, known page**: Display lab Checker, then White: `make cam-compare` (ghost number, mostly in the left and middle columns of
+  the checker area), then "Clean (Quality)" and `make cam-compare` again for the floor of the same session.
+- **Reader (P4-6)**: ghost number after 1, 10 and 30 page turns against a fresh Clean, at the four text sizes; whether the ghost-budget
+  Quality clean (`ghostLimit`) brings it back to the floor; `around tap 400 500` on a page for the Fast pass, the settle and the real turn
+  time on the panel (refresh log: ~150-210 ms render + 87 ms push call + about 0.3 s of waveform); the cover thumbnail's grays.
+- **Fast then settle** in general (P1-3): `around tap` on a toggle and on a list row: the rect's visible span against the push times,
+  the edge quality of the touch dot; the Clean flash (quick panel or Display lab) as a video.
+- **Gray levels**: the Display lab Ramp (`compare` prints the measured lightness per level: is the order monotonic, where do levels
+  merge), the gray(9) dividers in a real list, the gray(13) icon wells of the launcher tiles, gray(3) metadata on other screens. Whether
+  the text is comfortable stays a question for a person's eyes.
+- **Sleep screen** (P3-6, P7-5 item 2): a still after the device powers off (the cover's grays, the summary line), and stills an hour and
+  several hours later: does it stay sharp.
+
 ## Pending device checks
 
 - **P7-2**: the hang of `launcher.script` on the host was not reproduced after the fix (write timeout + run limit), only bounded; `launcher` and `display-lab` need a device-side way to be comparable
@@ -195,8 +207,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 - **P7-5**: (1) the real path: auto-off or "Sleep now" on battery with the setting at 1 h, the device waking by itself an hour later and
   switching off again (the device tests used `>poweroff N [M]`, which calls the same `Os::powerOffForSleep`, with 20-30 s alarms; the
-  hour-long alarm and the Settings value on the device were not run); (2) the sleep screen with the summary line on the panel (the device
-  is off right after drawing it: no frame dump, only the simulator golden `sched-refreshed.png`); (3) a count above 0 (the live feed had
+  hour-long alarm and the Settings value on the device were not run); (2) the sleep screen with the summary line on the panel: camera
+  list above; (3) a count above 0 (the live feed had
   nothing newer than the seen marker) and the mail feed; (4) the current while awake (the mAh figures are estimates); (5) a side-button
   press that lands within -90 s .. +180 s of the alarm runs the refresh first (a touch then ends it in a normal boot: simulator only).
 
@@ -210,7 +222,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   0.4 s; not run, a toggle changes the user's real lights); app open with Wi-Fi off to fresh data (under 4 s: warm Lights tab measured
   1.4 s, cold adds the Wi-Fi join and TLS, about 2 s: not measured); whether polling needs the Wi-Fi linger extended.
 - **P5-1**: Settings > Home Assistant "Test connection" now goes through `HaClient` (`core/ha`); re-run it on the device (it worked with the previous direct request, P3-7).
-- **P3-6**: how the sleep screen looks on the panel (cover gray ramp, contrast, that it stays sharp for hours: a frame dump cannot show it; the device was powered off right after drawing it); button press to usable screen (an RTC wake measured instead, see below; a real side-button press not timed).
+- **P3-6**: how the sleep screen looks on the panel: camera list above; button press to usable screen (an RTC wake measured instead, see below; a real side-button press not timed).
 - **Auto-off guard** (kUsbGraceMs): built, not run on the device; check that an idle device on USB with no program holding the port stays on for more than 20 minutes.
 - **Phase 4 (reader), device state (2026-11-15, side button pressed, firmware of 91f4a64; items below marked "later" ran with the next firmware)**: Pride and Prejudice cold open 12.1 s (1577 pages;
   convert 6.6 s, paginate 5.4 s), cached open 0.22 s; Alice (EPUB 3, images) cold 6.2 s, cached 0.23 s, text size L re-index 5.0 s (432 pages);
@@ -505,3 +517,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P6-3 (WhatsApp half, done in parallel): `ha/paperos_inbox.yaml` synced from the Home Assistant repo; BACKEND.md event fields and feed mapping corrected; D20; add-on security facts.
 - 2026-11-15: P3-5 preparation: `core/power_log` (`/data/power.csv`, every 10 min), Developer screen shows battery, time since boot and the power log switch, `>cat` / `tools/device.py cat`.
 - 2026-11-15: P7-1 Display lab screen (ramp, checker / white ghost test, text samples, counters); Developer screen: Display lab row, memory in one row.
+- 2026-11-15: P7-7 camera tooling: `tools/cam.py` (devices, shot, video, calibrate, compare, around, selftest), `make cam-shot` / `cam-video` / `cam-compare`; per-run registration, per-image normalisation, no goldens (the set-up moves); camera-checkable items moved to "To verify with the camera". Waiting for the webcam to be plugged in.
