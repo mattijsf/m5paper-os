@@ -4,6 +4,7 @@
 #include <cstdio>
 
 #include "apps/reader/book.h"
+#include "apps/reader/library.h"
 #include "core/app.h"
 #include "core/fs.h"
 #include "core/os.h"
@@ -236,7 +237,10 @@ class PageScreen : public Screen {
     c->add<ui::Label>(meta_.title, Type::Title);
     if (!meta_.author.empty()) c->add<ui::Label>(meta_.author, Type::Body, ui::secondary);
     ui::Sheet* raw = sheet.get();
-    c->add<ui::Button>("Library", [this] { ctx().nav.pop(); });
+    c->add<ui::Button>("Library", [this, raw] {
+      raw->close();
+      ctx().nav.pop();
+    });
     c->add<ui::Button>("Close", [raw] { raw->close(); }, ui::Button::Kind::Secondary);
     view_->host()->addOverlay(std::move(sheet));
   }
@@ -265,31 +269,11 @@ class PageScreen : public Screen {
   int turns_ = 0;
 };
 
-std::string pickBook() {
-  std::vector<fs::DirEntry> entries;
-  if (!fs::listDir(kBooksDir, entries)) return "";
-  for (const auto& e : entries)
-    if (!e.isDir && isBookFile(e.name) && !isEpubFile(e.name)) return e.name;  // until the library (P4-2)
-  return "";
-}
-
-class NoBooksScreen : public Screen {
- public:
-  void build(ui::Column& root) override {
-    setTitle("Read");
-    root.add<ui::EmptyState>(Icon::BookOpen, "No books yet", "Copy .epub or .txt files to the books folder on the SD card.")->flex = 1;
-  }
-};
-
 class ReadApp : public App {
  public:
   void onStart(AppContext& ctx) override {
-    const std::string file = pickBook();
-    if (file.empty()) {
-      ctx.nav.push<NoBooksScreen>();
-      return;
-    }
-    ctx.nav.push<PageScreen>(file, ctx.store.get("font", 1));
+    AppContext* c = &ctx;
+    ctx.nav.push<LibraryScreen>([c](const std::string& file) { c->nav.push<PageScreen>(file, c->store.get("font", 1)); });
   }
 };
 

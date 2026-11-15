@@ -9,8 +9,12 @@ bar for refresh quality and battery life.
 
 - Title "Library". Rows (`ListItem`, 96 px): title, author, progress ("42%" trailing), sorted by
   last opened. 7 per page with `Pager`. Covers are not shown in the list (gray images are slow).
-- The most recent book is shown as a larger card at the top of page 1: cover thumbnail
-  (`Hint::Image`, 120x180), title, author, progress bar, "Continue".
+- The most recently opened book is shown as a larger card at the top of page 1 (not repeated in the list; no card
+  while nothing was opened): cover thumbnail (`Hint::Image`, 120x180; a framed book icon until P4-5), title, author,
+  progress bar, "Continue". Page 1 then holds 5 rows, the other pages 7. The list is rebuilt from a scan on the
+  worker each time the screen is shown (so progress and order are current after reading).
+- Title and author come from the book's cache (`meta.json`, once it was opened) or from the file name
+  "Title - Author.ext".
 - Empty state: "No books yet. Copy .epub or .txt files to the books folder on the SD card."
 - First open of a book: "Preparing book..." while the worker indexes it (below), then the page.
 

@@ -242,3 +242,40 @@ TEST_CASE("reader: progress file round trip") {
   Progress none;
   CHECK_FALSE(readProgress("000000000000", none));
 }
+
+TEST_CASE("reader: library scan reads names, cached meta and progress, and sorts by last opened") {
+  Card card;
+  CHECK(scanLibrary().empty());  // no folder
+  fs::writeFile("/sd/books/Zebra Tales - Zed Author.txt", "z\n");
+  fs::writeFile("/sd/books/alpha Tales - Al Author.txt", "a\n");
+  fs::writeFile("/sd/books/Middle - Mid Author.txt", "m\n");
+  fs::writeFile("/sd/books/notes.pdf", "x");
+  fs::writeFile("/sd/books/.hidden.txt", "x");
+  fs::writeFile("/sd/books/.paperos/xx/meta.json", "{}");
+  auto lib = scanLibrary();
+  REQUIRE(lib.size() == 3);
+  CHECK(lib[0].title == "alpha Tales");  // never opened: by title, case-insensitive
+  CHECK(lib[1].title == "Middle");
+  CHECK(lib[2].title == "Zebra Tales");
+  CHECK(lib[2].author == "Zed Author");
+  CHECK(lib[0].opened == 0);
+
+  // Opening Zebra Tales and reading to 40% makes it the most recent; its cached title wins over the file name.
+  FakeMetrics m;
+  OpenResult o = openBook("Zebra Tales - Zed Author.txt", smallPage(), m);
+  REQUIRE(o.ok);
+  Progress p;
+  p.percent = 40;
+  p.opened = 1700000000;
+  writeProgress(o.meta.id, p);
+  BookMeta changed = o.meta;
+  changed.title = "Zebra Tales (the real title)";
+  writeMeta(changed);
+  lib = scanLibrary();
+  REQUIRE(lib.size() == 3);
+  CHECK(lib[0].file == "Zebra Tales - Zed Author.txt");
+  CHECK(lib[0].title == "Zebra Tales (the real title)");
+  CHECK(lib[0].percent == 40);
+  CHECK(lib[0].opened == 1700000000);
+  CHECK(lib[1].title == "alpha Tales");
+}

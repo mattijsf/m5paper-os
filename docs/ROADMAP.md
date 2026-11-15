@@ -269,7 +269,7 @@ simulator first; each task ends with screenshots.
   TextBlock, progress save/restore, footer. Put a public-domain TXT in `sim-data/sd/books/`.
   Done when: `tests/ui/reader.script` turns 5 pages with `expect-no-quality`; position survives
   restart.
-- [ ] **P4-2 Library screen.** Scan `/sd/books`, list with progress, recent-book card (no cover
+- [x] **P4-2 Library screen.** Scan `/sd/books`, list with progress, recent-book card (no cover
   yet), empty state. Golden.
 - [ ] **P4-3 Zip and EPUB structure.** Vendor miniz (tinfl) in `lib/miniz`, `core/zip`,
   container.xml / OPF / nav+ncx parsing to `meta.json`. Unit tests with a small fixture EPUB

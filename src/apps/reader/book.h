@@ -87,6 +87,20 @@ int pageIndexFor(const std::vector<PageRef>& pages, int chapter, ui::TextPos pos
 // Whole-book percentage of a page (0..100), by page number.
 int percentOf(int pageIndex, size_t pageCount);
 
+// ---- library
+
+struct LibraryEntry {
+  std::string file, id, title, author;
+  bool epub = false;
+  int percent = 0;     // reading progress
+  int64_t opened = 0;  // unix seconds of the last time it was opened, 0 = never
+};
+// Books in /sd/books (.epub, .txt) with title and author (from the cache once a book was opened, else from the
+// file name) and reading progress. Blocking: run on the worker. Sorted by sortLibrary().
+std::vector<LibraryEntry> scanLibrary();
+// Most recently opened first, then never-opened books by title.
+void sortLibrary(std::vector<LibraryEntry>& entries);
+
 // Opens (and on first use imports) a book. Blocking; run on the worker.
 struct OpenResult {
   bool ok = false;

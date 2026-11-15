@@ -434,12 +434,12 @@ TEST_CASE("launcher: tiles come from the registry in order; a tap opens the app;
   for (int i = 0; i < 6; ++i) CHECK(tiles[i]->label() == apps[i]->info.name);
   CHECK(tiles[0]->label() == "Read");  // order 10 comes first
 
-  // tap the Read tile: the placeholder app opens with a "Coming soon" screen
+  // tap the Read tile: the app opens on its library
   const Rect r = tiles[0]->frame;
   env.tapAt(r.x + 30, r.y + 30);
   CHECK(env.shell->appOpen());
   CHECK(env.shell->appId() == "read");
-  CHECK(env.shell->titleBar().title() == "Read");
+  CHECK(env.shell->titleBar().title() == "Library");
   env.shell->closeApp();
   CHECK_FALSE(env.shell->appOpen());
 

@@ -381,6 +381,43 @@ int percentOf(int pageIndex, size_t pageCount) {
   return std::min(100, std::max(0, pageIndex * 100 / static_cast<int>(pageCount - 1)));
 }
 
+std::vector<LibraryEntry> scanLibrary() {
+  std::vector<LibraryEntry> out;
+  std::vector<fs::DirEntry> files;
+  if (!fs::listDir(kBooksDir, files)) return out;
+  for (const fs::DirEntry& f : files) {
+    if (f.isDir || !isBookFile(f.name)) continue;
+    uint64_t size = 0;
+    int64_t mtime = 0;
+    if (!fs::fileInfo(std::string(kBooksDir) + "/" + f.name, size, mtime)) continue;
+    LibraryEntry e;
+    e.file = f.name;
+    e.id = bookId(f.name, size, mtime);
+    e.epub = isEpubFile(f.name);
+    titleFromFileName(f.name, e.title, e.author);
+    BookMeta meta;
+    if (readMeta(e.id, meta)) {
+      if (!meta.title.empty()) e.title = meta.title;
+      if (!meta.author.empty()) e.author = meta.author;
+    }
+    Progress p;
+    if (readProgress(e.id, p)) {
+      e.percent = p.percent;
+      e.opened = p.opened;
+    }
+    out.push_back(std::move(e));
+  }
+  sortLibrary(out);
+  return out;
+}
+
+void sortLibrary(std::vector<LibraryEntry>& entries) {
+  std::stable_sort(entries.begin(), entries.end(), [](const LibraryEntry& a, const LibraryEntry& b) {
+    if (a.opened != b.opened) return a.opened > b.opened;
+    return lower(a.title) < lower(b.title);
+  });
+}
+
 OpenResult openBook(const std::string& fileName, const ui::TextStyle& style, ui::TextMetrics& metrics,
                     const std::function<bool(int, int)>& progress) {
   OpenResult r;
