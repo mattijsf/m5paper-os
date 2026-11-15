@@ -157,6 +157,11 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   text is a bit hard to see (the display itself is also a bit gray by itself)." Done: `secondary` gray(5) -> gray(3), `disabled` gray(9) -> gray(7), content lines in ink
   at the body size (UI.md "Colour", DISPLAY.md). **The result needs a person's eyes once**: the WhatsApp list is left on the panel.
 
+- Display lab on the device (2026-11-15, firmware 497b441): the four patterns were opened with injected taps and dumped (`out/dev-lab-ramp.png`, `-checker`, `-white`, `-text`);
+  they equal the simulator goldens except the counters line (1812 to 2866 differing pixels, the push counts and ghost score differ). Checker and White went out as Fast
+  passes. **No tuning claim**: how the ramp, the ghost after Checker then White and the gray text look on the panel needs a person's eyes.
+- The WhatsApp list with the readable text is left on the panel (`out/dev-wa-readable.png`, `out/dev-wa-left-on-panel.png`); the feed was not cleared.
+
 ## Pending device checks
 
 - **P7-6**: "Sleep now" ends in the sleep screen and a power-off (not run: only the side button restarts it). The swipe from the status bar works on the device (checked 2026-11-15).
