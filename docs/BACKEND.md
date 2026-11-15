@@ -155,7 +155,16 @@ Risks and checks (task P6-1). **These need the owner's attention before installi
 4. The link drops if the phone is offline for 14 days or WhatsApp is reinstalled: the feed
    then silently stops. The integration has a connection `binary_sensor`; the inbox app shows
    "WhatsApp link is down" when it is off (fetch it along with the feed).
-5. Group messages: the event has no group name (shown as "Group"). Capture real events (HA > Developer tools > Events > listen to
+5. Group messages: the event has no group name (shown as "Group"). **How to get it** (read from the integration source, FaserF/ha-whatsapp `custom_components/whatsapp`,
+   2026-11-15): `whatsapp.search_groups` only posts a persistent notification (no response); the integration's **Chats sensor**
+   (`sensor.whatsapp_<number>_chats`, **disabled by default**) carries an attribute `groups`, a list of the add-on's chat objects of every `@g.us` chat, each with
+   its `jid` (the `search_groups` service reads `name` or `subject` from the same objects; the exact key in `/chats` entries is not verified). So with that sensor
+   enabled the package template can look the group up **at event time, no polling loop**: `integration_entities('whatsapp')` finds the Chats sensor and
+   `groups | selectattr('jid','eq',chat)` the group. `ha/paperos_inbox.yaml` does this and falls back to "Group" when the sensor is disabled or the group is not
+   listed. **Needs**: enable the Chats sensor. **Untested** (not run in Home Assistant's engine; the attribute keys `jid` and `name`/`subject` are
+   assumptions from the source): it is installed and tested separately. Alternative if the attribute proves empty: the `get_contacts` action returns
+   `{"contacts": ...}` as a service response but is one call per event: avoid.
+   Old note:  Capture real events (HA > Developer tools > Events > listen to
    `whatsapp_message_received`) for a direct and a group message and save redacted samples as fixtures; look for a way to get the group name.
 
 ### Integration set up (2026-11-15, about 20:12-20:14)

@@ -93,10 +93,17 @@ template:
                 {% endif %}
                 {% set ts = raw_ts | int(t) %}
                 {% set number = (d.get('sender_number') or '') | string %}
+                {# Group name: looked up at event time (no polling) in the integration's "Chats" sensor, whose attribute `groups`
+                   lists the groups with their jid. That sensor is disabled by default: enable it in Home Assistant (Settings >
+                   Devices > WhatsApp > Chats). Without it, or when the group is not in the list, the name stays "Group". #}
+                {% set chats = integration_entities('whatsapp') | select('match', 'sensor\\..*_chats$') | list %}
+                {% set groups = (state_attr(chats[0], 'groups') if chats | count > 0 else none) or [] %}
+                {% set found = groups | selectattr('jid', 'eq', chat) | list %}
+                {% set group_name = ((found[0].get('name') or found[0].get('subject')) if found | count > 0 else none) or 'Group' %}
                 {% set item = {
                   'id': (ts | string) ~ '-' ~ number ~ '-' ~ ((d.get('id') or '') | string)[-6:],
                   'from': ((d.get('sender_name') or number or '?') | string)[:60],
-                  'chat': 'Group' if (d.get('is_group') or chat.endswith('@g.us')) else '',
+                  'chat': group_name[:40] if (d.get('is_group') or chat.endswith('@g.us')) else '',
                   'text': text[:500],
                   'ts': ts,
                   'key': chat
