@@ -35,7 +35,7 @@ std::string prettyId(const std::string& id) {  // "light.sofa_lamp" -> "sofa lam
   return s;
 }
 
-std::string degrees(double v) {
+std::string celsiusText(double v) {
   char buf[24];
   std::snprintf(buf, sizeof buf, "%.1f \xC2\xB0" "C", v);
   return buf;
@@ -182,7 +182,7 @@ class HomeScreen : public Screen {
     v.mode->align = ui::TextAlign::Right;
     v.temp = v.climateCard->add<ui::Label>("--", Type::Headline);
     // Half-degree steps: the stepper counts half degrees (10 = 5.0 C).
-    v.target = v.climateCard->add<ui::Stepper>(40, 10, 60, 1, [](int h) { return "Target " + degrees(h / 2.0); });
+    v.target = v.climateCard->add<ui::Stepper>(40, 10, 60, 1, [](int h) { return "Target " + celsiusText(h / 2.0); });
     TabView* vp = &v;
     v.target->onChange = [this, vp](int halfDegrees) {
       touched();
@@ -299,7 +299,7 @@ class HomeScreen : public Screen {
       if (v.climate) {
         auto c = states_.find(v.climate->entity);
         if (c != states_.end() && c->second.known) {
-          v.temp->setText(c->second.current > -999 ? degrees(c->second.current) : "--");
+          v.temp->setText(c->second.current > -999 ? celsiusText(c->second.current) : "--");
           v.mode->setText(c->second.state);
           if (c->second.target > -999 && !targetPending_) v.target->setValue(static_cast<int>(std::lround(c->second.target * 2)), Hint::Content);
         }
