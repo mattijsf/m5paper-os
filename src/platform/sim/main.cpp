@@ -2,6 +2,8 @@
 //
 //   program                      interactive SDL window; mouse = touch (drag = move), S = screenshot,
 //                                G = ghost-residue overlay, L = print refresh log tail, Q/Esc = quit
+//   program --script FILE [--headless]  run a UI script (docs/SIMULATOR.md); --data DIR (default sim-data)
+//                                roots for /sd and /data; --time YYYY-MM-DDTHH:MM:SS fake clock start
 //   program --out DIR --scale N  where shots and refresh.log go (default out/); window scale
 //   program --headless --shot out.png   render the first frame to a PNG and exit (no window)
 //   program ... --name M5PaperS3       platform name shown in the footer (to compare with a device dump)
@@ -28,6 +30,8 @@
 #include "core/os.h"
 #include "core/remote.h"
 #include "hal/platform.h"
+#include "core/fs.h"
+#include "platform/sim/script.h"
 #include "platform/sim/sim.h"
 
 using namespace pos;
@@ -100,13 +104,18 @@ bool readStdinLines(std::string& buf, Remote& remote, int waitMs) {
 
 int main(int argc, char** argv) {
   bool headless = false, remoteMode = false;
-  std::string shot, name = "simulator", outDir = "out";
+  std::string shot, name = "simulator", outDir = "out", scriptPath, dataDir = "sim-data", startTime, appName;
   int scale = 1;
   for (int i = 1; i < argc; ++i) {
     if (!std::strcmp(argv[i], "--headless")) headless = true;
     else if (!std::strcmp(argv[i], "--remote")) remoteMode = true;
     else if (!std::strcmp(argv[i], "--name") && i + 1 < argc) name = argv[++i];
     else if (!std::strcmp(argv[i], "--shot") && i + 1 < argc) shot = argv[++i];
+    else if (!std::strcmp(argv[i], "--script") && i + 1 < argc) scriptPath = argv[++i];
+    else if (!std::strcmp(argv[i], "--data") && i + 1 < argc) dataDir = argv[++i];
+    else if (!std::strcmp(argv[i], "--time") && i + 1 < argc) startTime = argv[++i];
+    else if (!std::strcmp(argv[i], "--app") && i + 1 < argc) appName = argv[++i];  // no apps yet (P2)
+    else if (!std::strcmp(argv[i], "--fixtures") && i + 1 < argc) ++i;               // P5
     else if (!std::strcmp(argv[i], "--out") && i + 1 < argc) outDir = argv[++i];
     else if (!std::strcmp(argv[i], "--scale") && i + 1 < argc) scale = std::max(1, std::atoi(argv[++i]));
   }
@@ -119,14 +128,39 @@ int main(int argc, char** argv) {
   hal::Platform platform{display, input, clock, net, power, name.c_str()};
 
   display.setOutDir(outDir);
+  fs::setRoots(dataDir + "/sd", dataDir + "/data");
+  if (!startTime.empty()) {
+    struct tm tmv = {};
+    if (!strptime(startTime.c_str(), "%Y-%m-%dT%H:%M:%S", &tmv)) {
+      std::fprintf(stderr, "--time wants YYYY-MM-DDTHH:MM:SS (UTC)\n");
+      return 2;
+    }
+    clock.setFakeStart(static_cast<int64_t>(timegm(&tmv)));
+  }
   // One-shot headless renders are deterministic: the clock only moves when told to.
-  if (headless && !remoteMode) clock.setFake(true);
+  if (headless && !remoteMode) clock.setFake(true);  // also for --script runs
 
   Os os(platform);
   StdioRemoteHost remoteHost(input);
   Remote remote(os, clock, remoteHost);
   std::string rx;
 
+  if (!scriptPath.empty()) {
+    if (!headless && !display.openWindow(scale)) return 1;
+    if (!os.setup()) return 1;
+    sim::ScriptRunner runner(os, display, input, clock, outDir, [&] { display.present(); });
+    int rc = runner.run(scriptPath);
+    if (headless || rc != 0) return rc;
+    // Windowed: leave the window open after the script, as an interactive session.
+    while (!input.quit) {
+      input.pump();
+      os.loopOnce();
+      display.present();
+      SDL_Delay(16);
+    }
+    display.closeWindow();
+    return 0;
+  }
   if (headless && remoteMode) {
     // Headless remote session: commands on stdin, replies on stdout, until stdin closes.
     if (!os.setup()) return 1;

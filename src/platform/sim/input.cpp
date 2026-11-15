@@ -12,6 +12,7 @@ void Input::add(hal::TouchEvent::Type t, int x, int y) {
 }
 
 void Input::pump() {
+  if (!SDL_WasInit(SDL_INIT_VIDEO)) return;  // headless: no window, no events
   SDL_Event e;
   while (SDL_PollEvent(&e)) {
     if (e.type == SDL_QUIT) quit = true;

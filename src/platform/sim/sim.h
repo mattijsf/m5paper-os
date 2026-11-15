@@ -22,12 +22,14 @@ class Clock : public hal::Clock {
   int64_t now() override;
   void set(int64_t) override {}  // the simulator uses host time (or the fake start time)
   void setFake(bool fake) { fake_ = fake; }
+  void setFakeStart(int64_t unixSeconds) { fakeStartUnix_ = unixSeconds; }
   bool fake() const { return fake_; }
   void advance(uint32_t ms) { fakeMs_ += ms; }
 
  private:
   bool fake_ = false;
   uint32_t fakeMs_ = 0;
+  int64_t fakeStartUnix_ = 1700000000;
   std::chrono::steady_clock::time_point start_ = std::chrono::steady_clock::now();
 };
 
@@ -51,10 +53,12 @@ class Display : public hal::Display {
   std::string logTail(int lines = 20) const;
   // Pixels pushed since the last call (the sum of `changed` over pushes) and Quality pushes since then.
   struct Counters {
-    uint64_t changed = 0;
+    uint64_t changed = 0;  // panel pixels whose value changed
+    uint64_t area = 0;     // sum of pushed rectangle areas
     int pushes = 0, quality = 0;
   };
   Counters takeCounters();
+  const Counters& counters() const { return counters_; }
 
  private:
   static constexpr size_t kPixels = static_cast<size_t>(kScreenW) * kScreenH;

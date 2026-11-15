@@ -16,7 +16,10 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   The unit harness (doctest via PlatformIO, `env:test`, `make test`) was done here, ahead of P1-5.
 - **P1-4 is done** (2026-11-15): `platform/sim/{display,input,clock}.cpp` + `sim.h`; emulated panel,
   `out/refresh.log`, `>shot` and screenshots from the panel.
-- **Next task: P1-5** (script runner, goldens, `make ui-test` etc.).
+- **P1-5 is done** (2026-11-15): `sim/script.{h,cpp}`, `tools/ui-test.sh`, `tools/gallery.sh`,
+  `make test ui-test ui-accept gallery`, `check` = sim + test + ui-test + fw; first script
+  `tests/ui/demo.script` with three goldens. 21 unit tests (DisplayManager, remote parser, log ring, fs).
+- **Next task: P1-6** (fonts and icons pipeline).
 - The device runs the **spike firmware**: one static mock launcher. It is not interactive: a
   tap only draws a black dot. There are no apps or settings screens yet (the owner tried to open
   Settings on 2026-11-15; that arrives with tasks P2-5 and P2-6).
@@ -180,6 +183,13 @@ None of these block Phase 1, Phase 2, or the reader.
   emulation was checked through `>shot` and the refresh log. Sim `changed` counts differ from the
   DisplayManager's (the panel counts value changes after thresholding).
 
+- P1-5 notes: goldens are compared byte-for-byte; a changed pixel makes `make ui-test` print
+  `DIFF <name>.png` (checked by moving the title down 1 px, then reverted). Goldens accepted
+  after viewing: `demo-boot` (= the old `make shot` frame), `demo-tap-fast` (thresholded marker),
+  `demo-tap-settled`. `make shot` still exists and is not part of `check` any more.
+  `make test` runs the built test program itself because PlatformIO's doctest runner shows
+  "SKIPPED" for a custom main.
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -202,3 +212,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P1-3. DisplayManager with fast-then-settle, ghost budget, refresh log; unit harness
   and `make test`; device measurements above.
 - 2026-11-15: P1-4. Simulator e-ink emulation, refresh log, input and clock split into files.
+- 2026-11-15: P1-5. Script runner, golden screenshots, gallery, make targets, more unit tests.

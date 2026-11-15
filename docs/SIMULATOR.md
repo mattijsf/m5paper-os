@@ -20,7 +20,15 @@ make check   # shot + fw: must pass before any task is called done
 grayscale quantised to the panel's 16 levels. **UI work is verified by running
 `make shot` and looking at `out/shot.png`.**
 
-## Target (P1-4 done: --out, --scale, keys S G L Q, emulated panel; P1-5 open: script, fixtures, data, time, app)
+## Command line, scripts, goldens (P1-4, P1-5)
+
+Implemented: `--headless --script --out --data --time --scale --name --remote`; `--app` and
+`--fixtures` are accepted and ignored until P2 and P5. Script commands implemented: `wait`, `shot`,
+`tap`, `long`, `swipe`, `back` (taps (36, 92), the back-arrow target), `expect-no-quality`,
+`expect-max-pushed N` (sum of pushed rectangle areas since the last `shot`). `battery`, `wifi`, `type`
+wait for their features. `--time` takes `YYYY-MM-DDTHH:MM:SS` (UTC). In `--headless` runs the clock
+is fake; `tools/ui-test.sh` runs every script with `--data out/ui-data` (empty, never `sim-data/`) and
+`--time 2026-01-15T12:34:00`. `make gallery` writes `out/gallery.html`.
 
 ### Command line
 

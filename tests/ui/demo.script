@@ -1,0 +1,12 @@
+# Phase 1 demo screen: boot frame, a tap with its Fast pass, then the settled gray.
+wait 500
+shot demo-boot
+tap 140 300
+wait 100
+expect-no-quality
+expect-max-pushed 3000
+shot demo-tap-fast
+wait 800
+expect-no-quality
+expect-max-pushed 3000
+shot demo-tap-settled

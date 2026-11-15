@@ -5,20 +5,23 @@ PIO   ?= $(shell command -v pio || echo $(HOME)/.local/bin/pio)
 SIM   := .pio/build/sim/program
 PORT  ?= $(firstword $(wildcard /dev/cu.usbmodem*))
 
-.PHONY: help sim run shot test fw flash monitor device-shot backup books clean check
+.PHONY: help sim run shot test ui-test ui-accept gallery fw flash monitor device-shot backup books clean check
 
 help:
 	@echo "make sim      build the simulator"
 	@echo "make run      build + open the simulator window (mouse = touch, S = screenshot, Q = quit)"
 	@echo "make shot     build + render one headless frame to out/shot.png"
 	@echo "make test      host unit tests (tests/unit, doctest)"
+	@echo "make ui-test   run tests/ui/*.script headless, compare screenshots with tests/ui/golden"
+	@echo "make ui-accept accept out/ui/*.png as the new goldens (look at them first)"
+	@echo "make gallery   out/gallery.html: every UI test screenshot"
 	@echo "make fw       build the device firmware"
 	@echo "make flash    build + flash the device (PORT=$(PORT))"
 	@echo "make monitor  serial log from the device"
 	@echo "make device-shot  dump the frame from the device over USB to out/device.png (tools/device.py)"
 	@echo "make backup   read the whole device flash to backup/flash-16MB.bin"
 	@echo "make books    download public-domain test books into sim-data/sd/books/"
-	@echo "make check    what must pass before a task is done: headless shot, unit tests, firmware build"
+	@echo "make check    what must pass before a task is done: sim build, unit tests, UI golden tests, firmware build"
 
 sim:
 	$(PIO) run -e sim
@@ -57,7 +60,16 @@ test:
 	$(PIO) test -e test --without-testing
 	$(TEST)
 
-check: shot test fw
+ui-test: sim
+	tools/ui-test.sh
+
+ui-accept: sim
+	tools/ui-test.sh --accept
+
+gallery:
+	tools/gallery.sh
+
+check: sim test ui-test fw
 
 clean:
 	$(PIO) run -t clean

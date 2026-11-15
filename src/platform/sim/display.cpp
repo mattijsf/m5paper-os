@@ -55,6 +55,7 @@ void Display::push(const Canvas& frame, Rect r, Refresh mode) {
     }
   }
   counters_.changed += changed;
+  counters_.area += static_cast<uint64_t>(std::max(0, x1 - x0)) * std::max(0, y1 - y0);
   counters_.pushes++;
   if (mode == Refresh::Quality) counters_.quality++;
   dirty_ = true;

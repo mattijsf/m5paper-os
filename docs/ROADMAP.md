@@ -77,7 +77,7 @@ DisplayManager, and the simulator can run scripts and compare screenshots.
   Done when: in the window, tapping the demo shows a thresholded Fast pass then the settled
   gray after 600 ms (visible on the gray ramp); `out/refresh.log` lists the pushes.
 
-- [ ] **P1-5 Script runner, golden tests, unit test harness.**
+- [x] **P1-5 Script runner, golden tests, unit test harness.**
   Read: SIMULATOR.md (UI scripts, Golden screenshots, Unit tests).
   Do: `src/platform/sim/script.cpp` (commands: wait, shot, tap, swipe, long, back,
   expect-no-quality, expect-max-pushed; battery/wifi/type can come with their features);
