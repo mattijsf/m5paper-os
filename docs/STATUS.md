@@ -137,6 +137,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 ## Done on the device 2026-11-15 (firmware 91f4a64)
 
+- Inbox against the live feed (20:20-20:22, run in parallel): two fake events fired into Home Assistant appeared in the WhatsApp app (group row "Test Two - Group", a direct row, a chat page with accents and the euro sign correct; `out/dev-wa-list.png`, `out/dev-wa-chat.png`). Cold fetch: Wi-Fi join 1.49 s + HTTPS 1.30 s. "Mark all read" emptied `sensor.paperos_whatsapp_inbox` in Home Assistant, so the device token may call `script.paperos_inbox_clear` (whether it is non-admin is still unknown), and the app showed "No new messages" (`out/dev-wa-cleared.png`). **Still unverified**: a real message in the feed (a real group message arrived at 20:21:35 but the test's own clear removed it first). Found: the status bar showed Wi-Fi off 12 s after a fetch (linger is 20 s); "Mark all read" clears messages that arrived after the list was fetched.
 - P5-2: all 30 entities of the default `home.json` (three tabs, 18 + 9 + 3 reads) exist on the live instance and answer 200 (the tab status
   line read "Updated", no "not found"); the Lights tab refresh took 1.4 s with Wi-Fi up (18 requests over one kept-alive TLS connection,
   36-52 ms each, `reused=1`), below the 3 s limit: no aggregate sensor needed yet. Read-only: no toggle or scene was sent.
