@@ -179,7 +179,8 @@ Risks and checks (task P6-1). **These need the owner's attention before installi
   from before the restart).
 - The connection `binary_sensor` now exists: the inbox's link-down notice could read it (today it reads an optional `connected` attribute that the package
   does not set).
-- **Still not verified**: a real incoming WhatsApp message in the feed, the clear script with a non-admin token, the 48 h expiry, group names.
+- **Verified 20:24:31**: a real incoming direct message reached the feed 5 s after it was sent, with exactly the contract keys (`from` = display name, `chat` = "", `key` = `...@s.whatsapp.net`, numeric `ts` from `raw.messageTimestamp`, `id` = `<ts>-<number>-<6 chars>`).
+- **Still not verified**: a real group message in the feed, the clear script with a non-admin token, the 48 h expiry, group names.
 
 ### Add-on security (accepted risk, 2026-11-15)
 

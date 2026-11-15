@@ -239,7 +239,7 @@ simulator first; each task ends with screenshots.
   Device check: device sleeps between taps (log line with sleep durations), UI still feels
   immediate; auto-off after the configured time.
 
-- [ ] **P3-5 Power measurements.**
+- [~] **P3-5 Power measurements.** (prepared 2026-11-15: `/data/power.csv` logger, Developer values, `>cat`; the three battery sessions and the 80 MHz experiment are open)
   Read: POWER.md (Measuring). Needs the device and several hours; mostly waiting.
   Do: `/data/power.csv` logger, the three sessions, CPU 80 MHz experiment.
   Done when: POWER.md estimates replaced by measurements; STATUS.md updated.
@@ -311,7 +311,7 @@ P6-4 to P6-6 (the device app) need only the feed contract and can be done first.
 change the user's Home Assistant: each needs the owner present, and each follows the
 home-assistant repo's own rules. Read BACKEND.md fully before any of them.
 
-- [~] **P6-1 WhatsApp add-on in Home Assistant.** (2026-11-15: add-on installed, linked, integration set up, recorder exclusion verified; **stays [~] until a real incoming WhatsApp message is seen in the feed** (then [x]); see STATUS.md "P6-1 progress".) Needs the owner (QR scan with the phone).
+- [x] **P6-1 WhatsApp add-on in Home Assistant.** (done 2026-11-15: add-on installed, linked, integration set up, recorder exclusion verified, and a real incoming direct message reached the feed at 20:24:31; see STATUS.md "P6-1 progress". A real group message in the feed is still open, under P6-3.) Needs the owner (QR scan with the phone).
   Before installing, repeat the terms-of-service warning from BACKEND.md and get a clear yes.
   Do: add the add-on repository, install and start the WhatsApp add-on, link the account,
   install the `whatsapp` integration. Checks: (1) phone still gets WhatsApp notifications
@@ -326,7 +326,7 @@ home-assistant repo's own rules. Read BACKEND.md fully before any of them.
   confirm an `imap_content` event for a test mail, try `imap.fetch` with `?return_response`
   over REST with the device token and save a redacted fixture.
   Done when: event and fetch samples are saved; setup recorded in HANDOVER.md.
-- [~] **P6-3 Install the inbox package.** (2026-11-15: WhatsApp half live in the Home Assistant repo, commit de1323d, tested with fake events; mail half waits for P6-2; real message, non-admin script call, recorder exclusion and the 48 h expiry untested. See BACKEND.md.) Fix `ha/paperos_inbox.yaml` against the real samples
+- [~] **P6-3 Install the inbox package.** (2026-11-15: WhatsApp half live in the Home Assistant repo, commit de1323d, tested with fake events; mail half waits for P6-2; verified for a real direct message (20:24:31) and the recorder exclusion; a real group message, the non-admin script call and the 48 h expiry are untested. See BACKEND.md.) Fix `ha/paperos_inbox.yaml` against the real samples
   (group names, entity ids), test both templates in Developer tools > Template, install into
   the home-assistant repo per its rules, verify: a new WhatsApp message and a new mail appear
   in the sensors within seconds; answering the chat removes its items; reading all mail empties

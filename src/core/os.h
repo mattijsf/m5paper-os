@@ -15,6 +15,7 @@
 #include "core/secrets.h"
 #include "core/gfx.h"
 #include "core/net.h"
+#include "core/power_log.h"
 #include "core/surface.h"
 #include "core/timers.h"
 #include "core/worker.h"
@@ -58,6 +59,7 @@ class Os {
   Timers& timers() { return timers_; }
   // Time of the last touch event (boot time before the first one).
   uint32_t lastInputMs() const { return lastInputMs_; }
+  PowerLog& powerLog() { return powerLog_; }
   bool touching() const { return gestures_.touching(); }
   // Milliseconds until the loop next has work of its own (timers, settle / clean, long press); kNoDeadline if none.
   uint32_t msToNextDeadline();
@@ -77,6 +79,7 @@ class Os {
   Config config_;
   Secrets secrets_;
   NetService net_;
+  PowerLog powerLog_{*this};
   std::unique_ptr<Surface> surface_;
   GestureRecognizer gestures_;
   uint32_t lastInputMs_ = 0;

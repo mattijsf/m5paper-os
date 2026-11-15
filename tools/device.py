@@ -4,7 +4,7 @@
 Run with PlatformIO's Python (it has pyserial):
     ~/.platformio/penv/bin/python tools/device.py shot out/device.png
     ~/.platformio/penv/bin/python tools/device.py tap 140 300
-Commands: ls [DIR] | rm PATH | status (key names + lengths, Wi-Fi, heap) | diff A.png B.png [FIRST_ROW] | shot OUT.png | tap X Y | long X Y | swipe X1 Y1 X2 Y2 | log | refresh | set KEY VALUE | poweroff SECONDS | wait-boot | diff A.png B.png
+Commands: ls [DIR] | cat /data/power.csv | rm PATH | status (key names + lengths, Wi-Fi, heap) | diff A.png B.png [FIRST_ROW] | shot OUT.png | tap X Y | long X Y | swipe X1 Y1 X2 Y2 | log | refresh | set KEY VALUE | poweroff SECONDS | wait-boot | diff A.png B.png
 Options:  --port /dev/cu.usbmodemXXXX (default: the first /dev/cu.usbmodem*)
           --sim   talk to .pio/build/sim/program --headless --remote instead of a device
           -v      also print device log lines seen while waiting for a reply
@@ -100,7 +100,7 @@ def _request_once(link, cmd, verbose, timeout):
         if line.startswith("#shot "):
             header = line.split()
             payload = link.read(int(header[3]))
-        elif line.startswith("#log ") or line.startswith("#refresh ") or line.startswith("#status ") or line.startswith("#ls "):
+        elif line.startswith("#log ") or line.startswith("#refresh ") or line.startswith("#status ") or line.startswith("#ls ") or line.startswith("#cat "):
             header = line.split()
             payload = link.read(int(header[1]))
         elif line.startswith("#ok") or line.startswith("#err"):
@@ -163,7 +163,7 @@ def main():
     ap.add_argument("--port")
     ap.add_argument("--sim", action="store_true")
     ap.add_argument("-v", "--verbose", action="store_true")
-    ap.add_argument("cmd", choices=["shot", "tap", "long", "swipe", "log", "refresh", "status", "ls", "rm", "set", "poweroff", "wait-boot", "diff"])
+    ap.add_argument("cmd", choices=["shot", "tap", "long", "swipe", "log", "refresh", "status", "ls", "cat", "rm", "set", "poweroff", "wait-boot", "diff"])
     ap.add_argument("args", nargs="*")
     a = ap.parse_args()
 
@@ -208,6 +208,13 @@ def main():
             sys.stdout.write((payload or b"").decode(errors="replace"))
         elif a.cmd == "ls":
             status, payload, _ = request(link, ">ls " + (a.args[0] if a.args else "/sd/books"), a.verbose)
+            if not status.startswith("#ok"):
+                sys.exit(status)
+            sys.stdout.write((payload or b"").decode(errors="replace"))
+        elif a.cmd == "cat":
+            if len(a.args) != 1:
+                sys.exit("usage: cat /data/power.csv")
+            status, payload, _ = request(link, ">cat " + a.args[0], a.verbose)
             if not status.startswith("#ok"):
                 sys.exit(status)
             sys.stdout.write((payload or b"").decode(errors="replace"))

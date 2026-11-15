@@ -146,6 +146,13 @@ Voltage under load sags, so sample only when Wi-Fi is off, average 8 samples, an
 
 1. Developer screen shows battery mV and time since boot; `/data/power.csv` gets a line every
    10 minutes of awake/idle time: `unix,mv,state,wifiSeconds,pushes`.
+   **Built (2026-11-15, `core/power_log`)**: the line is `unix,mv,state,wifiSeconds,pushes,usb,app` (state `active` = touched in the last
+   minute, else `idle`; `wifiSeconds` and `pushes` count since boot; `usb` 1 when a host or charger is seen; `app` = id of the open app, empty
+   on the launcher). One line at boot, then every 10 minutes: the loop wakes from light sleep for it. On by default (`power.log` in
+   config.json; switch in Settings > Developer, which also shows battery mV / percent / USB, time since boot, lines written and Wi-Fi
+   seconds). At 200 KB the file becomes `/data/power.old.csv`. Read it over USB: `tools/device.py cat /data/power.csv` (`>cat` reads only
+   these two files). A battery run starts by unplugging the device; nothing else to set. Not built: the 40 s auto page turn for the
+   reading session.
 2. Run three sessions from a full charge with USB unplugged: 2 h reading (auto page turn every
    40 s from a script flag), 2 h idle on the launcher, 30 min Home app with Wi-Fi up. Compute
    mAh/h from the voltage curve and compare with the table. With a USB power meter in line the

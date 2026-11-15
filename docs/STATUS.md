@@ -109,6 +109,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 - The user accepted the terms-of-service risk on 2026-11-15 ("Install the add-on it is fine").
 - **Update 2026-11-15 19:51**: the WhatsApp link is up (QR scanned in the add-on's web UI; the session survived an add-on restart). Facts and warnings (number pairing rewrites 0 to 49, the setup dialog voids a shown QR, Baileys 7.0.0-rc14 pairing bugs, no `ui_auth` = every private-network address is superadmin and the API key goes out over mDNS) are in BACKEND.md. Options now also `log_level` info, `mask_sensitive_data` true.
 - **Update 20:12-20:14**: the integration is set up (API token pasted by the user), connected, Home Assistant restarted, `sensor.paperos_whatsapp_inbox` restored, recorder exclusion verified (BACKEND.md "Integration set up"). **Still not verified**: a real incoming WhatsApp message in the feed (P6-1 goes to [x] when one is seen), the clear script with a non-admin token, the 48 h expiry, group names.
+- **Update 20:24:31**: a real incoming WhatsApp message (direct chat) reached `sensor.paperos_whatsapp_inbox` 5 s after it was sent: one item with exactly the contract keys `chat`, `from`, `id`, `key`, `text`, `ts`; `from` is the contact's display name, `chat` is "", `key` ends in `@s.whatsapp.net`, `ts` is a number from `raw.messageTimestamp` (10 s old when read), `id` has the shape `<ts>-<number>-<6 chars>` (checked by shape and lengths only, not content). **P6-1 is done**; the WhatsApp half of P6-3 is verified for direct chats. Open: a real group message in the feed, the 48 h expiry, the mail half.
 - **Older list, partly done**: restart Home Assistant to load the integration; UI password (`ui_auth_enabled`, the user types it); add the
   integration; the user scans the QR code; capture one real `whatsapp_message_received` event (direct, then group); then P6-3.
   Check (1) phone notifications still arrive, (2) events captured, (3) auto-responder, bot commands, mark-as-read off.
@@ -149,6 +150,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   1.6 s after the boot (cached index and the chapter converted from the EPUB).
 
 - Status bar Wi-Fi icon (2026-11-15): the old Shell cleared the new Shell's net callback when a screen change replaced it (`set screen`, `restart`), so the icon stayed off while connected. Fixed (`NetService::onChangeOwner`); on the device the icon is on 14 s after a fetch (`out/dev-wa-14s-fixed.png`). That frame also shows a real WhatsApp message in the feed (a test message, 20:24), seen on the device at 20:27.
+
+- P3-5 preparation on the device (2026-11-15): `tools/device.py cat /data/power.csv` returned the header and the boot line `1794771228,4160,idle,0,1,1,` (4160 mV, on USB). The battery sessions themselves are open.
 
 ## Pending device checks
 
@@ -429,3 +432,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P7-6 quick panel (`core/quick_panel`, `Shell::sleepNow`); Home light sheet shows the brightness value.
 - 2026-11-15: launcher summary line (`summaryLine`, golden with and without data).
 - 2026-11-15: P6-3 (WhatsApp half, done in parallel): `ha/paperos_inbox.yaml` synced from the Home Assistant repo; BACKEND.md event fields and feed mapping corrected; D20; add-on security facts.
+- 2026-11-15: P3-5 preparation: `core/power_log` (`/data/power.csv`, every 10 min), Developer screen shows battery, time since boot and the power log switch, `>cat` / `tools/device.py cat`.

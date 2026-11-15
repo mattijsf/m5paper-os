@@ -17,6 +17,8 @@ struct PowerConfig {
   // Do not light-sleep while a USB host is connected: sleep breaks the serial link (tools/device.py). Auto-off
   // never happens on USB either.
   bool stayAwakeOnUsb = true;
+  // One line every 10 minutes in /data/power.csv (battery voltage, state, Wi-Fi time, refreshes): the data of the battery runs (POWER.md "Measuring").
+  bool log = true;
 };
 struct NetConfig {
   int lingerSec = 20;

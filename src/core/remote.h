@@ -43,7 +43,7 @@ class RemoteHost {
 };
 
 struct RemoteCommand {
-  enum Kind { None, Shot, Tap, Long, Swipe, Log, Refresh, Reboot, Set, Status, Put, Ls, Rm, PowerOff } kind = None;
+  enum Kind { None, Shot, Tap, Long, Swipe, Log, Refresh, Reboot, Set, Status, Put, Ls, Rm, PowerOff, Cat } kind = None;
   std::string key, value;  // Set
   std::string path;        // Put, Ls, Rm
   uint64_t size = 0;       // Put

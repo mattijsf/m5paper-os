@@ -27,6 +27,8 @@ void setRoots(const std::string& sdRoot, const std::string& dataRoot);
 
 bool exists(const std::string& virtualPath);
 bool readFile(const std::string& virtualPath, std::string& out);
+// Appends to a file (created, with its folders, if missing).
+bool appendFile(const std::string& virtualPath, const std::string& data);
 // Atomic: writes <path>.tmp, then renames over <path>. Creates missing parent folders.
 bool writeFile(const std::string& virtualPath, const std::string& data);
 // Entries sorted by name, without "." and "..". False if the folder cannot be opened.

@@ -422,10 +422,18 @@ class DeveloperPage : public Page {
     heap_ = root.add<ui::ListItem>("Heap free", "", false);
     psram_ = root.add<ui::ListItem>("PSRAM free", "", false);
     counters_ = root.add<ui::ListItem>("Refreshes since boot", "", false);
+    battery_ = root.add<ui::ListItem>("Battery", "", false);
+    uptime_ = root.add<ui::ListItem>("Time since boot", "", false);
+    plog_ = root.add<ui::ListItem>("Power log", "", false);
+    plog_->setToggle(cfg().power.log, [this](bool on) {
+      cfg().power.log = on;
+      save();
+      update();
+    });
     root.add<ui::Spacer>(ui::s1);
     root.add<ui::Label>("Log", Type::Caption, ui::secondary);
     log_ = root.add<ui::Label>("", Type::Caption);
-    log_->maxLines = 8;
+    log_->maxLines = 2;
     log_->flex = 1;
     auto* row = root.add<ui::Row>(ui::s2);
     auto* sleep = row->add<ui::Button>("Sleep test", ui::Button::Kind::Secondary);
@@ -485,13 +493,24 @@ class DeveloperPage : public Page {
     psram_->setTrailingText(kbText(m.psramFree) + " / " + kbText(m.psramTotal));
     const auto& c = ctx().os().displayManager().counts();
     counters_->setTrailingText("Q " + std::to_string(c.quality) + "  T " + std::to_string(c.text) + "  F " + std::to_string(c.fast));
+    {
+      hal::Power& pw = ctx().os().platform().power;
+      char b[64];
+      std::snprintf(b, sizeof b, "%d mV  %d%%  %s", pw.batteryMv(), pw.batteryPercent(), pw.usbConnected() || pw.charging() ? "USB" : "battery");
+      battery_->setTrailingText(b);
+      const uint32_t s = ctx().clock.millis() / 1000;
+      std::snprintf(b, sizeof b, "%u h %02u min", static_cast<unsigned>(s / 3600), static_cast<unsigned>(s / 60 % 60));
+      uptime_->setTrailingText(b);
+      PowerLog& pl = ctx().os().powerLog();
+      plog_->setSubtitle(cfg().power.log ? std::to_string(pl.lines()) + (pl.lines() == 1 ? " line" : " lines") + " since boot, Wi-Fi " + std::to_string(pl.wifiSeconds()) + " s" : "Off");
+    }
     std::string tail = logTail(6);
     while (!tail.empty() && tail.back() == '\n') tail.pop_back();
     for (auto& ch : tail)
       if (ch == '\n') ch = ' ';
     log_->setText(tail);
   }
-  ui::ListItem *heap_ = nullptr, *psram_ = nullptr, *counters_ = nullptr;
+  ui::ListItem *heap_ = nullptr, *psram_ = nullptr, *counters_ = nullptr, *battery_ = nullptr, *uptime_ = nullptr, *plog_ = nullptr;
   ui::Label* log_ = nullptr;
 };
 

@@ -60,6 +60,12 @@ RemoteCommand parseRemoteCommand(const std::string& raw) {
     c.crc = static_cast<uint32_t>(std::strtoul(rest.c_str() + sp2 + 1, &e2, 16));
     if (*e1 != ' ' || *e2 != '\0') return bad("usage: put <path> <size> <crc32 hex>");
     c.kind = RemoteCommand::Put;
+  } else if (word == "cat") {
+    std::string rest;
+    std::getline(in >> std::ws, rest);
+    if (rest.empty()) return bad("usage: cat <path>");
+    c.kind = RemoteCommand::Cat;
+    c.path = rest;
   } else if (word == "ls" || word == "rm") {
     std::string rest;
     std::getline(in >> std::ws, rest);
@@ -198,6 +204,21 @@ void Remote::handleLine(const std::string& line) {
       std::string text;
       for (const auto& e : list) text += e.name + "\t" + (e.isDir ? std::string("-") : std::to_string(e.size)) + "\n";
       say("#ls " + std::to_string(text.size()));
+      host_.reply(text.data(), text.size());
+      break;
+    }
+    case RemoteCommand::Cat: {
+      // Only the power log (docs/POWER.md "Measuring"): the card's secrets are not here, but nothing else needs reading either.
+      if (c.path != "/data/power.csv" && c.path != "/data/power.old.csv") {
+        say("#err path not allowed");
+        return;
+      }
+      std::string text;
+      if (!fs::readFile(c.path, text)) {
+        say("#err no such file");
+        return;
+      }
+      say("#cat " + std::to_string(text.size()));
       host_.reply(text.data(), text.size());
       break;
     }

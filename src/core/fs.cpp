@@ -165,6 +165,17 @@ bool rename(const std::string& from, const std::string& to) {
   return std::rename(a.c_str(), b.c_str()) == 0;
 }
 
+bool appendFile(const std::string& v, const std::string& data) {
+  const std::string p = resolve(v);
+  if (p.empty()) return false;
+  const size_t slash = p.rfind('/');
+  if (slash != std::string::npos && slash > 0) mkdirsReal(p.substr(0, slash));
+  FILE* f = std::fopen(p.c_str(), "ab");
+  if (!f) return false;
+  const bool ok = std::fwrite(data.data(), 1, data.size(), f) == data.size();
+  return std::fclose(f) == 0 && ok;
+}
+
 bool fileInfo(const std::string& v, uint64_t& size, int64_t& mtime) {
   std::string p = resolve(v);
   struct stat st;

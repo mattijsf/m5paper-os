@@ -65,6 +65,7 @@ void Os::loopOnce() {
     if (lastPass && now - lastPass > 400) POS_LOG("perf", "UI loop gap %ums", static_cast<unsigned>(now - lastPass));
     lastPass = now;
   }
+  powerLog_.tick();
   // 1. input
   hal::TouchEvent ev;
   std::vector<Gesture> gs;
@@ -104,7 +105,9 @@ void Os::loopOnce() {
 uint32_t Os::msToNextDeadline() {
   const uint32_t now = p_.clock.millis();
   uint32_t best = kNoDeadline;
-  for (uint32_t deadline : {dm_.nextDeadlineMs(), timers_.nextDeadlineMs(), gestures_.nextDeadlineMs(), net_.msToNextDeadline() == kNoDeadline ? kNoDeadline : now + net_.msToNextDeadline()}) {
+  const uint32_t logIn = powerLog_.msToNext();
+  for (uint32_t deadline : {dm_.nextDeadlineMs(), timers_.nextDeadlineMs(), gestures_.nextDeadlineMs(), net_.msToNextDeadline() == kNoDeadline ? kNoDeadline : now + net_.msToNextDeadline(),
+                            logIn == kNoDeadline ? kNoDeadline : now + logIn}) {
     if (deadline == kNoDeadline) continue;
     int32_t d = static_cast<int32_t>(deadline - now);
     best = std::min<uint32_t>(best == kNoDeadline ? 0xFFFFFFFEu : best, d < 0 ? 0 : static_cast<uint32_t>(d));
