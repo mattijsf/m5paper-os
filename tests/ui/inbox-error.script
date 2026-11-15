@@ -2,7 +2,7 @@
 # P6-4: Home Assistant cannot be reached and nothing is saved: the error state with Retry; Wi-Fi back, Retry works.
 wifi off
 restart
-wait 1500
+wait 2500               # long enough for the settle pass of the footer, whenever the worker's answer lands
 shot inbox-error
 wifi on
 tap 270 628             # Retry

@@ -144,6 +144,17 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   line read "Updated", no "not found"); the Lights tab refresh took 1.4 s with Wi-Fi up (18 requests over one kept-alive TLS connection,
   36-52 ms each, `reused=1`), below the 3 s limit: no aggregate sensor needed yet. Read-only: no toggle or scene was sent.
 - P7-6: the swipe from the status bar opens the quick panel with the real touch panel (injected swipe); Wi-Fi and battery detail show.
+- **P7-2 UI scripts on the device (21:15-21:35, `tools/device.py script`, frame dumps in `out/device-ui/`)**: `textblock` 5/5, `widgets1` 1/1,
+  `widgets2` 3/3, `widgets2list` 5/5, `widgets2rows` 3/3 shots **identical to the goldens**; `widgets3` 6/12 (the six others differ by
+  421-1205 anti-aliased pixels: a shot between the Fast pass and the settle pass); `display-lab` 0/5 (2300-2950 pixels: its date line
+  and counters are live); `launcher` cannot be compared on this device: the first shot differs (live summary line), and the Read tile
+  reopens the stored book full-screen, so every later tap lands on a book page (the script moved nothing but page turns in Alice).
+  **Found and fixed**: twice the device stopped answering for 50-60 s in the middle of a script, with the port open: the "USB host
+  connected" reading dropped out, the idle policy light-slept for 49.7 s (`[power] light sleep asked 49757ms`) and the serial link was
+  gone for that time. `decideSleep` now counts a host seen in the last 10 minutes as connected (`kUsbHostHoldMs`; it also keeps the device awake
+  between two tool runs, which used to cost up to a minute per first command); after the fix the script ran past that point. The last run of `launcher.script` then hung in `tools/device.py` itself after the seventh shot (the device kept answering other
+  commands; the serial write had no timeout). **The tool can no longer hang**: writes time out after 5 s, every resend is printed,
+  and the whole run ends with exit code 3 after `--limit` seconds (default 90, a script: from its length).
 - **P7-5 scheduled refresh (later the same day, RTC wakes only, on USB power)**: `poweroff 20` three times and `poweroff 20 30` once. Each
   RTC wake was recognised as a scheduled wake, skipped the first panel refresh (`[boot] the panel keeps its image`), fetched the feeds and
   logged a line in `/data/refresh.log`: refresh 2.8 / 5.2 / 2.9 / 3.0 s, 3.5 / 6.1 / 3.6 / 3.7 s since `setup()` (Wi-Fi join 1.2-1.4 s, TLS
@@ -178,6 +189,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   Still to look at: the gray(9) dividers in a list, the gray(13) icon wells of the launcher tiles.
 
 ## Pending device checks
+
+- **P7-2**: the hang of `launcher.script` on the host was not reproduced after the fix (write timeout + run limit), only bounded; `launcher` and `display-lab` need a device-side way to be comparable
+  (fixed clock and no stored book) or stay "data".
 
 - **P7-5**: (1) the real path: auto-off or "Sleep now" on battery with the setting at 1 h, the device waking by itself an hour later and
   switching off again (the device tests used `>poweroff N [M]`, which calls the same `Os::powerOffForSleep`, with 20-30 s alarms; the
@@ -229,13 +243,31 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 3. **Proton**: paid plan (needed for Bridge)? OK to run Bridge as a Home Assistant add-on?
    (task P6-2)
 
+4. **P7-3 OTA update: how should it be protected?** Not built; pick one (or "no OTA").
+   - **a. Pull only, signed** (recommended if OTA is wanted): Settings > "Check for update" downloads an image over HTTPS from one fixed
+     address (a key on the card), checks an Ed25519 signature against a public key compiled into the firmware, then switches the boot
+     slot; the new image must confirm a good boot or the old one comes back. No open port on the device. Needs a signing key on the Mac
+     (never in the repo) and a place to host the file.
+   - **b. Push on the home Wi-Fi, in an update mode**: the device listens only while a Settings screen is open (5 minutes at most) and
+     wants a one-time 6-digit code shown on the panel; the image is still signature-checked. Nothing to host, but a port is open for
+     that window and the upload is plain HTTP on the Wi-Fi.
+   - **c. No OTA**: keep `make flash` over USB (works today, 18 s). Nothing to protect; the device has to be at the Mac.
+5. **P7-4 Book upload over Wi-Fi: how should it be protected?** Not built; pick one.
+   - **a. Upload page only while "Add books" is open** (recommended if uploads from the phone are wanted): the panel shows the address
+     and a one-time 6-digit code; the server takes only `.epub` / `.txt` up to a size limit, cleans the file name, writes only into
+     `/sd/books`, and stops when the screen closes or after 10 idle minutes. Plain HTTP: the code and the book cross the Wi-Fi unencrypted.
+   - **b. Pull from Home Assistant**: the device lists and downloads books from a folder on Home Assistant with its token over HTTPS.
+     No open port, works away from home; needs a place for books on the Home Assistant side that a non-admin token can read (not checked).
+   - **c. Keep USB**: `tools/push.py` (works today, about 90 KB/s) or the card in the Mac. Nothing to protect.
+
 None of these block Phase 1, Phase 2, or the reader.
 
 ## Notes for later tasks
 
-- **UI test flake seen once (2026-11-15)**: `inbox-error.png` differed from its golden in one of five `make ui-test` runs and matched in the
-  next run with no change in between (the image looked right: the error state). The worker runs in real time while the script's clock is
-  fake, so a result can land one pass earlier or later. If it shows up again: look at `out/ui/inbox-error.png`, re-run, do not accept.
+- **UI test flake, fixed (2026-11-15)**: `inbox-error.png` differed from its golden in two of seven `make ui-test` runs (342 pixels: the
+  footer line caught before its settle pass). The worker runs in real time while the script's clock is fake, so its answer lands at a
+  slightly different simulated time; the script now waits 2500 ms before that shot (three runs in a row match). Same cure for any other
+  shot that flakes: a longer `wait`, never a new golden.
 
 - LovyanGFX picks the colour format from the C++ type of the colour argument. The spike first
   passed `uint8_t` grays and got RGB332 colours (wrong gray ramp). `pos::Color` is `uint32_t`
@@ -466,6 +498,7 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P5-2. `apps/home/home_model` (home.json parser, default config with the full Avond scene, state parser, light views with group counts, states cache, call bodies).
 - 2026-11-15: P5-3, P5-4, P5-5 (simulator part). Home app (Lights with scenes, member sheet, Climate, More), optimistic actions with revert, cache first, foreground polling; goldens `home-*`.
 - 2026-11-15: P6-4, P6-5, P6-6. `core/text_clean`, Inbox app for WhatsApp and Mail (grouped chats, detail pages, full-text fetch, mark all read, seen marker, badge file), `Screen::setAction`; goldens `inbox-*`, `mail-*`.
+- 2026-11-15: P7-2 run on the device (five scripts identical to the goldens), no light sleep within 10 minutes of a USB host (`kUsbHostHoldMs`), `tools/device.py` cannot hang any more (write timeout, `--limit`), `inbox-error` test flake fixed (longer wait), `device.py scripts` crash on `fonts` fixed; OTA and book upload protection options written as open questions 4 and 5.
 - 2026-11-15: P7-5 scheduled refresh: `power.refreshHours` (Settings > Power), `Os::powerOffForSleep` / `takeScheduledWake`, `apps/inbox/scheduled_refresh`, sleep screen summary line, `/data/refresh.log`, script commands `timer-wake` / `expect-off`, `>poweroff N [M]`; goldens `sched-*`; four RTC wakes measured on the device.
 - 2026-11-15: P7-6 quick panel (`core/quick_panel`, `Shell::sleepNow`); Home light sheet shows the brightness value.
 - 2026-11-15: launcher summary line (`summaryLine`, golden with and without data).

@@ -6,6 +6,7 @@ Run with PlatformIO's Python (it has pyserial):
     ~/.platformio/penv/bin/python tools/device.py tap 140 300
 Commands: ls [DIR] | cat /data/power.csv | rm PATH | status (key names + lengths, Wi-Fi, heap) | diff A.png B.png [FIRST_ROW] | shot OUT.png | tap X Y | long X Y | swipe X1 Y1 X2 Y2 | log | refresh | set KEY VALUE | poweroff SECONDS [THEN_SECONDS] | wait-boot | diff A.png B.png
 Options:  --port /dev/cu.usbmodemXXXX (default: the first /dev/cu.usbmodem*)
+          --limit N   the whole run ends after N seconds with exit code 3 (it never hangs): default 90, script: from its length
           --sim   talk to .pio/build/sim/program --headless --remote instead of a device
           -v      also print device log lines seen while waiting for a reply
 Protocol: docs/ROADMAP.md P1-8, src/core/remote.h. The dump is the frame the firmware drew, not
@@ -42,6 +43,7 @@ class Link:
                 sys.exit("no device: /dev/cu.usbmodem* not found")
             self.ser = serial.Serial()
             self.ser.port, self.ser.baudrate, self.ser.timeout = port, 115200, 5
+            self.ser.write_timeout = 5  # a device that does not read (asleep, busy) must not block the tool for ever
             # Do NOT touch dtr/rts: setting them while opening the USB-Serial/JTAG port walks
             # through the (DTR=0, RTS=1) reset state and reboots the board on every command.
             self.ser.open()
@@ -50,8 +52,15 @@ class Link:
     def send(self, line):
         if not self.sim:
             self.ser.reset_input_buffer()
-        self.w.write(line.encode() + b"\n")
-        self.w.flush()
+        global LAST_COMMAND
+        LAST_COMMAND = line
+        try:
+            self.w.write(line.encode() + b"\n")
+            self.w.flush()
+        except Exception as e:  # serial.SerialTimeoutException, a port that went away
+            if type(e).__name__ in ("SerialTimeoutException", "SerialException", "OSError", "BrokenPipeError"):
+                raise TimeoutError(f"cannot send {line!r}: {e}")
+            raise
 
     def readline(self):
         return self.r.readline().decode(errors="replace").rstrip("\r\n")
@@ -73,6 +82,22 @@ class Link:
             self.ser.close()
 
 
+LAST_COMMAND = ""
+
+
+def arm_limit(seconds):
+    """The whole run ends after `seconds`, whatever blocks (a write, a read, the port): exit code 3 and a line that says where."""
+    import signal
+
+    def give_up(*_):
+        print(f"device.py: gave up after {seconds} s (limit; last command sent: {LAST_COMMAND!r}). The device may be asleep, "
+              f"busy or off: try `device.py status`.", file=sys.stderr, flush=True)
+        os._exit(3)
+
+    signal.signal(signal.SIGALRM, give_up)
+    signal.alarm(int(seconds))
+
+
 def request(link, cmd, verbose=False, timeout=20, retries=2):
     """Send one command; return (status_line, payload_bytes or None, header or None).
 
@@ -85,8 +110,7 @@ def request(link, cmd, verbose=False, timeout=20, retries=2):
         except TimeoutError:
             if attempt == retries or link.sim:
                 raise
-            if verbose:
-                print(f"| no reply to {cmd!r}, sending it again", file=sys.stderr)
+            print(f"| no reply to {cmd!r} in {timeout} s (asleep or busy?), sending it again ({attempt + 2}/{retries + 1})", file=sys.stderr, flush=True)
 
 
 def _request_once(link, cmd, verbose, timeout):
@@ -232,6 +256,8 @@ def run_script(link, path, out_dir, golden_dir, verbose=False):
     results, failed = [], 0
     for no, cmd, args in steps:
         try:
+            if verbose:
+                print(f"  {os.path.basename(path)}:{no}: {cmd} {args}", flush=True)
             if cmd == "wait":
                 time.sleep(int(args) / 1000.0)
             elif cmd == "shot":
@@ -318,8 +344,23 @@ def main():
     ap.add_argument("cmd", choices=["shot", "tap", "long", "swipe", "log", "refresh", "status", "ls", "cat", "rm", "set", "poweroff", "wait-boot", "diff", "script", "scripts"])
     ap.add_argument("--out", default="out/device-ui", help="script: where the frame dumps go")
     ap.add_argument("--golden", default="tests/ui/golden", help="script: goldens to compare with")
+    ap.add_argument("--limit", type=int, default=0, help="give up after this many seconds (default: 90, wait-boot and poweroff 120, script: its waits + 20 s per step + 60)")
     ap.add_argument("args", nargs="*")
     a = ap.parse_args()
+    sys.stdout.reconfigure(line_buffering=True)  # progress shows at once, also through a pipe
+
+    limit = a.limit
+    if not limit:
+        limit = 90
+        if a.cmd in ("wait-boot", "poweroff"):
+            limit = 120
+        elif a.cmd == "script" and a.args and os.path.exists(a.args[0]):
+            _, steps, _ = script_plan(a.args[0])
+            waits = sum(int(s[2].split()[0]) for s in steps if s[1] == "wait" and s[2].split()[:1] and s[2].split()[0].isdigit()) / 1000.0
+            turns = sum(int(s[2].split()[0]) for s in steps if s[1] in ("page-through", "page-until") and s[2].split()[0].isdigit())
+            limit = int(60 + waits + 20 * len(steps) + 2 * turns)
+    if a.cmd not in ("scripts", "diff"):
+        arm_limit(limit)
 
     if a.cmd == "scripts":
         # Which UI scripts can run on the device, and which of those can be compared with the goldens.
@@ -328,7 +369,7 @@ def main():
             _, _, blocked = script_plan(path)
             preset = os.path.isdir(os.path.join("tests/ui/data", name))
             if blocked:
-                print(f"cannot   {name}: {blocked[0].split(': ', 1)[1]}")
+                print(f"cannot   {name}: {blocked[0].split(': ', 1)[-1]}")
             elif preset:
                 print(f"data     {name}: runs, but its goldens come from preset card data and HTTP fixtures (tests/ui/data/{name}): the device has its own")
             else:

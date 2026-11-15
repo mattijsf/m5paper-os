@@ -33,6 +33,10 @@ TEST_CASE("decideSleep: sleeps only when every condition holds") {
   // USB: stays awake by default so tools/device.py keeps working; the flag can allow sleeping
   CHECK(without([](SleepInputs& x) { x.usbConnected = true; }) == 0);
   CHECK(without([](SleepInputs& x) { x.usbConnected = true; x.stayAwakeOnUsb = false; }) == kMaxSleepMs);
+  // the host reading drops out for a moment: a host seen in the last ten minutes still counts
+  CHECK(without([](SleepInputs& x) { x.msSinceUsbHost = 2000; }) == 0);
+  CHECK(without([](SleepInputs& x) { x.msSinceUsbHost = kUsbHostHoldMs; }) == kMaxSleepMs);
+  CHECK(without([](SleepInputs& x) { x.msSinceUsbHost = 2000; x.stayAwakeOnUsb = false; }) == kMaxSleepMs);
 }
 
 TEST_CASE("decideSleep: the sleep ends at the next deadline, capped at a minute") {

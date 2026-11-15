@@ -23,6 +23,7 @@ struct SleepInputs {
   bool wifiOn = false;
   bool usbConnected = false;
   bool stayAwakeOnUsb = true;       // config power.stayAwakeOnUsb
+  uint32_t msSinceUsbHost = 0xFFFFFFFFu;  // since a USB host was last seen this boot (kUsbNeverSeen if never)
   uint32_t msSinceInput = 0;
   uint32_t msToDeadline = kNoDeadline;  // next timer / settle / long press / auto-off, kNoDeadline if none
 };
@@ -30,6 +31,11 @@ struct SleepInputs {
 constexpr uint32_t kSleepAfterInputMs = 300;   // let double taps and swipes finish
 constexpr uint32_t kSettleGuardMs = 50;        // no sleep if a settle or clean pass is due this soon
 constexpr uint32_t kMaxSleepMs = 60000;        // tick at least once a minute
+// A USB host seen this recently still counts as connected. Two reasons (device, 2026-11-15): the reading drops out for a moment
+// now and then with the port open (the nap that followed cut the serial link for 50 s), and a Mac suspends a port no program has
+// open, so between two tools/device.py runs the device saw no host, napped, and the next command waited up to a minute.
+// Cost: an unplugged device stays out of light sleep for these ten minutes.
+constexpr uint32_t kUsbHostHoldMs = 10u * 60 * 1000;
 
 // 0 = do not sleep (wait briefly instead); otherwise how long to light-sleep in ms (at most kMaxSleepMs).
 uint32_t decideSleep(const SleepInputs& in);
@@ -61,6 +67,8 @@ class PowerPolicy {
   uint32_t sleeps_ = 0;
   bool usbSeen_ = false;
   uint32_t usbSeenMs_ = 0;  // clock.millis() when USB (host or charger) was last seen
+  bool hostSeen_ = false;
+  uint32_t hostSeenMs_ = 0;  // clock.millis() when a USB host was last seen (kUsbHostHoldMs)
 };
 
 }  // namespace pos

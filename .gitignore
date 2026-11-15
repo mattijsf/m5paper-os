@@ -4,7 +4,7 @@
 out/
 backup/
 shot*.png
-# simulator SD card: downloaded books (tools/fetch-books.sh) and paperos_config with the
-# Home Assistant token and Wi-Fi password
-sim-data/sd/
-sim-data/data/wifi.json
+# The simulator's card and internal flash: all of it is local state and none of it belongs in git. sd/ holds downloaded books
+# (tools/fetch-books.sh) and paperos_config with the Home Assistant token and Wi-Fi password; data/ holds wifi.json (passwords),
+# the inbox cache (private messages), power.csv, refresh.log, app state. Test data lives in tests/ui/data and tests/fixtures.
+sim-data/

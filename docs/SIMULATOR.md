@@ -162,9 +162,13 @@ A task is done only when `make check` passes.
   remote mode) opens the script's `# app:` screen with `>set screen`, plays `wait`, `tap`, `long`, `swipe`, `back`, `shot`, `expect-no-quality`,
   `expect-max-pushed` (from `>refresh`), `expect-state`, `page-through`, `page-until` (from the new `>state` = `Screen::debugState()`) and
   `expect-shot-equal`, saves every `shot` to `out/device-ui/` and compares it with the golden: IDENTICAL, identical below the status bar (the top 56
-  rows hold the live clock and battery), or DIFFERENT with a pixel count. `tools/device.py scripts` lists what can run:
+  rows hold the live clock and battery), or DIFFERENT with a pixel count.
+  **The tool never hangs**: a serial write times out after 5 s, an unanswered command is sent again with a line on stderr, and the whole
+  run ends with exit code 3 after `--limit` seconds (default 90; a script: its waits + 20 s per step + 60). `-v` prints every script step.
+  `tools/device.py scripts` lists what can run:
   - **compare** (no card data, no fixtures): `textblock`, `widgets1`, `widgets2`, `widgets2list`, `widgets2rows`, `widgets3`; also `launcher` and
-    `display-lab`, whose date line and counters differ on a real device.
+    `display-lab`, which cannot match on a real device (live date line, counters and summary line; with a book open the Read tile goes
+    straight to the book, so `launcher` goes off its path). Device run 2026-11-15: the first five identical, `widgets3` 6 of 12 (STATUS.md).
   - **data** (runs, but the goldens come from preset card data and HTTP fixtures the device does not have): `home`, `inbox-empty`, `inbox-link`,
     `launcher-summary`, `library`, `reader-menu`, `settings`.
   - **cannot**: scripts with `type` / `type-max` (key positions are not exposed: `keyboard`, `wifi`), `wifi on|off` (simulator only: `home-offline`,

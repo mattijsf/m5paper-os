@@ -12,6 +12,7 @@ uint32_t decideSleep(const SleepInputs& in) {
   if (!in.canLightSleep) return 0;
   if (in.workerBusy || in.displayBusy || in.uiDirty || in.touching || in.wifiOn) return 0;
   if (in.usbConnected && in.stayAwakeOnUsb) return 0;  // light sleep breaks the USB serial link (HARDWARE.md)
+  if (in.stayAwakeOnUsb && in.msSinceUsbHost < kUsbHostHoldMs) return 0;  // seen recently: a drop-out of the reading, or the port is closed between two tool runs
   if (in.msSinceInput < kSleepAfterInputMs) return 0;
   uint32_t ms = kMaxSleepMs;
   if (in.msToDeadline != kNoDeadline) {
@@ -59,6 +60,11 @@ void PowerPolicy::idle(uint32_t maxWaitMs) {
   in.touching = os_.touching();
   in.wifiOn = os_.net().online();
   in.usbConnected = p.power.usbConnected();
+  if (in.usbConnected) {
+    hostSeen_ = true;
+    hostSeenMs_ = now;
+  }
+  in.msSinceUsbHost = hostSeen_ ? now - hostSeenMs_ : kUsbNeverSeen;
   in.stayAwakeOnUsb = cfg.power.stayAwakeOnUsb;
   in.msSinceInput = sinceInput;
   // Next thing the loop must do: the earliest of its own deadlines and the auto-off time.
