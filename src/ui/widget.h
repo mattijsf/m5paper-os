@@ -31,6 +31,7 @@ class Widget {
   int flex = 0;         // > 0: takes leftover space along the parent's main axis, in proportion
   bool visible = true;  // invisible widgets take no space, draw nothing and get no touches
   bool touchable = true;     // false: touches fall through to what is below (Toast)
+  bool modal = false;        // overlays only: touches that hit nothing else go to this widget (Sheet)
   bool transparent = false;  // true: the frame is not cleared before drawing (overlays that draw over the screen)
 
   // Preferred size when at most `availW` wide.

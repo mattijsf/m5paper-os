@@ -159,6 +159,10 @@ void Screen::onGesture(const Gesture& g) {
       consumer_ = nullptr;
       target_ = nullptr;
       for (size_t i = overlays_.size(); i-- > 0 && !target_;) target_ = overlays_[i]->hit(g.x, g.y);
+      if (!target_) {  // a modal overlay (Sheet) takes every touch outside itself
+        for (size_t i = overlays_.size(); i-- > 0 && !target_;)
+          if (overlays_[i]->modal) target_ = overlays_[i].get();
+      }
       if (!target_) target_ = root_->hit(g.x, g.y);
       if (target_) deliver(target_, g);
       break;

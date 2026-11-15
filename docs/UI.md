@@ -121,7 +121,7 @@ class Widget {
 | `Segmented` | 2 to 4 options | selected = filled ink |
 | `Pager` | "3 / 12" with previous/next targets; also handles horizontal swipes | every list longer than one screen uses it |
 | `Badge` | filled ink circle/pill with count | unread counts |
-| `Sheet` | bottom sheet over a dimmed (gray(13) hatch) screen, max 60% height | detail controls, confirmations |
+| `Sheet` | bottom sheet over the untouched screen, 2 px ink top edge, max 60% height; a tap outside or a swipe down closes it | detail controls, confirmations |
 | `Toast` | one line at the bottom for 3 s | errors like "No Wi-Fi" |
 | `EmptyState` | 64 px icon + title + hint + optional button | empty lists, errors, loading |
 | `Keyboard` | QWERTY, 3 layers (abc / ABC / 123#), key 54x72 | Wi-Fi password, search |
@@ -168,12 +168,13 @@ frame starts as the full screen and `layout()` may shrink it); `closeOverlay` re
 below (`Screen::invalidateRect`) and is safe to call from the overlay's own button handlers (the
 widget is destroyed on the next pass). `Widget::transparent` skips the clear-to-bg before drawing
 (overlays draw over the screen), `Widget::touchable = false` lets touches fall through (Toast).
-`Sheet`: full-screen modal widget, panel at the bottom (max 60% of the height, 2 px ink top edge,
-grab handle), the part above is dimmed with 1 px gray(13) lines on every 3rd row; a tap on the
-dimmed part or a swipe down closes it; put controls into `sheet->content()`. `Screen::showToast(text)`:
-ink pill at the bottom (y 864..936), 3 s, then the screen below is restored pixel for pixel
-(checked: `widgets3-toast-gone` == `widgets3-base`). Text over the dim hatch is thinned by the
-lines: acceptable for a dimmed background.
+`Sheet`: modal widget whose frame is just the panel at the bottom (max 60% of the height, 2 px ink
+top edge, grab handle); the screen behind stays untouched (no dimming: a hatch would repaint the whole
+panel twice and cost ghost budget). `Widget::modal` makes the Screen send every touch that hits nothing
+else to the sheet, so a tap outside closes it without reaching the widgets below; a swipe down closes
+it too. Only the sheet's rectangle is invalidated on open and on close. Put controls into
+`sheet->content()`. `Screen::showToast(text)`: ink pill at the bottom (y 864..936), 3 s, then the
+screen below is restored pixel for pixel (checked: `widgets3-toast-gone` == `widgets3-base`).
 
 ## Gestures (`core/gesture`, task P2-1)
 

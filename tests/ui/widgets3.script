@@ -1,6 +1,6 @@
 # app: widgets3
 # P3 widgets: Segmented, Stepper, LevelBar, Toast (times out after 3 s, the screen under it is restored),
-# Sheet (dimmed screen, modal), EmptyState. Interactions are plain Fast passes.
+# Sheet (untouched screen behind it, modal: a tap outside closes it), EmptyState. Interactions are plain Fast passes.
 wait 200
 shot widgets3
 tap 268 143             # Segmented: Night
@@ -30,13 +30,14 @@ shot widgets3-toast-gone
 tap 203 485             # Sheet button
 wait 900
 expect-no-quality
+expect-max-pushed 400000   # the sheet area (540 x ~355) twice at most: Fast + settle
 shot widgets3-sheet
 tap 433 725             # inside the sheet: Segmented "High"
 tap 320 811             # inside the sheet: LevelBar 70 %
 wait 100
 expect-no-quality
 shot widgets3-sheet-edited
-tap 270 200             # on the dimmed part: closes the sheet, the screen below comes back
+tap 270 200             # outside the sheet: closes it (the Segmented under the finger is not touched)
 wait 900
 expect-no-quality
 shot widgets3-sheet-closed

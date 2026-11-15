@@ -10,32 +10,30 @@ namespace pos::ui {
 
 Sheet::Sheet() {
   transparent = true;  // draws over the screen it covers
+  modal = true;
   setBg(paper);        // what its content sits on
   content_ = add<Column>(s2);
 }
 
 void Sheet::layout() {
-  frame = Rect{0, 0, kScreenW, kScreenH};
   const int maxH = kScreenH * 6 / 10;
   const Size want = content_->measure(kContentW);
   const int h = std::min(maxH, want.h + 2 * kMargin + s1);
   panel_ = Rect{0, static_cast<int16_t>(kScreenH - h), kScreenW, static_cast<int16_t>(h)};
+  frame = panel_;  // only the sheet is invalidated; touches outside reach it through `modal`
   content_->frame = Rect{kMargin, static_cast<int16_t>(panel_.y + kMargin + s1), kContentW, static_cast<int16_t>(h - 2 * kMargin - s1)};
   content_->layout();
 }
 
 void Sheet::draw(Canvas& c) {
-  // Dim what is above the panel: a hatch of 1 px gray(13) lines, every 3rd row.
-  for (int y = (3 - panel_.y % 3) % 3; y < panel_.y; y += 3) c.drawFastHLine(0, y, kScreenW, gray(13));
-  // Panel with a 2 px ink border on top.
+  // Panel over the untouched screen: paper, a 2 px ink top edge, a grab handle.
   c.fillRect(panel_.x, panel_.y, panel_.w, panel_.h, paper);
   c.fillRect(panel_.x, panel_.y, panel_.w, kStroke, ink);
-  // Grab handle.
   c.fillRoundRect(kScreenW / 2 - 24, panel_.y + 12, 48, 4, 2, secondary);
 }
 
 bool Sheet::onTouch(const Gesture& g) {
-  const bool outside = g.startY < panel_.y;
+  const bool outside = !contains(g.startX, g.startY);
   switch (g.type) {
     case Gesture::Tap:
       if (outside) close();

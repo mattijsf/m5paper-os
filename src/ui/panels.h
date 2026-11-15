@@ -10,8 +10,8 @@
 
 namespace pos::ui {
 
-// Bottom sheet over a dimmed screen (a hatch of gray(13) lines), at most 60% of the height. Modal:
-// a tap on the dimmed part closes it. Put the controls into `content()` (a Column with 24 px margins).
+// Bottom sheet drawn over the untouched screen with a 2 px ink top edge, at most 60% of the height.
+// Modal: a tap anywhere outside it closes it and does not reach the widgets below; swipe down closes too. Put the controls into `content()` (a Column with 24 px margins).
 // Open with Screen::addOverlay(std::make_unique<Sheet>()); close() restores what was under it.
 class Sheet : public Widget {
  public:

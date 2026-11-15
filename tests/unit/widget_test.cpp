@@ -552,6 +552,7 @@ TEST_CASE("Sheet: modal, restores the screen below, closes on outside tap and sw
   f.screen.render(f.canvas, f.dm);
   const uint8_t before = f.px(200, 700);
   CHECK(before == 0x88);  // the box's gray(8)
+  CHECK(f.px(200, 500) == 0x88);
 
   auto sheet = std::make_unique<Sheet>();
   sheet->content()->add<Label>("Title", Type::Title);
@@ -565,7 +566,7 @@ TEST_CASE("Sheet: modal, restores the screen below, closes on outside tap and sw
   CHECK(sp->panel().y + sp->panel().h == kScreenH);
   f.screen.render(f.canvas, f.dm);
   CHECK(f.px(200, sp->panel().y + 40) == 0xFF);  // the panel is paper
-  CHECK(f.px(200, 3) != 0xFF);                   // the hatch dims the area above (row 3 is a hatch row)
+  CHECK(f.px(200, sp->panel().y - 5) == 0x88);   // the screen above the sheet is untouched (no dimming)
 
   tap(f.screen, 40, 20);  // on the dimmed part: closes, and does not click the button below
   CHECK_FALSE(f.screen.hasOverlay());
