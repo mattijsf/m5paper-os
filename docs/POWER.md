@@ -86,6 +86,30 @@ button to wake". Task P3-6.
   a TLS request. HTTPS to the public Home Assistant address is the expected case (BACKEND.md); the device keeps one
   connection alive per refresh.
 
+### Where the first HTTPS request went (2026-11-15, measured on the device, `[net]` log lines)
+
+"Test connection" (cold: Wi-Fi off, then `GET <HA_URL>/api/` over TLS) read **9.5 s**; the Wi-Fi join was 1.3 s. Phase by phase:
+
+| Phase | Before | After |
+|---|---|---|
+| Wi-Fi join, fast path (stored BSSID/channel, includes DHCP) | 1.3 s | 1.3 s |
+| DNS | 30-45 ms | 30-45 ms |
+| TCP + TLS handshake | 0.56-0.76 s | 0.56-0.68 s (CPU was already 240 MHz) |
+| request + response headers (server) | 0.5-2.9 s (varies) | 0.5-0.7 s |
+| body | 0 | 0 |
+| **UI thread stalled, result delivered late** | **~7.5 s** | **0** |
+| **Total, cold** | **9.5-10 s** | **2.0-2.6 s** |
+| Second request, kept-alive connection | 2.0 s (same stall) | **34 ms** |
+
+The 7.5 s was not the network: **the UI thread blocked in `Serial.print`.** The USB CDC log writes block (default TX timeout) while no
+host is reading the port, and the log lines of a request pile up; every `POS_LOG` could stall the loop for ~100 ms. Fix:
+`Serial.setTxTimeoutMs(0)` (drop when the buffer is full, never block). This also removes the 2.2 s UI "gap" seen right
+before taps and benefits every screen. Smaller changes made on the way: the SNTP wait (up to 5 s) no longer sits in the
+connect path (it is its own worker job after the request); the UI thread no longer calls the Wi-Fi HAL (connected state and link
+info are cached by the net service: the stack's locks are held during connects and TLS); the device log shows the phases
+(`https phases: dns= tls+tcp= request+headers= body= cpu= reused=`) and `[perf] UI loop gap` for passes later than 400 ms.
+The handshake itself is ~0.6 s, well under the 2 s worry; the request/response of the Home Assistant server is the rest.
+
 ## CPU
 
 `setCpuFrequencyMhz(80)` when Wi-Fi is off (rendering text at 80 MHz is fine; measure page turn

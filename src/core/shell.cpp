@@ -123,7 +123,7 @@ void Shell::updateStatus() {
     status_->setTime(buf);
   }
   status_->setBattery(p.power.batteryPercent(), p.power.charging());
-  status_->setWifi(p.net.wifiConnected());
+  status_->setWifi(os_.net().online());
 }
 
 void Shell::setLauncher(const LauncherFactory& make) {

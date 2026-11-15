@@ -296,6 +296,18 @@ None of these block Phase 1, Phase 2, or the reader.
   Not verified: networks beyond the first (only one is on the card); joining a network from the Wi-Fi screen on the device with
   the keyboard (only in the simulator); a failure path on the device (no known network in range); behaviour on 5 GHz-only.
 
+- Clock and first-request fixes (2026-11-15): (1) the status bar showed UTC because Arduino's `configTime()` (called by the SNTP
+  sync) overwrites the `TZ` variable with UTC; `Net::syncTime` now keeps the zone and the net service re-applies
+  `net.timezone` when it applies a synced time; the RTC stays UTC. Unit test: 2026-11-15 15:51 UTC = 16:51 CET, a summer date, the
+  March changeover. Device: status bar 16:55 vs the Mac's 16:55:13. (2) First HTTPS request 9.5 s -> **2.0-2.6 s cold, 34 ms on the
+  kept-alive connection**: the cause was the UI thread blocking in `Serial.print` (USB CDC with no reader), plus SNTP inside the
+  connect path; breakdown table in `docs/POWER.md`. TLS handshake ~0.6 s at 240 MHz.
+- **Firmware size and headroom**: 2,309,779 bytes = 2.20 MB = 44% of the 5 MB slot; the budget in ARCHITECTURE.md is 3 MB (3,145,728), so
+  **~0.8 MB of headroom** remains for the reader, Home and inbox apps. The Wi-Fi/TLS step (P3-2/3/7) added ~0.80 MB (1,488,831 ->
+  2,303,883): the Arduino WiFi + lwIP + NetworkClientSecure/mbedTLS + HTTPClient stack with the built-in CA bundle (the bulk, roughly
+  0.7 MB by symbol sizes; the exact split is not measured), our net service and Wi-Fi/Home Assistant screens (~60 KB, estimate). Fonts
+  are 0.45 MB, M5GFX/M5Unified ~0.2 MB. The reader (miniz ~12 KB, XHTML, pagination, library) should fit in ~150 KB.
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -331,3 +343,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P3-1. Device power HAL: battery average, light sleep with wake cause, RTC power-off; Settings Sleep test / Power off.
 - 2026-11-15: P3-4. PowerPolicy: light sleep when idle (not on USB by default), auto-off on battery.
 - 2026-11-15: P3-2, P3-3, P3-7. Net service (connect on demand, fast path, linger, SNTP), multi-network secrets, HTTP via ctx.http, Wi-Fi settings, Home Assistant test, `>status`.
+- 2026-11-15: clock in local time (TZ kept across SNTP); first HTTPS request 9.5 s -> 2.0-2.6 s (UI thread no longer blocks on the USB log).

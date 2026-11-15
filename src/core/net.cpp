@@ -2,6 +2,7 @@
 
 #include "core/display_manager.h"  // kNoDeadline
 #include "core/log.h"
+#include "core/timefmt.h"
 
 namespace pos {
 
@@ -21,21 +22,18 @@ void NetService::markActive() { lastActiveMs_ = p_.clock.millis(); }
 
 void NetService::succeeded(Result& r, bool fast) {
   hal::WifiLink l = p_.net.link();
+  connected_ = true;
+  cacheLink();
   r.ok = true;
   r.fast = fast;
   r.ssid = l.ssid.empty() ? r.ssid : l.ssid;
   store_.remember(r.ssid, l.bssid, l.channel);
   store_.save();
   markActive();
-  // One clock sync per day, or when the clock was never set; the result is applied on the UI thread (tick()).
+  // One clock sync per day, or when the clock was never set. It runs as its own worker job AFTER the request that
+  // brought Wi-Fi up (a blocking SNTP wait must not delay that request); the result is applied by tick().
   const int64_t now = p_.clock.now();
-  if (now <= 0 || now - lastSyncUnix_ > 24 * 3600) {
-    const int64_t t = p_.net.syncTime(5000);
-    if (t > 0) {
-      pendingTime_ = t;
-      lastSyncUnix_ = t;
-    }
-  }
+  if (now <= 0 || now - lastSyncUnix_ > 24 * 3600) needSync_ = true;
 }
 
 NetService::Result NetService::connectLocked() {
@@ -51,11 +49,14 @@ NetService::Result NetService::connectLocked() {
   };
 
   if (p_.net.wifiConnected()) {
+    connected_ = true;
+    cacheLink();
     r.ok = true;
-    r.ssid = p_.net.link().ssid;
+    r.ssid = linkCache_.ssid;
     markActive();
     return r;  // already up: not an attempt, not logged
   }
+  connected_ = false;
   const std::vector<WifiCred> kn = known();
   if (kn.empty()) {
     r.error = "No Wi-Fi networks configured";
@@ -95,17 +96,24 @@ NetService::Result NetService::ensureConnected() {
 }
 
 hal::HttpResponse NetService::perform(const hal::HttpRequest& req) {
+  const uint32_t tEnter = p_.clock.millis();
   std::lock_guard<std::mutex> lock(mu_);
+  const uint32_t tLocked = p_.clock.millis();
   ++inFlight_;
   hal::HttpResponse resp;
   Result r = connectLocked();
+  const uint32_t tConnected = p_.clock.millis();
   if (!r.ok) {
     resp.error = "No Wi-Fi: " + r.error;
   } else {
     resp = p_.net.request(req);
   }
   markActive();
+  if (r.ok && !p_.net.wifiConnected()) connected_ = false;  // the link dropped during the request
+  else if (r.ok) cacheLink();
   --inFlight_;
+  POS_LOG("net", "perform: lock wait %ums, connect %ums, request %ums (start t=%u, end t=%u)", static_cast<unsigned>(tLocked - tEnter),
+          static_cast<unsigned>(tConnected - tLocked), static_cast<unsigned>(p_.clock.millis() - tConnected), static_cast<unsigned>(tEnter), static_cast<unsigned>(p_.clock.millis()));
   return resp;
 }
 
@@ -116,6 +124,7 @@ NetService::Result NetService::connectTo(const std::string& ssid, const std::str
   r.ssid = ssid;
   const uint32_t t0 = p_.clock.millis();
   if (p_.net.wifiConnected()) p_.net.wifiOff();
+  connected_ = false;
   if (p_.net.wifiConnect(ssid, password, kScanConnectTimeoutMs)) {
     succeeded(r, false);
     if (save) {
@@ -142,14 +151,32 @@ std::vector<hal::WifiNetwork> NetService::scan() {
   return aps;
 }
 
+void NetService::syncClock() {
+  std::lock_guard<std::mutex> lock(mu_);
+  if (!connected_) return;
+  const uint32_t t0 = p_.clock.millis();
+  const int64_t t = p_.net.syncTime(5000);
+  POS_LOG("net", "time sync %s in %ums", t > 0 ? "ok" : "failed", static_cast<unsigned>(p_.clock.millis() - t0));
+  if (t > 0) {
+    pendingTime_ = t;
+    lastSyncUnix_ = t;
+    markActive();
+  }
+}
+
 void NetService::tick() {
+  if (needSync_ && inFlight_ == 0 && worker_) {
+    needSync_ = false;
+    worker_->async([this] { syncClock(); }, [] {});
+  }
   const int64_t t = pendingTime_.exchange(0);
   bool changed = false;
   if (t > 0) {
     p_.clock.set(t);
+    applyTimezone(config_.net.timezone);  // wall time is formatted in the configured zone; the RTC stays UTC
     changed = true;
   }
-  const bool on = p_.net.wifiConnected();
+  const bool on = connected_;
   if (on != wasOnline_) {
     wasOnline_ = on;
     changed = true;
@@ -158,6 +185,7 @@ void NetService::tick() {
     const uint32_t idle = p_.clock.millis() - lastActiveMs_;
     if (idle >= static_cast<uint32_t>(config_.net.lingerSec) * 1000u && mu_.try_lock()) {
       p_.net.wifiOff();  // after the linger time: Wi-Fi off
+      connected_ = false;
       mu_.unlock();
       POS_LOG("net", "Wi-Fi off after %us idle", static_cast<unsigned>(idle / 1000));
       wasOnline_ = false;
@@ -168,18 +196,27 @@ void NetService::tick() {
 }
 
 uint32_t NetService::msToNextDeadline() {
-  if (!p_.net.wifiConnected() || inFlight_ > 0) return kNoDeadline;
+  if (!connected_ || inFlight_ > 0) return kNoDeadline;
   const uint32_t lingerMs = static_cast<uint32_t>(config_.net.lingerSec) * 1000u;
   const uint32_t idle = p_.clock.millis() - lastActiveMs_;
   return idle >= lingerMs ? 0 : lingerMs - idle;
 }
 
-bool NetService::online() { return p_.net.wifiConnected(); }
-hal::WifiLink NetService::link() { return p_.net.link(); }
+void NetService::cacheLink() {
+  hal::WifiLink l = p_.net.link();
+  std::lock_guard<std::mutex> lock(linkMu_);
+  linkCache_ = l;
+}
+
+hal::WifiLink NetService::link() {
+  std::lock_guard<std::mutex> lock(linkMu_);
+  return connected_ ? linkCache_ : hal::WifiLink{};
+}
 
 void NetService::disconnect() {
   std::lock_guard<std::mutex> lock(mu_);
   p_.net.wifiOff();
+  connected_ = false;
 }
 
 NetService::Result NetService::lastResult() {

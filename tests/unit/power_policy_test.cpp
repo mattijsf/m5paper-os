@@ -85,9 +85,12 @@ class FakeClock : public hal::Clock {
 };
 class FakeNet : public hal::Net {
  public:
-  bool wifiConnect(const std::string&, const std::string&, uint32_t, const std::string& = "", int = 0) override { return false; }
+  bool wifiConnect(const std::string&, const std::string&, uint32_t, const std::string& = "", int = 0) override {
+    on = true;
+    return true;
+  }
   hal::WifiLink link() override { return hal::WifiLink{}; }
-  void wifiOff() override {}
+  void wifiOff() override { on = false; }
   bool wifiConnected() override { return on; }
   int rssi() override { return 0; }
   std::vector<hal::WifiNetwork> scan() override { return {}; }
@@ -185,9 +188,9 @@ TEST_CASE("PowerPolicy::idle: light sleep until the next deadline, short wait wh
 
   // Wi-Fi up, worker busy: no sleep
   e.power.sleeps.clear();
-  e.net.on = true;
+  e.os.net().connectTo("Home", "pw", false);  // Wi-Fi is up (the policy reads the net service's state)
   e.policy.idle(500);
-  e.net.on = false;
+  e.os.net().disconnect();
   e.os.worker().start();
   e.os.worker().async([] { std::this_thread::sleep_for(std::chrono::milliseconds(50)); }, [] {});
   e.policy.idle(500);

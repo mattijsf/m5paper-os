@@ -160,3 +160,25 @@ TEST_CASE("fs::removeAll deletes files and folders, never the roots") {
   CHECK(fs::exists("/data/keep.txt"));
   CHECK_FALSE(fs::removeAll("/etc"));
 }
+
+TEST_CASE("timefmt: wall time is formatted in the configured zone (CET/CEST), the clock itself stays UTC") {
+  applyTimezone("CET-1CEST,M3.5.0,M10.5.0/3");
+  struct tm tmv;
+  // 2026-11-15 15:51:00 UTC = 16:51 in Amsterdam (the case seen on the device)
+  REQUIRE(localTime(1794757860, tmv));
+  CHECK(tmv.tm_hour == 16);
+  CHECK(tmv.tm_min == 51);
+  // summer: 2026-07-15 12:34 UTC = 14:34 CEST
+  REQUIRE(localTime(1784118840, tmv));
+  CHECK(tmv.tm_hour == 14);
+  // the changeover: 2026-03-29 00:59 UTC is 01:59 CET, 01:00 UTC is 03:00 CEST
+  REQUIRE(localTime(1774745940, tmv));
+  CHECK(tmv.tm_hour == 1);
+  REQUIRE(localTime(1774746000, tmv));
+  CHECK(tmv.tm_hour == 3);
+  // another configured zone is honoured and applyTimezone can switch back
+  applyTimezone("UTC0");
+  REQUIRE(localTime(1794757860, tmv));
+  CHECK(tmv.tm_hour == 15);
+  applyTimezone("CET-1CEST,M3.5.0,M10.5.0/3");
+}

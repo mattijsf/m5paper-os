@@ -15,6 +15,7 @@
 #include "core/config.h"
 #include "core/secrets.h"
 #include "core/wifi.h"
+#include "core/worker.h"
 #include "hal/platform.h"
 
 namespace pos {
@@ -50,10 +51,14 @@ class NetService {
   void tick();
   // Milliseconds until tick() has something to do (the linger end), kNoDeadline if none.
   uint32_t msToNextDeadline();
-  bool online();
+  // Cached: UI code must not call the radio HAL while the worker is connecting or running TLS (the Wi-Fi stack
+  // locks are held then and the UI thread stalled for seconds: measured 8 s on the device).
+  bool online() const { return connected_; }
   hal::WifiLink link();
   void disconnect();
   Result lastResult();
+  // The worker that runs the clock sync after a connect (set by the Os).
+  void setWorker(Worker* w) { worker_ = w; }
   // Wi-Fi or the clock changed (status bar): set by the Shell.
   std::function<void()> onChange;
 
@@ -64,6 +69,7 @@ class NetService {
 
  private:
   Result connectLocked();
+  void syncClock();
   void succeeded(Result& r, bool fast);
   void markActive();
 
@@ -77,6 +83,12 @@ class NetService {
   std::atomic<int64_t> pendingTime_{0};
   int64_t lastSyncUnix_ = 0;
   bool wasOnline_ = false;
+  std::atomic<bool> needSync_{false};
+  std::atomic<bool> connected_{false};
+  std::mutex linkMu_;
+  hal::WifiLink linkCache_;  // for the UI thread: refreshed by the worker after connects and requests
+  void cacheLink();
+  Worker* worker_ = nullptr;
   Result last_;
 };
 

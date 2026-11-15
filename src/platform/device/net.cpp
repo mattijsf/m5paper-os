@@ -92,6 +92,40 @@ hal::HttpResponse Net::request(const hal::HttpRequest& req) {
     return r;
   }
   const bool https = req.url.rfind("https://", 0) == 0;
+  const uint32_t tStart = millis();
+  uint32_t tDns = 0, tConnect = 0;
+  bool reused = false;
+  if (https) {
+    // Connect by hand first so DNS and the TCP + TLS handshake can be timed separately (HTTPClient then reuses it).
+    std::string host = req.url.substr(8);
+    host = host.substr(0, host.find_first_of("/?"));
+    int port = 443;
+    const size_t colon = host.find(':');
+    if (colon != std::string::npos) {
+      port = atoi(host.c_str() + colon + 1);
+      host = host.substr(0, colon);
+    }
+    if (gSecure.connected()) {
+      reused = true;  // the kept-alive connection of the previous request
+    } else {
+      gSecure.useBuiltinCACertBundle();
+      IPAddress ip;
+      const uint32_t t0 = millis();
+      if (!WiFi.hostByName(host.c_str(), ip)) {
+        r.error = "DNS failed";
+        return r;
+      }
+      tDns = millis() - t0;
+      gSecure.setTimeout(req.timeoutMs / 1000 ? req.timeoutMs / 1000 : 1);
+      const uint32_t t1 = millis();
+      if (!gSecure.connect(ip, port, host.c_str(), nullptr, nullptr, nullptr)) {
+        r.error = "TLS connect failed";
+        return r;
+      }
+      tConnect = millis() - t1;
+    }
+  }
+  const uint32_t tReq0 = millis();
   gHttp.setReuse(true);
   gHttp.setTimeout(req.timeoutMs);
   gHttp.setConnectTimeout(req.timeoutMs);
@@ -115,7 +149,13 @@ hal::HttpResponse Net::request(const hal::HttpRequest& req) {
     return r;
   }
   r.status = code;
+  const uint32_t tHeaders = millis() - tReq0;
+  const uint32_t tBody0 = millis();
   String body = gHttp.getString();
+  POS_LOG("net", "https phases: dns=%ums tls+tcp=%ums request+headers=%ums body=%ums total=%ums cpu=%uMHz reused=%d heap=%uKB", static_cast<unsigned>(tDns),
+          static_cast<unsigned>(tConnect), static_cast<unsigned>(tHeaders), static_cast<unsigned>(millis() - tBody0),
+          static_cast<unsigned>(millis() - tStart), static_cast<unsigned>(getCpuFrequencyMhz()), reused ? 1 : 0,
+          static_cast<unsigned>(ESP.getFreeHeap() / 1024));
   if (body.length() > kBodyCap) {
     r.error = "response too large";
     r.body.assign(body.c_str(), kBodyCap);
@@ -127,6 +167,18 @@ hal::HttpResponse Net::request(const hal::HttpRequest& req) {
 }
 
 int64_t Net::syncTime(uint32_t timeoutMs) {
+  // Arduino's configTime() sets TZ to UTC: keep the zone the Os applied from config.json (net.timezone).
+  const char* old = getenv("TZ");
+  const std::string savedTz = old ? old : "";
+  struct Restore {
+    const std::string& tz;
+    ~Restore() {
+      if (!tz.empty()) {
+        setenv("TZ", tz.c_str(), 1);
+        tzset();
+      }
+    }
+  } restore{savedTz};
   configTime(0, 0, "pool.ntp.org", "time.google.com");
   const uint32_t t0 = millis();
   while (millis() - t0 < timeoutMs) {

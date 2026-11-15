@@ -193,6 +193,7 @@ void setup() {
   cfg.clear_display = false;
   M5.begin(cfg);
   Serial.begin(115200);
+  Serial.setTxTimeoutMs(0);  // never block the UI thread on a USB host that is not reading the log
 
   if (M5.Display.width() > M5.Display.height()) M5.Display.setRotation(M5.Display.getRotation() ^ 1);
 

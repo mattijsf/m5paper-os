@@ -32,6 +32,7 @@ bool Os::setup() {
 }
 
 void Os::loadConfig() {
+  net_.setWorker(&worker_);
   config_.load();
   secrets_.load();
   net_.load();
@@ -58,6 +59,12 @@ void Os::setSurface(std::unique_ptr<Surface> s) {
 
 void Os::loopOnce() {
   if (!ready_) return;
+  static uint32_t lastPass = 0;
+  {  // a pass that starts long after the previous one: the UI thread was blocked or asleep
+    const uint32_t now = p_.clock.millis();
+    if (lastPass && now - lastPass > 400) POS_LOG("perf", "UI loop gap %ums", static_cast<unsigned>(now - lastPass));
+    lastPass = now;
+  }
   // 1. input
   hal::TouchEvent ev;
   std::vector<Gesture> gs;
@@ -122,7 +129,7 @@ std::string Os::statusText() {
   out += "networks: " + std::to_string(known.size()) + " known";
   for (const auto& c : known) out += std::string(c.fromCard ? " [card] " : " [device] ") + c.ssid;
   out += "\n";
-  hal::WifiLink l = p_.net.link();
+  hal::WifiLink l = net_.link();
   if (l.connected) {
     out += "wifi: connected ssid=" + l.ssid + " ip=" + l.ip + " rssi=" + std::to_string(l.rssi) + " ch=" + std::to_string(l.channel) + "\n";
   } else {

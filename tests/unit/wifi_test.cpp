@@ -2,7 +2,9 @@
 
 #include <cstdlib>
 #include <functional>
+#include <chrono>
 #include <string>
+#include <thread>
 #include <unistd.h>
 
 #include "core/display_manager.h"
@@ -212,7 +214,11 @@ class ScriptedNet : public hal::Net {
     out.body = r.url;
     return out;
   }
-  int64_t syncTime(uint32_t) override { return time; }
+  int64_t syncTime(uint32_t) override {
+    ++syncs;
+    return time;
+  }
+  int syncs = 0;
 };
 
 class StubDisplay : public hal::Display {
@@ -253,7 +259,10 @@ struct Env {
   Config config;
   Secrets secrets;
   NetService svc{platform, config, secrets};
+  Worker worker;
   explicit Env(const std::string& card) {
+    worker.start();
+    svc.setWorker(&worker);
     fs::writeFile("/sd/paperos_config", card);
     secrets.load();
   }
@@ -389,14 +398,29 @@ TEST_CASE("net: Wi-Fi goes off after the linger time, not while a request runs; 
   CHECK(e.svc.msToNextDeadline() == kNoDeadline);
 }
 
-TEST_CASE("net: the clock is synced once after a connect, applied on the UI thread, then once a day") {
+// Runs the loop's net duties until the clock sync job has finished (it is its own worker job).
+static void pumpSync(Env& e) {
+  e.svc.tick();  // schedules the job when a sync is due
+  for (int i = 0; i < 200; ++i) {
+    e.worker.runCompleted();
+    if (e.worker.pending() == 0) break;
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  e.svc.tick();  // applies the result on the "UI thread"
+}
+
+TEST_CASE("net: the clock is synced after a connect as its own job, then once a day; the request does not wait for it") {
   Env e("WIFI_SSID=Home\nWIFI_PASSWORD=h\n");
   e.net.world = {{"Home", -50, true, 6, "H1"}};
   int changes = 0;
   e.svc.onChange = [&] { ++changes; };
-  e.svc.ensureConnected();
-  CHECK(e.clock.unix_ == 0);  // not yet: the worker only records it
-  e.svc.tick();
+  hal::HttpRequest req;
+  req.url = "https://x/";
+  e.svc.perform(req);
+  CHECK(e.net.syncs == 0);  // the request brought Wi-Fi up and was answered without an SNTP wait
+  CHECK(e.clock.unix_ == 0);
+  pumpSync(e);
+  CHECK(e.net.syncs == 1);
   CHECK(e.clock.unix_ == 1800000000);
   CHECK(changes >= 1);
 
@@ -404,14 +428,16 @@ TEST_CASE("net: the clock is synced once after a connect, applied on the UI thre
   e.svc.disconnect();
   e.net.time = 1800000500;
   e.svc.ensureConnected();
-  e.svc.tick();
+  pumpSync(e);
+  CHECK(e.net.syncs == 1);
   CHECK(e.clock.unix_ == 1800000000);
   // but a day later it does
   e.clock.unix_ = 1800000000 + 25 * 3600;
   e.svc.disconnect();
   e.net.time = 1800200000;
   e.svc.ensureConnected();
-  e.svc.tick();
+  pumpSync(e);
+  CHECK(e.net.syncs == 2);
   CHECK(e.clock.unix_ == 1800200000);
 }
 

@@ -53,7 +53,7 @@ void PowerPolicy::idle(uint32_t maxWaitMs) {
   in.displayBusy = p.display.busy();
   in.uiDirty = maxWaitMs == 0;
   in.touching = os_.touching();
-  in.wifiOn = p.net.wifiConnected();
+  in.wifiOn = os_.net().online();
   in.usbConnected = p.power.usbConnected();
   in.stayAwakeOnUsb = cfg.power.stayAwakeOnUsb;
   in.msSinceInput = sinceInput;
