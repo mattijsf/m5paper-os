@@ -498,10 +498,19 @@ class HomeScreen : public Screen {
     const LightView lv = lightView(it, states_);
     c->add<ui::Label>(it.name, Type::Title);
     if (it.dimmable) {
-      c->add<ui::Label>("Brightness", Type::Caption, ui::secondary);
-      auto* level = c->add<ui::LevelBar>(lv.percent >= 0 ? (lv.percent + 5) / 10 * 10 : 50);
+      // "Brightness" on the left, the value on the right ("60%", "--" when unknown), the ten boxes below.
+      auto* head = c->add<ui::Row>(ui::s1);
+      auto* cap = head->add<ui::Label>("Brightness", Type::Caption, ui::secondary);
+      cap->flex = 1;
+      const int shown = lv.percent >= 0 ? (lv.percent + 5) / 10 * 10 : -1;
+      auto* value = head->add<ui::Label>(shown >= 0 ? std::to_string(shown) + "%" : "--", Type::BodyStrong);
+      value->align = ui::TextAlign::Right;
+      auto* level = c->add<ui::LevelBar>(shown >= 0 ? shown : 50);
       const Item* ip = &it;
-      level->onChange = [this, ip](int pct) { onBrightness(*ip, pct); };
+      level->onChange = [this, ip, value](int pct) {
+        value->setText(std::to_string(pct) + "%");
+        onBrightness(*ip, pct);
+      };
     }
     if (!it.members.empty()) {
       c->add<ui::Label>("Lamps", Type::Caption, ui::secondary);
