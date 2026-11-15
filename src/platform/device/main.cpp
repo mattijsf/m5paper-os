@@ -4,12 +4,14 @@
 
 #include <Arduino.h>
 #include <M5Unified.h>
+#include <esp_pthread.h>
 
 #include <string>
 
 #include "core/fs.h"
 #include "core/gfx.h"
 #include "core/log.h"
+#include "core/loop.h"
 #include "core/os.h"
 #include "core/remote.h"
 #include "hal/platform.h"
@@ -53,6 +55,16 @@ DeviceNet gNet;
 DevicePower gPower;
 hal::Platform gPlatform{gDisplay, gInput, gClock, gNet, gPower, "M5PaperS3"};
 Os gOs(gPlatform);
+
+// Idle step: a short delay for now (touch is polled every pass); light sleep arrives with P3.
+class DevicePolicy : public PowerPolicy {
+ public:
+  void idle(uint32_t maxWaitMs) override {
+    if (maxWaitMs > 0) delay(maxWaitMs < 10 ? maxWaitMs : 10);
+  }
+};
+DevicePolicy gPolicy;
+Loop gLoop(gOs, gPolicy);
 
 // Remote control over the USB serial port (lines starting with '>', see core/remote.h).
 class SerialRemoteHost : public RemoteHost {
@@ -168,6 +180,11 @@ void setup() {
   POS_LOG("boot", "config keys(len): %s", gCfgKeys.c_str());
   dataFileCheck();
 
+  // The worker thread gets a 16 KB stack (docs/ARCHITECTURE.md): set before Os::setup() starts it.
+  esp_pthread_cfg_t pcfg = esp_pthread_get_default_config();
+  pcfg.stack_size = 16 * 1024;
+  pcfg.thread_name = "worker";
+  esp_pthread_set_cfg(&pcfg);
   gOs.setup();
 }
 
@@ -175,7 +192,7 @@ void loop() {
   M5.update();
   gInput.update();
   pollSerial();
-  gOs.loopOnce();
+  gLoop.iterate();
   gRemote.tick();
 
   // Heartbeat: lets a host script read hardware facts without catching the boot log.
@@ -189,5 +206,4 @@ void loop() {
     POS_LOG("sd", "ok=%d size=%uMB free=%uMB data=%d config keys(len): %s", (int)gStorage.sdOk,
             (unsigned)gStorage.sdTotalMb, (unsigned)gStorage.sdFreeMb, (int)gStorage.dataOk, gCfgKeys.c_str());
   }
-  delay(10);
 }

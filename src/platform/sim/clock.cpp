@@ -5,13 +5,13 @@
 namespace pos::sim {
 
 uint32_t Clock::millis() {
-  if (fake_) return fakeMs_;
+  if (fake_) return fakeMs_.load();
   using namespace std::chrono;
   return static_cast<uint32_t>(duration_cast<milliseconds>(steady_clock::now() - start_).count());
 }
 
 int64_t Clock::now() {
-  if (fake_) return fakeStartUnix_ + fakeMs_ / 1000;  // fixed start so screenshots do not depend on the day
+  if (fake_) return fakeStartUnix_ + fakeMs_.load() / 1000;  // fixed start so screenshots do not depend on the day
   return static_cast<int64_t>(std::time(nullptr));
 }
 

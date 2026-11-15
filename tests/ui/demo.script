@@ -1,7 +1,8 @@
-# Phase 1 demo screen: boot frame, a tap with its Fast pass, then the settled gray.
+# Phase 1 demo screen: boot frame; a tap on empty space (touch marker: Fast pass, then the settled
+# gray); a tap on a tile (label changes at once, a 1 s fake job on the worker completes later).
 wait 500
 shot demo-boot
-tap 140 300
+tap 270 858
 wait 100
 expect-no-quality
 expect-max-pushed 3000
@@ -10,3 +11,12 @@ wait 800
 expect-no-quality
 expect-max-pushed 3000
 shot demo-tap-settled
+tap 140 300
+wait 100
+expect-no-quality
+expect-max-pushed 40000
+shot demo-job-running
+wait 1200
+expect-no-quality
+expect-max-pushed 40000
+shot demo-job-done

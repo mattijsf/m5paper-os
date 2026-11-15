@@ -19,6 +19,35 @@ const Tile kTiles[] = {
 
 }  // namespace
 
+Rect demoTileRect(int i) {
+  const int margin = 24, gap = 24, top = 200;
+  const int tileW = (kScreenW - 2 * margin - gap) / 2;
+  const int tileH = 196;
+  return Rect{static_cast<int16_t>(margin + (i % 2) * (tileW + gap)), static_cast<int16_t>(top + (i / 2) * (tileH + gap)),
+              static_cast<int16_t>(tileW), static_cast<int16_t>(tileH)};
+}
+
+int demoTileAt(int x, int y) {
+  for (int i = 0; i < kDemoTiles; ++i) {
+    Rect r = demoTileRect(i);
+    if (x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return i;
+  }
+  return -1;
+}
+
+const char* demoTileLabel(int i) { return kTiles[i].label; }
+
+void drawDemoTile(Canvas& c, int i, const std::string& label) {
+  Rect r = demoTileRect(i);
+  const int x = r.x, y = r.y, tileW = r.w, tileH = r.h;
+  c.fillRect(x, y, tileW, tileH, ui::paper);
+  c.drawRoundRect(x, y, tileW, tileH, ui::kRadius + 4, ui::ink);
+  c.drawRoundRect(x + 1, y + 1, tileW - 2, tileH - 2, ui::kRadius + 3, ui::ink);
+  c.fillCircle(x + tileW / 2, y + 78, 44, ui::fill);
+  ui::drawIcon(c, kTiles[i].icon, x + tileW / 2, y + 78, 64, ui::ink, ui::fill);
+  ui::drawText(c, label, x + tileW / 2, y + 158, ui::Type::Title, ui::ink, ui::Anchor::MiddleCenter);
+}
+
 void drawDemo(Canvas& c, const char* platform) {
   c.fillScreen(ui::paper);
 
@@ -32,18 +61,7 @@ void drawDemo(Canvas& c, const char* platform) {
   ui::drawText(c, "Phase 1 demo", 26, 140, ui::Type::Caption, ui::secondary);
 
   // App grid: 2 columns x 3 rows
-  const int margin = 24, gap = 24, top = 200;
-  const int tileW = (kScreenW - 2 * margin - gap) / 2;
-  const int tileH = 196;
-  for (int i = 0; i < 6; ++i) {
-    int x = margin + (i % 2) * (tileW + gap);
-    int y = top + (i / 2) * (tileH + gap);
-    c.drawRoundRect(x, y, tileW, tileH, ui::kRadius + 4, ui::ink);
-    c.drawRoundRect(x + 1, y + 1, tileW - 2, tileH - 2, ui::kRadius + 3, ui::ink);
-    c.fillCircle(x + tileW / 2, y + 78, 44, ui::fill);
-    ui::drawIcon(c, kTiles[i].icon, x + tileW / 2, y + 78, 64, ui::ink, ui::fill);
-    ui::drawText(c, kTiles[i].label, x + tileW / 2, y + 158, ui::Type::Title, ui::ink, ui::Anchor::MiddleCenter);
-  }
+  for (int i = 0; i < kDemoTiles; ++i) drawDemoTile(c, i, kTiles[i].label);
 
   // 16 gray steps: checks quantisation and panel gray rendering
   const int barY = 880, barH = 24, stepW = 30, barX = (kScreenW - 16 * stepW) / 2;

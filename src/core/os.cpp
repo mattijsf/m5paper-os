@@ -1,5 +1,9 @@
 #include "core/os.h"
 
+#include <algorithm>
+#include <chrono>
+#include <thread>
+
 #include "core/demo.h"
 #include "core/log.h"
 
@@ -16,6 +20,7 @@ bool Os::setup() {
   else drawDemo(canvas_, p_.name);
 
   uint32_t t0 = p_.clock.millis();
+  worker_.start();
   dm_.forceClean();  // first frame: Quality over the whole screen
   p_.display.wait();
   POS_LOG("boot", "full quality refresh %ums", static_cast<unsigned>(p_.clock.millis() - t0));
@@ -25,16 +30,60 @@ bool Os::setup() {
 
 void Os::loopOnce() {
   if (!ready_) return;
+  // 1. input
   hal::TouchEvent ev;
   while (p_.input.poll(ev)) {
     if (ev.type != hal::TouchEvent::Down) continue;
     POS_LOG("touch", "x=%d y=%d t=%u", static_cast<int>(ev.x), static_cast<int>(ev.y),
             static_cast<unsigned>(p_.clock.millis()));
-    Rect r = drawTouchMarker(canvas_, ev.x, ev.y);
-    dm_.invalidate(r, Hint::Feedback);
+    const int tile = screen_.empty() ? demoTileAt(ev.x, ev.y) : -1;
+    if (tile >= 0) {
+      startTileJob(tile);
+    } else {
+      Rect r = drawTouchMarker(canvas_, ev.x, ev.y);
+      dm_.invalidate(r, Hint::Feedback);
+    }
   }
+  // 2. finished worker jobs, 3. due timers
+  worker_.runCompleted();
+  timers_.runDue();
+  // 4. draw happened above (widgets draw when they change); commit what was invalidated
   if (dm_.dirty()) dm_.commit();
   dm_.tick(p_.clock.millis());
+}
+
+// Demo: a tap on a tile shows "Working…" at once, runs a 1 s fake job on the worker (waiting on
+// the platform clock, so it also works with the simulator's fake clock) and shows the result.
+void Os::startTileJob(int tile) {
+  if (tileBusy_[tile]) return;
+  tileBusy_[tile] = true;
+  drawDemoTile(canvas_, tile, "Working\xE2\x80\xA6");
+  dm_.invalidate(demoTileRect(tile), Hint::Feedback);
+  hal::Clock* clock = &p_.clock;
+  worker_.async(
+      [clock, tile] {
+        const uint32_t t0 = clock->millis();
+        while (clock->millis() - t0 < 1000) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        return tile;
+      },
+      [this](int t) {
+        tileBusy_[t] = false;
+        drawDemoTile(canvas_, t, "Done in 1.0 s");
+        dm_.invalidate(demoTileRect(t), Hint::Content);
+      });
+}
+
+uint32_t Os::idleWaitMs() {
+  constexpr uint32_t kMaxIdleMs = 1000;
+  if (dm_.dirty() || worker_.hasCompleted()) return 0;
+  const uint32_t now = p_.clock.millis();
+  uint32_t wait = kMaxIdleMs;
+  for (uint32_t deadline : {dm_.nextDeadlineMs(), timers_.nextDeadlineMs()}) {
+    if (deadline == kNoDeadline) continue;
+    int32_t d = static_cast<int32_t>(deadline - now);
+    wait = std::min<uint32_t>(wait, d < 0 ? 0 : static_cast<uint32_t>(d));
+  }
+  return wait;
 }
 
 std::vector<uint8_t> Os::frame4() {

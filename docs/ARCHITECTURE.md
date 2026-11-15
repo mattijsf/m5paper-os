@@ -92,6 +92,17 @@ loop:
 
 There is no fixed frame rate. Nothing is drawn unless something was invalidated.
 
+As built (P1-7): `Os::loopOnce()` runs steps 1-4 (input, `Worker::runCompleted()`,
+`Timers::runDue()`, commit + `DisplayManager::tick`); `Loop::iterate()` (`core/loop.h`) adds step 5:
+`PowerPolicy::idle(Os::idleWaitMs())`, where the wait is the time to the next timer or
+DisplayManager deadline (0 if work is waiting, at most 1 s). Device policy: `delay(min(wait, 10))`
+(touch is polled each pass; light sleep comes with P3). Simulator policy: wait for an SDL event, at
+most 16 ms; a finished worker job pushes an SDL event (`Os::setWakeup`). `Timers` (`after`, `every`,
+`cancel`; earliest first; callbacks may add timers, which wait for the next pass) and `Worker`
+(`async(job, onDone)`, FIFO, `cancelAll()` bumps a generation so stale callbacks are dropped).
+The worker thread is started by `Os::setup()`; the device sets its stack to 16 KB with
+`esp_pthread_set_cfg` first (costs ~20 KB of internal heap: 282 KB -> 245 KB free).
+
 ### Rendering path
 
 Widgets draw into one full-screen 8-bit grayscale canvas (`pos::Canvas`, an `LGFX_Sprite`,

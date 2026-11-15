@@ -21,7 +21,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   `tests/ui/demo.script` with three goldens. 21 unit tests (DisplayManager, remote parser, log ring, fs).
 - **P1-6 is done** (2026-11-15): Inter, Literata and Lucide baked by `tools/gen-assets.sh` into
   `src/gen/`; `ui/theme.h`, `ui/text.{h,cpp}`; the demo uses Inter text and Lucide icons.
-- **Next task: P1-7** (event loop, timers, worker).
+- **P1-7 is done** (2026-11-15): `core/{loop,timers,worker}`; the demo tile job runs on the worker
+  in the simulator and on the device. **Phase 1 is complete.**
+- **Next task: P2-1** (widget base, layout and gestures; see `ROADMAP.md` Phase 2).
 - The device runs the **spike firmware**: one static mock launcher. It is not interactive: a
   tap only draws a black dot. There are no apps or settings screens yet (the owner tried to open
   Settings on 2026-11-15; that arrives with tasks P2-5 and P2-6).
@@ -204,6 +206,15 @@ None of these block Phase 1, Phase 2, or the reader.
   Goldens updated on purpose (new look): demo-boot, demo-tap-fast, demo-tap-settled; new fonts-sheet.
   Not verified: how the text looks on the physical panel (sharpness, gray rendering).
 
+- P1-7 notes: 31 unit tests (timers: order, ties, cancel, periodic, no-catch-up, 32-bit wrap;
+  worker: off-thread job, delivery only on `runCompleted`, order, void, cancelled generation,
+  wakeup, destructor). Device (injected taps): `tap 140 300` -> `[touch]`, Fast "Working..." at once,
+  Text settle ~600 ms later, ~1 s later the worker result -> Fast "Done in 1.0 s" + settle; two
+  parallel taps on two tiles both complete. Device frame after the job == simulator frame (pixel
+  identical, `out/device-done.png` vs `out/sim-job-done.png`). Firmware 1,364,087 bytes. The demo
+  tile job lives in `Os` (temporary, replaced by apps in P2). `Os::loopOnce()` still is what
+  scripts and the remote step; the windowed simulator and the device use `Loop::iterate()`.
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -228,3 +239,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P1-4. Simulator e-ink emulation, refresh log, input and clock split into files.
 - 2026-11-15: P1-5. Script runner, golden screenshots, gallery, make targets, more unit tests.
 - 2026-11-15: P1-6. Fonts and icons pipeline, text API, demo with Inter and Lucide.
+- 2026-11-15: P1-7. Event loop idle step, timers, worker; demo job on sim and device. Phase 1 done.

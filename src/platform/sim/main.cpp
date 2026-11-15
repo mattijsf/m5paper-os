@@ -31,6 +31,7 @@
 #include "core/remote.h"
 #include "hal/platform.h"
 #include "core/fs.h"
+#include "core/loop.h"
 #include "platform/sim/script.h"
 #include "platform/sim/sim.h"
 
@@ -53,6 +54,21 @@ class SimNet : public hal::Net {
     hal::HttpResponse r;
     r.error = "not implemented in the simulator yet";
     return r;
+  }
+};
+
+// Idle step of the main loop: wait for an SDL event (touch, key, worker wakeup) up to the deadline.
+class SimPolicy : public PowerPolicy {
+ public:
+  void idle(uint32_t maxWaitMs) override {
+    maxWaitMs = std::min<uint32_t>(maxWaitMs, 16);  // keep stdin and the window responsive
+    if (maxWaitMs == 0) return;
+    if (!SDL_WasInit(SDL_INIT_VIDEO)) {
+      SDL_Delay(maxWaitMs);
+      return;
+    }
+    SDL_Event e;
+    if (SDL_WaitEventTimeout(&e, static_cast<int>(maxWaitMs)) == 1) SDL_PushEvent(&e);  // let pump() see it
   }
 };
 
@@ -142,6 +158,13 @@ int main(int argc, char** argv) {
 
   Os os(platform);
   os.setScreen(appName);
+  os.setWakeup([] {  // a finished job wakes the idle wait
+    SDL_Event e = {};
+    e.type = SDL_USEREVENT;
+    SDL_PushEvent(&e);
+  });
+  SimPolicy policy;
+  Loop loop(os, policy);
   StdioRemoteHost remoteHost(input);
   Remote remote(os, clock, remoteHost);
   std::string rx;
@@ -155,9 +178,8 @@ int main(int argc, char** argv) {
     // Windowed: leave the window open after the script, as an interactive session.
     while (!input.quit) {
       input.pump();
-      os.loopOnce();
+      loop.iterate();
       display.present();
-      SDL_Delay(16);
     }
     display.closeWindow();
     return 0;
@@ -186,7 +208,7 @@ int main(int argc, char** argv) {
   while (!input.quit) {
     input.pump();
     if (remoteMode && !readStdinLines(rx, remote, 0)) remoteMode = false;
-    os.loopOnce();
+    loop.iterate();  // steps 1-4 + idle (waits for an SDL event, at most 16 ms)
     remote.tick();
     if (input.ghostRequested) {
       input.ghostRequested = false;
@@ -201,7 +223,6 @@ int main(int argc, char** argv) {
       display.saveShot("shot-" + std::to_string(shotCount++) + ".png");
     }
     display.present();
-    SDL_Delay(16);
   }
   display.closeWindow();
   return 0;

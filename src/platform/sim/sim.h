@@ -3,6 +3,7 @@
 
 #include <SDL.h>
 
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <deque>
@@ -28,7 +29,7 @@ class Clock : public hal::Clock {
 
  private:
   bool fake_ = false;
-  uint32_t fakeMs_ = 0;
+  std::atomic<uint32_t> fakeMs_{0};  // read by the worker thread
   int64_t fakeStartUnix_ = 1700000000;
   std::chrono::steady_clock::time_point start_ = std::chrono::steady_clock::now();
 };

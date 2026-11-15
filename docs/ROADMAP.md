@@ -28,7 +28,7 @@ Legend: `[x]` done, `[ ]` open, `[~]` partly done (see STATUS.md).
 - [x] **P0-3 First flash and measurements.** Factory image backed up, spike flashed, facts and
   refresh timings recorded in `STATUS.md`, `HARDWARE.md`, `DISPLAY.md`.
 
-## Phase 1: Platform core
+## Phase 1: Platform core  (done 2026-11-15)
 
 Goal: the real skeleton replaces the spike. Shared code runs an event loop, draws through the
 DisplayManager, and the simulator can run scripts and compare screenshots.
@@ -102,7 +102,7 @@ DisplayManager, and the simulator can run scripts and compare screenshots.
   right (letters sharp, icons centred); firmware size reported and under 3 MB.
   Device check: text and icons look crisp on the panel after a Quality refresh.
 
-- [ ] **P1-7 Event loop, timers, worker.**
+- [x] **P1-7 Event loop, timers, worker.**
   Read: ARCHITECTURE.md (Runtime model).
   Do: `src/core/loop.{h,cpp}` (the five steps; idle calls a stub PowerPolicy that sleeps 10 ms
   on device / waits for SDL events in sim), `src/core/timers.{h,cpp}`, `src/core/worker.{h,cpp}`

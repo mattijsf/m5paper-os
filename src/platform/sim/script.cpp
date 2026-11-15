@@ -1,8 +1,10 @@
 #include "platform/sim/script.h"
 
+#include <chrono>
 #include <cstdio>
 #include <fstream>
 #include <sstream>
+#include <thread>
 
 namespace pos::sim {
 
@@ -17,6 +19,9 @@ void ScriptRunner::step(uint32_t ms) {
     if (clock_.fake()) clock_.advance(slice);
     else SDL_Delay(slice);
     input_.pump();
+    // The worker thread runs in real time while the fake clock jumps: give a busy worker a moment
+    // to see the new time, so results arrive at a repeatable simulated time.
+    if (os_.worker().pending() > 0) std::this_thread::sleep_for(std::chrono::milliseconds(3));
     os_.loopOnce();
     if (idle_) idle_();
     done += slice;

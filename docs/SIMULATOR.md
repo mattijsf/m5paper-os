@@ -28,7 +28,9 @@ Implemented: `--headless --script --out --data --time --scale --name --remote`; 
 `expect-max-pushed N` (sum of pushed rectangle areas since the last `shot`). `battery`, `wifi`, `type`
 wait for their features. `--time` takes `YYYY-MM-DDTHH:MM:SS` (UTC). In `--headless` runs the clock
 is fake; `tools/ui-test.sh` runs every script with `--data out/ui-data` (empty, never `sim-data/`) and
-`--time 2026-01-15T12:34:00`. `make gallery` writes `out/gallery.html`.
+`--time 2026-01-15T12:34:00`. Worker jobs run in real time while the fake clock jumps; the script
+runner sleeps 3 ms real time per 10 ms step while a job is pending so results arrive at a repeatable
+simulated time (checked: 15 identical `make ui-test` runs). `make gallery` writes `out/gallery.html`.
 
 ### Command line
 
