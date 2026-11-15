@@ -13,6 +13,8 @@ class Power {
   virtual int batteryMv() = 0;
   virtual int batteryPercent() = 0;
   virtual bool charging() = 0;
+  // True while a USB host is connected (the device is then reachable by tools/device.py: do not light-sleep).
+  virtual bool usbConnected() { return false; }
   virtual Wake lightSleep(uint32_t maxMs) = 0;       // returns on touch, button or timeout
   virtual void powerOff(uint32_t wakeAfterSec) = 0;  // 0 = until the button is pressed
 };

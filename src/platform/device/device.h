@@ -7,6 +7,7 @@
 #include "hal/clock.h"
 #include "hal/display.h"
 #include "hal/input.h"
+#include "hal/power.h"
 
 namespace pos::device {
 
@@ -41,6 +42,17 @@ class Clock : public hal::Clock {
   uint32_t millis() override;
   int64_t now() override;
   void set(int64_t unixSeconds) override;
+};
+
+// Battery (8 samples averaged, 5 % steps), light sleep with touch + timer wake, power off.
+class Power : public hal::Power {
+ public:
+  int batteryMv() override;
+  int batteryPercent() override;
+  bool charging() override;
+  bool usbConnected() override;
+  hal::Wake lightSleep(uint32_t maxMs) override;
+  void powerOff(uint32_t wakeAfterSec) override;  // > 0: RTC alarm power-on after that many seconds
 };
 
 struct StorageInfo {

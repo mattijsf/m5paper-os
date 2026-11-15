@@ -50,6 +50,15 @@ wait 900
 tap 270 748             # Developer
 wait 900
 shot settings-developer
+tap 140 845             # Sleep test: light sleep, then a toast says what woke the device
+wait 300
+shot settings-developer-sleep
+wait 3300
+tap 396 845             # Power off: a confirmation sheet (nothing is powered off in the test)
+wait 900
+shot settings-developer-poweroff
+tap 270 300             # outside the sheet: closes it
+wait 900
 back
 wait 900
 tap 270 844             # About

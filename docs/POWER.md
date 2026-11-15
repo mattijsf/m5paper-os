@@ -17,6 +17,14 @@ touch can wake the ESP32 from **light sleep** only, not from deep sleep or power
 
 There is no separate "deep sleep" state: power-off is lower and wakes on the same sources.
 
+**As built (P3-1)**: `device::Power` (`platform/device/power.cpp`): battery = 8-sample average in 5 %
+steps, `lightSleep(maxMs)` = `Display.waitDisplay()` + `M5.Power.lightSleep(us, touch)` returning the wake
+cause from `esp_sleep_get_wakeup_cause()` (timer / GPIO = touch / other), `powerOff(sec)` = `timerSleep(sec)`
+(RTC alarm power-on) or `M5.Power.powerOff()` for 0, `usbConnected()` = `HWCDC::isPlugged()`. Settings >
+Developer has "Sleep test" (10 s, toast with the wake cause) and "Power off" (confirmation sheet). Debug
+commands: `>set sleep <ms>`, `>set poweroff <sec>`. **USB and light sleep: see HARDWARE.md** (the serial link does
+not survive a sleep and nothing sent during it is received).
+
 ### Idle rules (`core/power_policy`, task P3-4)
 
 The main loop calls `PowerPolicy.idle()` when it has nothing to do. It light-sleeps when all of

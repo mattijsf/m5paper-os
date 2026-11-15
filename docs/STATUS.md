@@ -93,6 +93,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 ## Pending device checks
 
+- P3-1: **real touch wakes light sleep** and the waking tap is delivered (an injected tap cannot wake the chip);
+  **side button powers on** after `powerOff(0)`; `powerOff(0)` itself (only the button brings the device back, so it
+  was not run by the automation). Batch with the next time the user is at the device.
 - P1-2: **real finger tap** logging `[touch] x= y=` through `Input::update()` (no tool can
   press the GT911). Injected taps (P1-8) cover everything after the input queue, not the
   translation from `M5.Touch`. Batch with the next time the user looks at the device.
@@ -263,6 +266,12 @@ None of these block Phase 1, Phase 2, or the reader.
   and the inbox will use `TextBlock`; a real book's font-size change relies on `pageIndexOf` (tested with a fake
   metric and with the real fonts on generated text).
 
+- P3-1 (2026-11-15): device power HAL. Light sleep (timer): works, 5 s -> 4992 ms, 10 s -> 9991 ms, cause timer.
+  **The USB serial session does not survive light sleep** (handle dead afterwards, input during sleep lost, no early
+  wake from USB). Power off with RTC alarm (`powerOff(20)`): port gone at once, back after 20 s, clean fresh boot.
+  Settings > Developer has Sleep test and Power off (sheet). Side-button detection by a running program: not possible
+  (no `BtnPWR` for the PaperS3 in M5Unified; the button is wired to the PMS150G).
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -295,3 +304,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P2-6. Config, secrets, time zone, Settings; ui-test uses one data root per script.
 - 2026-11-15: navigation speed: press look delayed 120 ms, cheaper diff; 925 -> 605 ms to a new screen.
 - 2026-11-15: P2-7. Keyboard, TextField, TextBlock with pagination; type / type-max script commands.
+- 2026-11-15: P3-1. Device power HAL: battery average, light sleep with wake cause, RTC power-off; Settings Sleep test / Power off.

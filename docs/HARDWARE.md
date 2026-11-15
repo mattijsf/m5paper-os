@@ -60,6 +60,25 @@ display, touch, RTC, IMU, power and SD pins. Our device HAL calls M5Unified.
   IMU on), 9.3 uA off. Light-sleep current is not documented: measure it (task P3-5).
 - The e-ink image stays visible with no power at all.
 
+### Measured in P3-1 (2026-11-15, firmware with `hal::Power` on the device)
+
+- **Light sleep with a timer works**: `M5.Power.lightSleep(5000000, true)` slept 4992 ms, wake cause
+  `ESP_SLEEP_WAKEUP_TIMER`; asked 10 s, woke after 9991 ms. Execution continues after the call.
+- **Light sleep breaks the USB serial session.** The `/dev/cu.usbmodem*` node stays, but the open host handle
+  receives nothing afterwards (not even the reply to the command that slept, nor later commands); a new
+  open works again. Bytes sent over USB while the chip sleeps do **not** wake it and are lost. So a device
+  in light sleep cannot be reached by `tools/device.py` until its timer fires or a touch wakes it (see P3-4,
+  `power.stayAwakeOnUsb`). `HWCDC::isPlugged()` (SOF seen) tells whether a host is connected.
+- **Power off with an RTC alarm works**: `M5.Power.timerSleep(20)` (`hal::Power::powerOff(20)`): the USB port
+  disappeared at once and came back after 20 s with a fresh boot (`booted` in 0.0 s of polling, boot log
+  complete, config and storage mounted). `powerOff(0)` (`M5.Power.powerOff()`, only the side button wakes
+  it) was **not run**: nobody can press the button during automated tests.
+- **Side-button click while running**: M5Unified has no `BtnPWR` mapping for the PaperS3 (the button belongs to
+  the PMS150G, not an ESP32 pin); so a program cannot read it. Not testable without a human anyway.
+- **Touch wake**: armed by M5Unified with `gpio_wakeup_enable(GPIO48, LOW_LEVEL)`. An injected tap arrives over
+  serial, not on GPIO 48, and cannot wake the chip; a real touch wake and delivery of the waking tap are
+  **not verified** (Pending device checks in STATUS.md).
+
 ## Display driver facts (M5GFX `Panel_EPD`)
 
 - Native panel orientation is landscape 960x540. PaperOS runs portrait 540x960 (rotation is set

@@ -71,20 +71,11 @@ class DeviceNet : public hal::Net {
   }
 };
 
-class DevicePower : public hal::Power {
- public:
-  int batteryMv() override { return M5.Power.getBatteryVoltage(); }
-  int batteryPercent() override { return M5.Power.getBatteryLevel(); }
-  bool charging() override { return M5.Power.isCharging(); }
-  hal::Wake lightSleep(uint32_t) override { return hal::Wake::Other; }  // P3-1
-  void powerOff(uint32_t) override {}                                   // P3-1
-};
-
 device::Display gDisplay;
 device::Input gInput;
 device::Clock gClock;
 DeviceNet gNet;
-DevicePower gPower;
+device::Power gPower;
 hal::Platform gPlatform{gDisplay, gInput, gClock, gNet, gPower, "M5PaperS3"};
 Os gOs(gPlatform);
 
@@ -122,6 +113,16 @@ class SerialRemoteHost : public RemoteHost {
       auto s = apps::createSurface(value == "launcher" ? "" : value, gOs);
       if (!s) return false;
       gOs.setSurface(std::move(s));
+      return true;
+    }
+    // Power tests: ">set sleep 5000" light-sleeps 5 s (the result is logged), ">set poweroff 20" powers off with
+    // an RTC alarm after 20 s (">set poweroff 0": only the side button brings it back).
+    if (key == "sleep") {
+      gPower.lightSleep(static_cast<uint32_t>(atoi(value.c_str())));
+      return true;
+    }
+    if (key == "poweroff") {
+      gPower.powerOff(static_cast<uint32_t>(atoi(value.c_str())));
       return true;
     }
     if (key == "epd-timing") {

@@ -198,7 +198,7 @@ simulator first; each task ends with screenshots.
 
 ## Phase 3: Connectivity and power
 
-- [ ] **P3-1 Device power HAL.**
+- [x] **P3-1 Device power HAL.**
   Read: POWER.md, HARDWARE.md (Power behaviour).
   Do: `platform/device/power.cpp`: battery (averaged), charging, `lightSleep(maxMs)` using
   `M5.Power.lightSleep(us, true)` after `M5.Display.waitDisplay()`, returning the wake reason;

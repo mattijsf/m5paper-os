@@ -8,6 +8,7 @@
 #include "core/os.h"
 #include "core/version.h"
 #include "hal/system.h"
+#include "ui/root.h"
 #include "ui/widgets.h"
 
 namespace pos::apps::settings {
@@ -201,6 +202,31 @@ class DeveloperPage : public Page {
     log_ = root.add<ui::Label>("", Type::Caption);
     log_->maxLines = 8;
     log_->flex = 1;
+    auto* row = root.add<ui::Row>(ui::s2);
+    auto* sleep = row->add<ui::Button>("Sleep test", ui::Button::Kind::Secondary);
+    sleep->flex = 1;
+    sleep->onClick = [this] {
+      // Light sleep for up to 10 s; a touch or the timer wakes it. Reports what woke it.
+      const uint32_t t0 = ctx().clock.millis();
+      hal::Wake w = ctx().os().platform().power.lightSleep(10000);
+      char buf[48];
+      std::snprintf(buf, sizeof buf, "Woke by %s after %.1f s", w == hal::Wake::Touch ? "touch" : w == hal::Wake::Timer ? "timer" : "other",
+                    (ctx().clock.millis() - t0) / 1000.0);
+      ctx().toast(buf);
+    };
+    auto* off = row->add<ui::Button>("Power off", ui::Button::Kind::Secondary);
+    off->flex = 1;
+    off->onClick = [this, off] {
+      auto sheet = std::make_unique<ui::Sheet>();
+      ui::Column* c = sheet->content();
+      c->add<ui::Label>("Power off?", Type::Title);
+      c->add<ui::Label>("The picture stays on the screen. Press the side button to start again.", Type::Body, ui::secondary)->maxLines = 3;
+      ui::Sheet* raw = sheet.get();
+      c->add<ui::Button>("Power off", [this] { ctx().os().platform().power.powerOff(0); });
+      c->add<ui::Button>("Cancel", [raw] { raw->close(); }, ui::Button::Kind::Secondary);
+      off->host()->addOverlay(std::move(sheet));
+    };
+    root.add<ui::Spacer>(ui::s1);
     root.add<ui::Button>("Reboot", [] { hal::restart(); }, ui::Button::Kind::Secondary);
     update();
   }
