@@ -29,6 +29,15 @@ bool Os::setup() {
   return true;
 }
 
+void Os::setSurface(std::unique_ptr<Surface> s) {
+  surface_ = std::move(s);
+  if (!ready_) return;
+  gestures_ = GestureRecognizer();
+  if (surface_) surface_->render(canvas_, dm_);
+  else drawDemo(canvas_, p_.name);
+  dm_.forceClean();
+}
+
 void Os::loopOnce() {
   if (!ready_) return;
   // 1. input

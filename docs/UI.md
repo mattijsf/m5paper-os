@@ -147,6 +147,18 @@ away (a pressed widget lets go), then at most one of Tap / LongPress / Swipe*. D
 to the deepest widget under the finger and bubbles up until a widget consumes it; that widget
 gets Tap, LongPress and Cancel; swipes bubble from it (a Pager above a Button sees them).
 
+P2-2 widgets (`ui/controls`, `ui/list`, `ui/tile`): `Pressable` base (pressed on Down with a Feedback
+invalidate, `onClick` on Tap, nothing on Cancel; disabled ones swallow the touch), `Button`
+(Primary/Secondary/Text, 72 high, min 96 wide; pressed = inverted), `IconButton`, `Toggle` (88 x 48
+pill in an 88 x 72 target; pressed = thicker border; Tap flips and calls `onChange`), `Badge`
+(`99+` cap), `ListItem` (96 px; leading icon, title, subtitle, trailing text / chevron / Toggle /
+Badge; the trailing Toggle is a child widget, so tapping it does not tap the row; pressed = inverted
+row), `Tile` (234 x 196 in a 2-column grid; 64 px icon in a `fill` well, label, optional value and
+badge; pressed = 4 px border), `Pager` (container: content children above a 72 px `PagerBar`;
+arrows and horizontal swipes anywhere in the content call `onPage(page)`; arrows at the ends are
+disabled). A Fast pass shows the shrunk changed rectangle only: a Toggle tap pushes about 2 x 4000
+pixels. Test screens: `widgets2`, `widgets2rows`, `widgets2list` (`--app`, or `>set screen NAME`).
+
 ## Gestures (`core/gesture`, task P2-1)
 
 | Gesture | Definition |

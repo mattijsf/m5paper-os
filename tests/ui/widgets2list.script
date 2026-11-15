@@ -1,0 +1,22 @@
+# app: widgets2list
+# P2-2: Pager over a 20-row list, 7 rows per page: arrow tap, swipes, disabled arrows at the ends.
+wait 200
+shot widgets2list-p1
+tap 480 925             # next
+wait 900
+expect-no-quality
+shot widgets2list-p2
+swipe 400 400 100 400   # swipe left: next
+wait 900
+expect-no-quality
+shot widgets2list-p3
+tap 480 925             # next at the last page: nothing happens
+wait 300
+swipe 100 400 400 400   # swipe right: previous
+wait 900
+expect-no-quality
+shot widgets2list-p2-again
+tap 60 925              # previous
+wait 900
+expect-no-quality
+shot widgets2list-p1-again

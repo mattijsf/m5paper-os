@@ -152,7 +152,7 @@ simulator first; each task ends with screenshots.
   Done when: a test screen (`tests/ui/widgets1.script`) shows labels in all type tokens and
   icons at both sizes; golden accepted.
 
-- [ ] **P2-2 Button, IconButton, Toggle, ListItem, Tile, Badge, Pager.**
+- [x] **P2-2 Button, IconButton, Toggle, ListItem, Tile, Badge, Pager.**
   Read: UI.md (Widgets, Patterns), DISPLAY.md (Rules for UI code).
   Do: the widgets with pressed states (Feedback hint, pure black/white).
   Done when: `tests/ui/widgets2.script` shows each widget in normal/pressed/on states; a tap on

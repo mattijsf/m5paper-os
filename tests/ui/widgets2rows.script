@@ -1,0 +1,13 @@
+# app: widgets2rows
+# P2-2: ListItem variants; a tap on the row, a tap on its Toggle (the row does not react).
+wait 200
+shot widgets2rows
+tap 470 300             # Night mode toggle: on -> off
+wait 100
+expect-no-quality
+expect-max-pushed 12000
+shot widgets2rows-toggle-off
+tap 200 105             # Wi-Fi row: subtitle becomes "Tapped"
+wait 900
+expect-no-quality
+shot widgets2rows-tapped

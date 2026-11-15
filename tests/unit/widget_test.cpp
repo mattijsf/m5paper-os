@@ -285,3 +285,159 @@ TEST_CASE("Screen: removing a widget forgets it") {
   f.screen.render(f.canvas, f.dm);  // nothing left to draw: must not touch the removed widget
   owned.reset();
 }
+
+// ---- P2-2 controls
+
+#include "ui/controls.h"
+#include "ui/list.h"
+#include "ui/tile.h"
+
+TEST_CASE("Button: pressed on Down, click on Tap, no click after Cancel or LongPress") {
+  Fixture f;
+  auto root = std::make_unique<Column>();
+  auto* b = root->add<Button>("OK");
+  int clicks = 0, longs = 0;
+  b->onClick = [&] { ++clicks; };
+  b->onLongPress = [&] { ++longs; };
+  f.screen.setRoot(std::move(root));
+  f.screen.render(f.canvas, f.dm);
+
+  f.screen.onGesture(g(Gesture::Down, 20, 20));
+  CHECK(b->pressed());
+  CHECK(f.screen.dirty());  // the pressed look is queued
+  CHECK(clicks == 0);       // not yet: the action fires on up
+  f.screen.onGesture(g(Gesture::Tap, 20, 20));
+  CHECK_FALSE(b->pressed());
+  CHECK(clicks == 1);
+
+  f.screen.onGesture(g(Gesture::Down, 20, 20));
+  f.screen.onGesture(g(Gesture::Cancel, 100, 20));  // finger slid away
+  CHECK_FALSE(b->pressed());
+  CHECK(clicks == 1);
+
+  f.screen.onGesture(g(Gesture::Down, 20, 20));
+  f.screen.onGesture(g(Gesture::LongPress, 20, 20));
+  CHECK(longs == 1);
+  CHECK(clicks == 1);
+
+  b->enabled = false;
+  f.screen.onGesture(g(Gesture::Down, 20, 20));
+  f.screen.onGesture(g(Gesture::Tap, 20, 20));
+  CHECK(clicks == 1);  // disabled buttons swallow the touch
+}
+
+TEST_CASE("Button: measure and a 72 px target") {
+  Fixture f;
+  auto root = std::make_unique<Column>();
+  auto* b = root->add<Button>("Cancel");
+  f.screen.setRoot(std::move(root));
+  CHECK(b->frame.h == kTouchMin);
+  Size s = b->measure(kScreenW);
+  CHECK(s.h == 72);
+  CHECK(s.w >= 96);
+}
+
+TEST_CASE("Toggle: flips on Tap and reports the new state; Down alone changes nothing") {
+  Fixture f;
+  auto root = std::make_unique<Column>();
+  auto* t = root->add<Toggle>(false);
+  std::vector<bool> seen;
+  t->onChange = [&](bool on) { seen.push_back(on); };
+  f.screen.setRoot(std::move(root));
+  f.screen.onGesture(g(Gesture::Down, 20, 20));
+  CHECK_FALSE(t->on());
+  f.screen.onGesture(g(Gesture::Tap, 20, 20));
+  CHECK(t->on());
+  f.screen.onGesture(g(Gesture::Down, 20, 20));
+  f.screen.onGesture(g(Gesture::Tap, 20, 20));
+  CHECK_FALSE(t->on());
+  CHECK(seen == std::vector<bool>{true, false});
+  t->setOn(true);  // programmatic: no callback
+  CHECK(seen.size() == 2);
+  CHECK(t->measure(100).h >= kTouchMin);
+}
+
+TEST_CASE("Badge text caps at 99+") {
+  CHECK(badgeText(0) == "0");
+  CHECK(badgeText(99) == "99");
+  CHECK(badgeText(100) == "99+");
+}
+
+TEST_CASE("ListItem: row tap and the toggle inside it are separate") {
+  Fixture f;
+  auto root = std::make_unique<Column>();
+  auto* item = root->add<ListItem>("Night mode", "", true, Icon::Moon);
+  int rowTaps = 0;
+  bool toggled = false;
+  item->onClick = [&] { ++rowTaps; };
+  item->setToggle(false, [&](bool on) { toggled = on; });
+  f.screen.setRoot(std::move(root));
+  CHECK(item->frame.h == 96);
+  REQUIRE(item->toggle() != nullptr);
+  const Rect tr = item->toggle()->frame;
+  CHECK(tr.x + tr.w == item->frame.x + item->frame.w);  // flush right
+  CHECK(tr.h >= kTouchMin);
+
+  f.screen.onGesture(g(Gesture::Down, tr.x + 10, tr.y + 10));
+  f.screen.onGesture(g(Gesture::Tap, tr.x + 10, tr.y + 10));
+  CHECK(toggled);
+  CHECK(rowTaps == 0);
+  f.screen.onGesture(g(Gesture::Down, 20, 20));
+  f.screen.onGesture(g(Gesture::Tap, 20, 20));
+  CHECK(rowTaps == 1);
+
+  item->setChevron();  // replacing the trailing element removes the toggle
+  CHECK(item->toggle() == nullptr);
+}
+
+TEST_CASE("Pager: arrows, swipes, clamping, onPage, disabled ends") {
+  Fixture f;
+  auto root = std::make_unique<Column>();
+  auto* pager = root->add<Pager>(3);
+  pager->flex = 1;
+  auto* content = pager->add<Box>(100, 100, false);
+  std::vector<int> pages;
+  pager->onPage = [&](int p) { pages.push_back(p); };
+  f.screen.setRoot(std::move(root));
+  CHECK(pager->bar()->frame.h == kTouchMin);
+  CHECK(pager->bar()->frame.y + kTouchMin == kScreenH);
+  CHECK(content->frame.h == kScreenH - kTouchMin);
+
+  const Rect bar = pager->bar()->frame;
+  const int next = bar.x + bar.w - 20, prev = bar.x + 20, by = bar.y + 10;
+  f.screen.onGesture(g(Gesture::Down, prev, by));  // already on the first page: nothing to press
+  f.screen.onGesture(g(Gesture::Tap, prev, by));
+  CHECK(pager->page() == 0);
+
+  f.screen.onGesture(g(Gesture::Down, next, by));
+  f.screen.onGesture(g(Gesture::Tap, next, by));
+  CHECK(pager->page() == 1);
+  Gesture sw = g(Gesture::SwipeLeft, 100, 300);
+  f.screen.onGesture(g(Gesture::Down, 300, 300));  // on the content: Box does not consume
+  f.screen.onGesture(sw);
+  CHECK(pager->page() == 2);
+  f.screen.onGesture(g(Gesture::Down, 300, 300));
+  f.screen.onGesture(g(Gesture::SwipeLeft, 100, 300));  // past the last page: clamped
+  CHECK(pager->page() == 2);
+  f.screen.onGesture(g(Gesture::Down, 100, 300));
+  f.screen.onGesture(g(Gesture::SwipeRight, 300, 300));
+  CHECK(pager->page() == 1);
+  CHECK(pages == std::vector<int>{1, 2, 1});
+
+  pager->setPages(1);  // fewer pages than the current one: clamped
+  CHECK(pager->page() == 0);
+}
+
+TEST_CASE("Tile: measure, value and badge setters redraw") {
+  Fixture f;
+  auto root = std::make_unique<Column>();
+  auto* t = root->add<Tile>(Icon::Mail, "Mail");
+  f.screen.setRoot(std::move(root));
+  f.screen.render(f.canvas, f.dm);
+  CHECK(t->frame.h == 196);
+  t->setValue("3 new");
+  CHECK(f.screen.dirty());
+  f.screen.render(f.canvas, f.dm);
+  t->setBadge(0);  // unchanged: no redraw
+  CHECK_FALSE(f.screen.dirty());
+}

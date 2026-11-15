@@ -8,14 +8,16 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   the simulator and on the device: HAL, display manager (fast-then-settle, ghost budget), e-ink
   emulation with a refresh log, gestures, widget tree, fonts and icons (Inter, Literata, Lucide),
   main loop with timers and a worker thread, remote control over USB (`tools/device.py`), UI
-  scripts with golden screenshots, 49 host unit tests.
-- **P2-1 is done** (2026-11-15): `core/gesture`, `core/surface`, `ui/{widget,screen,layout,label}`,
-  `apps/uitest` (test screens, `--app widgets1`). Phase 2 continues with P2-2 and P2-3 (more
-  widgets), then the app framework (P2-4), launcher (P2-5/P2-7) and settings.
+  scripts with golden screenshots, 56 host unit tests.
+- **P2-1 and P2-2 are done** (2026-11-15): `core/gesture`, `core/surface`, `ui/{widget,screen,layout,
+  label,controls,list,tile}`, `apps/uitest` (test screens `widgets1`, `widgets2`, `widgets2rows`,
+  `widgets2list`: `--app NAME` in the simulator, `>set screen NAME` on both). Phase 2 continues
+  with P2-3 (Sheet, Toast, EmptyState, Segmented, Stepper, LevelBar), then the app framework
+  (P2-4), launcher (P2-5/P2-7) and settings.
 - **What the device runs**: the Phase 1 demo (a mock launcher with Inter text and Lucide icons;
   tapping a tile runs a fake 1 s job on the worker; tapping elsewhere draws a touch marker). The
   real launcher and apps arrive with P2-4 to P2-7; the owner asked for Settings on 2026-11-15.
-- **Next task: P2-2** (Button, IconButton, Toggle, ListItem, Tile, Badge, Pager).
+- **Next task: P2-3** (Sheet, Toast, EmptyState, Segmented, Stepper, LevelBar).
 - The factory firmware is saved in `backup/factory-16MB.bin` (restore command in HARDWARE.md).
 
 ## What works today
@@ -25,8 +27,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Simulator build | `make sim` | OK (first build ~3 min, then seconds) |
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
-| Firmware build | `make fw` | OK, 1.37 MB (26% of the 5 MB slot) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 49 tests; 7 goldens; `out/gallery.html` |
+| Firmware build | `make fw` | OK, 1.39 MB (26.5% of the 5 MB slot) |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 56 tests; 18 goldens; `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Serial heartbeat | `make monitor` | `[beat]` and `[sd]` lines every 5 s (the refresh benchmark is gone since P1-1) |
@@ -205,6 +207,14 @@ None of these block Phase 1, Phase 2, or the reader.
   tile job lives in `Os` (temporary, replaced by apps in P2). `Os::loopOnce()` still is what
   scripts and the remote step; the windowed simulator and the device use `Loop::iterate()`.
 
+- P2-2 device (2026-11-15, `>set epd-timing on`, injected taps on the `widgets2` screen):
+  Toggle tap at t=7443: pressed look Fast done at 7693 (250 ms after the touch), flipped look done at
+  7954 (511 ms; the two passes run one after the other because the timing mode blocks on each);
+  Button tap: pressed 262 ms, released 532 ms, then a Text settle pass (855 ms) because the label
+  has anti-aliasing grays. Device frames after each step are pixel-identical to the simulator's
+  (`out/dev-w2*.png` vs `out/sim-w2*.png`). Heap free after boot with the worker: ~242 KB.
+  Not verified: how the pressed looks feel on the physical panel (thick borders, inverted rows).
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -230,3 +240,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P1-5. Script runner, golden screenshots, gallery, make targets, more unit tests.
 - 2026-11-15: P1-6. Fonts and icons pipeline, text API, demo with Inter and Lucide.
 - 2026-11-15: P1-7. Event loop idle step, timers, worker; demo job on sim and device. Phase 1 done.
+- 2026-11-15: P2-2. Button, IconButton, Toggle, Badge, ListItem, Tile, Pager; three test screens with goldens.

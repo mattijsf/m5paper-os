@@ -1,0 +1,16 @@
+# app: widgets2
+# P2-2: Button, IconButton, Toggle, Badge, Tile in normal / pressed / on states. A Toggle tap and a
+# Button tap each push little (Fast only, no Quality flash).
+wait 200
+shot widgets2
+tap 68 429              # first Toggle: off -> on
+wait 100
+expect-no-quality
+expect-max-pushed 12000
+shot widgets2-toggle-on
+tap 74 128              # first Button: "Save" -> "Saved"
+wait 100
+expect-no-quality
+expect-max-pushed 16000   # pressed + released: two Fast passes over the button
+wait 800
+shot widgets2-button-saved

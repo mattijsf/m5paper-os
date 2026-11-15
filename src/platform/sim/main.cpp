@@ -95,6 +95,14 @@ class StdioRemoteHost : public RemoteHost {
     std::fflush(stdout);
   }
   void reboot() override { std::exit(0); }  // the simulator has no reboot: a new run is a fresh boot
+  bool option(const std::string& key, const std::string& value) override {
+    if (key != "screen" || !os_) return false;
+    auto s = apps::uitest::create(value, os_->canvas(), os_->displayManager());
+    if (!s && value != "demo") return false;
+    os_->setSurface(std::move(s));
+    return true;
+  }
+  Os* os_ = nullptr;
 
  private:
   sim::Input& in_;
@@ -168,6 +176,7 @@ int main(int argc, char** argv) {
   SimPolicy policy;
   Loop loop(os, policy);
   StdioRemoteHost remoteHost(input);
+  remoteHost.os_ = &os;
   Remote remote(os, clock, remoteHost);
   std::string rx;
 

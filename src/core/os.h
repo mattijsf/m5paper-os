@@ -30,7 +30,8 @@ class Os {
   void setScreen(const std::string& name) { screen_ = name; }
   // Starts the worker thread: on the device set its stack size first (esp_pthread_set_cfg).
   // Shows a widget screen (or app) instead of the demo: touches become gestures for it. Before setup().
-  void setSurface(std::unique_ptr<Surface> s) { surface_ = std::move(s); }
+  // After setup() it swaps at once: redraws and cleans the panel (one Quality flash).
+  void setSurface(std::unique_ptr<Surface> s);
   Surface* surface() { return surface_.get(); }
   bool setup();
   // Steps 1-4 of the main loop: drain input, run finished worker callbacks, run due timers, draw
