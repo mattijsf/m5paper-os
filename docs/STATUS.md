@@ -106,6 +106,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   2.1.10 to `custom_components/whatsapp` (`auto_install_integration`). Add-on facts: host network, port 8066, `/config`
   read-write, API key shown in its web UI (BACKEND.md).
 - The user accepted the terms-of-service risk on 2026-11-15 ("Install the add-on it is fine").
+- **Update 2026-11-15 19:51**: the WhatsApp link is up (QR scanned in the add-on's web UI; the session survived an add-on restart). Facts and warnings (number pairing rewrites 0 to 49, the setup dialog voids a shown QR, Baileys 7.0.0-rc14 pairing bugs, no `ui_auth` = every private-network address is superadmin and the API key goes out over mDNS) are in BACKEND.md. Options now also `log_level` info, `mask_sensitive_data` true.
 - **Still open**: restart Home Assistant to load the integration; UI password (`ui_auth_enabled`, the user types it); add the
   integration; the user scans the QR code; capture one real `whatsapp_message_received` event (direct, then group); then P6-3.
   Check (1) phone notifications still arrive, (2) events captured, (3) auto-responder, bot commands, mark-as-read off.
@@ -175,6 +176,11 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 ## Open questions for the user
 
+0. **Where may WhatsApp data live?** Every Home Assistant login can read entity states, so putting the user's private messages into a
+   Home Assistant sensor (the current design, BACKEND.md "Inbox feeds") exposes them to every Home Assistant user. The alternative is
+   that the device reads the add-on directly on the home network (its chats API on port 8066, which needs `ui_auth` and its API key and
+   works only at home). The user is deciding; **nothing is built for either until then** (the inbox app reads the sensor contract only
+   from fixtures). Affects P6-3 and, for the second option, a new device client for the add-on API.
 1. **WhatsApp add-on risk**: it is an unofficial client linked to the personal account; its own
    documentation warns of possible bans. PaperOS only reads. To be confirmed once more at
    install time (task P6-1). The notification-sensor route stays available as fallback.

@@ -113,6 +113,19 @@ web UI**. It wrote its integration 2.1.10 to `custom_components/whatsapp` itself
 Home Assistant to load the integration, the web UI password (`ui_auth_enabled`: the user types it), add the integration, the QR
 link by the user, one real captured event (below).
 
+Facts from the linking on 2026-11-15 (task P6-1, done with the owner): **the WhatsApp link is up since 19:51** (the QR code was scanned
+in the add-on's own web UI; the session survived an add-on restart: `hasCreds` true, connection open). Things learned:
+
+- The integration's **phone-number pairing rewrites a leading 0 to the country code 49**: enter numbers as `31...`.
+- The Home Assistant setup dialog **recreates the socket on every submit**, which voids a QR code or pairing code that was just shown:
+  **pair in the add-on's web UI**, not in the dialog.
+- The bundled Baileys is **7.0.0-rc14**, with open upstream pairing bugs (WhiskeySockets/Baileys #2600, #2737, #2770).
+- **Without `ui_auth_enabled` the add-on treats every private-network address as superadmin**: its web UI, chats API and send API are open
+  on port 8066 without a key; and it **broadcasts its API key over mDNS while it is not set up**. Set the UI password.
+- Add-on options now: `log_level` info, `mask_sensitive_data` true (besides those above).
+- Still open: the UI password (the user types it), the Home Assistant integration is not set up yet, and the question where WhatsApp
+  data may live (STATUS.md, open question 1).
+
 Risks and checks (task P6-1). **These need the owner's attention before installing:**
 
 1. **Terms of service.** The add-on is an unofficial client. Its own docs warn that automated
