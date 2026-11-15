@@ -1,0 +1,12 @@
+# app: home
+# P5-5: cache first. The first run reads the fixtures and saves them; then Wi-Fi goes away and the app starts again: the saved
+# values show at once and the status line says why they may be old.
+wait 1500
+shot home-offline-online
+wifi off
+restart
+wait 200
+shot home-offline-cache-first   # drawn from the saved copy before any request finished
+wait 1500
+expect-state Saved data: No Wi-Fi
+shot home-offline-failed

@@ -299,10 +299,10 @@ simulator first; each task ends with screenshots.
   (`--fixtures none`, token in `sim-data/sd/paperos_config`: ask the owner to copy the file
   from the card or add one; never print it). Measure the time for the Lights tab on the device;
   above 3 s, add the aggregate sensor described in BACKEND.md. Unit tests.
-- [ ] **P5-3 Lights tab.** Rows with Toggle and LevelBar, optimistic updates, service calls,
+- [x] **P5-3 Lights tab.** (simulator: `tests/ui/home.script`; the brightness LevelBar lives in the row's sheet, see apps/home.md) Rows with Toggle and LevelBar, optimistic updates, service calls,
   failure revert + toast. Goldens with fixtures.
-- [ ] **P5-4 Climate and More tabs, member sheet, scenes.** Goldens.
-- [ ] **P5-5 Polling, cache, device check.** Foreground refresh policy, cache-first open.
+- [x] **P5-4 Climate and More tabs, member sheet, scenes.** Goldens.
+- [~] **P5-5 Polling, cache, device check.** (simulator part done: cache first, 30 s polling while used, `home-offline.script`; the device timings and the non-admin run are pending) Foreground refresh policy, cache-first open.
   Device check: timings in apps/home.md. One run with a non-admin token (a dedicated user, per the 2026-11-15 decision) before Phase 5 counts as done on the device, or list it under "Pending device checks" in STATUS.md.
 
 ## Phase 6: Inbox (WhatsApp, Mail)

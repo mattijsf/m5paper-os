@@ -1,0 +1,5 @@
+# Test data for tests/ui/home*.script: fake values only.
+HA_TOKEN=fake-token-for-tests-only
+HA_URL=https://ha.example.test
+WIFI_SSID=HomeNet
+WIFI_PASSWORD=home-password

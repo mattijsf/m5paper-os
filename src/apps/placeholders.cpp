@@ -32,11 +32,9 @@ class ComingSoonApp : public App {
   Icon icon_;
 };
 
-struct HomeApp : ComingSoonApp { HomeApp() : ComingSoonApp("Home", Icon::House) {} };
 struct WhatsAppApp : ComingSoonApp { WhatsAppApp() : ComingSoonApp("WhatsApp", Icon::MessageCircle) {} };
 struct MailApp : ComingSoonApp { MailApp() : ComingSoonApp("Mail", Icon::Mail) {} };
 
-POS_REGISTER_APP(HomeApp, {.id = "home", .name = "Home", .icon = Icon::House, .order = 20});
 POS_REGISTER_APP(WhatsAppApp, {.id = "whatsapp", .name = "WhatsApp", .icon = Icon::MessageCircle, .order = 30});
 POS_REGISTER_APP(MailApp, {.id = "mail", .name = "Mail", .icon = Icon::Mail, .order = 40});
 

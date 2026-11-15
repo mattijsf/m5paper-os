@@ -137,7 +137,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 - **P5-2**: verify every entity id of the default `home.json` against the live instance (`GET /api/states/<id>` returns 200 for each; the
   simulator has no card config, so run it on the device or copy the card's `paperos_config` to `sim-data/sd/` and use `--fixtures none`;
   never print the token). Measure the time for the Lights tab refresh on the device; above 3 s add the aggregate sensor (BACKEND.md).
-  **P5-5**: one run with a non-admin token before Phase 5 counts as done.
+  **P5-5**: one run with a non-admin token before Phase 5 counts as done; Home timings on the device (tap to visible toggle change
+  under 0.4 s, app open with Wi-Fi off to fresh data under 4 s); whether polling needs the Wi-Fi linger extended; the Home refresh over
+  one kept-alive TLS connection (`getMany`).
 - **P5-1**: Settings > Home Assistant "Test connection" now goes through `HaClient` (`core/ha`); re-run it on the device (it worked with the previous direct request, P3-7).
 - **P3-6**: button press to usable screen under 2.5 s after a power-off with the reader open (measure and record); how the
   sleep screen looks on the panel (cover gray ramp, contrast, that it stays sharp for hours); `Shell::prepareForPowerOff()` on the
@@ -408,3 +410,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P3-6 (simulator part). Sleep screen (`core/sleep_screen`, `App::sleepInfo`), resume of the last app and the open book after power-off, `power-off` script command, `ui/image` (cover decoding shared by library and sleep screen).
 - 2026-11-15: P5-1. `core/ha` (HaClient: get, post, callService, getMany, error mapping), `ctx.ha()`, Settings test uses it.
 - 2026-11-15: P5-2. `apps/home/home_model` (home.json parser, default config with the full Avond scene, state parser, light views with group counts, states cache, call bodies).
+- 2026-11-15: P5-3, P5-4, P5-5 (simulator part). Home app (Lights with scenes, member sheet, Climate, More), optimistic actions with revert, cache first, foreground polling; goldens `home-*`.

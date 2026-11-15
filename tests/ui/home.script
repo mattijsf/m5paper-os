@@ -1,0 +1,40 @@
+# app: home
+# P5-3 / P5-4: the Home app from fixtures (tests/fixtures/make-ha-fixtures.py): Lights (toggles, scene, sheets), Climate, More,
+# a failed call. Every action shows at once (optimistic); the tab is read again 1.5 s later (the fixture is static, so shots are
+# taken before that).
+wait 1500
+shot home-lights
+tap 480 805             # next page of the list
+wait 900
+shot home-lights-p2
+tap 60 805
+wait 900
+tap 472 368             # Lounge toggle: off at once
+wait 300
+shot home-lights-lounge-off
+wait 2000
+tap 180 354             # the row text of Lounge: its sheet (brightness, lamps)
+wait 700
+shot home-light-sheet
+tap 270 120             # outside the sheet: closes it
+wait 700
+tap 270 181             # the scene button: toast, calls go out
+wait 500
+shot home-scene
+wait 2500
+tap 268 925             # Climate tab
+wait 1500
+shot home-climate
+tap 480 272             # thermostat: plus (21.5)
+wait 400
+shot home-climate-target
+wait 1500
+tap 433 925             # More tab
+wait 1500
+shot home-more
+tap 472 268             # Air conditioning toggle: the service call fails (fixture status 500): reverts, toast
+wait 700
+shot home-more-failed
+wait 65000              # foreground polling: touched within 2 minutes, so the tab is read again every 30 s
+expect-state Updated 13:35
+shot home-polled
