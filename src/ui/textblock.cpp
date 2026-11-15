@@ -98,7 +98,13 @@ struct Piece {
   int run;
 };
 // A word: pieces that touch each other (a style change in the middle of a word, or punctuation in its own run).
-using Group = std::vector<Piece>;
+// Nearly every word is one piece, kept inline: pagination of a book makes millions of these.
+struct Group {
+  Piece first;
+  std::vector<Piece> more;  // the pieces after the first
+  size_t size() const { return 1 + more.size(); }
+  const Piece& at(size_t k) const { return k == 0 ? first : more[k - 1]; }
+};
 
 std::vector<Group> wordsFrom(const Paragraph& p, const std::string& plain, int from) {
   std::vector<int> runEnd;
@@ -108,6 +114,7 @@ std::vector<Group> wordsFrom(const Paragraph& p, const std::string& plain, int f
     runEnd.push_back(acc);
   }
   std::vector<Group> out;
+  out.reserve(plain.size() / 6 + 4);
   int i = from;
   const int n = static_cast<int>(plain.size());
   bool joined = false;  // the previous piece touches this one
@@ -121,8 +128,8 @@ std::vector<Group> wordsFrom(const Paragraph& p, const std::string& plain, int f
     while (run < static_cast<int>(runEnd.size()) - 1 && i >= runEnd[run]) ++run;
     int j = i;
     while (j < n && plain[j] != ' ' && plain[j] != '\t' && j < runEnd[run]) ++j;
-    if (joined && !out.empty()) out.back().push_back({i, j, run});
-    else out.push_back(Group{{i, j, run}});
+    if (joined && !out.empty()) out.back().more.push_back({i, j, run});
+    else out.push_back(Group{{i, j, run}, {}});
     i = j;
     joined = true;
   }
@@ -131,7 +138,7 @@ std::vector<Group> wordsFrom(const Paragraph& p, const std::string& plain, int f
 
 }  // namespace
 
-Page layoutPage(const std::vector<Paragraph>& paras, TextPos start, const TextStyle& st, TextMetrics& m) {
+Page layoutPage(const std::vector<Paragraph>& paras, TextPos start, const TextStyle& st, TextMetrics& m, bool buildLines) {
   Page page;
   page.start = start;
   int y = 0;
@@ -139,11 +146,17 @@ Page layoutPage(const std::vector<Paragraph>& paras, TextPos start, const TextSt
   int off = start.byte;
   const int total = static_cast<int>(paras.size());
   int headingLines = 0, headingPara = -1;  // a heading placed last on the page moves to the next page with its text
+  int nLines = 0;                           // lines on the page (page.lines only fills when buildLines)
+  std::string scratch;                      // word text for measuring, reused
 
+  auto dropLines = [&](int k) {
+    nLines -= k;
+    if (buildLines) page.lines.resize(page.lines.size() - k);
+  };
   auto breakBefore = [&](int para, int byte) {
     page.next = TextPos{para, byte};
-    if (headingLines > 0 && static_cast<int>(page.lines.size()) > headingLines) {
-      page.lines.resize(page.lines.size() - headingLines);
+    if (headingLines > 0 && nLines > headingLines) {
+      dropLines(headingLines);
       page.next = TextPos{headingPara, 0};
     }
     return page;
@@ -155,7 +168,19 @@ Page layoutPage(const std::vector<Paragraph>& paras, TextPos start, const TextSt
     bool headingBold;
     const Type base = typeFor(para, st, headingBold);
     const int pitch = std::max(1, static_cast<int>(m.lineHeight(base) * st.lineSpacing + 0.5f));
-    if (para.heading > 0 && off == 0 && !page.lines.empty()) y += kHeadingGapAbove;
+    if (para.heading > 0 && off == 0 && nLines > 0) y += kHeadingGapAbove;
+
+    // Width of a space in each style of this paragraph (bold x italic), measured once.
+    int spaceW[4] = {-1, -1, -1, -1};
+    auto spaceWidth = [&](bool bold, bool italic) {
+      int& w = spaceW[(bold ? 2 : 0) + (italic ? 1 : 0)];
+      if (w < 0) w = m.width(" ", base, bold, italic);
+      return w;
+    };
+    auto pieceText = [&](const Piece& pc) -> const std::string& {
+      scratch.assign(plain, static_cast<size_t>(pc.start), static_cast<size_t>(pc.end - pc.start));
+      return scratch;
+    };
 
     std::vector<Group> words = wordsFrom(para, plain, off);
     const bool indentFirst = para.heading == 0 && off == 0 && p > 0 && paras[p - 1].heading == 0;
@@ -167,29 +192,30 @@ Page layoutPage(const std::vector<Paragraph>& paras, TextPos start, const TextSt
       line.y = y;
       line.h = pitch;
       int x = (firstLine && indentFirst) ? st.indent : 0;
-      const int lineStart = words[wi][0].start;
+      const int lineStart = words[wi].first.start;
       size_t used = 0;
       bool cutWord = false;
       while (wi + used < words.size()) {
         const Group& grp = words[wi + used];
         int gw = 0;
-        for (const Piece& pc : grp) {
+        for (size_t k = 0; k < grp.size(); ++k) {
+          const Piece& pc = grp.at(k);
           const Run& r = para.runs[pc.run];
-          gw += m.width(plain.substr(pc.start, pc.end - pc.start), base, r.bold || headingBold, r.italic);
+          gw += m.width(pieceText(pc), base, r.bold || headingBold, r.italic);
         }
-        const Run& r0 = para.runs[grp[0].run];
-        const int sp = used == 0 ? 0 : m.width(" ", base, r0.bold || headingBold, r0.italic);
+        const Run& r0 = para.runs[grp.first.run];
+        const int sp = used == 0 ? 0 : spaceWidth(r0.bold || headingBold, r0.italic);
         if (used > 0 && x + sp + gw > st.width) break;
         if (used == 0 && x + gw > st.width) {
           if (grp.size() > 1) {
             // Too wide even alone: allow breaks between its pieces.
             Group copy = grp;
             words.erase(words.begin() + wi);
-            for (size_t k = 0; k < copy.size(); ++k) words.insert(words.begin() + wi + k, Group{copy[k]});
+            for (size_t k = 0; k < copy.size(); ++k) words.insert(words.begin() + wi + k, Group{copy.at(k), {}});
             continue;
           }
           // A single word wider than the column: cut it by characters; the rest starts the next line.
-          const Piece& pc = grp[0];
+          const Piece& pc = grp.first;
           const bool bold = r0.bold || headingBold;
           const std::string word = plain.substr(pc.start, pc.end - pc.start);
           size_t k = 0;
@@ -200,37 +226,40 @@ Page layoutPage(const std::vector<Paragraph>& paras, TextPos start, const TextSt
             part += word.substr(k, n);
             k += n;
           }
-          line.segs.push_back(Seg{part, base, bold, r0.italic, x});
-          words[wi][0].start += static_cast<int>(part.size());
+          if (buildLines) line.segs.push_back(Seg{part, base, bold, r0.italic, x});
+          words[wi].first.start += static_cast<int>(part.size());
           cutWord = true;
           break;
         }
-        // Add the pieces: neighbours of the same style share a segment.
-        int px = x + sp;
-        for (size_t k = 0; k < grp.size(); ++k) {
-          const Run& r = para.runs[grp[k].run];
-          const bool bold = r.bold || headingBold;
-          const std::string text = plain.substr(grp[k].start, grp[k].end - grp[k].start);
-          const std::string lead = (k == 0 && used > 0) ? " " : "";
-          if (!line.segs.empty() && line.segs.back().bold == bold && line.segs.back().italic == r.italic) {
-            line.segs.back().text += lead + text;
-          } else {
-            line.segs.push_back(Seg{lead + text, base, bold, r.italic, k == 0 ? x : px});
+        if (buildLines) {
+          // Add the pieces: neighbours of the same style share a segment.
+          int px = x + sp;
+          for (size_t k = 0; k < grp.size(); ++k) {
+            const Run& r = para.runs[grp.at(k).run];
+            const bool bold = r.bold || headingBold;
+            const std::string text = plain.substr(grp.at(k).start, grp.at(k).end - grp.at(k).start);
+            const std::string lead = (k == 0 && used > 0) ? " " : "";
+            if (!line.segs.empty() && line.segs.back().bold == bold && line.segs.back().italic == r.italic) {
+              line.segs.back().text += lead + text;
+            } else {
+              line.segs.push_back(Seg{lead + text, base, bold, r.italic, k == 0 ? x : px});
+            }
+            px += m.width(text, base, bold, r.italic);
           }
-          px += m.width(text, base, bold, r.italic);
         }
         x += sp + gw;
         ++used;
       }
       if (!cutWord) wi += used;
-      if (y + pitch > st.height && !page.lines.empty()) {
-        if (para.heading > 0 && placed > 0 && off == 0 && static_cast<int>(page.lines.size()) > placed) {
-          page.lines.resize(page.lines.size() - placed);  // a heading is not split across pages
+      if (y + pitch > st.height && nLines > 0) {
+        if (para.heading > 0 && placed > 0 && off == 0 && nLines > placed) {
+          dropLines(placed);  // a heading is not split across pages
           return breakBefore(p, 0);
         }
         return breakBefore(p, lineStart);
       }
-      page.lines.push_back(std::move(line));
+      if (buildLines) page.lines.push_back(std::move(line));
+      ++nLines;
       y += pitch;
       ++placed;
       firstLine = false;
@@ -250,13 +279,15 @@ Page layoutPage(const std::vector<Paragraph>& paras, TextPos start, const TextSt
   return page;
 }
 
-std::vector<TextPos> paginate(const std::vector<Paragraph>& paras, const TextStyle& st, TextMetrics& m) {
+std::vector<TextPos> paginate(const std::vector<Paragraph>& paras, const TextStyle& st, TextMetrics& m,
+                              const std::function<bool()>& keepGoing) {
   std::vector<TextPos> starts;
   TextPos pos{0, 0};
   const TextPos endPos{static_cast<int>(paras.size()), 0};
   starts.push_back(pos);
   for (int guard = 0; guard < 1000000; ++guard) {
-    Page pg = layoutPage(paras, pos, st, m);
+    if (keepGoing && !keepGoing()) break;
+    Page pg = layoutPage(paras, pos, st, m, false);
     if (pg.end || pg.next == pos || !(pos < pg.next) || pg.next == endPos) break;
     pos = pg.next;
     starts.push_back(pos);

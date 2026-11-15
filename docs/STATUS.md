@@ -92,7 +92,28 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   notifications are unknown (task P6-1). `ha/paperos_inbox.yaml` is an untested draft.
 - Proton Mail Bridge on Home Assistant OS: no confirmed add-on that exposes IMAP (task P6-2).
 
+## Pitfalls found in Phase 4 (device)
+
+- **The ESP32-S3 ROM has its own `tinfl_decompress`** and `esp32s3.rom.ld` binds that name to a ROM address, so a vendored
+  miniz silently uses the ROM copy, whose decompressor struct is smaller: heap corruption on the first EPUB entry
+  (`CORRUPT HEAP`, backtrace in `free`). `lib/miniz/miniz_defs.h` renames our tinfl functions to `pos_tinfl_*`. Check with
+  `xtensa-esp32s3-elf-nm firmware.elf | grep tinfl_decompress` (ours is a `T` in flash, not an `A` at 0x4000xxxx).
+- **The worker must not take the UI core.** Default pthread priority 5 on the loopTask's core froze the UI for 17 s while a
+  book was indexed. The worker now runs at priority 1 pinned to core 0 (`platform/device/main.cpp`); a CPU-bound job on core 0
+  at that priority starves the idle task and the task watchdog resets the board (mid-write to the SD card, which then
+  answered nothing until the board lost power: `>poweroff N`). The indexing therefore sleeps 1 ms every 40 ms (`cooperate()`
+  in `apps/reader/book.cpp`); any new long worker job must do the same.
+- **SD card writes are slow: about 90 KB/s** (reads and inflate are fast). Write less (the reader converts EPUB chapters on demand
+  instead of caching text; the cover is written after the book opens).
+- **Internal heap is small** (about 200 KB, 12 KB left with a 40000-entry `unordered_map` width cache): big caches are fixed
+  tables in one allocation (PSRAM), never many small nodes.
+- **The device naps when no host has the port open** (`HWCDC::isPlugged()` is false then): a command sent meanwhile is lost,
+  `tools/device.py` now sends it again; and after `power.autoOffMin` (15 min) without a touch it **powers itself off** as if on
+  battery, which only the side button undoes. A long pause between device runs (a long build, a code review) can do that: see
+  "Pending device checks". The policy should look at VBUS instead of the data link (follow-up, not changed here).
+
 ## Pending device checks
+
 
 - P3-4: **auto-off on battery** (the policy never powers off while USB is connected, so the automation could not run
   it; covered by unit tests only) and that the UI still feels immediate when the device sleeps between taps
@@ -348,3 +369,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P4-1. Reader app (page screen full screen, touch zones, footer, progress), TXT import, page index on the worker, `restart` / `expect-state` / `page-through` script commands.
 - 2026-11-15: P4-2. Library screen (scan on the worker, continue card, 7 rows per page with Pager), `tests/ui/library.script` with nine books.
 - 2026-11-15: P4-3. `lib/miniz` (tinfl only, MIT), `core/zip`, `apps/reader/xml` tokenizer, `apps/reader/epub` (container, OPF, nav, NCX), EPUB meta in `meta.json`; fixture EPUBs and damaged-file tests; the five real EPUBs parse.
+- 2026-11-15: P4-4. XHTML to marked text, EPUB open (convert, paginate from memory, index file), "Preparing book..." with percentage and cancel, chapters converted on demand, cover in the background; `tools/books-check.sh` (six real books to their last page), `tools/books-device.py`. Device: cold index of Pride and Prejudice (609 KB EPUB, 1542 pages) 15.3 s, cached open 0.22 s.

@@ -319,3 +319,201 @@ TEST_CASE("reader: EPUB structure becomes book meta and survives meta.json") {
   CHECK_FALSE(epubMeta("/sd/books/junk.epub", j, err));
   CHECK(err.find("Not a valid EPUB") == 0);
 }
+
+// ---- XHTML
+
+#include "apps/reader/xhtml.h"
+
+namespace {
+std::string plainOf(const std::string& marked) {
+  std::string out;
+  for (char c : marked)
+    if (static_cast<unsigned char>(c) >= 0x20 || c == '\n') out += c;
+  return out;
+}
+}  // namespace
+
+TEST_CASE("xhtml: paragraphs, headings, styles, entities, white space") {
+  XhtmlResult r = xhtmlToMarked(
+      "<html><head><title>T</title><style>p{}</style><script>x<p>y</p></script></head><body>"
+      "<h1>Chapter  <i>One</i></h1>\n"
+      "<p>It was   a\n <b>bold</b> start &amp; an <em>italic</em> one.<!-- <p>no</p> --></p>"
+      "<div>div text<br/>after br</div><p>   </p><p></p>"
+      "<ul><li>first</li><li>second</li></ul><ol><li>one</li><li>two</li></ol><hr/>"
+      "<p>pic <img src='a.png' alt='A cat'/> and <img src='b.png'/></p><svg><image href='c.png'/></svg>"
+      "<table><tr><td>a</td><td>b</td></tr></table></body></html>");
+  auto paras = ui::parseMarked(r.marked);
+  std::vector<std::string> text;
+  for (const auto& p : paras) text.push_back(ui::plainText(p));
+  REQUIRE(text.size() >= 12);
+  CHECK(text[0] == "Chapter One");
+  CHECK(paras[0].heading == 1);
+  CHECK(r.firstHeading == "Chapter One");
+  CHECK(text[1] == "It was a bold start & an italic one.");
+  bool bold = false, italic = false;
+  for (const auto& run : paras[1].runs) {
+    if (run.bold) { bold = true; CHECK(run.text == "bold"); }
+    if (run.italic) { italic = true; CHECK(run.text == "italic"); }
+  }
+  CHECK(bold);
+  CHECK(italic);
+  CHECK(text[2] == "div text");
+  CHECK(text[3] == "after br");
+  CHECK(text[4] == "\xE2\x80\xA2 first");
+  CHECK(text[5] == "\xE2\x80\xA2 second");
+  CHECK(text[6] == "1. one");
+  CHECK(text[7] == "2. two");
+  CHECK(text[8] == "* * *");
+  CHECK(text[9] == "pic [image: A cat] and [image]");
+  CHECK(text[10] == "[image]");
+  CHECK(text[11] == "a | b");
+  CHECK(r.marked.find("not text") == std::string::npos);
+  CHECK(r.marked.find("<p>") == std::string::npos);
+}
+
+TEST_CASE("xhtml: style marks balance inside each paragraph, broken markup is survived") {
+  // A bold run that spans paragraphs is closed and reopened for each of them.
+  XhtmlResult r = xhtmlToMarked("<p>a <b>one</p><p>two</p><p>three</b> four</p>");
+  auto paras = ui::parseMarked(r.marked);
+  REQUIRE(paras.size() == 3);
+  CHECK(ui::plainText(paras[0]) == "a one");
+  CHECK(paras[1].runs.size() == 1);
+  CHECK(paras[1].runs[0].bold);
+  CHECK(paras[2].runs[0].bold);
+  CHECK(paras[2].runs.back().text == " four");
+  CHECK_FALSE(paras[2].runs.back().bold);
+  const char* bad[] = {"", "<", "<p", "<p>text", "text only", "</p></div></b>", "<b><i>x", "<p><b>a</p>b</b>", "<h1>", "<ul><li>x", "<<>>"};
+  for (const char* b : bad) {
+    XhtmlResult x = xhtmlToMarked(b);
+    ui::parseMarked(x.marked);
+  }
+  CHECK(plainOf(xhtmlToMarked("<p>a\x01\x02\x05z</p>").marked) == "a" "z\n");  // control bytes cannot forge marks
+  // Headings: h1 -> 1, h2 -> 2, h3..h6 -> 3
+  auto h = ui::parseMarked(xhtmlToMarked("<h1>a</h1><h2>b</h2><h4>c</h4>").marked);
+  REQUIRE(h.size() == 3);
+  CHECK(h[0].heading == 1);
+  CHECK(h[1].heading == 2);
+  CHECK(h[2].heading == 3);
+}
+
+TEST_CASE("reader: open an EPUB, cache it, reopen, cover, chapters from the contents and from headings") {
+  Card card;
+  std::string epub;
+  {
+    FILE* f = std::fopen("tests/fixtures/books/fixture3.epub", "rb");
+    REQUIRE(f);
+    char buf[4096];
+    size_t n;
+    while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) epub.append(buf, n);
+    std::fclose(f);
+  }
+  REQUIRE(fs::writeFile("/sd/books/Fixture - Someone.epub", epub));
+  FakeMetrics m;
+  int lastDone = -1, lastTotal = 0;
+  OpenResult a = openBook("Fixture - Someone.epub", smallPage(), m, [&](int done, int total) {
+    CHECK(done >= lastDone);  // never goes backwards
+    lastDone = done;
+    lastTotal = total;
+    return true;
+  });
+  REQUIRE(a.ok);
+  CHECK_FALSE(a.fromCache);
+  CHECK(a.meta.title == "The Fixture & Co");
+  CHECK(a.meta.author == "Ann Example");
+  CHECK(a.meta.epub);
+  CHECK(a.meta.cover == "OEBPS/images/cover.png");
+  CHECK(coverFile(a.meta).empty());  // not extracted yet: the reader does that in the background
+  REQUIRE(extractCover(a.meta));
+  CHECK(coverFile(a.meta) == cacheDir(a.meta.id) + "/cover.png");
+  CHECK(fs::exists(cacheDir(a.meta.id) + "/cover.png"));
+  REQUIRE(a.meta.chapters.size() == 3);
+  CHECK(a.meta.chapters[0].title == "Chapter & One");
+  CHECK(lastTotal == 6);  // 3 chapters imported, 3 paginated
+  CHECK(lastDone >= 3);
+  CHECK(a.pages.size() > 10);
+  // Chapter text: headings, styles, images, entities. An EPUB writes no chapter files: the text is converted on demand.
+  CHECK_FALSE(fs::exists(cacheDir(a.meta.id) + "/ch0.txt"));
+  std::string ch;
+  ChapterLoader loader(a.meta);
+  REQUIRE(loader.load(0, ch));
+  auto paras = ui::parseMarked(ch);
+  REQUIRE(paras.size() > 5);
+  CHECK(paras[0].heading == 1);
+  CHECK(ui::plainText(paras[0]) == "Chapter One");
+  CHECK(ui::plainText(paras[1]).find("caf\xC3\xA9 & cr\xC3\xA8me \xE2\x80\x94") != std::string::npos);
+  CHECK(ch.find("[image: a picture]") != std::string::npos);
+  CHECK(ch.find("not text") == std::string::npos);
+
+  OpenResult b = openBook("Fixture - Someone.epub", smallPage(), m);
+  REQUIRE(b.ok);
+  CHECK(b.fromCache);
+  CHECK(b.pages == a.pages);
+  CHECK(b.meta.chapters.size() == 3);
+  CHECK(b.meta.cover == "OEBPS/images/cover.png");
+  // Another font size: a new index from the EPUB itself (no cache of the text).
+  ui::TextStyle big = smallPage();
+  big.body = ui::Type::ReadXL;
+  big.width = 200;
+  OpenResult bigger = openBook("Fixture - Someone.epub", big, m);
+  REQUIRE(bigger.ok);
+  CHECK(bigger.pages.size() > a.pages.size());
+  // Cancelling leaves no half-built book behind that opens as if complete.
+  fs::removeAll(std::string(kCacheRoot));
+  OpenResult c = openBook("Fixture - Someone.epub", smallPage(), m, [](int, int) { return false; });
+  CHECK_FALSE(c.ok);
+  CHECK(c.error == "Cancelled");
+  CHECK_FALSE(fs::exists(cacheDir(a.meta.id) + "/meta.json"));
+  OpenResult d = openBook("Fixture - Someone.epub", smallPage(), m);
+  CHECK(d.ok);
+}
+
+TEST_CASE("reader: cached widths give the same pages") {
+  std::vector<ui::Paragraph> paras;
+  for (int i = 0; i < 40; ++i) {
+    ui::Paragraph p;
+    p.runs.push_back({"the quick brown fox jumps over the lazy dog number " + std::to_string(i) + " and then some more words", i % 3 == 0, i % 5 == 0});
+    paras.push_back(p);
+  }
+  FakeMetrics plain;
+  CachedMetrics cached(plain);
+  auto a = ui::paginate(paras, smallPage(), plain);
+  auto b = ui::paginate(paras, smallPage(), cached);
+  CHECK(a.size() == b.size());
+  for (size_t i = 0; i < a.size() && i < b.size(); ++i) CHECK(a[i] == b[i]);
+}
+
+TEST_CASE("reader: every real book opens and paginates (when they are in sim-data/sd/books)") {
+  fs::setRoots("sim-data/sd", "sim-data/data");
+  std::vector<fs::DirEntry> files;
+  if (!fs::listDir("/sd/books", files)) return;
+  // The cache of the real card stays untouched: the test copies each book to a temporary card.
+  std::vector<std::pair<std::string, std::string>> books;
+  for (const auto& f : files) {
+    if (f.isDir || !isBookFile(f.name)) continue;
+    std::string data;
+    REQUIRE(fs::readFile("/sd/books/" + f.name, data));
+    books.emplace_back(f.name, std::move(data));
+  }
+  int opened = 0;
+  for (const auto& book : books) {
+    const std::string& name = book.first;
+    const std::string& data = book.second;
+    Card card;
+    REQUIRE(fs::writeFile("/sd/books/" + name, data));
+    FakeMetrics m;
+    OpenResult r = openBook(name, smallPage(), m);
+    INFO(name << ": " << r.error);
+    REQUIRE(r.ok);
+    CHECK(r.pages.size() > 20);
+    CHECK_FALSE(r.meta.title.empty());
+    CHECK_FALSE(r.meta.author.empty());
+    for (size_t i = 1; i < r.pages.size(); ++i) CHECK(!(r.pages[i] == r.pages[i - 1]));
+    uint64_t hash = 1469598103934665603ull;  // fingerprint of the page breaks: layout changes must not move them by accident
+    for (const PageRef& pg : r.pages)
+      for (int v : {static_cast<int>(pg.chapter), pg.pos.para, pg.pos.byte}) hash = (hash ^ static_cast<uint64_t>(v)) * 1099511628211ull;
+    MESSAGE(name << ": page break fingerprint " << std::hex << hash << std::dec);
+    ++opened;
+    MESSAGE(name << ": '" << r.meta.title << "' by '" << r.meta.author << "', " << r.meta.chapters.size() << " chapters, " << r.pages.size() << " pages");
+  }
+  MESSAGE("real books opened: " << opened);
+}

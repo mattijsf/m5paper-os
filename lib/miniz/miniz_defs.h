@@ -54,3 +54,12 @@ typedef int mz_bool;
 #define MZ_READ_LE16(p) ((mz_uint32)(((const mz_uint8 *)(p))[0]) | ((mz_uint32)(((const mz_uint8 *)(p))[1]) << 8U))
 #define MZ_READ_LE32(p) ((mz_uint32)(((const mz_uint8 *)(p))[0]) | ((mz_uint32)(((const mz_uint8 *)(p))[1]) << 8U) | ((mz_uint32)(((const mz_uint8 *)(p))[2]) << 16U) | ((mz_uint32)(((const mz_uint8 *)(p))[3]) << 24U))
 #endif
+
+// The ESP32-S3 ROM contains its own (older, differently sized) tinfl and the linker script binds these names to ROM
+// addresses, which would silently replace this copy and overflow our decompressor struct. Own names for ours.
+#define tinfl_decompress pos_tinfl_decompress
+#define tinfl_decompress_mem_to_heap pos_tinfl_decompress_mem_to_heap
+#define tinfl_decompress_mem_to_mem pos_tinfl_decompress_mem_to_mem
+#define tinfl_decompress_mem_to_callback pos_tinfl_decompress_mem_to_callback
+#define tinfl_decompressor_alloc pos_tinfl_decompressor_alloc
+#define tinfl_decompressor_free pos_tinfl_decompressor_free

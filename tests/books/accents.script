@@ -1,0 +1,11 @@
+# app: read
+# Max Havelaar (Dutch, old spelling): pages with accented letters render them (tools/books-check.sh runs this for it).
+wait 600
+tap 270 178
+wait 3000
+page-until 3000 ë
+shot accent-e-diaeresis
+page-until 3000 ï
+shot accent-i-diaeresis
+page-until 3000 é
+shot accent-e-acute

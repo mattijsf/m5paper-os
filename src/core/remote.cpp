@@ -37,6 +37,10 @@ RemoteCommand parseRemoteCommand(const std::string& raw) {
              : word == "log" ? RemoteCommand::Log
              : word == "refresh" ? RemoteCommand::Refresh
                                  : word == "status" ? RemoteCommand::Status : RemoteCommand::Reboot;
+  } else if (word == "poweroff") {
+    if (!ints(1) || n[0] < 1 || n[0] > 3600) return bad("usage: poweroff SECONDS (1..3600)");
+    c.kind = RemoteCommand::PowerOff;
+    c.x1 = n[0];
   } else if (word == "tap" || word == "long") {
     if (!ints(2)) return bad("usage: tap|long x y");
     c.kind = word == "tap" ? RemoteCommand::Tap : RemoteCommand::Long;
@@ -226,6 +230,12 @@ void Remote::handleLine(const std::string& line) {
     case RemoteCommand::Reboot:
       say("#ok");
       host_.reboot();
+      return;
+    case RemoteCommand::PowerOff:
+      // Main power off with an RTC alarm: the board (and the SD card) lose power, then boot again after the delay.
+      say("#ok");
+      os_.platform().display.wait();
+      os_.platform().power.powerOff(static_cast<uint32_t>(c.x1));
       return;
   }
   say("#ok");

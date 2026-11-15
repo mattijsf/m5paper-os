@@ -329,3 +329,23 @@ TEST_CASE("pagination: touching runs form one word (no space before punctuation 
   CHECK(pg.lines[1].segs[0].text == "bold");
   CHECK(pg.lines[1].segs[1].text == "ish");
 }
+
+TEST_CASE("layoutPage without lines ends every page where the full layout does") {
+  FakeMetrics m;
+  TextStyle st;
+  st.width = 300;
+  st.height = 200;
+  for (unsigned seed : {1u, 7u, 42u}) {
+    auto text = makeText(60, seed, true);
+    TextPos pos{0, 0};
+    for (int guard = 0; guard < 500; ++guard) {
+      Page full = layoutPage(text, pos, st, m);
+      Page lean = layoutPage(text, pos, st, m, false);
+      CHECK(lean.next == full.next);
+      CHECK(lean.end == full.end);
+      CHECK(lean.lines.empty());
+      if (full.end) break;
+      pos = full.next;
+    }
+  }
+}

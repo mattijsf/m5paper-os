@@ -81,10 +81,14 @@ struct Page {
   bool end = false;  // the page reaches the end of the text
 };
 
-// Lays out the page that starts at `start`.
-Page layoutPage(const std::vector<Paragraph>& paras, TextPos start, const TextStyle& style, TextMetrics& m);
+// Lays out the page that starts at `start`. buildLines = false only works out where the page ends (page.next, page.end):
+// no lines or segments are made, which is what pagination of a whole book needs and is several times faster.
+Page layoutPage(const std::vector<Paragraph>& paras, TextPos start, const TextStyle& style, TextMetrics& m, bool buildLines = true);
 // Start positions of every page of the text (always at least one).
-std::vector<TextPos> paginate(const std::vector<Paragraph>& paras, const TextStyle& style, TextMetrics& m);
+// `keepGoing` (optional) is called once per page; return false to stop early (the result is then incomplete): the worker
+// uses it to yield the CPU now and then and to cancel.
+std::vector<TextPos> paginate(const std::vector<Paragraph>& paras, const TextStyle& style, TextMetrics& m,
+                              const std::function<bool()>& keepGoing = {});
 // Index of the page that contains `pos` (the last page that starts at or before it).
 int pageIndexOf(const std::vector<TextPos>& starts, TextPos pos);
 

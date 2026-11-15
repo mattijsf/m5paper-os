@@ -223,6 +223,10 @@ void setup() {
   esp_pthread_cfg_t pcfg = esp_pthread_get_default_config();
   pcfg.stack_size = 16 * 1024;
   pcfg.thread_name = "worker";
+  // The UI loop (Arduino loopTask, priority 1) runs on core 1: the worker must never take its core, or a long job (indexing a
+  // book: 7-17 s) freezes the UI. Core 0 and the lowest priority.
+  pcfg.prio = 1;
+  pcfg.pin_to_core = 0;
   esp_pthread_set_cfg(&pcfg);
   gOs.loadConfig();  // after the storage is mounted
   gOs.setSurface(apps::createSurface("", gOs));  // the launcher

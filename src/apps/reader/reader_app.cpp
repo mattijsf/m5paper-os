@@ -1,7 +1,9 @@
 // Read: the e-book reader (docs/apps/reader.md). Page screen with touch zones, footer and menu; a book is opened and
 // indexed on the worker; the reading position survives restarts (progress.json in the book's cache folder).
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
+#include <memory>
 
 #include "apps/reader/book.h"
 #include "apps/reader/library.h"
@@ -109,11 +111,21 @@ class PageFooter : public ui::Widget {
 class PageScreen : public Screen {
  public:
   PageScreen(std::string file, int fontIndex) : file_(std::move(file)), font_(fontIndex) {}
-  ~PageScreen() override { saveProgress(); }
+  ~PageScreen() override {
+    if (steps_) steps_->cancel = true;  // the worker stops indexing a book nobody waits for
+    saveProgress();
+  }
 
   bool fullScreen() const override { return true; }
   std::string debugState() const override {
-    if (state_ == State::Ready) return "page=" + std::to_string(cur_ + 1) + "/" + std::to_string(pages_.size());
+    if (state_ == State::Ready) {
+      // "page=3/120 text=..." (the page's own text, so scripts can wait for a word or check accents)
+      std::string s = "page=" + std::to_string(cur_ + 1) + "/" + std::to_string(pages_.size()) + " text=";
+      if (loadedChapter_ == pages_[cur_].chapter)
+        for (const ui::Line& line : view_->page().lines)
+          for (const ui::Seg& seg : line.segs) s += seg.text + " ";
+      return s;
+    }
     return state_ == State::Loading ? "loading" : "error";
   }
 
@@ -133,19 +145,40 @@ class PageScreen : public Screen {
  private:
   enum class State { Loading, Ready, Error };
 
+  // Shared with the worker job: how far it is, and whether to stop.
+  struct Steps {
+    std::atomic<int> done{0}, total{1};
+    std::atomic<bool> cancel{false};
+  };
+
+  void showPreparing() {
+    if (state_ != State::Loading) return;
+    const int total = std::max(1, steps_->total.load());
+    const int pct = std::min(99, steps_->done.load() * 100 / total);
+    view_->setMessage(pct > 0 ? "Preparing book... " + std::to_string(pct) + "%" : "Preparing book...");
+    if (state_ == State::Loading) ctx().timer(700, [this] { showPreparing(); });
+  }
+
   void open() {
     const std::string file = file_;
     const ui::TextStyle style = pageStyle(font_);
     const uint32_t t0 = ctx().clock.millis();
+    steps_ = std::make_shared<Steps>();
+    auto steps = steps_;
+    ctx().timer(1500, [this] { showPreparing(); });  // a book that opens quickly never shows the percentage
     ctx().async(
-        [file, style] {
+        [file, style, steps] {
           // Worker thread: its own metrics canvas (the frame canvas belongs to the UI thread).
           ui::forgetLoadedFont();
           Canvas metrics;
           metrics.setColorDepth(lgfx::color_depth_t::grayscale_8bit);
           metrics.createSprite(16, 16);
           ui::CanvasMetrics m(metrics);
-          OpenResult r = openBook(file, style, m);
+          OpenResult r = openBook(file, style, m, [steps](int done, int total) {
+            steps->done = done;
+            steps->total = total;
+            return !steps->cancel.load();
+          });
           ui::forgetLoadedFont();
           return r;
         },
@@ -157,10 +190,22 @@ class PageScreen : public Screen {
             ctx().log("open failed: %s", r.error.c_str());
             return;
           }
-          ctx().log("opened '%s': %zu pages, %u ms (%s)", r.meta.title.c_str(), r.pages.size(), static_cast<unsigned>(ms),
-                    r.fromCache ? "cached index" : "indexed");
+          ctx().log("opened '%s': %zu pages, %u ms (%s; convert %u ms, paginate %u ms)", r.meta.title.c_str(), r.pages.size(),
+                    static_cast<unsigned>(ms), r.fromCache ? "cached index" : "indexed", static_cast<unsigned>(r.importMs),
+                    static_cast<unsigned>(r.indexMs));
+          if (!r.fromCache)
+            ctx().log("  structure %u, cover %u, meta %u ms",  static_cast<unsigned>(r.timing.structureMs), static_cast<unsigned>(r.timing.coverMs), static_cast<unsigned>(r.timing.metaMs));
+          if (!r.fromCache)
+            ctx().log("  zip %u, xhtml %u, write %u, read %u, parse %u, layout %u ms (measuring %u ms, cache %u hits / %u misses)", static_cast<unsigned>(r.timing.zipMs),
+                      static_cast<unsigned>(r.timing.convertMs), static_cast<unsigned>(r.timing.writeMs), static_cast<unsigned>(r.timing.readMs),
+                      static_cast<unsigned>(r.timing.parseMs), static_cast<unsigned>(r.timing.layoutMs), static_cast<unsigned>(r.timing.measureMs),
+                      static_cast<unsigned>(r.timing.hits), static_cast<unsigned>(r.timing.misses));
           meta_ = std::move(r.meta);
           pages_ = std::move(r.pages);
+          if (meta_.epub && !meta_.cover.empty() && coverFile(meta_).empty()) {  // the cover is a write: after the book is open
+            const BookMeta m = meta_;
+            ctx().async([m] { return extractCover(m); }, [](bool) {});
+          }
           const bool resumed = r.progress.opened > 0;
           cur_ = resumed ? pageIndexFor(pages_, r.progress.chapter, r.progress.pos) : 0;
           state_ = State::Ready;
@@ -178,12 +223,13 @@ class PageScreen : public Screen {
       return;
     }
     loading_ = true;
-    const std::string id = meta_.id;
+    const BookMeta meta = meta_;
     const int ch = ref.chapter;
     ctx().async(
-        [id, ch] {
+        [meta, ch] {
           std::string text;
-          readChapter(id, ch, text);
+          ChapterLoader loader(meta);
+          loader.load(ch, text);
           return ui::parseMarked(text);
         },
         [this, idx, ch](std::vector<ui::Paragraph> paras) {
@@ -209,7 +255,10 @@ class PageScreen : public Screen {
 
   void onZone(PageView::Zone z) {
     if (state_ != State::Ready) {
-      if (z == PageView::Zone::Menu) ctx().nav.pop();  // while preparing (or after an error) the centre leaves
+      if (z == PageView::Zone::Menu) {  // while preparing (or after an error) the centre leaves
+        if (steps_) steps_->cancel = true;
+        ctx().nav.pop();
+      }
       return;
     }
     if (loading_) return;
@@ -258,6 +307,7 @@ class PageScreen : public Screen {
 
   std::string file_;
   int font_;
+  std::shared_ptr<Steps> steps_;
   State state_ = State::Loading;
   bool loading_ = false;
   PageView* view_ = nullptr;

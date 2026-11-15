@@ -1,0 +1,19 @@
+# app: read
+# The same steps as tools/books-device.py, in the simulator: first page, page 4, page 4 again after reopening from the cache.
+# Compare the shots with the device's frame dumps: tools/device.py diff out/dev-books/<name>-p4.png out/books-compare/<name>/p4.png
+wait 600
+tap 270 178
+wait 3000
+shot p1
+tap 400 500
+wait 900
+tap 400 500
+wait 900
+tap 400 500
+wait 900
+shot p4
+restart
+wait 600
+tap 400 320
+wait 3000
+shot cached-p4

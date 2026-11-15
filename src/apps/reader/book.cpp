@@ -1,18 +1,41 @@
 #include "apps/reader/book.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <thread>
 
 #include <ArduinoJson.h>
 
 #include "apps/reader/epub.h"
+#include "apps/reader/xhtml.h"
 #include "core/fs.h"
 #include "core/zip.h"
 
 namespace pos::reader {
 
+Timing& timing() {
+  static Timing t;
+  return t;
+}
+
 namespace {
+
+using TimerClock = std::chrono::steady_clock;
+uint32_t since(TimerClock::time_point t) { return static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(TimerClock::now() - t).count()); }
+
+// The worker runs long CPU-bound jobs at the lowest priority on its own core (platform/device/main.cpp); sleeping a tick every
+// 40 ms lets the idle task run (its watchdog resets the board otherwise) and keeps USB and Wi-Fi serviced.
+void cooperate() {
+  using clock = std::chrono::steady_clock;
+  thread_local clock::time_point last = clock::now();
+  const auto now = clock::now();
+  if (now - last > std::chrono::milliseconds(40)) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    last = clock::now();
+  }
+}
 
 std::string lower(std::string s) {
   for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -254,6 +277,129 @@ bool epubMeta(const std::string& virtualPath, BookMeta& meta, std::string& error
   return true;
 }
 
+namespace {
+
+constexpr size_t kMaxChapterBytes = 512 * 1024;
+
+// Where a long text is cut into parts: at a paragraph boundary at most `maxBytes` after the previous cut.
+std::vector<std::pair<size_t, size_t>> splitRanges(const std::string& marked, size_t maxBytes) {
+  std::vector<std::pair<size_t, size_t>> out;
+  size_t pos = 0;
+  while (pos < marked.size()) {
+    size_t end = std::min(marked.size(), pos + maxBytes);
+    if (end < marked.size()) {
+      const size_t nl = marked.rfind('\n', end);
+      end = (nl != std::string::npos && nl > pos) ? nl + 1 : end;
+    }
+    out.emplace_back(pos, end);
+    pos = end;
+  }
+  return out;
+}
+
+}  // namespace
+
+bool convertEpub(const std::string& virtualPath, BookMeta& meta, std::vector<std::string>& texts, std::string& error,
+                 const std::function<bool(int, int)>& step) {
+  zip::Archive z;
+  if (!z.open(virtualPath)) {
+    error = "Not a valid EPUB file (" + z.error() + ")";
+    return false;
+  }
+  texts.clear();
+  std::vector<Chapter> kept;
+  const int n = static_cast<int>(meta.chapters.size());
+  for (int i = 0; i < n; ++i) {
+    cooperate();
+    if (step && !step(i, n)) {
+      error = "Cancelled";
+      return false;
+    }
+    const Chapter& src = meta.chapters[i];
+    std::string xhtml;
+    auto tz = TimerClock::now();
+    const bool readOk = z.read(src.href, xhtml, 8u * 1024 * 1024);
+    timing().zipMs += since(tz);
+    if (!readOk) continue;  // an unreadable chapter is skipped, the rest of the book stays readable
+    auto tc = TimerClock::now();
+    XhtmlResult r = xhtmlToMarked(xhtml);
+    timing().convertMs += since(tc);
+    xhtml.clear();
+    if (r.marked.empty()) continue;
+    std::string title = src.title;
+    if (title == "Chapter " + std::to_string(i + 1) && !r.firstHeading.empty()) title = r.firstHeading;  // the contents had no title for it
+    int part = 0;
+    for (const auto& range : splitRanges(r.marked, kMaxChapterBytes)) {
+      texts.push_back(r.marked.substr(range.first, range.second - range.first));
+      kept.push_back(Chapter{part == 0 ? title : title + " (" + std::to_string(part + 1) + ")", src.href, part});
+      ++part;
+    }
+  }
+  if (kept.empty()) {
+    error = "This book has no text I can show";
+    return false;
+  }
+  meta.chapters = std::move(kept);
+  return true;
+}
+
+bool ChapterLoader::load(int n, std::string& marked) {
+  marked.clear();
+  if (n < 0 || n >= static_cast<int>(meta_.chapters.size())) return false;
+  if (!meta_.epub) return readChapter(meta_.id, n, marked);
+  const Chapter& ch = meta_.chapters[n];
+  if (docHref_ != ch.href) {
+    if (!zipTried_) {
+      zipTried_ = true;
+      zipOk_ = zip_.open(std::string(kBooksDir) + "/" + meta_.file);
+    }
+    std::string xhtml;
+    if (!zipOk_ || !zip_.read(ch.href, xhtml, 8u * 1024 * 1024)) return false;
+    doc_ = xhtmlToMarked(xhtml).marked;
+    docHref_ = ch.href;
+  }
+  const auto ranges = splitRanges(doc_, kMaxChapterBytes);
+  if (ch.part < 0 || ch.part >= static_cast<int>(ranges.size())) return false;
+  marked = doc_.substr(ranges[ch.part].first, ranges[ch.part].second - ranges[ch.part].first);
+  return true;
+}
+
+namespace {
+const char* coverExt(const std::string& zipPath) {
+  const std::string l = lower(zipPath);
+  if (endsWith(l, ".png")) return "png";
+  if (endsWith(l, ".jpg") || endsWith(l, ".jpeg")) return "jpg";
+  return nullptr;
+}
+}  // namespace
+
+std::string coverFile(const BookMeta& meta) {
+  const char* ext = meta.cover.empty() ? nullptr : coverExt(meta.cover);
+  if (!ext) return "";
+  const std::string path = cacheDir(meta.id) + "/cover." + ext;
+  return fs::exists(path) ? path : "";
+}
+
+bool extractCover(const BookMeta& meta) {
+  const char* ext = meta.cover.empty() ? nullptr : coverExt(meta.cover);
+  if (!ext) return false;
+  const std::string out = cacheDir(meta.id) + "/cover." + ext;
+  if (fs::exists(out)) return true;
+  zip::Archive z;
+  if (!z.open(std::string(kBooksDir) + "/" + meta.file)) return false;
+  const zip::Entry* e = z.find(meta.cover);
+  if (!e) return false;
+  fs::Writer w;
+  bool ok = w.open(out + ".part");
+  ok = ok && z.extract(*e, [&w](const uint8_t* d, size_t len) { return w.write(d, len); }, 4u * 1024 * 1024);
+  ok = w.close() && ok;
+  if (!ok || !fs::rename(out + ".part", out)) {
+    fs::removeAll(out + ".part");
+    return false;
+  }
+  return true;
+}
+
 // ---- cache
 
 bool writeMeta(const BookMeta& m) {
@@ -378,17 +524,57 @@ bool readIndex(const std::string& id, const std::string& key, std::vector<PageRe
   return decodeIndex(data, pages);
 }
 
+int CachedMetrics::width(const std::string& utf8, ui::Type type, bool bold, bool italic) {
+  uint64_t h = 1469598103934665603ull;
+  auto mix = [&h](unsigned char c) {
+    h ^= c;
+    h *= 1099511628211ull;
+  };
+  mix(static_cast<unsigned char>(type));
+  mix(bold ? 1 : 0);
+  mix(italic ? 1 : 0);
+  for (unsigned char c : utf8) mix(c);
+  if (h == 0) h = 1;
+  Slot& s = table_[h % table_.size()];
+  if (s.key == h) {
+    ++hits_;
+    return s.width;
+  }
+  ++misses_;
+  s.key = h;
+  const auto t = std::chrono::steady_clock::now();
+  s.width = inner_.width(utf8, type, bold, italic);
+  measureUs_ += static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t).count());
+  return s.width;
+}
+
 std::vector<PageRef> buildIndex(const BookMeta& meta, const ui::TextStyle& style, ui::TextMetrics& metrics,
-                                const std::function<bool(int, int)>& progress) {
+                                const std::function<bool(int, int)>& progress, const std::vector<std::string>* texts) {
   std::vector<PageRef> out;
   const int n = static_cast<int>(meta.chapters.size());
+  ChapterLoader loader(meta);
   for (int ch = 0; ch < n; ++ch) {
     if (progress && !progress(ch, n)) return {};
-    std::string text;
-    if (!readChapter(meta.id, ch, text)) text.clear();
-    std::vector<ui::Paragraph> paras = ui::parseMarked(text);
+    std::string loaded;
+    const std::string* text = &loaded;
+    auto tr = TimerClock::now();
+    if (texts && ch < static_cast<int>(texts->size())) text = &(*texts)[ch];
+    else if (!loader.load(ch, loaded)) loaded.clear();
+    timing().readMs += since(tr);
+    auto tp = TimerClock::now();
+    std::vector<ui::Paragraph> paras = ui::parseMarked(*text);
+    timing().parseMs += since(tp);
     if (paras.empty()) continue;  // an empty chapter has no pages
-    for (const ui::TextPos& s : ui::paginate(paras, style, metrics)) out.push_back(PageRef{static_cast<uint16_t>(ch), s});
+    bool stopped = false;
+    auto tl = TimerClock::now();
+    const std::vector<ui::TextPos> starts = ui::paginate(paras, style, metrics, [&] {
+      cooperate();
+      if (progress && !progress(ch, n)) stopped = true;
+      return !stopped;
+    });
+    timing().layoutMs += since(tl);
+    if (stopped) return {};
+    for (const ui::TextPos& s : starts) out.push_back(PageRef{static_cast<uint16_t>(ch), s});
   }
   if (out.empty()) out.push_back(PageRef{});
   return out;
@@ -447,8 +633,9 @@ void sortLibrary(std::vector<LibraryEntry>& entries) {
 }
 
 OpenResult openBook(const std::string& fileName, const ui::TextStyle& style, ui::TextMetrics& metrics,
-                    const std::function<bool(int, int)>& progress) {
+                    const std::function<bool(int, int)>& step) {
   OpenResult r;
+  timing() = Timing{};
   const std::string path = std::string(kBooksDir) + "/" + fileName;
   uint64_t size = 0;
   int64_t mtime = 0;
@@ -458,52 +645,82 @@ OpenResult openBook(const std::string& fileName, const ui::TextStyle& style, ui:
   }
   const std::string id = bookId(fileName, size, mtime);
   BookMeta meta;
-  bool cached = readMeta(id, meta);
+  const bool cached = readMeta(id, meta);
+  int stepBase = 0, stepTotal = 1;
+  std::vector<std::string> fresh;  // chapter texts just converted: paginated from memory instead of read back
+  auto report = [&](int done) { return !step || step(stepBase + done, stepTotal); };
+  using Clock = std::chrono::steady_clock;
+  auto msSince = [](Clock::time_point t) { return static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - t).count()); };
+  const auto t0 = Clock::now();
   if (!cached) {
     meta = BookMeta{};
     meta.id = id;
     meta.file = fileName;
     meta.epub = isEpubFile(fileName);
-    if (meta.epub) {
-      r.error = "EPUB files are not supported yet";
-      return r;
-    }
-    std::string raw;
-    if (!fs::readFile(path, raw)) {
-      r.error = "Cannot read " + fileName;
-      return r;
-    }
-    TxtImport imp = importTxt(txtToUtf8(raw));
-    raw.clear();
     titleFromFileName(fileName, meta.title, meta.author);
-    if (fileName.find(" - ") == std::string::npos) {  // no "Title - Author" in the name: use the file's own header
-      if (!imp.title.empty()) meta.title = imp.title;
-      if (!imp.author.empty()) meta.author = imp.author;
-    }
-    for (size_t i = 0; i < imp.chapters.size(); ++i) {
-      meta.chapters.push_back(Chapter{imp.chapters.size() == 1 ? meta.title : "Part " + std::to_string(i + 1)});
-      if (!writeChapter(id, static_cast<int>(i), imp.chapters[i])) {
-        r.error = "Cannot write to the card";
+    if (meta.epub) {
+      auto ts = TimerClock::now();
+      const bool structureOk = epubMeta(path, meta, r.error);
+      timing().structureMs = since(ts);
+      if (!structureOk) return r;
+      stepTotal = 2 * static_cast<int>(meta.chapters.size());
+      if (!convertEpub(path, meta, fresh, r.error, [&](int i, int) { return !step || step(i, stepTotal); })) return r;
+      stepBase = stepTotal / 2;
+    } else {
+      std::string raw;
+      if (!fs::readFile(path, raw)) {
+        r.error = "Cannot read " + fileName;
         return r;
       }
+      TxtImport imp = importTxt(txtToUtf8(raw));
+      raw.clear();
+      if (fileName.find(" - ") == std::string::npos) {  // no "Title - Author" in the name: use the file's own header
+        if (!imp.title.empty()) meta.title = imp.title;
+        if (!imp.author.empty()) meta.author = imp.author;
+      }
+      auto tw = TimerClock::now();
+      for (size_t i = 0; i < imp.chapters.size(); ++i) {
+        meta.chapters.push_back(Chapter{imp.chapters.size() == 1 ? meta.title : "Part " + std::to_string(i + 1), "", 0});
+        if (!writeChapter(id, static_cast<int>(i), imp.chapters[i])) {
+          r.error = "Cannot write to the card";
+          return r;
+        }
+      }
+      timing().writeMs += since(tw);
+      fresh = std::move(imp.chapters);
+      stepTotal = 2 * static_cast<int>(meta.chapters.size());
+      stepBase = stepTotal / 2;
     }
-    if (!writeMeta(meta)) {
+    auto tm = TimerClock::now();
+    const bool metaOk = writeMeta(meta);
+    timing().metaMs = since(tm);
+    if (!metaOk) {
       r.error = "Cannot write to the card";
       return r;
     }
+  } else {
+    stepTotal = static_cast<int>(meta.chapters.size());
   }
+  r.importMs = cached ? 0 : msSince(t0);
   const std::string key = layoutKey(style);
   std::vector<PageRef> pages;
-  bool indexCached = cached && readIndex(id, key, pages) && !pages.empty();
+  const bool indexCached = cached && readIndex(id, key, pages) && !pages.empty();
   if (!indexCached) {
-    pages = buildIndex(meta, style, metrics, progress);
+    const auto t1 = Clock::now();
+    CachedMetrics cm(metrics);
+    pages = buildIndex(meta, style, cm, [&](int ch, int) { return report(ch); }, fresh.empty() ? nullptr : &fresh);
     if (pages.empty()) {
       r.error = "Cancelled";
       return r;
     }
     writeIndex(id, key, pages);
+    r.indexMs = msSince(t1);
+    timing().measureMs = cm.measureMs();
+    timing().hits = cm.hits();
+    timing().misses = cm.misses();
   }
   r.fromCache = indexCached;
+  r.timing = timing();
   readProgress(id, r.progress);
   r.meta = std::move(meta);
   r.pages = std::move(pages);

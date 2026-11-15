@@ -158,10 +158,37 @@ bool ScriptRunner::command(const std::string& cmd, const std::string& args, std:
       error = "expect-shot-equal: " + a + " and " + b + (da.empty() || db.empty() ? " (a shot is missing)" : " differ");
       return false;
     }
+  } else if (cmd == "page-until") {
+    // page-until MAX TEXT: tap the right zone until the page's text contains TEXT (the reader's debugState).
+    if (!ints(1)) return false;
+    std::string want;
+    std::getline(in >> std::ws, want);
+    const int maxTaps = n[0];
+    int idle = 0;
+    for (int i = 0; i < maxTaps; ++i) {
+      step(0);
+      const std::string st = os_.surface() ? os_.surface()->debugState() : std::string();
+      if (st.find("page=") == std::string::npos) {
+        step(100);
+        --i;
+        if (++idle > 3000) {
+          error = "page-until: the screen never showed pages";
+          return false;
+        }
+        continue;
+      }
+      if (st.find(want) != std::string::npos) return true;
+      touch(hal::TouchEvent::Down, 400, 500);
+      step(40);
+      touch(hal::TouchEvent::Up, 400, 500);
+      step(150);
+    }
+    error = "page-until: '" + want + "' was not found in " + std::to_string(maxTaps) + " pages";
+    return false;
   } else if (cmd == "page-through") {
     if (!ints(1)) return false;
-    int x = 400, y = 500;
-    in >> x >> y;
+    int x = 400, y = 500, settleMs = 700;
+    in >> x >> y >> settleMs;
     const int maxTaps = n[0];
     int last = 0;
     for (int i = 0; i < maxTaps; ++i) {
@@ -185,7 +212,7 @@ bool ScriptRunner::command(const std::string& cmd, const std::string& args, std:
       touch(hal::TouchEvent::Down, x, y);
       step(40);
       touch(hal::TouchEvent::Up, x, y);
-      step(700);  // the turn, then the settle pass
+      step(static_cast<uint32_t>(settleMs));  // the turn (and by default the settle pass)
     }
     error = "page-through: the last page was not reached in " + std::to_string(maxTaps) + " taps (" +
             (os_.surface() ? os_.surface()->debugState() : std::string()) + ")";

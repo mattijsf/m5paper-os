@@ -1,0 +1,20 @@
+# app: read
+# Acceptance for one real book (tools/books-check.sh puts the book alone on a temporary card): it opens from the library,
+# five page turns are plain passes (no Quality flash), and it can be paged to the last page without a crash.
+wait 600
+tap 270 178
+wait 3000
+shot first-page
+tap 400 500
+wait 700
+tap 400 500
+wait 700
+tap 400 500
+wait 700
+tap 400 500
+wait 700
+tap 400 500
+wait 700
+expect-no-quality
+page-through 20000 400 500 150
+shot last-page

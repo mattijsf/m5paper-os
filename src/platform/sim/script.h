@@ -4,7 +4,8 @@
 //   restart                                         save and close the app, build the surface again (same data)
 //   expect-state TEXT                               the top screen's debugState() contains TEXT (reader: "page=3/33")
 //   expect-shot-equal A B                           the two screenshots (shot A, shot B) are byte-identical
-//   page-through MAX [TAP_X TAP_Y]                   taps (default 400 500) until debugState says "page=N/N" (the last page),
+//   page-until MAX TEXT                              taps the right zone until the page text contains TEXT (fails after MAX taps)
+//   page-through MAX [TAP_X TAP_Y [WAIT_MS]]         taps (default 400 500, 700 ms each) until debugState says "page=N/N" (last page),
 //                                                    at most MAX taps; fails if the end is not reached; prints the page count
 // `#` starts a comment. Time only moves through `wait` (and the short steps inside gestures)
 // when the clock is fake.

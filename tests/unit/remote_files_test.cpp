@@ -239,3 +239,14 @@ TEST_CASE("remote ls and rm") {
   e.remote.handleLine(">rm /sd/paperos_config");
   CHECK(e.host.has("#err path not allowed"));
 }
+
+TEST_CASE("remote: poweroff needs 1..3600 seconds, never 0") {
+  auto c = parseRemoteCommand(">poweroff 20");
+  CHECK(c.kind == RemoteCommand::PowerOff);
+  CHECK(c.x1 == 20);
+  CHECK(parseRemoteCommand(">poweroff 0").kind == RemoteCommand::None);
+  CHECK(parseRemoteCommand(">poweroff").kind == RemoteCommand::None);
+  CHECK(parseRemoteCommand(">poweroff 3601").kind == RemoteCommand::None);
+  CHECK(parseRemoteCommand(">poweroff -5").kind == RemoteCommand::None);
+  CHECK(parseRemoteCommand(">poweroff 5 6").kind == RemoteCommand::None);
+}

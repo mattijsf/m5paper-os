@@ -4,7 +4,7 @@
 Run with PlatformIO's Python (it has pyserial):
     ~/.platformio/penv/bin/python tools/device.py shot out/device.png
     ~/.platformio/penv/bin/python tools/device.py tap 140 300
-Commands: ls [DIR] | rm PATH | status (key names + lengths, Wi-Fi, heap) | diff A.png B.png [FIRST_ROW] | shot OUT.png | tap X Y | long X Y | swipe X1 Y1 X2 Y2 | log | refresh | set KEY VALUE | wait-boot | diff A.png B.png
+Commands: ls [DIR] | rm PATH | status (key names + lengths, Wi-Fi, heap) | diff A.png B.png [FIRST_ROW] | shot OUT.png | tap X Y | long X Y | swipe X1 Y1 X2 Y2 | log | refresh | set KEY VALUE | poweroff SECONDS | wait-boot | diff A.png B.png
 Options:  --port /dev/cu.usbmodemXXXX (default: the first /dev/cu.usbmodem*)
           --sim   talk to .pio/build/sim/program --headless --remote instead of a device
           -v      also print device log lines seen while waiting for a reply
@@ -73,8 +73,23 @@ class Link:
             self.ser.close()
 
 
-def request(link, cmd, verbose=False, timeout=20):
-    """Send one command; return (status_line, payload_bytes or None, header or None)."""
+def request(link, cmd, verbose=False, timeout=20, retries=2):
+    """Send one command; return (status_line, payload_bytes or None, header or None).
+
+    A device that light-sleeps (no host seen on the USB bus: the port is closed between two tool runs) does not hear a
+    command sent meanwhile (HARDWARE.md): it wakes by its own timer within a minute, so an unanswered command is sent
+    again, `retries` more times, before giving up."""
+    for attempt in range(retries + 1):
+        try:
+            return _request_once(link, cmd, verbose, timeout)
+        except TimeoutError:
+            if attempt == retries or link.sim:
+                raise
+            if verbose:
+                print(f"| no reply to {cmd!r}, sending it again", file=sys.stderr)
+
+
+def _request_once(link, cmd, verbose, timeout):
     link.send(cmd)
     deadline = time.time() + timeout
     payload, header = None, None
@@ -148,7 +163,7 @@ def main():
     ap.add_argument("--port")
     ap.add_argument("--sim", action="store_true")
     ap.add_argument("-v", "--verbose", action="store_true")
-    ap.add_argument("cmd", choices=["shot", "tap", "long", "swipe", "log", "refresh", "status", "ls", "rm", "set", "wait-boot", "diff"])
+    ap.add_argument("cmd", choices=["shot", "tap", "long", "swipe", "log", "refresh", "status", "ls", "rm", "set", "poweroff", "wait-boot", "diff"])
     ap.add_argument("args", nargs="*")
     a = ap.parse_args()
 
@@ -211,6 +226,16 @@ def main():
             print(status)
             if not status.startswith("#ok"):
                 sys.exit(1)
+        elif a.cmd == "poweroff":
+            # Cuts the board's power (and the SD card's: the way to unwedge a card) and boots again after SECONDS.
+            if len(a.args) != 1 or not a.args[0].isdigit() or not 1 <= int(a.args[0]) <= 3600:
+                sys.exit("usage: poweroff SECONDS (1..3600)")
+            try:
+                status, _, _ = request(link, ">poweroff " + a.args[0], a.verbose, timeout=3, retries=0)
+                print(status)
+            except TimeoutError:
+                print("no reply (the board lost power first)")
+            print(f"the device boots again in about {a.args[0]} s: use wait-boot")
         elif a.cmd == "log":
             status, payload, _ = request(link, ">log", a.verbose)
             sys.stdout.write((payload or b"").decode(errors="replace"))
@@ -219,7 +244,7 @@ def main():
             t0 = time.time()
             while time.time() - t0 < limit:
                 try:
-                    _, payload, _ = request(link, ">log", a.verbose, timeout=3)
+                    _, payload, _ = request(link, ">log", a.verbose, timeout=3, retries=0)
                     if payload and b"full quality refresh" in payload:
                         print(f"booted ({time.time() - t0:.1f} s)")
                         return

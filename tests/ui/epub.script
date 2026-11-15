@@ -1,0 +1,21 @@
+# app: read
+# P4-4: an EPUB (generated fixture): chapters, headings, bold and italic, entities, images as [image].
+wait 600
+shot epub-library       # the file name gives title and author until the book is opened
+tap 270 178
+wait 1500
+shot epub-p1
+tap 400 500
+wait 900
+expect-no-quality
+shot epub-p2
+page-through 200 400 500 150
+shot epub-last
+expect-state page=
+restart
+wait 600
+shot epub-library-opened  # now with the book's own title and author, 100% read
+tap 400 320
+wait 1500
+expect-no-quality
+shot epub-resumed

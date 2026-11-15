@@ -70,7 +70,17 @@ book.epub (zip)
 
 Steps 1-5 for the **whole book** run once on the worker when a book is first opened (or its
 font settings change) and produce the cache below. Opening a cached book reads only the page
-index and the current chapter.
+index and the current chapter. While it runs the page screen says "Preparing book..." (with a percentage after
+1.5 s); leaving the screen cancels the job (the worker checks a flag between chapters).
+
+What the XHTML converter (`apps/reader/xhtml`) does: block elements (p, div, h1-h6, li, blockquote, table rows,
+...) start paragraphs; `<br>` also starts one (no soft line breaks yet: poems lose their indent logic);
+b/strong = bold, i/em/cite = italic; h1 = level 1, h2 = 2, h3-h6 = 3; lists get a bullet or "1." prefix;
+`<hr>` = "* * *"; images and svg = "[image]" (or "[image: alt]"); table cells are joined with " | ";
+style, script, head are ignored; white space collapses; control bytes are dropped so a book cannot forge marks.
+Chapters are the spine documents. The contents list is the table of contents mapped to those documents (the first
+entry per document): a book whose contents point at many anchors inside one big document shows one entry for it.
+Documents over 512 KB of text are split into "Title (2)", ... Documents with no text are dropped.
 
 Memory: one chapter at a time. A chapter larger than 512 KB of text is split at paragraph
 boundaries into virtual chapters.
@@ -81,10 +91,10 @@ boundaries into virtual chapters.
 
 | File | Content |
 |---|---|
-| `meta.json` | title, author, chapter list (title, source href), total pages per layout key |
-| `ch<N>.txt` | chapter N as our own compact text format: one paragraph per line, style marks as control bytes (0x01 bold on, 0x02 bold off, 0x03 italic on, 0x04 italic off, 0x05 + level = heading) |
+| `meta.json` | title, author, chapter list (title, and for EPUB the source href and part), cover path inside the zip |
+| `ch<N>.txt` | **TXT books only**: chapter N as our own compact text format: one paragraph per line, style marks as control bytes (0x01 bold on, 0x02 bold off, 0x03 italic on, 0x04 italic off, 0x05 + level = heading). An EPUB's chapters are converted from the EPUB itself each time one is opened (about 0.1 s) and while paginating: the card writes at only about 90 KB/s, so caching 1 MB of text cost 8 s of a 26 s first open. |
 | `pages-<layoutKey>.idx` | binary: for each page, chapter index (u16) and byte offset into `chN.txt` (u32). `layoutKey` = font size + margins + line spacing |
-| `cover.jpg` / `.png` | extracted cover file as-is (decoded by M5GFX when drawn) |
+| `cover.jpg` / `.png` | the cover copied out of the EPUB as it is (decoded by M5GFX when drawn); written in the background after the book is open |
 | `progress.json` | `{ "chapter": 3, "offset": 18234, "percent": 42, "opened": 1763200000 }` |
 
 Position is stored as chapter + paragraph + byte offset inside the paragraph (`TextPos`, not a page number) so it

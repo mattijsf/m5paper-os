@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "core/zip.h"
 #include "ui/textblock.h"
 
 namespace pos::reader {
@@ -17,6 +18,7 @@ constexpr const char* kCacheRoot = "/sd/books/.paperos";
 struct Chapter {
   std::string title;
   std::string href;  // EPUB: the chapter's XHTML document inside the zip; "" for TXT
+  int part = 0;      // EPUB: a document of more than 512 KB of text is split into parts; the chapter is this part of it
 };
 
 struct BookMeta {
@@ -24,7 +26,7 @@ struct BookMeta {
   std::string file;  // file name inside /sd/books
   std::string title, author;
   bool epub = false;
-  std::string cover;  // EPUB: zip path of the cover image, "" if none
+  std::string cover;  // EPUB: path of the cover image inside the zip, "" if none (extractCover() copies it to the cache folder)
   std::vector<Chapter> chapters;
 };
 
@@ -69,6 +71,33 @@ TxtImport importTxt(const std::string& utf8, size_t maxChapterBytes = 512 * 1024
 // are left to the caller. Chapters without a table-of-contents title are named "Chapter N" until their text is read.
 bool epubMeta(const std::string& virtualPath, BookMeta& meta, std::string& error);
 
+// Converts every chapter document of an EPUB to the marked text, in memory (nothing is written to the card: writing is the
+// slow part on the device, and a chapter is cheap to convert again). Replaces meta.chapters: documents with no text are
+// dropped, very long ones (over 512 KB of text) are split into parts, a chapter without a contents title gets the first
+// heading of its text. `texts[i]` is the text of chapter i. `step(i, n)` before document i of n; false cancels (error "Cancelled").
+bool convertEpub(const std::string& virtualPath, BookMeta& meta, std::vector<std::string>& texts, std::string& error,
+                 const std::function<bool(int, int)>& step = {});
+
+// Marked text of a chapter on demand: from the cache file for a TXT book, converted from the EPUB for an EPUB (the zip stays
+// open between calls and the last document is remembered, so the parts of one document cost one conversion).
+class ChapterLoader {
+ public:
+  explicit ChapterLoader(const BookMeta& meta) : meta_(meta) {}
+  bool load(int chapter, std::string& marked);
+
+ private:
+  const BookMeta& meta_;
+  zip::Archive zip_;
+  bool zipTried_ = false, zipOk_ = false;
+  std::string docHref_, doc_;
+};
+
+// The cover image: copies it from the EPUB to the cache folder as cover.jpg / cover.png (M5GFX decodes both when drawn).
+// Slow on the card (it is a write): the reader does it in the background after the book is open.
+bool extractCover(const BookMeta& meta);
+// Real path of the extracted cover ("/sd/books/.paperos/<id>/cover.jpg"), "" if the book has none or it is not extracted yet.
+std::string coverFile(const BookMeta& meta);
+
 // ---- cache files (/sd/books/.paperos/<id>/)
 
 bool writeMeta(const BookMeta& m);
@@ -86,10 +115,34 @@ bool readIndex(const std::string& id, const std::string& key, std::vector<PageRe
 std::string encodeIndex(const std::vector<PageRef>& pages);
 bool decodeIndex(const std::string& data, std::vector<PageRef>& pages);
 
-// Paginates every chapter (reading each chapter from the cache). `progress(chapterIndex, chapterCount)` runs
-// between chapters; return false to cancel (the result is then empty).
+// Remembers the width of recently measured (face, text) pairs: a book repeats its words, and measuring is the slow part of
+// pagination. A fixed table (one allocation, no per-entry heap blocks: the small internal heap of the device stays free);
+// entries are found by a 64-bit hash of face and text, a colliding entry just replaces the old one. Wraps another
+// TextMetrics; use one per indexing run (not shared between threads).
+class CachedMetrics : public ui::TextMetrics {
+ public:
+  explicit CachedMetrics(ui::TextMetrics& inner, size_t slots = 16384) : inner_(inner), table_(slots) {}
+  int width(const std::string& utf8, ui::Type type, bool bold, bool italic) override;
+  int lineHeight(ui::Type type) override { return inner_.lineHeight(type); }
+  uint32_t hits() const { return hits_; }
+  uint32_t misses() const { return misses_; }
+  uint32_t measureMs() const { return measureUs_ / 1000; }
+
+ private:
+  struct Slot {
+    uint64_t key = 0;  // 0 = empty
+    int32_t width = 0;
+  };
+  ui::TextMetrics& inner_;
+  std::vector<Slot> table_;
+  uint32_t hits_ = 0, misses_ = 0, measureUs_ = 0;
+};
+
+// Paginates every chapter: from `texts` (chapter texts already in memory) or, when that is null, through a ChapterLoader.
+// `progress(chapterIndex, chapterCount)` runs between chapters and now and then inside one; return false to cancel (the
+// result is then empty).
 std::vector<PageRef> buildIndex(const BookMeta& meta, const ui::TextStyle& style, ui::TextMetrics& metrics,
-                                const std::function<bool(int, int)>& progress = {});
+                                const std::function<bool(int, int)>& progress = {}, const std::vector<std::string>* texts = nullptr);
 // The page that contains the reading position (last page starting at or before it); 0 if the list is empty.
 int pageIndexFor(const std::vector<PageRef>& pages, int chapter, ui::TextPos pos);
 // Whole-book percentage of a page (0..100), by page number.
@@ -110,6 +163,23 @@ std::vector<LibraryEntry> scanLibrary();
 void sortLibrary(std::vector<LibraryEntry>& entries);
 
 // Opens (and on first use imports) a book. Blocking; run on the worker.
+// Milliseconds spent per kind of work while a book is converted and paginated (BookTiming::global() is filled by the
+// functions below; the worker runs one job at a time).
+struct Timing {
+  uint32_t zipMs = 0;     // reading and inflating the zip entries
+  uint32_t convertMs = 0; // XHTML -> marked text
+  uint32_t writeMs = 0;   // chapter files to the card
+  uint32_t readMs = 0;    // chapter files back from the card
+  uint32_t parseMs = 0;   // marked text -> paragraphs
+  uint32_t layoutMs = 0;  // pagination
+  uint32_t measureMs = 0; // of which: measuring text (misses of the width cache)
+  uint32_t structureMs = 0;  // reading the EPUB structure (container, package, contents)
+  uint32_t coverMs = 0;      // extracting the cover
+  uint32_t metaMs = 0;       // writing meta.json
+  uint32_t hits = 0, misses = 0;  // width cache
+};
+Timing& timing();  // the running totals; openBook() resets and copies them into the result
+
 struct OpenResult {
   bool ok = false;
   std::string error;
@@ -117,8 +187,12 @@ struct OpenResult {
   std::vector<PageRef> pages;
   Progress progress;
   bool fromCache = false;  // meta and index were already there
+  uint32_t importMs = 0, indexMs = 0;  // time spent converting the book and paginating it (0 when cached)
+  Timing timing;                       // where the time went (diagnostics, logged by the reader)
 };
+// `step(done, total)` reports progress (importing the chapters, then paginating them); return false to cancel
+// (the result is then not ok, error "Cancelled").
 OpenResult openBook(const std::string& fileName, const ui::TextStyle& style, ui::TextMetrics& metrics,
-                    const std::function<bool(int, int)>& progress = {});
+                    const std::function<bool(int, int)>& step = {});
 
 }  // namespace pos::reader
