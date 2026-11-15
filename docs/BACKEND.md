@@ -158,6 +158,20 @@ Risks and checks (task P6-1). **These need the owner's attention before installi
 5. Group messages: the event has no group name (shown as "Group"). Capture real events (HA > Developer tools > Events > listen to
    `whatsapp_message_received`) for a direct and a group message and save redacted samples as fixtures; look for a way to get the group name.
 
+### Integration set up (2026-11-15, about 20:12-20:14)
+
+- The user pasted the add-on API token into the manual integration form (host `http://localhost:8066`): the `whatsapp` config entry is loaded and
+  `binary_sensor.whatsapp_<number>` (connected) is on. It also creates a `notify`, `switch ..._auto_responder` (off), `switch ..._moderation_engine`
+  (on by default: switched off, after which the entity disappears by design), `sensor ..._active_moderation_warnings` and an `update`. It offers **57
+  services**, including `whatsapp.send_message`, callable by any Home Assistant login. Integration options are at their defaults: `mark_as_read` false,
+  `self_messages` false.
+- The user restarted Home Assistant at about 20:14: afterwards the integration is loaded and connected and `sensor.paperos_whatsapp_inbox` restored its
+  state. **The recorder exclusion is verified**: a state change of the sensor (the clear script) produced no new history row (5 rows before, 5 after, all
+  from before the restart).
+- The connection `binary_sensor` now exists: the inbox's link-down notice could read it (today it reads an optional `connected` attribute that the package
+  does not set).
+- **Still not verified**: a real incoming WhatsApp message in the feed, the clear script with a non-admin token, the 48 h expiry, group names.
+
 ### Add-on security (accepted risk, 2026-11-15)
 
 - After the user set the UI password (`ui_auth_enabled` true, 20:15), from another machine on the home network and **without login** port 8066

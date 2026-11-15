@@ -311,7 +311,7 @@ P6-4 to P6-6 (the device app) need only the feed contract and can be done first.
 change the user's Home Assistant: each needs the owner present, and each follows the
 home-assistant repo's own rules. Read BACKEND.md fully before any of them.
 
-- [~] **P6-1 WhatsApp add-on in Home Assistant.** (2026-11-15: add-on installed and running; the rest is open, see STATUS.md "P6-1 progress".) Needs the owner (QR scan with the phone).
+- [~] **P6-1 WhatsApp add-on in Home Assistant.** (2026-11-15: add-on installed, linked, integration set up, recorder exclusion verified; **stays [~] until a real incoming WhatsApp message is seen in the feed** (then [x]); see STATUS.md "P6-1 progress".) Needs the owner (QR scan with the phone).
   Before installing, repeat the terms-of-service warning from BACKEND.md and get a clear yes.
   Do: add the add-on repository, install and start the WhatsApp add-on, link the account,
   install the `whatsapp` integration. Checks: (1) phone still gets WhatsApp notifications
