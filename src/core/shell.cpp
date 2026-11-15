@@ -2,6 +2,7 @@
 
 #include <ctime>
 
+#include "core/quick_panel.h"
 #include "core/sleep_screen.h"
 #include "core/timefmt.h"
 #include "ui/image.h"
@@ -248,7 +249,19 @@ void Shell::prepareForPowerOff() {
   os_.displayManager().forceClean();
 }
 
+void Shell::sleepNow() {
+  prepareForPowerOff();
+  os_.platform().display.wait();
+  os_.platform().power.powerOff(0);
+}
+
 void Shell::onGesture(const Gesture& g) {
+  // A swipe down that started in the status bar opens the quick panel (not on full-screen pages, which have no status bar).
+  if (g.type == Gesture::SwipeDown && g.startY < ui::kStatusBarH && status_->visible && !sleeping_ && !root_.hasOverlay()) {
+    openQuickPanel(*this);
+    runDeferred();
+    return;
+  }
   root_.onGesture(g);
   runDeferred();
 }

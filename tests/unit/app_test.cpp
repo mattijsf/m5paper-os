@@ -96,7 +96,8 @@ class FakePower : public hal::Power {
   int batteryPercent() override { return 70; }
   bool charging() override { return false; }
   hal::Wake lightSleep(uint32_t) override { return hal::Wake::Timer; }
-  void powerOff(uint32_t) override {}
+  std::vector<uint32_t> offs;
+  void powerOff(uint32_t s) override { offs.push_back(s); }
 };
 
 struct Env {
@@ -589,4 +590,26 @@ TEST_CASE("power-off: an unknown remembered app (removed since) shows the launch
   auto boot = apps::createSurface("", env.os, true);
   static_cast<Shell*>(boot.get())->render(env.os.canvas(), env.os.displayManager());
   CHECK(boot->currentAppId() == "");
+}
+
+TEST_CASE("quick panel: a swipe down from the status bar opens it, one from the content does not, Sleep now powers off") {
+  Env env;
+  auto swipeDown = [&](int y0) {
+    Gesture g;
+    g.type = Gesture::SwipeDown;
+    g.startX = 270;
+    g.startY = static_cast<int16_t>(y0);
+    g.x = 270;
+    g.y = static_cast<int16_t>(y0 + 300);
+    env.shell->onGesture(g);
+  };
+  swipeDown(300);
+  CHECK_FALSE(env.shell->root().hasOverlay());
+  swipeDown(20);
+  CHECK(env.shell->root().hasOverlay());
+  swipeDown(20);  // already open: no second panel
+  env.shell->sleepNow();
+  REQUIRE(env.power.offs.size() == 1);
+  CHECK(env.power.offs[0] == 0);
+  CHECK_FALSE(env.shell->dirty());  // the sleep screen is what stays
 }

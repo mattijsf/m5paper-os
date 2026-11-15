@@ -37,6 +37,9 @@ class Shell : public Surface {
   size_t depth() const { return stack_.size(); }
   Screen* top() const { return stack_.empty() ? nullptr : stack_.back().screen.get(); }
 
+  // Saves state, leaves the sleep screen on the panel and powers the device off (only the side button starts it again).
+  void sleepNow();
+
   Os& os() { return os_; }
   ui::Root& root() { return root_; }
   ui::StatusBar& statusBar() { return *status_; }

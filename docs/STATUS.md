@@ -134,6 +134,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 ## Pending device checks
 
+- **P7-6**: the quick panel on the device: that the swipe from the status bar (top 56 px) is recognised by the real touch panel, and "Sleep now" ends in the sleep screen and a power-off (not run: only the side button restarts it).
 - **P6-4/P6-5**: nothing of the inbox has run on the device or against real feeds: the feed sensors do not exist yet (P6-3). Unverified
   assumptions: the exact `imap.fetch` response shape (`service_response.text`), the optional `connected` attribute for the link-down
   notice, that a non-admin token may call `script.paperos_inbox_clear`, and the fetch with a real entry id and uid.
@@ -415,3 +416,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P5-2. `apps/home/home_model` (home.json parser, default config with the full Avond scene, state parser, light views with group counts, states cache, call bodies).
 - 2026-11-15: P5-3, P5-4, P5-5 (simulator part). Home app (Lights with scenes, member sheet, Climate, More), optimistic actions with revert, cache first, foreground polling; goldens `home-*`.
 - 2026-11-15: P6-4, P6-5, P6-6. `core/text_clean`, Inbox app for WhatsApp and Mail (grouped chats, detail pages, full-text fetch, mark all read, seen marker, badge file), `Screen::setAction`; goldens `inbox-*`, `mail-*`.
+- 2026-11-15: P7-6 quick panel (`core/quick_panel`, `Shell::sleepNow`); Home light sheet shows the brightness value.

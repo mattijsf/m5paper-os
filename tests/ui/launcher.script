@@ -17,3 +17,20 @@ long 36 92              # long press on the back arrow: straight to the launcher
 wait 900
 expect-no-quality
 shot launcher-home
+swipe 270 20 270 400    # swipe down from the status bar: the quick panel
+wait 700
+shot quick-panel
+expect-no-quality
+tap 140 900             # Clean screen: the one Quality refresh
+wait 2500
+shot quick-panel-cleaned
+tap 140 700             # an app open: the panel opens there too
+wait 900
+swipe 270 20 270 400
+wait 700
+shot quick-panel-in-app
+tap 270 150             # outside the sheet closes it
+wait 700
+swipe 270 300 270 700   # a swipe down that does not start in the status bar does nothing
+wait 700
+shot quick-panel-not-from-content

@@ -22,8 +22,7 @@ date ("Sunday 15 November", or "PaperOS" while the RTC is unset), a 2 x 3 grid o
 234 x 196: the 246 above is a typo; margins 24, gap 24) inside a `ui::Pager` whose bar is hidden when
 there are at most six apps. Unused cells of the last row are blank tiles (no draw, no touch). Tiles
 come from the registry, a tap calls `Shell::requestOpen`. Badges are read from
-`/data/cache/<id>/badge` in `onShow()`. Not built yet: the summary line, the quick panel
-(swipe down), resume-last-app. Placeholder apps (`src/apps/placeholders.cpp`: Read, Home, WhatsApp,
+`/data/cache/<id>/badge` in `onShow()`. The quick panel is built (P7-6, below); resume-last-app is built (docs/POWER.md "Resume after power-off"). Not built yet: the summary line. Placeholder apps (`src/apps/placeholders.cpp`: Read, Home, WhatsApp,
 Mail, Settings) show an `EmptyState` "Coming soon" until the real apps replace them. UI test:
 `tests/ui/launcher.script` (open an app, back, long press on the back arrow).
 
@@ -37,6 +36,14 @@ Mail, Settings) show an `EmptyState` "Coming soon" until the real apps replace t
 - On boot, if `config.launcher.resumeLastApp` is true (default) and the device was powered off
   from inside an app, the launcher opens that app directly.
 - The status bar clock updates once per minute with `Hint::Content` on its own rect only.
+
+## Quick panel (P7-6, as built)
+
+`core/quick_panel.cpp`, opened by `Shell::onGesture` for a **swipe down that started in the status bar** (y < 56) on every screen
+that shows the status bar (not the reader's full-screen page, not under an open sheet). A `Sheet` with: Wi-Fi (cached state: the network
+name or "Off until something needs it"), Battery (percent, charging or on battery, volts), and two buttons: **Clean screen** (one Quality
+pass) and **Sleep now** (`Shell::sleepNow()`: save state, sleep screen, `powerOff(0)`; only the side button starts the device again).
+No Wi-Fi switch: the net service switches it on and off itself. Goldens: `quick-panel*` (launcher.script, home.script).
 
 ## Files
 

@@ -38,3 +38,6 @@ shot home-more-failed
 wait 65000              # foreground polling: touched within 2 minutes, so the tab is read again every 30 s
 expect-state Updated 13:35
 shot home-polled
+swipe 270 20 270 400    # the quick panel with Wi-Fi up (the Home refresh brought it up)
+wait 700
+shot quick-panel-online
