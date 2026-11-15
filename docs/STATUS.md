@@ -417,3 +417,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P5-3, P5-4, P5-5 (simulator part). Home app (Lights with scenes, member sheet, Climate, More), optimistic actions with revert, cache first, foreground polling; goldens `home-*`.
 - 2026-11-15: P6-4, P6-5, P6-6. `core/text_clean`, Inbox app for WhatsApp and Mail (grouped chats, detail pages, full-text fetch, mark all read, seen marker, badge file), `Screen::setAction`; goldens `inbox-*`, `mail-*`.
 - 2026-11-15: P7-6 quick panel (`core/quick_panel`, `Shell::sleepNow`); Home light sheet shows the brightness value.
+- 2026-11-15: launcher summary line (`summaryLine`, golden with and without data).

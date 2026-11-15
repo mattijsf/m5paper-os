@@ -11,6 +11,7 @@
 #include "core/app.h"
 #include "core/fs.h"
 #include "apps/apps.h"
+#include "apps/launcher/launcher.h"
 #include "core/shell.h"
 #include "ui/widgets.h"
 
@@ -612,4 +613,14 @@ TEST_CASE("quick panel: a swipe down from the status bar opens it, one from the 
   REQUIRE(env.power.offs.size() == 1);
   CHECK(env.power.offs[0] == 0);
   CHECK_FALSE(env.shell->dirty());  // the sleep screen is what stays
+}
+
+TEST_CASE("launcher: the summary line leaves out what is not there") {
+  using pos::apps::launcher::summaryLine;
+  CHECK(summaryLine(0, "", -1) == "");
+  CHECK(summaryLine(3, "", -1) == "3 unread");
+  CHECK(summaryLine(0, "Dune", 42) == "Reading: Dune, 42%");
+  CHECK(summaryLine(3, "Dune", 42) == "3 unread - Reading: Dune, 42%");
+  CHECK(summaryLine(3, "Dune", -1) == "3 unread - Reading: Dune");
+  CHECK(summaryLine(0, "Dune", 250) == "Reading: Dune, 100%");
 }

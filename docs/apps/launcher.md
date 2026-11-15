@@ -22,7 +22,7 @@ date ("Sunday 15 November", or "PaperOS" while the RTC is unset), a 2 x 3 grid o
 234 x 196: the 246 above is a typo; margins 24, gap 24) inside a `ui::Pager` whose bar is hidden when
 there are at most six apps. Unused cells of the last row are blank tiles (no draw, no touch). Tiles
 come from the registry, a tap calls `Shell::requestOpen`. Badges are read from
-`/data/cache/<id>/badge` in `onShow()`. The quick panel is built (P7-6, below); resume-last-app is built (docs/POWER.md "Resume after power-off"). Not built yet: the summary line. Placeholder apps (`src/apps/placeholders.cpp`: Read, Home, WhatsApp,
+`/data/cache/<id>/badge` in `onShow()`. The quick panel is built (P7-6, below); resume-last-app is built (docs/POWER.md "Resume after power-off"). The summary line is built: "3 unread - Reading: <title>, 42%", read in `onShow()` from the apps' `/data/cache/<id>/badge` files and the reader's store (`/data/apps/read.json`, keys `last.title`, `last.percent`); parts that are missing are left out, nothing at all when both are; no network I/O. Goldens `launcher` (without data) and `launcher-summary` (with). Placeholder apps (`src/apps/placeholders.cpp`: Read, Home, WhatsApp,
 Mail, Settings) show an `EmptyState` "Coming soon" until the real apps replace them. UI test:
 `tests/ui/launcher.script` (open an app, back, long press on the back arrow).
 

@@ -1,0 +1,3 @@
+# The summary line under the date: unread counts from the cached badge files and the reader's last book (no network I/O).
+wait 300
+shot launcher-summary

@@ -4,6 +4,7 @@
 #include <ctime>
 
 #include "core/fs.h"
+#include "core/store.h"
 #include "core/timefmt.h"
 #include "ui/widgets.h"
 
@@ -24,6 +25,18 @@ std::string dateLine(hal::Clock& clock) {
   return std::string(kDays[tmv.tm_wday]) + " " + std::to_string(tmv.tm_mday) + " " + kMonths[tmv.tm_mon];
 }
 
+// What the summary line is made of: the badges the apps cached (never the network) and the reader's last book.
+std::string computeSummary(const std::vector<const AppEntry*>& apps) {
+  int unread = 0;
+  for (const AppEntry* a : apps) {
+    std::string raw;
+    fs::readFile(std::string("/data/cache/") + a->info.id + "/badge", raw);
+    unread += std::max(0, std::atoi(raw.c_str()));
+  }
+  Store reader("/data/apps/read.json");
+  return summaryLine(unread, reader.get("last.title", std::string()), reader.has("last.percent") ? reader.get("last.percent", -1) : -1);
+}
+
 // Home screen: header, then a 2 x 3 grid of tiles from the app registry (sorted by order), paged if
 // there are more than six apps. A tap opens the app.
 class LauncherScreen : public Screen {
@@ -33,7 +46,7 @@ class LauncherScreen : public Screen {
   void build(ui::Column& root) override {
     root.add<ui::Spacer>(ui::s3);
     date_ = root.add<ui::Label>(dateLine(shell_.os().platform().clock), ui::Type::Title);
-    summary_ = root.add<ui::Label>("", ui::Type::Caption, ui::secondary);
+    summary_ = root.add<ui::Label>(computeSummary(apps_), ui::Type::Caption, ui::secondary);
     root.add<ui::Spacer>(ui::s3);
 
     const int pages = std::max(1, (static_cast<int>(apps_.size()) + kPerPage - 1) / kPerPage);
@@ -54,6 +67,7 @@ class LauncherScreen : public Screen {
   }
 
   void onShow() override {
+    summary_->setText(computeSummary(apps_));  // the layout that follows makes room for it
     // Badges come from what apps cached earlier; the launcher never does network I/O.
     for (size_t i = 0; i < tiles_.size(); ++i) {
       const int idx = page_ * kPerPage + static_cast<int>(i);
@@ -92,6 +106,17 @@ class LauncherScreen : public Screen {
 };
 
 }  // namespace
+
+std::string summaryLine(int unread, const std::string& title, int percent) {
+  std::string s;
+  if (unread > 0) s = std::to_string(unread) + " unread";
+  if (!title.empty()) {
+    if (!s.empty()) s += " - ";
+    s += "Reading: " + title;
+    if (percent >= 0) s += ", " + std::to_string(std::min(100, percent)) + "%";
+  }
+  return s;
+}
 
 void install(Shell& shell) {
   shell.setLauncher([](Shell& s) { return std::make_unique<LauncherScreen>(s); });
