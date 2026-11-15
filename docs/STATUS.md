@@ -133,30 +133,33 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   idle minutes. Fixed: USB (host or charger) seen this boot suppresses auto-off for 12 h (`kUsbGraceMs`, unit-tested in
   `power_policy_test.cpp`); firmware flashed only after the next time the device is on (Pending device checks).
 
+## Done on the device 2026-11-15 (firmware 91f4a64)
+
+- P5-2: all 30 entities of the default `home.json` (three tabs, 18 + 9 + 3 reads) exist on the live instance and answer 200 (the tab status
+  line read "Updated", no "not found"); the Lights tab refresh took 1.4 s with Wi-Fi up (18 requests over one kept-alive TLS connection,
+  36-52 ms each, `reused=1`), below the 3 s limit: no aggregate sensor needed yet. Read-only: no toggle or scene was sent.
+- P7-6: the swipe from the status bar opens the quick panel with the real touch panel (injected swipe); Wi-Fi and battery detail show.
+
 ## Pending device checks
 
-- **P7-6**: the quick panel on the device: that the swipe from the status bar (top 56 px) is recognised by the real touch panel, and "Sleep now" ends in the sleep screen and a power-off (not run: only the side button restarts it).
+- **P7-6**: "Sleep now" ends in the sleep screen and a power-off (not run: only the side button restarts it). The swipe from the status bar works on the device (checked 2026-11-15).
 - **P6-4/P6-5**: nothing of the inbox has run on the device or against real feeds: the feed sensors do not exist yet (P6-3). Unverified
   assumptions: the exact `imap.fetch` response shape (`service_response.text`), the optional `connected` attribute for the link-down
   notice, that a non-admin token may call `script.paperos_inbox_clear`, and the fetch with a real entry id and uid.
-- **P5-2**: verify every entity id of the default `home.json` against the live instance (`GET /api/states/<id>` returns 200 for each; the
-  simulator has no card config, so run it on the device or copy the card's `paperos_config` to `sim-data/sd/` and use `--fixtures none`;
-  never print the token). Measure the time for the Lights tab refresh on the device; above 3 s add the aggregate sensor (BACKEND.md).
-  **P5-5**: one run with a non-admin token before Phase 5 counts as done; Home timings on the device (tap to visible toggle change
-  under 0.4 s, app open with Wi-Fi off to fresh data under 4 s); whether polling needs the Wi-Fi linger extended; the Home refresh over
-  one kept-alive TLS connection (`getMany`).
+- **P5-5**: one run with a non-admin token before Phase 5 counts as done; toggle timing on the device (tap to visible change under
+  0.4 s; not run, a toggle changes the user's real lights); app open with Wi-Fi off to fresh data (under 4 s: warm Lights tab measured
+  1.4 s, cold adds the Wi-Fi join and TLS, about 2 s: not measured); whether polling needs the Wi-Fi linger extended.
 - **P5-1**: Settings > Home Assistant "Test connection" now goes through `HaClient` (`core/ha`); re-run it on the device (it worked with the previous direct request, P3-7).
 - **P3-6**: button press to usable screen under 2.5 s after a power-off with the reader open (measure and record); how the
   sleep screen looks on the panel (cover gray ramp, contrast, that it stays sharp for hours); `Shell::prepareForPowerOff()` on the
   device takes the cover decode (about 0.3 s expected) before the Quality pass.
 
 - **Auto-off guard** (kUsbGraceMs): built, not run on the device; check that an idle device on USB with no program holding the port stays on for more than 20 minutes.
-- **Phase 4 (reader), device state**: the device powered itself off during a long pause (see the pitfalls above) and no tool can
-  bring it back: it needs the side button once. Done on the device before that (firmware of P4-4, commit 9f8d440): Pride and
-  Prejudice cold open 15.3 s (1542 pages), cached open 0.22 s, frame dumps of page 1, page 4 and the cached page 4 identical to the
-  simulator's; Alice (EPUB 3 with images) page 1 and 4 identical to the simulator. **Not run on the device**: the menu, contents,
-  text sizes, cover (P4-5 firmware is built, not flashed), Alice's cached open, the TXT book (Time Machine) with the new code, a
-  second `tools/books-device.py` run. Re-run `tools/books-device.py` (`make flash` first) once the device is on again.
+- **Phase 4 (reader), device state (2026-11-15, side button pressed, firmware of 91f4a64)**: Pride and Prejudice cold open 12.1 s (1577 pages;
+  convert 6.6 s, paginate 5.4 s), cached open 0.22 s; Alice (EPUB 3, images) cold 6.2 s, cached 0.23 s, text size L re-index 5.0 s (432 pages);
+  page-turn render 95-157 ms, Fast push call 86 ms; frame dumps of page 1, page 4 and the cached page 4 of both books **identical to the
+  simulator**; menu, contents (the books' real contents) and the text size change work with injected taps. **Not run**: the TXT book with the
+  new code, covers on the library card, the sleep screen, resume timing, "Sleep now".
 
 
 - P3-4: **auto-off on battery** (the policy never powers off while USB is connected, so the automation could not run

@@ -12,8 +12,6 @@ wait 900
 tap 400 500
 wait 900
 shot p4
-restart
-wait 600
-tap 400 320
+restart                 # the boot after power-off opens the book again on its page
 wait 3000
 shot cached-p4

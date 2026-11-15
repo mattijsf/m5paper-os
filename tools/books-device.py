@@ -90,7 +90,7 @@ def main():
         d = Dev()
         d.seen = [l for l in d.log() if "[read] opened" in l]
         t1 = time.time()
-        d.tap(400, 320)
+        d.tap(400, 345)
         line2 = d.wait_line(r"\[read\] opened|open failed", 60)
         warm = time.time() - t1
         time.sleep(2)
