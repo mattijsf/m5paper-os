@@ -155,16 +155,12 @@ Risks and checks (task P6-1). **These need the owner's attention before installi
 4. The link drops if the phone is offline for 14 days or WhatsApp is reinstalled: the feed
    then silently stops. The integration has a connection `binary_sensor`; the inbox app shows
    "WhatsApp link is down" when it is off (fetch it along with the feed).
-5. Group messages: the event has no group name (shown as "Group"). **How to get it** (read from the integration source, FaserF/ha-whatsapp `custom_components/whatsapp`,
-   2026-11-15): `whatsapp.search_groups` only posts a persistent notification (no response); the integration's **Chats sensor**
-   (`sensor.whatsapp_<number>_chats`, **disabled by default**) carries an attribute `groups`, a list of the add-on's chat objects of every `@g.us` chat, each with
-   its `jid` (the `search_groups` service reads `name` or `subject` from the same objects; the exact key in `/chats` entries is not verified). So with that sensor
-   enabled the package template can look the group up **at event time, no polling loop**: `integration_entities('whatsapp')` finds the Chats sensor and
-   `groups | selectattr('jid','eq',chat)` the group. `ha/paperos_inbox.yaml` does this and falls back to "Group" when the sensor is disabled or the group is not
-   listed. **Needs**: enable the Chats sensor. **Untested** (not run in Home Assistant's engine; the attribute keys `jid` and `name`/`subject` are
-   assumptions from the source): it is installed and tested separately. Alternative if the attribute proves empty: the `get_contacts` action returns
-   `{"contacts": ...}` as a service response but is one call per event: avoid.
-   Old note:  Capture real events (HA > Developer tools > Events > listen to
+5. Group messages: the event has no group name, and **group names stay "Group": a decision, not an open task.** The only source without polling
+   is the integration's Chats sensor (`sensor.whatsapp_<number>_chats`, disabled by default), whose `groups` attribute lists every group chat with its `jid`;
+   enabling it would put the chat and group list into entity attributes that every Home Assistant login can read, and the owner wants this hardened (D20). The
+   sensor stays disabled on purpose. The package template still looks the name up there (`integration_entities('whatsapp')`, `selectattr('jid','eq',chat)`) and falls
+   back to "Group": tested in Home Assistant's engine without the sensor ("Group"), so it costs nothing and would work if the decision changes.
+   (`whatsapp.search_groups` only posts a persistent notification; `get_contacts` returns a response but is one call per event.)
    `whatsapp_message_received`) for a direct and a group message and save redacted samples as fixtures; look for a way to get the group name.
 
 ### Integration set up (2026-11-15, about 20:12-20:14)
@@ -228,8 +224,11 @@ decrypts mail locally and serves IMAP on port 1143 with its own generated passwo
 The package defines `script.paperos_inbox_clear` (field `feed`: `whatsapp` or `mail`; optional **`before`**, a unix time) which
 fires the `paperos_inbox_clear` event the sensors listen to. **`before`** (2026-11-15): the device sends the newest `ts` its list showed, and the
 template drops only items with `ts <= before` (`old | selectattr('ts', 'gt', before)`); without it, or 0, everything is cleared as before. So a message that
-arrived after the list was fetched is not lost by "Mark all read" (it was, with a real one). The change is in `ha/paperos_inbox.yaml` of this repo; it has
-not been installed or run in Home Assistant's engine yet (the Home Assistant repo is updated separately). `event_data.before` is rendered with `| int(0)`. The device calls
+arrived after the list was fetched is not lost by "Mark all read" (it was, with a real one). **Installed 2026-11-15 20:43** (Home Assistant repo commit 80e19b0, byte-identical to this repo's copy) and tested in Home Assistant's own template engine:
+clear with `before` as a number and as a string keeps the newer item, `before` 0 or missing clears all. After the reload `script.paperos_inbox_clear` has
+the fields `feed` and `before`, the feed kept its one real item, and a live call with `before=1` changed the sensor state and dropped nothing. **Not tested live**:
+a device "Mark all read" with the new firmware against a feed that holds a newer item (only with fake events when the feed has no real messages), a real group message.
+`event_data.before` is rendered with `| int(0)`. The device calls
 `POST /api/services/script/paperos_inbox_clear` with `{"feed":"whatsapp","before":<ts>}` (a service call works for a non-admin user;
 firing events directly does not).
 

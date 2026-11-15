@@ -73,6 +73,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Mail | Proton Mail, through Home Assistant if possible | D17 |
 | Home Assistant token | The owner put it on the SD card: `/sd/paperos_config`, `HA_TOKEN=` | D19, apps/settings.md |
 | WhatsApp data | Lives in a hardened Home Assistant sensor (recorder-excluded, on no dashboard); the add-on keeps running despite its open endpoints | D20, BACKEND.md |
+| WhatsApp group names | Stay "Group": the integration's Chats sensor stays disabled (it would expose the chat list to every Home Assistant login) | BACKEND.md |
 | Home Assistant URL | The public HTTPS address, set by the user as `HA_URL=` on the card; not hard-coded or committed; works away from home. TLS cost: one kept-alive connection per refresh | D18 (note), BACKEND.md "Connection" |
 | Home Assistant token, during development | The token on the card stays as it is; after development it is replaced by a token of a dedicated non-admin user. Code stays within the non-admin API subset (per-entity `GET /api/states/<id>`, service calls; no `/api/template`, no event firing) so the swap needs no code change | D18 |
 | Books | SD card is in, empty: find open books ourselves | `tools/fetch-books.sh`, task P4-0 pushes them to the card |
@@ -162,7 +163,12 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   passes. **No tuning claim**: how the ramp, the ghost after Checker then White and the gray text look on the panel needs a person's eyes.
 - The WhatsApp list with the readable text is left on the panel (`out/dev-wa-readable.png`, `out/dev-wa-left-on-panel.png`); the feed was not cleared.
 
+- Home Assistant side (2026-11-15 20:43, in parallel): `ha/paperos_inbox.yaml` installed (Home Assistant repo commit 80e19b0, byte-identical), `before` and the group
+  lookup tested in Home Assistant's template engine and live (BACKEND.md). Group names stay "Group" by decision (the Chats sensor stays disabled).
+
 ## Pending device checks
+
+- **Mark all read with `before`**: a device "Mark all read" with the new firmware against a feed that holds a newer item (fake events only, when the feed has no real messages); a real group message in the feed.
 
 - **P7-6**: "Sleep now" ends in the sleep screen and a power-off (not run: only the side button restarts it). The swipe from the status bar works on the device (checked 2026-11-15).
 - **P6-4/P6-5**: nothing of the inbox has run on the device or against real feeds: the feed sensors do not exist yet (P6-3). Unverified
