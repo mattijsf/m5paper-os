@@ -202,3 +202,16 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   needs only `HA_TOKEN` and `HA_URL`.
 - Related: the add-on's open endpoints (accepted risk, BACKEND.md "Add-on security"), D8 stays the fallback.
 
+
+## D21. A clipboard, and WhatsApp can send. Changes D16 "read-only"
+
+- **Decision**: the OS gets a text clipboard (`core/clipboard`: 4 KB, kept in `/data/clipboard.txt`), every text field offers
+  Paste / Copy all / Clear on a long press, and the WhatsApp app can send a message (reply in a chat, or to a favourite chat from
+  the config), also by pasting the clipboard. Main use: sending game scores to one group chat.
+- **How**: the device calls a Home Assistant script (`script.paperos_whatsapp_send`), never the add-on itself; the script holds the
+  guards (length, target form, rate limit). A send always asks for confirmation on the device first.
+- **Risk**: sending through the unofficial add-on raises the ban risk the user accepted for reading (D16). Keep the volume
+  human-like: the rate limit in the script is part of the decision, not a detail.
+- **Status**: `core/clipboard` is built (unit tests). The text-field sheet, the script and the compose screen are not built yet;
+  nothing is installed in Home Assistant and nothing has been sent.
+- Mail stays read-only.
