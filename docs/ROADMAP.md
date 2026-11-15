@@ -69,7 +69,7 @@ DisplayManager, and the simulator can run scripts and compare screenshots.
   Quality resets the score.
   Done when: unit tests pass (`pio test -e sim`); the demo screen goes through the manager.
 
-- [ ] **P1-4 Simulator HAL: e-ink emulation, refresh log, input, clock.**
+- [x] **P1-4 Simulator HAL: e-ink emulation, refresh log, input, clock.**
   Read: SIMULATOR.md (Target), DISPLAY.md (Simulator emulation).
   Do: `src/platform/sim/{display,input,clock}.cpp`: `panel` buffer with the three mode
   behaviours and residue; window shows `panel`; refresh log to `out/refresh.log` and memory;

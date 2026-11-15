@@ -14,7 +14,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   over USB serial and on the simulator's stdin; `tools/device.py`, `make device-shot`.
 - **P1-3 is done** (2026-11-15): `core/display_manager`, 14 unit tests, the demo goes through it.
   The unit harness (doctest via PlatformIO, `env:test`, `make test`) was done here, ahead of P1-5.
-- **Next task: P1-4** (simulator e-ink emulation), then P1-5.
+- **P1-4 is done** (2026-11-15): `platform/sim/{display,input,clock}.cpp` + `sim.h`; emulated panel,
+  `out/refresh.log`, `>shot` and screenshots from the panel.
+- **Next task: P1-5** (script runner, goldens, `make ui-test` etc.).
 - The device runs the **spike firmware**: one static mock launcher. It is not interactive: a
   tap only draws a black dot. There are no apps or settings screens yet (the owner tried to open
   Settings on 2026-11-15; that arrives with tasks P2-5 and P2-6).
@@ -172,6 +174,12 @@ None of these block Phase 1, Phase 2, or the reader.
   frame waits); `>shot` takes the frame from `Os::frame4()` (simulator: emulated panel, from P1-4; else
   the manager's shadow); `>refresh` returns the manager's refresh log.
 
+- P1-4 notes: after a tap the simulator frame shows the thresholded Fast pass (white ring around
+  the black dot, `out/p14-fast.png`), 600 ms later the settled gray (`out/p14-settled.png`).
+  The window was started and ran, but nobody looked at it (no screen access from here): the
+  emulation was checked through `>shot` and the refresh log. Sim `changed` counts differ from the
+  DisplayManager's (the panel counts value changes after thresholding).
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -193,3 +201,4 @@ None of these block Phase 1, Phase 2, or the reader.
   injected `tap 140 300` shows the marker and logs `[touch] x=140 y=300 fast refresh 257ms`.
 - 2026-11-15: P1-3. DisplayManager with fast-then-settle, ghost budget, refresh log; unit harness
   and `make test`; device measurements above.
+- 2026-11-15: P1-4. Simulator e-ink emulation, refresh log, input and clock split into files.

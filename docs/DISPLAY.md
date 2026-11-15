@@ -152,6 +152,12 @@ The simulator keeps a `panel` buffer (what a real panel would show) separate fro
 | Text | region = canvas quantised to 16 levels; residue halved |
 | Fast | region = canvas thresholded at 50% to black/white; where a pixel changed, 6% of the old value is left as residue |
 
+Implementation notes (P1-4): `panel` holds 16-level values; the residue is a separate float layer
+(offset in levels). Screenshots, `>shot` and `snapshot4()` show `panel` **without** residue (stable
+goldens; the device frame matches after a settle pass); key `G` in the window overlays the residue,
+exaggerated 8x. A pixel counts as `changed` when its panel value changed. Headless one-shot runs
+use a fake clock (the log shows t=0); `--headless --remote` and the window use real time.
+
 Every push is appended to a **refresh log**: `t=<ms> mode=<Q|T|F> rect=x,y,w,h changed=<pixels>`.
 Screenshots come from `panel` (so they show thresholding and ghost residue). UI tests assert on
 the log, for example "a page turn causes no Quality push" or "tapping a toggle pushes at most

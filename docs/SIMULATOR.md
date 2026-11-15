@@ -8,7 +8,7 @@ what a model cannot show: real refresh behaviour, touch feel, power.
 
 ```bash
 make sim     # build .pio/build/sim/program
-make run     # window: mouse click = touch, S = screenshot to shot-N.png, Q or Esc = quit
+make run     # window: mouse = touch (drag = move), S screenshot to shot-N.png, G ghost overlay, L refresh log, Q/Esc quit
 make shot    # headless: writes out/shot.png and exits (no window, works over SSH)
 make fw      # build device firmware
 make flash   # build + flash (device on /dev/cu.usbmodem*)
@@ -20,7 +20,7 @@ make check   # shot + fw: must pass before any task is called done
 grayscale quantised to the panel's 16 levels. **UI work is verified by running
 `make shot` and looking at `out/shot.png`.**
 
-## Target (built in tasks P1-4, P1-5)
+## Target (P1-4 done: --out, --scale, keys S G L Q, emulated panel; P1-5 open: script, fixtures, data, time, app)
 
 ### Command line
 
