@@ -160,7 +160,7 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
 - **Rejected**: Proton notification text only (no body); `hydroxide` (its IMAP is marked
   work-in-progress); a separate gateway service (more to host than a Bridge add-on).
 
-## D18. Home Assistant access: dedicated non-admin user, LAN URL, per-entity reads
+## D18. Home Assistant access: dedicated non-admin user, public HTTPS URL (LAN optional), per-entity reads
 
 - **Why**: the home-assistant repo's standing rule is that other devices never get the admin
   token (the TV app has its own non-admin user). `POST /api/template` (one-call batch read)
@@ -169,6 +169,12 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   script service. The LAN `http://` address avoids TLS cost on the device.
 - **To measure** in P5-2: if a tab takes more than 3 s, add an aggregate template sensor on the
   Home Assistant side (BACKEND.md).
+
+- **2026-11-15 note**: the base URL is the **public HTTPS address**, set as `HA_URL=` in `/sd/paperos_config`, so the
+  device works away from home too; never hard-coded or committed. This replaces "LAN `http://`" above as the
+  expected case (LAN stays an option). Consequence: per-entity reads over TLS cost a handshake (~1.5 s, ~45 KB
+  RAM) per connection, so one kept-alive connection per refresh is a must, and the aggregate template sensor
+  of P8-2 becomes more likely to be needed: **measure in P5-2** (tab load time over HTTPS, cold and warm).
 
 ## D19. Secrets come from `/sd/paperos_config` (KEY=VALUE). Supersedes D15
 

@@ -72,6 +72,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | WhatsApp | Not phone notifications: a Home Assistant plugin reads and stores messages, the device reads the result | DECISIONS.md D16, BACKEND.md |
 | Mail | Proton Mail, through Home Assistant if possible | D17 |
 | Home Assistant token | The owner put it on the SD card: `/sd/paperos_config`, `HA_TOKEN=` | D19, apps/settings.md |
+| Home Assistant URL | The public HTTPS address, set by the user as `HA_URL=` on the card; not hard-coded or committed; works away from home. TLS cost: one kept-alive connection per refresh | D18 (note), BACKEND.md "Connection" |
 | Books | SD card is in, empty: find open books ourselves | `tools/fetch-books.sh`, task P4-0 pushes them to the card |
 
 ## Not verified yet (do not assume)
@@ -115,8 +116,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
    install time (task P6-1). The notification-sensor route stays available as fallback.
 2. **Wi-Fi**: add `WIFI_SSID=` and `WIFI_PASSWORD=` to `paperos_config` on the card? It lets
    the device go online from task P3-2, long before the on-screen keyboard exists.
-3. **Home Assistant user and URL**: is the token from a dedicated non-admin user? Add
-   `HA_URL=http://<LAN address>:8123` to `paperos_config`? (task P5-1)
+3. **Home Assistant user**: is the token from a dedicated non-admin user? (task P5-1). The URL is decided
+   (public HTTPS, `HA_URL=` on the card); still missing on the card: `HA_URL=` and the Wi-Fi credentials
+   (`WIFI_SSID=`, `WIFI_PASSWORD=`; see question 2).
 4. **Proton**: paid plan (needed for Bridge)? OK to run Bridge as a Home Assistant add-on?
    (task P6-2)
 

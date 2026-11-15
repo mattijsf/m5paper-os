@@ -23,8 +23,13 @@ lights, climate, switches ---------------------------------------------- states 
 | Setting | Where | Notes |
 |---|---|---|
 | Token | `/sd/paperos_config`, line `HA_TOKEN=...` | Present on the device's SD card (183 characters, checked 2026-11-15). See `apps/settings.md` "Provisioning". |
-| Base URL | `/sd/paperos_config` `HA_URL=...`, else `config.json` `ha.baseUrl` | Use the LAN address with plain `http://`: no TLS handshake, faster, less RAM. The device is only useful for this at home anyway. The public HTTPS address also works (CA bundle), slower. |
+| Base URL | `/sd/paperos_config` `HA_URL=...`, else `config.json` `ha.baseUrl` | **Decision the public HTTPS address**, set by the user as `HA_URL=` on the card, so the device also works away from home. It is **never hard-coded in firmware and never committed as a default** (the `config.json` default stays a placeholder). HTTPS with the CA bundle is the expected case; the plain `http://` LAN address remains an optional alternative at home: no TLS handshake, faster, less RAM. |
 | User | a dedicated **non-admin** Home Assistant user | The home-assistant repo's standing rule: never put the Mac's admin token on other devices (the TV app has its own non-admin user). The design below needs no admin rights. Which user the current token belongs to is not known: confirm with the owner in task P5-1. |
+
+**Cost of TLS** (HTTPS is the expected case): a handshake takes about 1.5 s and about 45 KB of RAM. So the net
+service opens **one kept-alive connection per refresh and sends every request of that refresh over it** (a Home
+tab reads many entities), and the Wi-Fi linger (`net.lingerSec`) must be long enough that a second refresh a few
+seconds later does not pay a second handshake. Do not open a connection per request.
 
 Every request carries `Authorization: Bearer <token>` and `Content-Type: application/json`.
 The token sits in plain text on the SD card: whoever holds the device can read it. Revoke it in
