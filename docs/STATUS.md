@@ -6,7 +6,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 - **Phase 0 is done** (2026-11-15). The repository holds: build setup for simulator and device,
   a spike that draws one mock home screen from shared code on both, and the full plan/docs.
-- **Next task: P1-1** (HAL interfaces, logging, file paths) in `ROADMAP.md`.
+- **P1-1 is done** (2026-11-15): HAL interfaces (`src/hal`), `POS_LOG`, `pos::fs`, `pos::Os`.
+  Both `main.cpp` files build a `hal::Platform` and call `Os`; HAL classes are thin stubs.
+- **Next task: P1-2** (device HAL: display, touch, clock, storage) in `ROADMAP.md`.
 - The device runs the **spike firmware**: one static mock launcher. It is not interactive: a
   tap only draws a black dot. There are no apps or settings screens yet (the owner tried to open
   Settings on 2026-11-15; that arrives with tasks P2-5 and P2-6).
@@ -21,7 +23,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Simulator window | `make run` | click draws a dot, S saves a screenshot |
 | Firmware build | `make fw` | OK, ~665 KB (12.7% of the 5 MB slot) |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
-| Serial heartbeat | `make monitor` | `[beat]`, `[sd]`, `[bench]` lines every 5 s |
+| Serial heartbeat | `make monitor` | `[beat]` and `[sd]` lines every 5 s (the refresh benchmark is gone since P1-1) |
 | Open books for the simulator | `make books` | 5 EPUB + 1 TXT in `sim-data/sd/books/` (not in git) |
 
 ## Measurements and checks on the device (2026-11-15, spike firmware)
@@ -65,7 +67,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 ## Pending device checks
 
-(none yet: add here when a task is finished without a device attached)
+(none: P1-1 device check was run, see Log)
 
 ## Open questions for the user
 
@@ -101,6 +103,14 @@ None of these block Phase 1, Phase 2, or the reader.
 - gutendex.com (Gutenberg search API) timed out; the fetch script uses fixed book ids on
   gutenberg.org instead.
 
+- P1-1 leftovers for later tasks: device `Clock::now()` returns 0 until P1-2 reads the RTC; SD
+  and the `paperos_config` key report still use the Arduino `SD` library in `device/main.cpp`
+  (P1-2 replaces it with the VFS mount, then `/sd/paperos_config` is read through `pos::fs`).
+  `pos::fs::writeFile` retries as remove + rename if rename over an existing file fails (FAT):
+  not exercised on the device yet. The simulator reads `sim-data/` relative to the working
+  directory. `src/ui` and `src/apps` do not exist yet, so the P1-1 grep only covers core and hal.
+  `hal/display.h` includes `core/gfx.h` for `Canvas`/`Rect`/`Refresh`.
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -110,3 +120,8 @@ None of these block Phase 1, Phase 2, or the reader.
   add-on, Proton via Bridge + IMAP), non-admin access without `/api/template`, secrets from
   `/sd/paperos_config`. SD card, touch and the token file verified on the device. Open books
   fetched for the simulator; task P4-0 added to push them to the card.
+- 2026-11-15: P1-1. `src/hal/*.h`, `core/log.h`, `core/fs.{h,cpp}`, `core/os.{h,cpp}`; mains
+  build the Platform. `make check` passes, `out/shot.png` byte-identical to before. Device
+  flashed and checked from the serial log: boots, board 19, `[boot] full quality refresh 1363ms`,
+  `[beat]` and `[sd]` every 5 s (config key HA_TOKEN, length only). Touch dot not re-tested.
+  `pos::fs` checked with an ad-hoc host test (resolve, atomic write/overwrite, listDir, mkdirs).

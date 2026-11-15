@@ -33,7 +33,7 @@ Legend: `[x]` done, `[ ]` open, `[~]` partly done (see STATUS.md).
 Goal: the real skeleton replaces the spike. Shared code runs an event loop, draws through the
 DisplayManager, and the simulator can run scripts and compare screenshots.
 
-- [ ] **P1-1 HAL interfaces, logging, file paths.**
+- [x] **P1-1 HAL interfaces, logging, file paths.**
   Read: ARCHITECTURE.md (Layers, HAL interfaces, Storage layout).
   Do: create `src/hal/{display,input,clock,net,power,platform}.h` as specified;
   `src/core/log.h` (`POS_LOG(tag, fmt, ...)`: printf to stderr in sim, `Serial` on device via a

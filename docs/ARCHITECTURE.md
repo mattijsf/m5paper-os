@@ -150,10 +150,17 @@ class Power {                   // device: M5.Power   sim: fake values, settable
   virtual void powerOff(uint32_t wakeAfterSec) = 0;   // 0 = until the button is pressed
 };
 
-struct Platform { Display& display; Input& input; Clock& clock; Net& net; Power& power; };
+struct Platform { Display& display; Input& input; Clock& clock; Net& net; Power& power; const char* name; };
+
+void logWrite(const char* line);   // log sink, defined by each platform (stderr / Serial)
 
 }  // namespace pos::hal
 ```
+
+`Platform` is built in each platform's `main.cpp` and handed to `pos::Os` (`core/os.h`), which
+owns the frame canvas and runs `setup()` / `loopOnce()`. `name` is shown in the demo footer.
+Until P1-2 and P1-3 the HAL classes in the two `main.cpp` files are thin: Net, Power and Clock
+(device wall time) are stubs.
 
 **Files** need no HAL class. Both platforms have POSIX file APIs: on the device the SD card is
 mounted at `/sd` and LittleFS at `/littlefs` through the ESP-IDF VFS, so `fopen`, `opendir` and
@@ -165,6 +172,10 @@ mounted at `/sd` and LittleFS at `/littlefs` through the ESP-IDF VFS, so `fopen`
 | `/sd/...` | `/sd/...` (microSD) | `sim-data/sd/...` |
 | `/data/...` | `/littlefs/...` (internal flash, 5.9 MB) | `sim-data/data/...` |
 
+`pos::fs` API: `resolve`, `exists`, `readFile`, `writeFile` (atomic: `<path>.tmp` + rename, creates
+parent folders), `listDir` (sorted `DirEntry{name,isDir,size}`), `mkdirs`, `setRoots` (tests).
+`resolve` returns "" for paths outside `/sd` and `/data` and for any `..` component. The
+simulator roots are relative to the working directory: run it from the repository root.
 ## Storage layout
 
 ```
