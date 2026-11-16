@@ -110,10 +110,10 @@ class DetailScreen : public Screen {
     pageLabel_->setText(n > 1 ? "Page " + std::to_string(block_->pageIndex() + 1) + " of " + std::to_string(n) : "");
   }
 
-  // The conversation, oldest first: sender (in a group) and time, then the text.
+  // The conversation, newest first: sender (in a group) and time, then the text.
   std::vector<ui::Paragraph> chatParagraphs() const {
     std::vector<ui::Paragraph> out;
-    for (auto it = thread_.rbegin(); it != thread_.rend(); ++it) {
+    for (auto it = thread_.begin(); it != thread_.end(); ++it) {
       ui::Paragraph head;
       head.runs.push_back(ui::Run{(msg_.chat.empty() ? "" : it->from + "  ") + relativeTime(it->ts, now_), true, false});
       out.push_back(std::move(head));

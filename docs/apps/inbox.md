@@ -38,7 +38,7 @@ with `POS_REGISTER_APP`.
 
 ### Detail
 
-- Chat: the notification's messages (at most 6, what MessagingStyle gave), oldest first, as paragraphs: sender (groups) and time,
+- Chat: the notification's messages (at most 6, what MessagingStyle gave), newest first, as paragraphs: sender (groups) and time,
   then the text; paginated with `ui::TextBlock` (tap right = next page, left third = back). A "Reply" button when the notification
   has a reply action.
 - Mail: sender, subject (title), time, the caption "The preview your phone showed", then the preview ("(no preview)" if the
