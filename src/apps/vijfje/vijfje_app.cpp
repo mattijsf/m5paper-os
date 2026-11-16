@@ -694,7 +694,7 @@ class VijfjeApp : public App {
 
 POS_REGISTER_APP(VijfjeApp, {
     .id = "vijfje",
-    .name = "Vijfje",
+    .name = game::kName,  // the launcher tile follows the one name constant
     .icon = Icon::Type,
     .order = 96,  // after Somdoku
 });

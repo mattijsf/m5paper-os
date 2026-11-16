@@ -12,7 +12,8 @@ number), its texts, its colours. Consequences the user should know:
 - The word of the day is **not** the one the web game has that day, and the number in the title is Vijfje's own.
 - A shared score has the same shape as the genre's (`<name> <number> <tries>/6`, an empty line, rows of 🟩 🟨 ⬛), but the
   name is "Vijfje": woordscore.nl will not file it under the web game.
-- The name is one constant (`vijfje::kName`); the app id and the store file are `vijfje`.
+- The name is one constant (`vijfje::kName`): title bar, shared score, sleep screen and the launcher tile follow it; the app
+  id and the store file are `vijfje`.
 
 ## Rules
 
