@@ -217,8 +217,13 @@ Where the time went and what was done:
 - **Diff and shadow in one pass**: the diff copies each row's raw changed span into the shadow as it goes (rows with only
   sub-level noise too); the second pass over the box after every push is gone. Unit tests and goldens unchanged.
 - **Reading position written a second after the turn** (every 5th turn), not on the tap: the flash write cost ~36 ms there.
-- Now (2026-11-16): page turn 112 ms, screen change 150 ms, small tap 5 ms. A chapter boundary still loads the next chapter
-  on the tap (~140 ms once per chapter; prefetching across chapters would remove it).
+- Now (2026-11-16): page turn 112 ms, screen change 150 ms, small tap 5 ms.
+- **Chapter boundaries**: the reader loads the next chapter on the worker as soon as it starts within the next two pages, and
+  the turn into it uses that. Loading takes 129 ms at book open but ~930 ms while reading (the worker shares core 0 with the
+  panel's waveform task after each turn), so one page of lead was not always enough: a turn could still wait ~1 s. 60 turns
+  over several boundaries: median 105 ms, slowest 159 ms (boundary turns ~130 ms: the new chapter's layout).
+- **Frame dumps no longer block the UI**: `Remote` queues its replies and sends what the USB buffer takes on each loop pass
+  (16 KB TX buffer); a `>shot` held the UI loop ~1.07 s, now the 259 KB stream between passes, 0.5 s per dump.
 
 ## Rules for UI code (enforced in review, see UI.md)
 

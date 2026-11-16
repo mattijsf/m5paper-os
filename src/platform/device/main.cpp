@@ -233,6 +233,7 @@ void epdSelfTest() {
 class SerialRemoteHost : public RemoteHost {
  public:
   void inject(const hal::TouchEvent& ev) override { gInput.inject(ev); }
+  size_t writable() override { return static_cast<size_t>(std::max(0, Serial.availableForWrite())); }
   void reply(const void* data, size_t n) override {
     const uint8_t* p = static_cast<const uint8_t*>(data);
     int stalls = 0;
@@ -375,6 +376,7 @@ void setup() {
   cfg.clear_display = false;
   M5.begin(cfg);
   Serial.setRxBufferSize(16384);  // uploads arrive in 4 KB bursts
+  Serial.setTxBufferSize(16384);  // frame dumps leave in pieces between loop passes (Remote::pump): room for one pass's worth
   Serial.begin(115200);
   Serial.setTxTimeoutMs(0);  // never block the UI thread on a USB host that is not reading the log
 

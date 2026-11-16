@@ -37,6 +37,9 @@ class RemoteHost {
   virtual ~RemoteHost() = default;
   virtual void inject(const hal::TouchEvent& ev) = 0;  // into the Input queue
   virtual void reply(const void* data, size_t n) = 0;  // raw bytes back to the controller
+  // Bytes reply() can take right now without waiting (the device: free space in the USB TX buffer). Replies are queued and
+  // sent in pieces of at most this from tick(), so a 259 KB frame dump no longer holds the UI loop for a second.
+  virtual size_t writable() { return static_cast<size_t>(-1); }
   virtual void reboot() = 0;
   // Platform-specific debug switch (">set key value"). Returns false for unknown keys.
   virtual bool option(const std::string& /*key*/, const std::string& /*value*/) { return false; }
@@ -71,7 +74,7 @@ class Remote {
   // Call once per main-loop pass, after Os::loopOnce(): releases timed touch events and runs a
   // pending >shot once the injected touches have been processed.
   void tick();
-  bool busy() const { return !timed_.empty() || shotPending_ || put_.active; }
+  bool busy() const { return !timed_.empty() || shotPending_ || put_.active || outPos_ < out_.size(); }
   // True while an upload is running: the transport must pass incoming bytes to feedRaw(), not to handleLine().
   bool wantsRaw() const { return put_.active; }
   void feedRaw(const uint8_t* data, size_t n);
@@ -82,6 +85,11 @@ class Remote {
     hal::TouchEvent ev;
   };
   void say(const std::string& s);
+  void send(const void* data, size_t n);  // queue reply bytes (sent by pump())
+  void pump();                            // send what the host takes now
+  void flushAll();                        // send everything, waiting (before a reboot or power-off)
+  std::vector<uint8_t> out_;
+  size_t outPos_ = 0;
   void queue(uint32_t at, hal::TouchEvent::Type t, int x, int y);
   void doShot();
 

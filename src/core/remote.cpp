@@ -1,5 +1,7 @@
 #include "core/remote.h"
 
+#include <algorithm>
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -129,7 +131,33 @@ bool remotePathAllowed(const std::string& p) {
 
 void Remote::say(const std::string& s) {
   std::string line = s + "\n";
-  host_.reply(line.data(), line.size());
+  send(line.data(), line.size());
+}
+
+void Remote::send(const void* data, size_t n) {
+  const auto* p = static_cast<const uint8_t*>(data);
+  out_.insert(out_.end(), p, p + n);
+  pump();
+}
+
+void Remote::pump() {
+  while (outPos_ < out_.size()) {
+    const size_t room = host_.writable();
+    if (room == 0) return;
+    const size_t n = std::min(room, out_.size() - outPos_);
+    host_.reply(out_.data() + outPos_, n);
+    outPos_ += n;
+  }
+  out_.clear();
+  out_.shrink_to_fit();  // the 259 KB of a frame dump do not stay allocated
+  outPos_ = 0;
+}
+
+void Remote::flushAll() {
+  if (outPos_ < out_.size()) host_.reply(out_.data() + outPos_, out_.size() - outPos_);
+  out_.clear();
+  out_.shrink_to_fit();
+  outPos_ = 0;
 }
 
 void Remote::queue(uint32_t at, hal::TouchEvent::Type t, int x, int y) {
@@ -168,21 +196,21 @@ void Remote::handleLine(const std::string& line) {
     case RemoteCommand::Log: {
       std::string text = logTail(50);
       say("#log " + std::to_string(text.size()));
-      host_.reply(text.data(), text.size());
+      send(text.data(), text.size());
       break;
     }
     case RemoteCommand::State: {
       // What the top screen says about itself (Screen::debugState): UI scripts on the device use it like the simulator's do.
       const std::string text = os_.surface() ? os_.surface()->debugState() : std::string();
       say("#state " + std::to_string(text.size()));
-      host_.reply(text.data(), text.size());
+      send(text.data(), text.size());
       break;
     }
     case RemoteCommand::Refresh:
     {
       std::string text = os_.displayManager().refreshLogTail(50);
       say("#refresh " + std::to_string(text.size()));
-      host_.reply(text.data(), text.size());
+      send(text.data(), text.size());
       break;
     }
     case RemoteCommand::Put: {
@@ -224,7 +252,7 @@ void Remote::handleLine(const std::string& line) {
       std::string text;
       for (const auto& e : list) text += e.name + "\t" + (e.isDir ? std::string("-") : std::to_string(e.size)) + "\n";
       say("#ls " + std::to_string(text.size()));
-      host_.reply(text.data(), text.size());
+      send(text.data(), text.size());
       break;
     }
     case RemoteCommand::Cat: {
@@ -239,7 +267,7 @@ void Remote::handleLine(const std::string& line) {
         return;
       }
       say("#cat " + std::to_string(text.size()));
-      host_.reply(text.data(), text.size());
+      send(text.data(), text.size());
       break;
     }
     case RemoteCommand::Rm:
@@ -255,7 +283,7 @@ void Remote::handleLine(const std::string& line) {
     case RemoteCommand::Status: {
       std::string text = os_.statusText();
       say("#status " + std::to_string(text.size()));
-      host_.reply(text.data(), text.size());
+      send(text.data(), text.size());
       break;
     }
     case RemoteCommand::Shot:
@@ -270,11 +298,13 @@ void Remote::handleLine(const std::string& line) {
       break;
     case RemoteCommand::Reboot:
       say("#ok");
+      flushAll();
       host_.reboot();
       return;
     case RemoteCommand::PowerOff:
       // Main power off with an RTC alarm: the board (and the SD card) lose power, then boot again after the delay.
       say("#ok");
+      flushAll();
       if (Surface* surf = os_.surface()) surf->prepareForPowerOff();  // as auto-off does: state saved, sleep screen on the panel
       // The RTC wake then runs the scheduled refresh (if there is a clock) and, being a test, stays on afterwards.
       os_.powerOffForSleep(static_cast<uint32_t>(c.x1), true, static_cast<uint32_t>(c.y1));
@@ -329,6 +359,7 @@ void Remote::feedRaw(const uint8_t* data, size_t n) {
 }
 
 void Remote::tick() {
+  pump();  // reply bytes still waiting for room in the USB buffer
   const uint32_t now = clock_.millis();
   if (put_.active && now - put_.lastByteMs > 8000) abortPut("upload timed out");
   for (size_t i = 0; i < timed_.size();) {
@@ -355,8 +386,8 @@ void Remote::doShot() {
   char head[96];
   std::snprintf(head, sizeof head, "#shot %d %d %u %08x\n", kScreenW, kScreenH, static_cast<unsigned>(px.size()),
                 static_cast<unsigned>(crc32(px.data(), px.size())));
-  host_.reply(head, std::strlen(head));
-  host_.reply(px.data(), px.size());
+  send(head, std::strlen(head));
+  send(px.data(), px.size());
   say("#ok");
 }
 

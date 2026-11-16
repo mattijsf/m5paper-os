@@ -291,6 +291,11 @@ class PageScreen : public Screen {
       schedulePrefetch();
       return;
     }
+    if (ref.chapter == nextCh_ && !nextParas_.empty()) {  // loaded ahead while the previous page was read
+      enterChapter(idx, ref.chapter, std::move(nextParas_));
+      nextCh_ = -1;
+      return;
+    }
     loading_ = true;
     const BookMeta meta = meta_;
     const int ch = ref.chapter;
@@ -303,15 +308,40 @@ class PageScreen : public Screen {
         },
         [this, idx, ch](std::vector<ui::Paragraph> paras) {
           loading_ = false;
-          loadedChapter_ = ch;
-          std::vector<ui::TextPos> starts;
-          for (const PageRef& p : pages_)
-            if (p.chapter == ch) starts.push_back(p.pos);
-          cur_ = idx;
-          view_->setMessage("");
-          view_->setChapter(std::move(paras), std::move(starts), pages_[idx].pos);
-          updateFooter();
-          schedulePrefetch();
+          enterChapter(idx, ch, std::move(paras));
+        });
+  }
+
+  void enterChapter(int idx, int ch, std::vector<ui::Paragraph> paras) {
+    loadedChapter_ = ch;
+    std::vector<ui::TextPos> starts;
+    for (const PageRef& p : pages_)
+      if (p.chapter == ch) starts.push_back(p.pos);
+    cur_ = idx;
+    view_->setMessage("");
+    view_->setChapter(std::move(paras), std::move(starts), pages_[idx].pos);
+    updateFooter();
+    schedulePrefetch();
+  }
+
+  // The last page of a chapter: load the next chapter on the worker now (reading and converting it from the EPUB took ~140 ms
+  // on the tap, DISPLAY.md "Tap latency"); showPage() then uses it at once.
+  void loadNextChapter(int ch) {
+    if (ch == nextCh_ || nextLoading_ || ch == loadedChapter_) return;
+    nextLoading_ = true;
+    const BookMeta meta = meta_;
+    ctx().async(
+        [meta, ch] {
+          std::string text;
+          ChapterLoader loader(meta);
+          loader.load(ch, text);
+          return ui::parseMarked(text);
+        },
+        [this, ch](std::vector<ui::Paragraph> paras) {
+          nextLoading_ = false;
+          if (ch == loadedChapter_) return;  // the reader got there first and loaded it itself
+          nextCh_ = ch;
+          nextParas_ = std::move(paras);
         });
   }
 
@@ -372,7 +402,16 @@ class PageScreen : public Screen {
     const int me = cur_;
     ctx().timer(600, [this, me] {
       if (cur_ != me || loading_ || state_ != State::Ready) return;
-      if (me + 1 < static_cast<int>(pages_.size()) && pages_[me + 1].chapter == loadedChapter_) view_->prefetch(pages_[me + 1].pos);
+      const int n = static_cast<int>(pages_.size());
+      if (me + 1 >= n) return;
+      if (pages_[me + 1].chapter == loadedChapter_) view_->prefetch(pages_[me + 1].pos);
+      // The next chapter starts within two pages: load it now. Measured on the device: 129 ms at book open, but ~930 ms while
+      // reading (the worker shares core 0 with the panel's waveform task after each turn), so one page is not always enough.
+      for (int k = me + 1; k <= me + 2 && k < n; ++k)
+        if (pages_[k].chapter != loadedChapter_) {
+          loadNextChapter(pages_[k].chapter);
+          break;
+        }
     });
   }
 
@@ -477,6 +516,9 @@ class PageScreen : public Screen {
   std::vector<PageRef> pages_;
   int cur_ = 0;
   int loadedChapter_ = -1;
+  int nextCh_ = -1;                     // the next chapter, loaded ahead (loadNextChapter)
+  std::vector<ui::Paragraph> nextParas_;
+  bool nextLoading_ = false;
   int turns_ = 0;
 };
 
