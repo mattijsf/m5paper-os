@@ -32,8 +32,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 - **P6-12 clipboard sync with the phone (D23), 2026-11-16: built, simulator and JVM tests only.** `clip` both ways (COMPANION.md 7):
   every copy on the Paper is pushed to the phone; the phone sends on the share sheet ("Send to Paper"), the Quick Settings tile
   ("Clipboard to Paper") or the app's button; the Paper's clipboard sheet and the reply screen's Paste read the relay first. Switches
-  on both sides (Paper: Settings > Home Assistant > Phone, config `phone.clipboard`). **Not installed on the phone and not run on
-  the device** (wireless adb went offline; no real pairing exists yet).
+  on both sides (Paper: Settings > Home Assistant > Phone, config `phone.clipboard`). **Installed on the phone (unpaired), not run
+  end to end**: no real pairing exists yet.
 
 - **D22, 2026-11-16: the inbox moves to an end-to-end encrypted companion app; Home Assistant is not trusted with message text.**
   Done: both add-ons removed from Home Assistant (WhatsApp Gateway logged out first, then its integration, the add-on with its data and
@@ -259,8 +259,9 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
-- **P6-12 clipboard sync** (D23): install the companion APK (`adb install -r`, keeps the pairing and notification access), then with
-  a real pairing: copy on the Paper and check the phone's clipboard within a minute (the phone reads `to_phone` every minute); share
+- **P6-12 clipboard sync** (D23): the APK of e18ee72 is installed on the phone (2026-11-16 09:30, `adb install -r` over wireless
+  adb; the app is not paired and has no token, stage NONE). Checked: the share target and the Quick Settings tile are registered, a
+  share while unpaired does not crash and queues nothing. With a real pairing still to do: copy on the Paper and check the phone's clipboard within a minute (the phone reads `to_phone` every minute); share
   text on the phone (share sheet and the tile) and long-press a field on the Paper: the sheet should say "Clipboard from your phone".
   Unknown until then: whether `setPrimaryClip` from the foreground service works on Android 17 (allowed for writes as far as known)
   and whether Android 13+ shows its own "copied" overlay for it.
