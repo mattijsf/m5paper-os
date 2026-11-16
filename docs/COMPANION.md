@@ -211,8 +211,9 @@ towards the limits. Never more than one send per envelope (counter), also after 
 none by default; an app setting may cancel those notifications on the phone. Never marks anything read inside WhatsApp.
 
 **`clip`** (D23): `{"t":"clip","text":"Somdoku 12:34","ts":1763200100}`, same limits as above. Sent after every copy on the Paper
-(a field's "Copy all", a game's "Kopieer score") while a phone is paired and "Share the clipboard" is on; best effort, nothing is
-queued on the Paper. The phone replaces its clipboard with it (label `PaperOS`) unless it is older than 24 hours by `ts` and by the
+(a field's "Copy all", a game's "Kopieer score") while a phone is paired and "Share the clipboard" is on. Wi-Fi does not need to be up: the push joins Wi-Fi like any request
+(POWER.md "Wi-Fi policy": fast path ~1.3 s, then the usual linger). Best effort, nothing is queued on the Paper: with no known
+network in range the copy stays on the Paper only. The phone replaces its clipboard with it (label `PaperOS`) unless it is older than 24 hours by `ts` and by the
 queue entry's `ts`, or the app's "Share the clipboard" is off. A `clip` that came from the phone is never sent back.
 
 **`unpair`**: `{"t":"unpair"}`.
