@@ -87,6 +87,7 @@ Item (the **feed contract**):
 
 The package is `ha/paperos_inbox.yaml`, a copy of the live `packages/paperos_inbox.yaml` in the Home Assistant config repo (commit de1323d there; the
 Home Assistant repo is the source, sync by copying). It defines the **WhatsApp half only** (sensor and `script.paperos_inbox_clear`); the mail sensor comes with P6-2.
+**Exception (2026-11-16)**: this repo's copy is ahead of the live one by the send script `script.paperos_whatsapp_send` and its rate-limit sensor (DECISIONS.md D21, "Sending a WhatsApp message" below); they are not installed yet.
 Tested on the live Home Assistant 2026.10.1 (2026-11-15): the template rendered 8 cases in Home Assistant's own engine (direct, group with a `{low, high}` timestamp,
 media without text, poll ignored, status broadcast ignored, sent removes the chat, clear, first run without attributes), fake events fired through the API
 produced the items, a fake sent event removed that chat, the script emptied the feed. **Not tested**: a real WhatsApp message (the integration is not set up
