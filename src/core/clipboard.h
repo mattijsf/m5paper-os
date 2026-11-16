@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <string>
 
@@ -38,6 +39,16 @@ bool syncing();
 // Asks the relay for a newer clipboard from the phone, then calls `done(changed)` on the UI thread; at once with false when
 // not syncing.
 void pull(std::function<void(bool changed)> done);
+
+// A copy the phone has not got yet (the push failed: no Wi-Fi in range, a timeout, a server error). Only its time is kept, in
+// /data/clipboard_unsent (the text is the clipboard itself); the sync resends the clipboard when Wi-Fi next comes up.
+// Every set() and clear() drop it: a newer copy is pushed itself, the phone's own text is newer, an empty clipboard has nothing to send.
+void markUnsent(int64_t ts);
+// The push of the copy made at `ts` arrived (or will never arrive): drops the marker unless a later copy set it.
+void markSent(int64_t ts);
+// The clipboard to resend and the time it was copied: false (and the marker dropped) if there is none, the clipboard came from the
+// phone or is empty, or the copy is older than `maxAge` seconds (the phone would not apply it).
+bool unsent(int64_t now, int64_t maxAge, std::string& text, int64_t& ts);
 
 // What set() stores: invalid UTF-8 and control characters dropped (line feeds stay, CR LF becomes LF, a tab becomes a space),
 // then cut to `maxBytes` at a character boundary.

@@ -184,3 +184,41 @@ TEST_CASE("clipboard: the sync pushes copies but never what came from the phone;
   clipboard::setSync({});
   CHECK_FALSE(clipboard::syncing());
 }
+
+TEST_CASE("clipboard: a copy the phone has not got is resent once Wi-Fi is up, unless something newer replaced it or it is too old") {
+  TmpRoots t;
+  std::string text;
+  int64_t ts = 0;
+  CHECK_FALSE(clipboard::unsent(1000, 86400, text, ts));  // nothing owed
+  CHECK(clipboard::set("score", "somdoku"));
+  clipboard::markUnsent(1000);  // the push failed: no Wi-Fi
+  REQUIRE(clipboard::unsent(2000, 86400, text, ts));
+  CHECK(text == "score");
+  CHECK(ts == 1000);  // the copy's time, not the resend's
+  clipboard::markSent(1000);  // the resend arrived
+  CHECK_FALSE(clipboard::unsent(2000, 86400, text, ts));
+
+  clipboard::markUnsent(1000);
+  clipboard::markSent(900);  // an earlier push answering late does not settle a later copy
+  CHECK(clipboard::unsent(2000, 86400, text, ts));
+  CHECK(clipboard::set("newer", "field"));  // a new copy is pushed itself: the old one is no longer owed
+  CHECK_FALSE(clipboard::unsent(2000, 86400, text, ts));
+
+  clipboard::markUnsent(1000);
+  CHECK(clipboard::set("from the phone", clipboard::kFromPhone));
+  CHECK_FALSE(clipboard::unsent(2000, 86400, text, ts));  // the phone's text is newer, and never goes back
+
+  CHECK(clipboard::set("late", "field"));
+  clipboard::markUnsent(1000);
+  CHECK_FALSE(clipboard::unsent(1000 + 86401, 86400, text, ts));  // older than a day: the phone would drop it
+  CHECK_FALSE(clipboard::unsent(1000, 86400, text, ts));          // and the marker is gone
+
+  clipboard::markUnsent(1000);
+  clipboard::clear();
+  CHECK_FALSE(clipboard::unsent(1000, 86400, text, ts));
+  CHECK(fs::writeFile("/data/clipboard_unsent", "12x"));  // damaged: dropped
+  CHECK(clipboard::set("x", "field"));
+  CHECK(fs::writeFile("/data/clipboard_unsent", "12x"));
+  CHECK_FALSE(clipboard::unsent(1000, 86400, text, ts));
+  CHECK_FALSE(fs::exists("/data/clipboard_unsent"));
+}

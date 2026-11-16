@@ -267,7 +267,7 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
 ## D23. The clipboard is shared with the paired phone
 
 - **Decision**: the Paper's clipboard (D21) and the phone's sync through the companion relay (D22) as a new message `clip` in both
-  directions (COMPANION.md 7). Paper to phone: every copy on the Paper goes to the phone at once (best effort) and replaces the
+  directions (COMPANION.md 7). Paper to phone: every copy on the Paper goes to the phone at once (if Wi-Fi is not reachable, when it is next up, within 24 hours) and replaces the
   phone's clipboard. Phone to Paper: only on a user action (the share sheet target "Send to Paper", the Quick Settings tile
   "Clipboard to Paper", the app's button), because Android 10+ lets an app read the clipboard only while it has focus; the Paper
   takes it on its next read of the relay, and a text field's clipboard sheet and the reply screen's Paste read the relay first.

@@ -30,7 +30,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   WhatsApp send of D21 is gone with the WhatsApp integration (D22): no Home Assistant script, no favourites (config key and the device
   test aid `>set favorite` removed); a reply goes to the phone through the relay (apps/inbox.md "Replying").
 - **P6-12 clipboard sync with the phone (D23), 2026-11-16: built, simulator and JVM tests only.** `clip` both ways (COMPANION.md 7):
-  every copy on the Paper is pushed to the phone; the phone sends on the share sheet ("Send to Paper"), the Quick Settings tile
+  every copy on the Paper is pushed to the phone (joining Wi-Fi; a push that failed offline is resent when Wi-Fi is next up); the phone sends on the share sheet ("Send to Paper"), the Quick Settings tile
   ("Clipboard to Paper") or the app's button; the Paper's clipboard sheet and the reply screen's Paste read the relay first. Switches
   on both sides (Paper: Settings > Home Assistant > Phone, config `phone.clipboard`). **Installed on the phone (unpaired), not run
   end to end**: no real pairing exists yet.
@@ -701,3 +701,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-16: D25 120 MHz flash + PSRAM: soak 20 min + 10 min with page turns clean (29.4 -> 34.4 C), temperature in boot log and heartbeat, restart guard at 12 C drift; page turn 140 ms, screen change 190 ms, small tap 5 ms (finger up to the driver). Full flash backed up before (`backup/before-120m-2026-11-16.bin`).
 - 2026-11-16: Display lab: fifth pattern "Fast" (the gray ramp left in its Fast state, `Hint::Page`) to check the driver's Fast dither with the camera; golden `lab-fast-ramp`, the five lab goldens with the wider control.
 - 2026-11-16: Fast pass dither confirmed on the panel with the camera (Display lab "Fast"); the Fast ramp is upside down so it is pushed also after Ramp; golden `lab-fast-after-ramp`.
+- 2026-11-16: P6-12: a copy whose `clip` push failed offline (or timed out, or a server error) is resent when Wi-Fi next comes up (`NetService::onConnected`, `clipboard::markUnsent` / `unsent`, `/data/clipboard_unsent` holds only the copy time); checked in the simulator with `wifi off` / `wifi on`. Not on the device.

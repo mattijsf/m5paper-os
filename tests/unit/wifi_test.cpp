@@ -398,6 +398,34 @@ TEST_CASE("net: Wi-Fi goes off after the linger time, not while a request runs; 
   CHECK(e.svc.msToNextDeadline() == kNoDeadline);
 }
 
+TEST_CASE("net: onConnected fires once when Wi-Fi comes up, from tick, not again while it stays up or after a failed connect") {
+  Env e("WIFI_SSID=Home\nWIFI_PASSWORD=h\n");
+  e.net.world = {{"Home", -50, true, 6, "H1"}};
+  e.config.net.lingerSec = 20;
+  int ups = 0;
+  e.svc.onConnected = [&] { ++ups; };
+  hal::HttpRequest req;
+  req.url = "https://x/";
+  e.net.accepts = [](const ScriptedNet::Call&) { return false; };
+  e.svc.perform(req);  // no Wi-Fi
+  e.svc.tick();
+  CHECK(ups == 0);
+  e.net.accepts = [](const ScriptedNet::Call&) { return true; };
+  e.svc.perform(req);
+  CHECK(ups == 0);  // the UI thread hears it on the next tick
+  e.svc.tick();
+  CHECK(ups == 1);
+  e.svc.perform(req);
+  e.svc.tick();
+  CHECK(ups == 1);
+  e.clock.ms += 20000;
+  e.svc.tick();  // off after the linger
+  CHECK_FALSE(e.net.up);
+  e.svc.perform(req);
+  e.svc.tick();
+  CHECK(ups == 2);
+}
+
 // Runs the loop's net duties until the clock sync job has finished (it is its own worker job).
 static void pumpSync(Env& e) {
   e.svc.tick();  // schedules the job when a sync is due

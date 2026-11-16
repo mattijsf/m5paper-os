@@ -61,6 +61,9 @@ class NetService {
   void setWorker(Worker* w) { worker_ = w; }
   // Wi-Fi or the clock changed (status bar): set by the Shell.
   std::function<void()> onChange;
+  // Wi-Fi came up (any request joined it): called from tick() on the UI thread. Set once at boot by the clipboard sync, which
+  // resends a copy the phone has not got yet (DECISIONS.md D23).
+  std::function<void()> onConnected;
   // Who set onChange: a Shell that is replaced by a new one (set screen, restart) must not clear the new one's callback when it dies.
   const void* onChangeOwner = nullptr;
 

@@ -212,8 +212,10 @@ none by default; an app setting may cancel those notifications on the phone. Nev
 
 **`clip`** (D23): `{"t":"clip","text":"Somdoku 12:34","ts":1763200100}`, same limits as above. Sent after every copy on the Paper
 (a field's "Copy all", a game's "Kopieer score") while a phone is paired and "Share the clipboard" is on. Wi-Fi does not need to be up: the push joins Wi-Fi like any request
-(POWER.md "Wi-Fi policy": fast path ~1.3 s, then the usual linger). Best effort, nothing is queued on the Paper: with no known
-network in range the copy stays on the Paper only. The phone replaces its clipboard with it (label `PaperOS`) unless it is older than 24 hours by `ts` and by the
+(POWER.md "Wi-Fi policy": fast path ~1.3 s, then the usual linger). If the push fails for want of Wi-Fi (no known network in range), a timeout or a server error, the Paper keeps
+the time of the copy (`/data/clipboard_unsent`; the text is the clipboard itself) and resends the clipboard, stamped with that time,
+the next time Wi-Fi comes up for any reason (one try per connect, no background polling); a newer copy, a `clip` from the phone, an
+empty clipboard or 24 hours drop it. The phone replaces its clipboard with it (label `PaperOS`) unless it is older than 24 hours by `ts` and by the
 queue entry's `ts`, or the app's "Share the clipboard" is off. A `clip` that came from the phone is never sent back.
 
 **`unpair`**: `{"t":"unpair"}`.

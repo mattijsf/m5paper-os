@@ -177,6 +177,7 @@ void NetService::tick() {
     changed = true;
   }
   const bool on = connected_;
+  const bool cameUp = on && !wasOnline_;
   if (on != wasOnline_) {
     wasOnline_ = on;
     changed = true;
@@ -193,6 +194,7 @@ void NetService::tick() {
     }
   }
   if (changed && onChange) onChange();
+  if (cameUp && connected_ && onConnected) onConnected();
 }
 
 uint32_t NetService::msToNextDeadline() {
