@@ -38,8 +38,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 - **P7-9 Vijfje, 2026-11-16: built, simulator only.** A daily five-letter word game (docs/apps/vijfje.md). The owner asked for
   "woordle" from a handover text of that web game; built is PaperOS's own game in that genre (D26): own name, own word lists
   (688 answers, 2254 accepted words, `assets/vijfje/`), own first day and order, so **not the web game's word of the day** and a
-  shared score is named "Vijfje". Seventh app: the launcher now has a second page. Not in a firmware build yet (Pending device
-  checks). Open question 7.
+  shared score is named "Vijfje". Seventh app: the launcher now has a second page. The firmware builds with it; not flashed (Pending
+  device checks). Open question 7.
 
 - **D22, 2026-11-16: the inbox moves to an end-to-end encrypted companion app; Home Assistant is not trusted with message text.**
   Done: both add-ons removed from Home Assistant (WhatsApp Gateway logged out first, then its integration, the add-on with its data and
@@ -267,7 +267,7 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
-- **Vijfje (P7-9)**: nothing on the device, and **no firmware build with the app yet**: on 2026-11-16 the device and the
+- **Vijfje (P7-9)**: nothing on the device yet (the firmware builds, see below): on 2026-11-16 the device and the
   `papers3` build were in use by other work (sdkconfig experiments; its builds exclude `apps/vijfje/`), the owner said
   "test in simulator". Done instead: simulator, unit tests, and `vijfje.cpp` + `words_data.cpp` compiled alone with the
   ESP32-S3 compiler (no warnings, 15 KB). To do: `make fw` with the app (size), flash, open it from launcher page 2, type a
@@ -277,7 +277,10 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   **Device compile, found by the tap-latency pass 2026-11-16**: `make fw` failed on `vijfje_app.cpp`
   (`Store::get("day", INT32_MIN)`: `int32_t` is `long` on the ESP32 and `Store` has no overload for it; the simulator
   build does not see this). Fixed with `vijfje::kNoDay` (an `int`); the three call shapes were checked alone with the
-  ESP32-S3 compiler, **the whole file still was not** (no `papers3` build in that run).
+  ESP32-S3 compiler. **Firmware build with the app: done 2026-11-16 12:00** by the tap-latency pass (`make fw` at
+  f859131 with its uncommitted core settings in `platformio.ini`): compiles and links; checked here: `firmware.elf` holds
+  the `pos::vijfje` symbols, `firmware.bin` is 2,897,584 bytes (2.76 MB, 55.3% of the 5 MB slot; the 3 MB budget has
+  248 KB left). Not flashed (a PSRAM soak was running on the device).
   **The word list fetch on the device**: HTTPS to woordscore.nl with the built-in CA bundle (never run), heap during it (a
   39 KB body + 22 KB of codes + the 28 KB packed list while TLS is up; expected to land in PSRAM, not measured), the
   cache write (28 KB to LittleFS on the worker), the log line `[vijfje] word list: N words`.
