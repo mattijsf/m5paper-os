@@ -1,6 +1,11 @@
 # app: weather
-# P7-11: the weather (docs/apps/weather.md). Google Weather's entity weather.thuis and its daily and hourly forecasts from the
-# fixtures (tests/fixtures/make-weather-fixtures.py); today is Thursday 15 January 2026, 13:34.
+# P7-11: the weather (docs/apps/weather.md). Google Weather's entity weather.thuis, its daily and hourly forecasts and the house's
+# minute rain sensor from the fixtures (tests/fixtures/make-weather-fixtures.py); today is Thursday 15 January 2026, 13:34.
 wait 1500
 shot weather
-expect-state weather=partlycloudy|Updated 13:34
+expect-state weather=partlycloudy|Updated 13:34|rain=2h
+tap 200 400             # the rain graph: the next 6 hours
+wait 900
+shot weather-rain-6h
+expect-state rain=6h
+expect-max-pushed 100000

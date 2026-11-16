@@ -54,7 +54,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   saved copy first; not set up / unreachable / stale (the hour's forecast replaces an old "now") shown. 11 Lucide weather icons.
   Goldens `weather`, `weather-offline`, `weather-stale`, `weather-unset`; `fonts-sheet` (icon grid now 12 per row) and
   `wordgame-launcher-page2` (the new tile) re-accepted. The answer shapes come from Home Assistant's weather model, not from the
-  live instance: the live read is a pending device check. Firmware builds (2.87 MB, 54.7 %); not flashed (the port was held by a
+  live instance: the live read is a pending device check. **Rain graph** added the same day: `sensor.google_neerslag_minuten` drawn like the Thuis rain card (log scale, light/moderate/heavy, a tap
+  switches 2 h / 6 h); days went from 6 to 5 rows to make room; golden `weather-rain-6h`. Firmware builds (2.87 MB, 54.7 %); not flashed (the port was held by a
   running `tools/view.py --lan`).
 
 - **D22, 2026-11-16: the inbox moves to an end-to-end encrypted companion app; Home Assistant is not trusted with message text.**
@@ -87,7 +88,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
 | Firmware build | `make fw` | OK, 2.74 MB (52.2% of the 5 MB slot, 2026-11-16; libsodium added ~130 KB) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 257 tests; 205 goldens (2026-11-16, P7-11; the agenda work adds its own); `out/gallery.html` |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 258 tests; 206 goldens (2026-11-16, P7-11; the agenda work adds its own); `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Live view in a browser | `make view` (`ARGS=--sim`, `ARGS=--lan`) | `tools/view.py`: the device's frame on `http://127.0.0.1:8137/`, click = tap, hold = long press, drag = swipe; ~760 ms from click to new frame; holds the serial port (other device tools refuse to start meanwhile) |
@@ -290,7 +291,8 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
 
 ## Pending device checks
 - **Weather (P7-11, 2026-11-16, simulator only)**: after the next flash open Weather on page 2 of the launcher: the log line
-  `[weather] read: <condition>, N days, M hours` (expect about 10 days, 24 or more hours), a frame dump with real values, the
+  `[weather] read: <condition>, N days, M hours, K rain blocks` (expect about 10 days, 24 or more hours, rain blocks > 0;
+  -1 = the rain sensor did not answer), a frame dump with real values, the
   status "Updated HH:MM". If the live answer differs from the fixtures (field names, `datetime` format, `is_daytime`), fix the
   parser and `tests/fixtures/make-weather-fixtures.py`. Time for the three requests over TLS (log), heap during the read
   (`tools/memory.py --only weather`).
@@ -476,6 +478,9 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
 None of these block Phase 1, Phase 2, or the reader.
 
 ## Notes for later tasks
+
+- **Flaky unit test seen once (2026-11-16, weather work)**: `wifi_test.cpp:396` (the linger switches Wi-Fi off after
+  `lingerSec`) failed once in `make test` and passed in three reruns of the same binary. Not investigated.
 
 - **`Store::get` / `set` with fixed-width integers**: pass `int`, `bool`, `double` or a string. `int32_t`, `INT32_MIN`,
   `int64_t`, `size_t` compile in the simulator and are ambiguous on the ESP32 (`int32_t` = `long`). Cast first.

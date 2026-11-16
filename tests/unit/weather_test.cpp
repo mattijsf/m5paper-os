@@ -1,5 +1,6 @@
 #include <doctest.h>
 
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
@@ -110,4 +111,58 @@ TEST_CASE("weather: texts and icons") {
   CHECK(conditionIcon("partlycloudy") == pos::gen::Icon::CloudSun);
   CHECK(conditionIcon("partlycloudy", true) == pos::gen::Icon::CloudMoon);
   CHECK(conditionIcon("exceptional") == pos::gen::Icon::TriangleAlert);
+}
+
+TEST_CASE("weather: the minute rain forecast (sensor.google_neerslag_minuten)") {
+  pos::applyTimezone("CET-1CEST,M3.5.0,M10.5.0/3");
+  std::vector<RainBlock> blocks;
+  int64_t updated = 0;
+  REQUIRE(parseRain(readFixture("GET_ha.example.test_api_states_sensor.google_neerslag_minuten.json"), blocks, updated));
+  REQUIRE(blocks.size() == 24);
+  CHECK(blocks[0].start == kNow - kNow % 900);
+  CHECK(blocks[0].end - blocks[0].start == 900);
+  CHECK(blocks[5].rate == doctest::Approx(1.2));  // 0.3 mm in 15 minutes
+  CHECK(updated == kNow - kNow % 900);
+  CHECK(rainFresh(blocks, updated, kNow));
+  CHECK_FALSE(rainFresh(blocks, updated, kNow + 3600));  // the sensor stopped an hour ago
+  CHECK_FALSE(rainFresh(blocks, updated, 0));
+  CHECK_FALSE(parseRain(R"({"state":"0","attributes":{"segments":[]}})", blocks, updated));
+
+  REQUIRE(parseRain(readFixture("GET_ha.example.test_api_states_sensor.google_neerslag_minuten.json"), blocks, updated));
+  CHECK(rainHeadline(blocks, kNow, 2) == "Rain from 14:30");
+  CHECK(rainHeadline(blocks, kNow + 3600, 2) == "Rain until 15:15");      // 14:34, in the shower
+  CHECK(rainHeadline(blocks, kNow + 6300, 1) == "Dry for the next hour");  // 15:19, dry until 16:30
+  CHECK(rainNow(blocks, kNow) == 0);
+  CHECK(rainPeak(blocks, kNow, 2) == doctest::Approx(1.2));
+  CHECK(rainPeak(blocks, kNow, 6) == doctest::Approx(2.8));
+  CHECK(rateText(0) == "0 mm/h");
+  CHECK(rateText(0.05) == "<0.1 mm/h");
+  CHECK(rateText(1.24) == "1.2 mm/h");
+
+  // The curve: 0 where it is dry, inside 0..1, highest near the shower's peak block.
+  const std::vector<float> c = rainCurve(blocks, kNow, kNow + 2 * 3600, 400);
+  REQUIRE(c.size() == 400);
+  CHECK(c[0] == 0);
+  CHECK(c[399] == 0);
+  int top = 0;
+  for (int i = 0; i < 400; ++i) {
+    CHECK(c[i] >= 0);
+    CHECK(c[i] <= 1);
+    if (c[i] > c[top]) top = i;
+  }
+  const int64_t peakMid = blocks[5].start + 450;  // the middle of the 1.2 mm/h block
+  CHECK(std::abs(top - static_cast<int>((peakMid - kNow) * 400 / 7200)) <= 2);
+  CHECK(c[top] == doctest::Approx(rainHeight(1.2)).epsilon(0.01));
+  // Nothing wet: flat.
+  for (float v : rainCurve(blocks, kNow + 6360, kNow + 9960, 50)) CHECK(v == 0);  // 15:20-16:20, between the showers
+
+  Weather w;
+  w.now.condition = "rainy";
+  w.rain = blocks;
+  w.rainUpdated = updated;
+  Weather back;
+  REQUIRE(fromJson(toJson(w), back));
+  REQUIRE(back.rain.size() == 24);
+  CHECK(back.rain[5].rate == doctest::Approx(1.2));
+  CHECK(back.rainUpdated == updated);
 }

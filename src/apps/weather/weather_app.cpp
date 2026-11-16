@@ -23,9 +23,10 @@ using ui::Type;
 
 constexpr const char* kCacheFile = "/data/cache/weather/weather.json";
 constexpr const char* kDefaultEntity = "weather.thuis";  // Google Weather, home zone (home-assistant packages/google_neerslag.yaml)
+constexpr const char* kDefaultRain = "sensor.google_neerslag_minuten";  // Google's minute rain forecast (same package)
 constexpr uint32_t kRefreshMs = 15 * 60 * 1000;          // read again while the screen stays open, and on return after this long
 constexpr int kHours = 8, kHourStride = 2;               // 8 columns, two hours apart: the next 16 hours
-constexpr int kDays = 6;
+constexpr int kDays = 5;
 constexpr int64_t kOldNowSec = 90 * 60;                  // a saved "now" older than this gives way to the hour's forecast
 
 bool isNight(const Step& s) {
@@ -62,9 +63,11 @@ std::string whenText(int64_t t, int64_t now) {
   return dayText(t, 0) + " " + hourText(t);
 }
 
-// The whole forecast drawn in one widget: three bands one above the other (docs/apps/weather.md "Screen").
+// The whole forecast drawn in one widget: four bands one above the other (docs/apps/weather.md "Screen").
 class WeatherView : public ui::Widget {
  public:
+  // Band tops inside the frame.
+  static constexpr int kRainTop = 168, kHoursTop = 368, kDaysTop = 516;
   void set(const Weather& w, int64_t now) {
     w_ = w;
     now_ = now;
@@ -77,11 +80,28 @@ class WeatherView : public ui::Widget {
   void draw(Canvas& c) override {
     const int x = frame.x, y = frame.y, w = frame.w;
     drawNow(c, x, y + 8, w);
-    c.drawFastHLine(x, y + 176, w, ui::divider);
-    drawHours(c, x, y + 192, w);
-    c.drawFastHLine(x, y + 368, w, ui::divider);
-    drawDays(c, x, y + 384, w, frame.y + frame.h);
+    c.drawFastHLine(x, y + kRainTop - 8, w, ui::divider);
+    drawRain(c, x, y + kRainTop, w);
+    c.drawFastHLine(x, y + kHoursTop - 12, w, ui::divider);
+    drawHours(c, x, y + kHoursTop, w);
+    c.drawFastHLine(x, y + kDaysTop - 12, w, ui::divider);
+    drawDays(c, x, y + kDaysTop, w, frame.y + frame.h);
   }
+
+  // A tap on the rain graph switches between the next 2 and the next 6 hours.
+  bool onTouch(const Gesture& g) override {
+    const bool inRain = g.y >= frame.y + kRainTop - 8 && g.y < frame.y + kHoursTop - 12;
+    if (!inRain) return false;
+    if (g.type == Gesture::Tap) {
+      rainHours_ = rainHours_ == 2 ? 6 : 2;
+      invalidateRect(Rect{static_cast<int16_t>(frame.x), static_cast<int16_t>(frame.y + kRainTop - 6),
+                          static_cast<int16_t>(frame.w), static_cast<int16_t>(kHoursTop - kRainTop - 8)},
+                     Hint::Content);
+    }
+    return g.type == Gesture::Down || g.type == Gesture::Tap;
+  }
+  int rainHours() const { return rainHours_; }
+  void setRainHours(int h) { rainHours_ = h; }
 
  private:
   void drawNow(Canvas& c, int x, int y, int w) {
@@ -123,30 +143,79 @@ class WeatherView : public ui::Widget {
     line(Icon::Umbrella, rain);
   }
 
+  // Google's minute forecast like the house dashboard's rain card: headline, rate now and peak, the rain area on a log scale
+  // with the light / moderate / heavy lines, "Now" at the left edge.
+  void drawRain(Canvas& c, int x, int y, int w) {
+    const bool fresh = rainFresh(w_.rain, w_.rainUpdated, now_);
+    ui::drawIcon(c, Icon::Umbrella, x + 16, y + 14, 32, ui::ink);
+    ui::drawText(c, fresh ? rainHeadline(w_.rain, now_, rainHours_) : "No current rain forecast", x + 44, y + 14, Type::BodyStrong,
+                 ui::ink, Anchor::MiddleLeft);
+    if (fresh) {
+      const double nowRate = rainNow(w_.rain, now_), peak = rainPeak(w_.rain, now_, rainHours_);
+      std::string facts = "Now " + rateText(nowRate);
+      if (peak > nowRate) facts += ", max " + rateText(peak);
+      ui::drawText(c, facts, x + w, y + 14, Type::Caption, ui::ink, Anchor::MiddleRight);
+    }
+    const int plotW = w - 92, top = y + 64, base = y + 176;
+    const int64_t from = now_, to = now_ + rainHours_ * 3600;
+    auto px = [&](int64_t t) { return x + static_cast<int>((t - from) * plotW / (to - from)); };
+    auto py = [&](double h) { return base - static_cast<int>(std::lround(h * (base - top))); };
+    // Time ticks above the plot: every half hour (2 h) or hour (6 h).
+    ui::drawText(c, "Now", x, y + 36, Type::Caption, ui::secondary);
+    const int64_t step = rainHours_ == 2 ? 1800 : 3600;
+    if (now_ > 0)
+      for (int64_t t = (from / step + 1) * step; t < to; t += step) {
+        const int tx = px(t);
+        if (tx < x + 56 || tx > x + plotW - 24) continue;
+        ui::drawText(c, clockText(t), tx, y + 36, Type::Caption, ui::secondary, Anchor::TopCenter);
+        c.drawFastVLine(tx, top - 4, 6, ui::ink);
+      }
+    if (fresh) {
+      const std::vector<float> curve = rainCurve(w_.rain, from, to, plotW);
+      for (int i = 0; i < plotW; ++i) {
+        if (curve[i] <= 0) continue;
+        const int yy = py(curve[i]);
+        if (yy >= base) continue;
+        c.drawFastVLine(x + i, yy, base - yy, gray(6));
+        c.fillRect(x + i, yy, 1, 2, ui::ink);  // the outline
+      }
+    }
+    // Light, moderate, heavy: dotted lines over the area, the names right of the plot.
+    static const struct {
+      double rate;
+      const char* name;
+    } kLevels[] = {{0.5, "light"}, {2.5, "moderate"}, {10, "heavy"}};
+    for (const auto& l : kLevels) {
+      const int ly = py(rainHeight(l.rate));
+      for (int i = 0; i < plotW; i += 6) c.drawFastHLine(x + i, ly, 3, ui::divider);
+      ui::drawText(c, l.name, x + plotW + 8, ly, Type::Caption, ui::secondary, Anchor::MiddleLeft);
+    }
+    c.fillRect(x, base, plotW, 2, ui::ink);
+    c.fillRect(x, top - 4, 2, base - top + 4, ui::ink);  // now
+  }
+
   void drawHours(Canvas& c, int x, int y, int w) {
-    ui::drawText(c, "Next hours", x, y, Type::Caption, ui::secondary);
     if (hours_.empty()) {
-      ui::drawText(c, "No hourly forecast", x, y + 64, Type::Body, ui::ink);
+      ui::drawText(c, "No hourly forecast", x, y + 40, Type::Body, ui::ink);
       return;
     }
     const int n = kHours;
     for (int i = 0; i < static_cast<int>(hours_.size()); ++i) {
       const Step& s = hours_[i];
       const int cx = x + (2 * i + 1) * w / (2 * n);
-      ui::drawText(c, i == 0 ? "Now" : hourText(s.time), cx, y + 36, Type::Caption, ui::secondary, Anchor::TopCenter);
-      ui::drawIcon(c, conditionIcon(s.condition, isNight(s)), cx, y + 88, 32, ui::ink);
-      ui::drawText(c, tempText(s.temperature), cx, y + 112, Type::Body, ui::ink, Anchor::TopCenter);
-      if (s.precipProbability >= 1) ui::drawText(c, percent(s.precipProbability), cx, y + 144, Type::Caption, ui::ink, Anchor::TopCenter);
+      ui::drawText(c, i == 0 ? "Now" : hourText(s.time), cx, y, Type::Caption, ui::secondary, Anchor::TopCenter);
+      ui::drawIcon(c, conditionIcon(s.condition, isNight(s)), cx, y + 50, 32, ui::ink);
+      ui::drawText(c, tempText(s.temperature), cx, y + 72, Type::Body, ui::ink, Anchor::TopCenter);
+      if (s.precipProbability >= 1) ui::drawText(c, percent(s.precipProbability), cx, y + 102, Type::Caption, ui::ink, Anchor::TopCenter);
     }
   }
 
   void drawDays(Canvas& c, int x, int y, int w, int bottom) {
-    ui::drawText(c, "Next days", x, y, Type::Caption, ui::secondary);
     if (days_.empty()) {
-      ui::drawText(c, "No daily forecast", x, y + 64, Type::Body, ui::ink);
+      ui::drawText(c, "No daily forecast", x, y + 20, Type::Body, ui::ink);
       return;
     }
-    constexpr int kRow = 60;
+    constexpr int kRow = 54;
     double lo = 1e9, hi = -1e9;
     for (const Step& d : days_) {
       if (d.templow != kNone) lo = std::min(lo, d.templow);
@@ -155,7 +224,7 @@ class WeatherView : public ui::Widget {
       if (d.temperature != kNone) lo = std::min(lo, d.temperature);
     }
     const int barX = x + 328, barW = 112;
-    int top = y + 28;
+    int top = y - 4;
     for (size_t i = 0; i < days_.size() && top + kRow <= bottom; ++i, top += kRow) {
       const Step& d = days_[i];
       const int cy = top + kRow / 2;
@@ -181,12 +250,13 @@ class WeatherView : public ui::Widget {
 
   Weather w_;
   int64_t now_ = 0;
+  int rainHours_ = 2;
   std::vector<Step> hours_, days_;
 };
 
 struct Fetched {
   HaError error = HaError::None;  // of the entity's state; forecasts that fail keep the saved ones
-  bool parsed = false, daily = false, hourly = false;
+  bool parsed = false, daily = false, hourly = false, rain = false;
   Weather weather;
 };
 
@@ -196,6 +266,7 @@ class WeatherScreen : public Screen {
     setTitle("Weather");
     setAction(Icon::RefreshCw, [this] { refresh(); });
     entity_ = ctx().store.get("entity", kDefaultEntity);
+    rainEntity_ = ctx().store.get("rainEntity", kDefaultRain);
     std::string cached;
     if (fs::readFile(kCacheFile, cached)) fromJson(cached, weather_);
     holder_ = root.add<ui::Column>(0);
@@ -213,16 +284,19 @@ class WeatherScreen : public Screen {
 
   std::string debugState() const override {
     return std::string(weather_.valid() ? "weather=" + weather_.now.condition : "weather=none") + "|" + status_->text() +
-           (error_ != HaError::None ? std::string("|error=") + haErrorText(error_) : "");
+           (error_ != HaError::None ? std::string("|error=") + haErrorText(error_) : "") +
+           (view_ ? "|rain=" + std::to_string(view_->rainHours()) + "h" : "");
   }
 
  private:
   void rebuild() {
+    const int rainHours = view_ ? view_->rainHours() : 2;  // a read keeps the chosen window
     while (!holder_->children().empty()) holder_->remove(holder_->children().back().get());
     view_ = nullptr;
     if (weather_.valid()) {
       view_ = holder_->add<WeatherView>();
       view_->flex = 1;
+      view_->setRainHours(rainHours);
       view_->set(weather_, ctx().clock.now());
     } else if (error_ == HaError::NoToken || error_ == HaError::NoUrl) {
       holder_->add<ui::EmptyState>(Icon::Cloud, "Not set up yet", "Put HA_URL and HA_TOKEN in paperos_config on the SD card.")->flex = 1;
@@ -267,11 +341,11 @@ class WeatherScreen : public Screen {
     busy_ = true;
     showStatus();
     HaClient ha = ctx().ha();
-    const std::string entity = entity_;
+    const std::string entity = entity_, rainEntity = rainEntity_;
     const Weather old = weather_;
     const int64_t now = ctx().clock.now();
     ctx().async(
-        [ha, entity, old, now]() mutable {
+        [ha, entity, rainEntity, old, now]() mutable {
           Fetched f;
           HaResult st = ha.get("/api/states/" + entity);
           f.error = st.error;
@@ -295,6 +369,15 @@ class WeatherScreen : public Screen {
             f.weather.hourly = steps;
             f.hourly = true;
           }
+          // The minute rain forecast is a sensor of the house's own (it may be missing: then the graph says so).
+          std::vector<RainBlock> blocks;
+          int64_t rainUpdated = 0;
+          HaResult rain = ha.get("/api/states/" + rainEntity);
+          if (rain.ok() && parseRain(rain.body, blocks, rainUpdated)) {
+            f.weather.rain = blocks;
+            f.weather.rainUpdated = rainUpdated;
+            f.rain = true;
+          }
           if (f.parsed) fs::writeFile(kCacheFile, toJson(f.weather));
           return f;
         },
@@ -306,8 +389,9 @@ class WeatherScreen : public Screen {
           error_ = notFound_ ? HaError::None : f.error;
           if (f.parsed) {
             weather_ = f.weather;
-            ctx().log("read: %s, %d days, %d hours", weather_.now.condition.c_str(), static_cast<int>(weather_.daily.size()),
-                      static_cast<int>(weather_.hourly.size()));
+            ctx().log("read: %s, %d days, %d hours, %d rain blocks", weather_.now.condition.c_str(),
+                      static_cast<int>(weather_.daily.size()), static_cast<int>(weather_.hourly.size()),
+                      f.rain ? static_cast<int>(weather_.rain.size()) : -1);
             if (!f.daily || !f.hourly) ctx().toast("Forecast not available");
           }
           showStatus();
@@ -316,7 +400,7 @@ class WeatherScreen : public Screen {
         });
   }
 
-  std::string entity_;
+  std::string entity_, rainEntity_;
   Weather weather_;
   HaError error_ = HaError::None;
   bool notFound_ = false, busy_ = false, fetchedOnce_ = false, timerArmed_ = false;

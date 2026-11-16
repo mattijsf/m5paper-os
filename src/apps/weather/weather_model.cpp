@@ -129,6 +129,15 @@ std::string toJson(const Weather& w) {
   };
   steps("hourly", w.hourly);
   steps("daily", w.daily);
+  doc["rainUpdated"] = w.rainUpdated;
+  JsonArray r = doc["rain"].to<JsonArray>();
+  for (const RainBlock& b : w.rain) {
+    JsonArray a = r.add<JsonArray>();
+    a.add(b.start);
+    a.add(b.end);
+    a.add(b.rate);
+    a.add(b.probability);
+  }
   std::string out;
   serializeJson(doc, out);
   return out;
@@ -165,7 +174,155 @@ bool fromJson(const std::string& json, Weather& out) {
   };
   steps("hourly", out.hourly);
   steps("daily", out.daily);
+  out.rainUpdated = doc["rainUpdated"] | static_cast<int64_t>(0);
+  for (JsonArrayConst a : doc["rain"].as<JsonArrayConst>()) {
+    RainBlock b;
+    b.start = a[0] | static_cast<int64_t>(0);
+    b.end = a[1] | static_cast<int64_t>(0);
+    b.rate = a[2] | 0.0;
+    b.probability = a[3] | 0;
+    if (b.end > b.start) out.rain.push_back(b);
+  }
   return out.valid();
+}
+
+bool parseRain(const std::string& json, std::vector<RainBlock>& out, int64_t& updated) {
+  out.clear();
+  updated = 0;
+  JsonDocument doc;
+  if (deserializeJson(doc, json)) return false;
+  JsonObjectConst a = doc["attributes"].as<JsonObjectConst>();
+  for (JsonObjectConst seg : a["segments"].as<JsonArrayConst>()) {
+    RainBlock b;
+    if (!parseIsoTime(str(seg["timeFrame"]["startTime"]), b.start) || !parseIsoTime(str(seg["timeFrame"]["endTime"]), b.end) ||
+        b.end <= b.start)
+      continue;
+    const double mm = num(seg["qpf"]["quantity"]);
+    b.rate = mm > 0 ? mm * 3600.0 / static_cast<double>(b.end - b.start) : 0;
+    b.probability = seg["probability"] | 0;
+    out.push_back(b);
+  }
+  std::sort(out.begin(), out.end(), [](const RainBlock& x, const RainBlock& y) { return x.start < y.start; });
+  int64_t t = 0;
+  if (parseIsoTime(str(a["overallPredictionTimeframe"]["startTime"]), t)) updated = t;
+  if (parseIsoTime(str(doc["last_updated"]), t)) updated = std::max(updated, t);
+  return !out.empty();
+}
+
+double rainHeight(double rate) {
+  if (!(rate > 0)) return 0;
+  return std::min(1.0, std::log1p(rate * 4) / std::log1p(kRainTop * 4));
+}
+
+bool rainFresh(const std::vector<RainBlock>& blocks, int64_t updated, int64_t now) {
+  return !blocks.empty() && now > 0 && now - updated < kRainStaleSec && blocks.back().end > now;
+}
+
+namespace {
+bool wet(const RainBlock& b) { return b.rate >= 0.05; }
+}  // namespace
+
+std::vector<float> rainCurve(const std::vector<RainBlock>& blocks, int64_t from, int64_t to, int width) {
+  std::vector<float> out(static_cast<size_t>(std::max(0, width)), 0.f);
+  if (width <= 0 || to <= from) return out;
+  std::vector<const RainBlock*> in;
+  bool anyWet = false;
+  for (const RainBlock& b : blocks)
+    if (b.end > from && b.start < to) {
+      in.push_back(&b);
+      anyWet = anyWet || wet(b);
+    }
+  if (!anyWet) return out;
+  // Points (time, height): the base at the start, the middle of each block, the base at the end (as the Thuis card).
+  std::vector<double> px, py;
+  px.push_back(static_cast<double>(std::max(from, in.front()->start)));
+  py.push_back(0);
+  for (const RainBlock* b : in) {
+    px.push_back(std::min<double>(to, std::max<double>(from, (b->start + b->end) / 2.0)));
+    py.push_back(rainHeight(b->rate));
+  }
+  px.push_back(static_cast<double>(std::min(to, in.back()->end)));
+  py.push_back(0);
+  const size_t n = px.size();
+  // Fritsch-Carlson tangents: never under the base, never over a peak.
+  std::vector<double> d(n - 1), m(n);
+  for (size_t i = 0; i + 1 < n; ++i) {
+    const double dx = px[i + 1] - px[i];
+    d[i] = dx == 0 ? 0 : (py[i + 1] - py[i]) / dx;
+  }
+  for (size_t i = 0; i < n; ++i)
+    m[i] = i == 0 ? d[0] : i == n - 1 ? d[n - 2] : (d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2);
+  for (size_t i = 0; i + 1 < n; ++i) {
+    if (d[i] == 0) {
+      m[i] = m[i + 1] = 0;
+      continue;
+    }
+    const double a = m[i] / d[i], b = m[i + 1] / d[i], s2 = a * a + b * b;
+    if (s2 > 9) {
+      const double t = 3 / std::sqrt(s2);
+      m[i] = t * a * d[i];
+      m[i + 1] = t * b * d[i];
+    }
+  }
+  size_t seg = 0;
+  for (int col = 0; col < width; ++col) {
+    const double t = from + (col + 0.5) * static_cast<double>(to - from) / width;
+    if (t < px.front() || t > px.back()) continue;
+    while (seg + 2 < n && t > px[seg + 1]) ++seg;
+    const double h = px[seg + 1] - px[seg];
+    if (h <= 0) continue;
+    const double u = (t - px[seg]) / h, u2 = u * u, u3 = u2 * u;
+    const double v = (2 * u3 - 3 * u2 + 1) * py[seg] + (u3 - 2 * u2 + u) * h * m[seg] + (-2 * u3 + 3 * u2) * py[seg + 1] +
+                     (u3 - u2) * h * m[seg + 1];
+    out[static_cast<size_t>(col)] = static_cast<float>(std::clamp(v, 0.0, 1.0));
+  }
+  return out;
+}
+
+std::string clockText(int64_t t) {
+  struct tm tmv;
+  if (!localTime(t, tmv)) return "";
+  char buf[8];
+  std::snprintf(buf, sizeof buf, "%02d:%02d", tmv.tm_hour, tmv.tm_min);
+  return buf;
+}
+
+std::string rainHeadline(const std::vector<RainBlock>& blocks, int64_t now, int hours) {
+  const int64_t until = now + hours * 3600;
+  const std::string window = hours == 1 ? std::string("for the next hour") : "for the next " + std::to_string(hours) + " hours";
+  const RainBlock* current = nullptr;
+  for (const RainBlock& b : blocks)
+    if (b.start <= now && now < b.end) current = &b;
+  if (current && wet(*current)) {
+    for (const RainBlock& b : blocks)
+      if (b.start > now && b.start < until && !wet(b)) return "Rain until " + clockText(b.start);
+    return "Rain " + window;
+  }
+  for (const RainBlock& b : blocks)
+    if (b.end > now && b.start < until && wet(b)) return "Rain from " + clockText(std::max(b.start, now));
+  return "Dry " + window;
+}
+
+double rainNow(const std::vector<RainBlock>& blocks, int64_t now) {
+  for (const RainBlock& b : blocks)
+    if (b.start <= now && now < b.end) return b.rate;
+  return 0;
+}
+
+double rainPeak(const std::vector<RainBlock>& blocks, int64_t now, int hours) {
+  double peak = 0;
+  for (const RainBlock& b : blocks)
+    if (b.end > now && b.start < now + hours * 3600) peak = std::max(peak, b.rate);
+  return peak;
+}
+
+std::string rateText(double rate) {
+  if (rate <= 0) return "0 mm/h";
+  if (rate < 0.1) return "<0.1 mm/h";
+  char buf[24];
+  if (rate < 10) std::snprintf(buf, sizeof buf, "%.1f mm/h", rate);
+  else std::snprintf(buf, sizeof buf, "%.0f mm/h", rate);
+  return buf;
 }
 
 gen::Icon conditionIcon(const std::string& c, bool night) {

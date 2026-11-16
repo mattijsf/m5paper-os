@@ -408,7 +408,8 @@ P6-11 last (it needs the relay and a device that can pair).
 
 - [~] **P7-11 Weather**. Read:
   apps/weather.md, BACKEND.md "API calls used". App `weather`: `weather.thuis` state for now (condition, temperature, feels like,
-  wind, humidity, rain chance), `weather.get_forecasts` (`?return_response`, daily and hourly) for the next hours and days; saved
+  wind, humidity, rain chance), `weather.get_forecasts` (`?return_response`, daily and hourly) for the next hours and days, the rain graph from
+  `sensor.google_neerslag_minuten` (as the house dashboard's rain card); saved
   copy first, then a read; not set up / unreachable / stale handled visibly. Condition icons from Lucide. Fixtures, UI scripts
   `weather*`, unit tests. Done when: goldens accepted, `make check` green, the live entity read on the device. (2026-11-16: built
   and tested in the simulator; the live read on the device is pending.)

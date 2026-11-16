@@ -2,7 +2,9 @@
 """Writes the weather HTTP fixtures of the UI tests (docs/apps/weather.md): Home Assistant's Google Weather entity
 (weather.thuis) and its two forecasts (weather.get_forecasts, daily and hourly), in the shape Home Assistant 2026.x answers
 over REST. Values are made up, January weather in the Netherlands; times relative to the simulator's test clock
-(2026-01-15T12:34:00Z = 13:34 in Amsterdam). Also writes the saved copy the stale script starts from.
+(2026-01-15T12:34:00Z = 13:34 in Amsterdam). Also Google's minute rain forecast as the house's REST sensor
+sensor.google_neerslag_minuten (home-assistant packages/google_neerslag.yaml; segment shape as the the dashboard
+mock: timeFrame, type, probability, qpf, intensity) and the saved copy the stale script starts from.
 
 Host ha.example.test (the Home app's test host; the weather entity is the only one of this domain there).
 
@@ -89,6 +91,33 @@ for i, (cond, hi, lo, pct, mm) in enumerate(DAILY_PLAN):
     })
 
 
+# 24 blocks of 15 minutes from 13:30 local: a shower 14:30-15:15, dry, rain from 16:30 building to ~3 mm/h.
+RAIN_MM = [0, 0, 0, 0, 0.05, 0.3, 0.1, 0, 0, 0, 0, 0, 0.02, 0.1, 0.2, 0.4, 0.6, 0.7, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15]
+rain0 = NOW - NOW % (15 * 60)
+
+
+def rain_segment(start, mm):
+    return {
+        "timeFrame": {"startTime": iso(start), "endTime": iso(start + 15 * 60)},
+        "type": "RAIN" if mm > 0 else "NONE", "probability": 70 if mm > 0 else 0,
+        "qpf": {"unit": "MILLIMETERS", "quantity": mm},
+        "intensity": ("MODERATE" if mm >= 0.6 else "LIGHT") if mm > 0 else "NO_INTENSITY",
+    }
+
+
+RAIN = {
+    "entity_id": "sensor.google_neerslag_minuten",
+    "state": str(len(RAIN_MM)),
+    "attributes": {
+        "overallPredictionTimeframe": {"startTime": iso(rain0), "endTime": iso(rain0 + 6 * HOUR)},
+        "segments": [rain_segment(rain0 + i * 15 * 60, mm) for i, mm in enumerate(RAIN_MM)],
+        "icon": "mdi:weather-pouring", "friendly_name": "Google neerslag minuten",
+    },
+    "last_changed": iso(rain0), "last_reported": iso(NOW - 4 * 60), "last_updated": iso(rain0),
+    "context": {"id": "01KF0000000000000000000001", "parent_id": None, "user_id": None},
+}
+
+
 def forecast_body(kind):  # what the app sends (weather_app.cpp)
     return '{"entity_id":"%s","type":"%s"}' % (ENTITY, kind)
 
@@ -106,6 +135,7 @@ def write(path, obj):
 def main():
     http, data = sys.argv[1], sys.argv[2]
     write(os.path.join(http, name("GET", "/api/states/" + ENTITY)), STATE)
+    write(os.path.join(http, name("GET", "/api/states/sensor.google_neerslag_minuten")), RAIN)
     for kind, fc in (("daily", DAILY), ("hourly", HOURLY)):
         write(os.path.join(http, name("POST", "/api/services/weather/get_forecasts", "return_response", forecast_body(kind))),
               response(fc))
@@ -120,6 +150,9 @@ def main():
                    for i, (c, tp, _, p, mm) in enumerate([("fog", 1.8, 0, 0, 0.0)] * 6 + HOURLY_PLAN[:18])],
         "daily": [{"t": day0 + i * DAY, "c": c, "temp": hi, "low": lo, "mm": mm, "pct": p}
                   for i, (c, hi, lo, p, mm) in enumerate(DAILY_PLAN)],
+        "rainUpdated": saved_at - saved_at % (15 * 60),
+        "rain": [[saved_at - saved_at % (15 * 60) + i * 900, saved_at - saved_at % (15 * 60) + (i + 1) * 900, mm * 4, 70 if mm else 0]
+                 for i, mm in enumerate(RAIN_MM)],
     }
     d = os.path.join(data, "weather-stale", "data", "cache", "weather")
     os.makedirs(d, exist_ok=True)

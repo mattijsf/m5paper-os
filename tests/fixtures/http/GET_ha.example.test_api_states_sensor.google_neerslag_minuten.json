@@ -1,0 +1,334 @@
+{
+ "entity_id": "sensor.google_neerslag_minuten",
+ "state": "24",
+ "attributes": {
+  "overallPredictionTimeframe": {
+   "startTime": "2026-01-15T12:30:00Z",
+   "endTime": "2026-01-15T18:30:00Z"
+  },
+  "segments": [
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T12:30:00Z",
+     "endTime": "2026-01-15T12:45:00Z"
+    },
+    "type": "NONE",
+    "probability": 0,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0
+    },
+    "intensity": "NO_INTENSITY"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T12:45:00Z",
+     "endTime": "2026-01-15T13:00:00Z"
+    },
+    "type": "NONE",
+    "probability": 0,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0
+    },
+    "intensity": "NO_INTENSITY"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T13:00:00Z",
+     "endTime": "2026-01-15T13:15:00Z"
+    },
+    "type": "NONE",
+    "probability": 0,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0
+    },
+    "intensity": "NO_INTENSITY"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T13:15:00Z",
+     "endTime": "2026-01-15T13:30:00Z"
+    },
+    "type": "NONE",
+    "probability": 0,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0
+    },
+    "intensity": "NO_INTENSITY"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T13:30:00Z",
+     "endTime": "2026-01-15T13:45:00Z"
+    },
+    "type": "RAIN",
+    "probability": 70,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0.05
+    },
+    "intensity": "LIGHT"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T13:45:00Z",
+     "endTime": "2026-01-15T14:00:00Z"
+    },
+    "type": "RAIN",
+    "probability": 70,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0.3
+    },
+    "intensity": "LIGHT"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T14:00:00Z",
+     "endTime": "2026-01-15T14:15:00Z"
+    },
+    "type": "RAIN",
+    "probability": 70,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0.1
+    },
+    "intensity": "LIGHT"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T14:15:00Z",
+     "endTime": "2026-01-15T14:30:00Z"
+    },
+    "type": "NONE",
+    "probability": 0,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0
+    },
+    "intensity": "NO_INTENSITY"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T14:30:00Z",
+     "endTime": "2026-01-15T14:45:00Z"
+    },
+    "type": "NONE",
+    "probability": 0,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0
+    },
+    "intensity": "NO_INTENSITY"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T14:45:00Z",
+     "endTime": "2026-01-15T15:00:00Z"
+    },
+    "type": "NONE",
+    "probability": 0,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0
+    },
+    "intensity": "NO_INTENSITY"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T15:00:00Z",
+     "endTime": "2026-01-15T15:15:00Z"
+    },
+    "type": "NONE",
+    "probability": 0,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0
+    },
+    "intensity": "NO_INTENSITY"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T15:15:00Z",
+     "endTime": "2026-01-15T15:30:00Z"
+    },
+    "type": "NONE",
+    "probability": 0,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0
+    },
+    "intensity": "NO_INTENSITY"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T15:30:00Z",
+     "endTime": "2026-01-15T15:45:00Z"
+    },
+    "type": "RAIN",
+    "probability": 70,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0.02
+    },
+    "intensity": "LIGHT"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T15:45:00Z",
+     "endTime": "2026-01-15T16:00:00Z"
+    },
+    "type": "RAIN",
+    "probability": 70,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0.1
+    },
+    "intensity": "LIGHT"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T16:00:00Z",
+     "endTime": "2026-01-15T16:15:00Z"
+    },
+    "type": "RAIN",
+    "probability": 70,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0.2
+    },
+    "intensity": "LIGHT"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T16:15:00Z",
+     "endTime": "2026-01-15T16:30:00Z"
+    },
+    "type": "RAIN",
+    "probability": 70,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0.4
+    },
+    "intensity": "LIGHT"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T16:30:00Z",
+     "endTime": "2026-01-15T16:45:00Z"
+    },
+    "type": "RAIN",
+    "probability": 70,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0.6
+    },
+    "intensity": "MODERATE"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T16:45:00Z",
+     "endTime": "2026-01-15T17:00:00Z"
+    },
+    "type": "RAIN",
+    "probability": 70,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0.7
+    },
+    "intensity": "MODERATE"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T17:00:00Z",
+     "endTime": "2026-01-15T17:15:00Z"
+    },
+    "type": "RAIN",
+    "probability": 70,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0.5
+    },
+    "intensity": "LIGHT"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T17:15:00Z",
+     "endTime": "2026-01-15T17:30:00Z"
+    },
+    "type": "RAIN",
+    "probability": 70,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0.4
+    },
+    "intensity": "LIGHT"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T17:30:00Z",
+     "endTime": "2026-01-15T17:45:00Z"
+    },
+    "type": "RAIN",
+    "probability": 70,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0.3
+    },
+    "intensity": "LIGHT"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T17:45:00Z",
+     "endTime": "2026-01-15T18:00:00Z"
+    },
+    "type": "RAIN",
+    "probability": 70,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0.25
+    },
+    "intensity": "LIGHT"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T18:00:00Z",
+     "endTime": "2026-01-15T18:15:00Z"
+    },
+    "type": "RAIN",
+    "probability": 70,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0.2
+    },
+    "intensity": "LIGHT"
+   },
+   {
+    "timeFrame": {
+     "startTime": "2026-01-15T18:15:00Z",
+     "endTime": "2026-01-15T18:30:00Z"
+    },
+    "type": "RAIN",
+    "probability": 70,
+    "qpf": {
+     "unit": "MILLIMETERS",
+     "quantity": 0.15
+    },
+    "intensity": "LIGHT"
+   }
+  ],
+  "icon": "mdi:weather-pouring",
+  "friendly_name": "Google neerslag minuten"
+ },
+ "last_changed": "2026-01-15T12:30:00Z",
+ "last_reported": "2026-01-15T12:30:00Z",
+ "last_updated": "2026-01-15T12:30:00Z",
+ "context": {
+  "id": "01KF0000000000000000000001",
+  "parent_id": null,
+  "user_id": null
+ }
+}
