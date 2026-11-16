@@ -150,39 +150,291 @@ def input_args(a, fps):
     if a.source:
         if not os.path.exists(a.source):
             sys.exit(f"--source {a.source}: no such file")
-        return ["-re", "-i", a.source], f"file {a.source}"
+        return ["-re", "-i", a.source], f"file {a.source}", "direct"
     name = pick_camera(a.camera)
     mode = best_mode(name, fps)
+    if getattr(a, "size", None):
+        w_, h_ = (int(v) for v in a.size.lower().split("x"))
+        mode = (w_, h_, mode[2] if mode else fps)
     args = ["-f", "avfoundation", "-use_wallclock_as_timestamps", "1"]
     desc = f"camera '{name}'"
     if mode:
         args += ["-framerate", str(mode[2]), "-video_size", f"{mode[0]}x{mode[1]}"]
         desc += f" {mode[0]}x{mode[1]} @ {mode[2]} fps"
     args += ["-i", f"{name}:none"]
-    return args, desc
+    return args, desc, VIA
 
 
-def run_ffmpeg(args, timeout, what):
-    cmd = [ffmpeg(), "-hide_banner", "-loglevel", "error", "-y", *args]
-    if VERBOSE:
-        say("  $ " + " ".join(cmd))
-    p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-    CHILDREN.append(p)
+VIA = "direct"  # how ffmpeg runs for a camera: "direct" (child process) or "terminal" (Terminal.app, see FFmpeg)
+
+
+class FFmpeg:
+    """One ffmpeg run. "direct": a child process. "terminal": started in Terminal.app through a .command file.
+
+    Why Terminal: macOS gives camera access per app, and the app that launched the shell is responsible. An editor that
+    never asks for the camera gets no Camera prompt (it is not in System Settings > Privacy & Security > Camera), so ffmpeg started from its
+    shell opens the camera and receives no frames, silently. Terminal can be allowed once. stdout then goes through a FIFO,
+    stderr through a file, and stop() sends SIGTERM (ffmpeg finishes the mp4 cleanly)."""
+
+    def __init__(self, cmd, via, want_stdout=False):
+        self.via = via
+        self.returncode = None
+        if VERBOSE:
+            say(f"  $ ({via}) " + " ".join(cmd))
+        if via == "direct":
+            self.p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE if want_stdout else subprocess.DEVNULL,
+                                      stderr=subprocess.PIPE)
+            CHILDREN.append(self.p)
+            self.stdout, self.stderr = self.p.stdout, self.p.stderr
+            return
+        import uuid
+        base = os.path.join(ROOT, "out", "cam-run")
+        for d in glob.glob(os.path.join(base, "[0-9a-f]" * 8)):  # runs older than an hour
+            if time.time() - os.path.getmtime(d) > 3600:
+                shutil.rmtree(d, ignore_errors=True)
+        self.dir = os.path.join(ROOT, "out", "cam-run", uuid.uuid4().hex[:8])
+        os.makedirs(self.dir)
+        out = "/dev/null"
+        if want_stdout:
+            out = os.path.join(self.dir, "out.fifo")
+            os.mkfifo(out)
+        self.err, self.done, self.pidf = (os.path.join(self.dir, n) for n in ("err.log", "done", "pid"))
+        open(self.err, "w").close()
+        if want_stdout:  # ffmpeg writes the FIFO itself: it opens it only once it runs, so nothing waits on the reader
+            cmd = [out if c == "pipe:1" else c for c in cmd]
+        server_request({"cmd": cmd, "out": "/dev/null", "err": self.err, "done": self.done, "pid": self.pidf})
+        self._fifo = out if want_stdout else None
+        self._stdout = None
+        self.stderr = self._tail()
+        CHILDREN.append(self)
+
+    @property
+    def stdout(self):
+        if self.via == "terminal" and self._stdout is None and self._fifo:
+            self._stdout = open(self._fifo, "rb")  # blocks until ffmpeg opens it for writing
+        return self._stdout
+
+    @stdout.setter
+    def stdout(self, v):
+        self._stdout = v
+
+    def _tail(self):
+        with open(self.err, "rb") as f:
+            while True:
+                line = f.readline()
+                if line:
+                    yield line
+                elif self.poll() is not None:
+                    rest = f.read()
+                    if rest:
+                        yield from rest.splitlines(True)
+                    return
+                else:
+                    time.sleep(0.02)
+
+    def poll(self):
+        if self.via == "direct":
+            self.returncode = self.p.poll()
+        elif self.returncode is None and os.path.exists(self.done):
+            try:
+                self.returncode = int(open(self.done).read().strip() or 1)
+            except ValueError:
+                pass
+        return self.returncode
+
+    def pid(self):
+        if self.via == "direct":
+            return self.p.pid
+        for _ in range(100):
+            if os.path.exists(self.pidf) and open(self.pidf).read().strip():
+                return int(open(self.pidf).read())
+            time.sleep(0.05)
+        return None
+
+    def wait(self, timeout):
+        t0 = time.time()
+        while self.poll() is None:
+            if time.time() - t0 > timeout:
+                raise subprocess.TimeoutExpired("ffmpeg", timeout)
+            time.sleep(0.05)
+        return self.returncode
+
+    def stop(self, timeout=10):
+        """Ask ffmpeg to finish (the mp4 gets its index), then kill it if it does not."""
+        if self.poll() is not None:
+            return
+        pid = self.pid()
+        if pid:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+        try:
+            self.wait(timeout)
+        except subprocess.TimeoutExpired:
+            self.kill()
+
+    def kill(self):
+        pid = self.pid() if self.poll() is None else None
+        if pid:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+    def stderr_text(self):
+        if self.via == "direct":
+            return self.p.stderr.read().decode(errors="replace")
+        return open(self.err, errors="replace").read()
+
+
+SOCK = os.path.join(ROOT, "out", "cam-run", "serve.sock")
+SERVE_IDLE = 30 * 60
+
+
+def server_request(req):
+    """Hand one ffmpeg run to the capture server in Terminal.app; start the server (one window) if it is not running."""
+    import socket
+    for attempt in range(2):
+        try:
+            c = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            c.settimeout(5)
+            c.connect(SOCK)
+            c.sendall((json.dumps(req) + "\n").encode())
+            reply = c.makefile().readline().strip()
+            c.close()
+            if reply != "ok":
+                sys.exit(f"capture server: {reply or 'no reply'}")
+            return
+        except (FileNotFoundError, ConnectionRefusedError):
+            if attempt:
+                break
+            say("  starting the capture server in one Terminal window (it keeps Terminal's camera permission; quits after "
+                f"{SERVE_IDLE // 60} min idle) ...")
+            script = os.path.join(ROOT, "out", "cam-run", "serve.command")
+            os.makedirs(os.path.dirname(script), exist_ok=True)
+            with open(script, "w") as f:
+                f.write(f"#!/bin/zsh\n# PaperOS camera capture server (tools/cam.py serve). Close this window to stop it.\n"
+                        f"cd '{ROOT}' && exec uv run --script tools/cam.py serve\n")
+            os.chmod(script, 0o755)
+            subprocess.run(["open", "-g", "-a", "Terminal", script], check=True, timeout=20)
+            t0 = time.time()
+            while not os.path.exists(SOCK) and time.time() - t0 < 30:
+                time.sleep(0.2)
+    sys.exit("capture server did not start (see its Terminal window)")
+
+
+def cmd_serve(a):
+    """Runs in Terminal.app: accepts ffmpeg runs over a Unix socket (owner only) and starts them as its children, so they
+    use Terminal's camera permission. Only the ffmpeg binary is run, never a shell. Quits after 30 min without a request."""
+    import socket
+    signal.alarm(0)
+    os.makedirs(os.path.dirname(SOCK), exist_ok=True)
+    if os.path.exists(SOCK):
+        try:
+            t = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            t.connect(SOCK)
+            t.close()
+            sys.exit("a capture server is already running")
+        except ConnectionRefusedError:
+            os.remove(SOCK)
+    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    old = os.umask(0o077)
+    srv.bind(SOCK)
+    os.umask(old)
+    srv.listen(4)
+    srv.settimeout(SERVE_IDLE)
+    exe = ffmpeg()
+    say(f"PaperOS camera capture server: {SOCK}. Quits after {SERVE_IDLE // 60} min idle; Ctrl-C stops it.")
+
+    def run(req):
+        try:
+            with open(req["err"], "ab") as err:
+                # Opening the FIFO blocks until the client reads it: hence this thread.
+                with open(req["out"], "wb") as out:
+                    p = subprocess.Popen(req["cmd"], stdin=subprocess.DEVNULL, stdout=out, stderr=err)
+                    with open(req["pid"], "w") as f:
+                        f.write(str(p.pid))
+                    rc = p.wait()
+        except Exception as e:  # noqa: BLE001
+            rc = 1
+            say(f"  failed: {e}")
+        with open(req["done"], "w") as f:
+            f.write(str(rc))
+        say(f"{time.strftime('%H:%M:%S')}  done (exit {rc})")
+
     try:
-        _, err = p.communicate(timeout=timeout)
+        while True:
+            try:
+                conn, _ = srv.accept()
+            except socket.timeout:
+                say("idle: quitting")
+                break
+            with conn:
+                try:
+                    req = json.loads(conn.makefile().readline())
+                    cmd = req["cmd"]
+                    if not cmd or cmd[0] != exe or any(not isinstance(x, str) for x in cmd):
+                        raise ValueError("only ffmpeg runs are accepted")
+                    base = os.path.join(ROOT, "out", "cam-run")
+                    for k in ("err", "done", "pid"):
+                        if not os.path.realpath(req[k]).startswith(base + os.sep):
+                            raise ValueError(f"{k} outside out/cam-run")
+                    if req["out"] != "/dev/null" and not os.path.realpath(req["out"]).startswith(base + os.sep):
+                        raise ValueError("out outside out/cam-run")
+                    say(f"{time.strftime('%H:%M:%S')}  ffmpeg run -> {os.path.basename(os.path.dirname(req['err']))}")
+                    threading.Thread(target=run, args=(req,), daemon=True).start()
+                    conn.sendall(b"ok\n")
+                except Exception as e:  # noqa: BLE001
+                    conn.sendall(f"refused: {e}\n".encode())
+    finally:
+        srv.close()
+        if os.path.exists(SOCK):
+            os.remove(SOCK)
+
+
+def run_ffmpeg(args, timeout, what, via="direct", out=None, seconds=None):
+    """Run ffmpeg to the end, or, with `seconds`, stop it that long after `out` first appears. Camera timestamps from
+    avfoundation do not advance reliably (ffmpeg then never reaches a -t), so the duration is measured on the wall clock."""
+    cmd = [ffmpeg(), "-hide_banner", "-loglevel", "error", "-y", *args]
+    if out and os.path.exists(out):
+        os.remove(out)
+    p = FFmpeg(cmd, via)
+    if via == "terminal":
+        say(f"  (capturing through Terminal.app: macOS gives the camera to Terminal, not to this app)")
+    try:
+        if seconds is not None:
+            t0 = time.time()
+            while not (out and os.path.exists(out)) and p.poll() is None:
+                if time.time() - t0 > 20:
+                    raise subprocess.TimeoutExpired("ffmpeg", 20)
+                time.sleep(0.05)
+            say(f"  first frame after {time.time() - t0:.1f} s; recording {seconds:g} s ...")
+            end = time.time() + seconds
+            while time.time() < end and p.poll() is None:
+                time.sleep(0.05)
+            p.stop()
+            p.returncode = 0 if p.returncode in (None, 255, -15, 143) else p.returncode  # stopped on purpose
+        p.wait(timeout)
     except subprocess.TimeoutExpired:
         p.kill()
-        sys.exit(f"{what}: ffmpeg did not finish in {timeout} s (camera busy or asleep?)")
+        sys.exit(f"{what}: ffmpeg did not finish in {timeout} s. Camera unplugged or busy? If Terminal is not allowed to use the "
+                 "camera: System Settings > Privacy & Security > Camera > Terminal on.")
+    err = p.stderr_text().strip()
     if p.returncode != 0:
-        sys.exit(f"{what} failed: {err.strip().splitlines()[-1] if err.strip() else 'ffmpeg exit ' + str(p.returncode)}")
+        sys.exit(f"{what} failed: {err.splitlines()[-1] if err else 'ffmpeg exit ' + str(p.returncode)}")
 
 
 def cmd_shot(a):
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
-    inp, desc = input_args(a, 30)
+    inp, desc, via = input_args(a, 30)
     say(f"shot: {desc}, {a.warmup:.1f} s warm-up for exposure and focus ...")
     # Keep overwriting one image while the camera settles: the file holds the last frame.
-    run_ffmpeg([*inp, "-t", f"{a.warmup}", "-update", "1", "-frames:v", "100000", a.out], a.warmup + 25, "shot")
+    out = os.path.abspath(a.out)
+    if a.source:
+        run_ffmpeg([*inp, "-t", f"{a.warmup}", "-update", "1", out], a.warmup + 25, "shot", via)
+    else:
+        run_ffmpeg([*inp, "-fps_mode", "passthrough", "-update", "1", out], a.warmup + 30, "shot", via, out=out, seconds=a.warmup)
     img = cv2.imread(a.out)
     if img is None:
         sys.exit("shot: no image written")
@@ -191,11 +443,15 @@ def cmd_shot(a):
 
 def cmd_video(a):
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
-    inp, desc = input_args(a, a.fps)
+    inp, desc, via = input_args(a, a.fps)
     say(f"video: {desc}, {a.seconds} s ...")
     t0 = time.time()
-    run_ffmpeg([*inp, "-t", str(a.seconds), "-c:v", "h264_videotoolbox", "-b:v", "12M", "-pix_fmt", "yuv420p", a.out],
-               a.seconds + 30, "video")
+    out = os.path.abspath(a.out)
+    enc = ["-c:v", "h264_videotoolbox", "-b:v", "12M", "-pix_fmt", "yuv420p", out]
+    if a.source:
+        run_ffmpeg([*inp, "-t", str(a.seconds), *enc], a.seconds + 30, "video", via)
+    else:
+        run_ffmpeg([*inp, "-fps_mode", "passthrough", *enc], a.seconds + 40, "video", via, out=out, seconds=a.seconds)
     n, fps = probe_video(a.out)
     say(f"wrote {a.out} ({n} frames, {fps:.1f} fps, {time.time() - t0:.1f} s)")
 
@@ -495,9 +751,30 @@ def cmd_compare(a):
         sys.exit("panel not found in the camera image: show a page with text, then cam-shot + device-shot again")
     try:
         res = compare_images(gray(cam), frame, Hm)
+        if a.ref:
+            ref = cv2.imread(a.ref)
+            if ref is None:
+                sys.exit(f"{a.ref}: cannot read")
+            Hr, _ = find_panel(gray(ref), frame, a.max_age * 60, quiet=True)
+            if Hr is None:
+                sys.exit(f"panel not found in {a.ref}")
+            say(f"  reference: {a.ref} (same page after a Clean): the light's own unevenness cancels out")
+            res = against_reference(res, compare_images(gray(ref), frame, Hr))
     except ValueError as e:
         sys.exit(f"compare: {e}")
-    report_compare(res, frame, a.diff)
+    report_compare(res, frame, a.diff, "against the reference: " if a.ref else "")
+
+
+def against_reference(res, ref):
+    """Ghost relative to a camera image of the same page in the same session after a Quality clean: what remains is
+    what the image has and the clean panel has not (the uneven light and the panel's own mottle cancel out)."""
+    out = dict(res)
+    R = res["R"] - ref["R"]
+    out["R"] = R
+    far = res["far"] & ref["far"]
+    out["far"] = far
+    out["ghost"] = np.where(far > 0, np.clip(-R, 0, None), np.nan)
+    return out
 
 
 # ---------------------------------------------------------------- around: input + video + refresh log
@@ -518,16 +795,13 @@ class Recorder:
     """ffmpeg: the camera to an mp4 file, and the same frames small and gray to a pipe, each with its capture time."""
 
     def __init__(self, a, out_mp4, width=960):
-        inp, self.desc = input_args(a, a.fps)
+        inp, self.desc, via = input_args(a, a.fps)
         self.width = width
         # showinfo prints pts_time per frame on stderr. Camera: wallclock timestamps (-copyts), the host's clock.
         cmd = [ffmpeg(), "-hide_banner", "-loglevel", "info", "-y", *inp, "-copyts",
-               "-map", "0:v", "-c:v", "h264_videotoolbox", "-b:v", "12M", "-pix_fmt", "yuv420p", out_mp4,
-               "-map", "0:v", "-vf", f"scale={width}:-2,format=gray,showinfo", "-f", "rawvideo", "-pix_fmt", "gray", "pipe:1"]
-        if VERBOSE:
-            say("  $ " + " ".join(cmd))
-        self.p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        CHILDREN.append(self.p)
+               "-fps_mode", "passthrough", "-map", "0:v", "-c:v", "h264_videotoolbox", "-b:v", "12M", "-pix_fmt", "yuv420p", out_mp4,
+               "-map", "0:v", "-fps_mode", "passthrough", "-vf", f"scale={width}:-2,format=gray,showinfo", "-f", "rawvideo", "-pix_fmt", "gray", "pipe:1"]
+        self.p = FFmpeg(cmd, via, want_stdout=True)
         self.size = None
         self.frames, self.arrival, self.pts = [], [], []
         self.err_tail = []
@@ -551,11 +825,12 @@ class Recorder:
                 self.pts.append(float(m.group(1)))
 
     def _stdout(self):
+        out = self.p.stdout  # Terminal mode: opens the FIFO now, so ffmpeg can open its end and print the stream sizes
         self.started.wait()
         w, h = self.size
         n = w * h
         while True:
-            buf = self.p.stdout.read(n)
+            buf = out.read(n)
             if not buf or len(buf) < n:
                 break
             self.arrival.append(time.time())
@@ -570,16 +845,7 @@ class Recorder:
             sys.exit("camera gave no frames: " + " | ".join(self.err_tail[-3:]))
 
     def stop(self):
-        if self.p.poll() is None:
-            try:
-                self.p.stdin.write(b"q")
-                self.p.stdin.flush()
-            except Exception:
-                pass
-            try:
-                self.p.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                self.p.kill()
+        self.p.stop()
         self.t_out.join(timeout=5)
 
     def times(self, file_source):
@@ -642,7 +908,7 @@ def visible_span(views, times, sl, t_start, t_end, frac=0.05):
     off = [i for i in win if d1[i] > max(noise1, frac * span)]
     dt = float(np.median(np.diff(times))) if len(times) > 1 else 0.0
     first = times[on[0]] - dt / 2  # the change began within the frame interval before it was seen: take the middle
-    last = times[off[-1]] + dt / 2 if off else times[on[0]]
+    last = max(times[off[-1]] + dt / 2, first) if off else first
     return first, last
 
 
@@ -668,7 +934,8 @@ def analyse_timing(views, times, pushes, t_input):
         t_end = times[-1]
         for tn, _, rn, _ in pushes[i + 1:]:
             if tn > ts and not (rn[0] >= rect[0] + rect[2] or rect[0] >= rn[0] + rn[2] or rn[1] >= rect[1] + rect[3] or rect[1] >= rn[1] + rn[3]):
-                t_end = min(t_end, tn)
+                # A waveform runs on after the next push starts: at least the measured full-screen times (STATUS.md).
+                t_end = min(t_end, max(tn, ts + (1.6 if mode == "Q" else 0.6)))
                 break
         bb = visible_span(views, times, rect_slices(rect), ts - 0.03, t_end)
         head = f"push {mode} rect={','.join(map(str, rect))} at +{1000 * (ts - t_input):.0f} ms (firmware call {call} ms)"
@@ -805,6 +1072,9 @@ def cmd_around(a):
         pushes = [((e[0]) / 1000.0 + off, e[1], e[2], e[3]) for e in entries]
     elif seen:
         pushes = [(s[0] - s[3] / 1000.0, s[1], s[2], s[3]) for s in seen]
+    fps_real = (len(times) - 1) / max(times[-1] - times[0], 1e-3)
+    say(f"frame rate on the wire: {fps_real:.1f} fps (asked {a.fps}; a dim scene makes auto exposure slow the camera down)")
+    rec.desc += f", {fps_real:.0f} fps real"
     say(f"frame times: {how_t}; {len(entries)} refresh-log entr{'y' if len(entries) == 1 else 'ies'} after the input")
     # Register the panel on a quiet frame before the input, against the frame dump taken just before.
     frame_b = load_frame(before_png)
@@ -841,6 +1111,13 @@ def cmd_around(a):
         try:
             res = compare_images(last, frame_a, Hm_small)
             report_compare(res, frame_a, os.path.join(ROOT, "out", "cam-diff.png"), "after the input, last video frame: ")
+            if np.mean(frame_a[56:] != frame_b[56:]) < 0.02:  # the page stayed (a counter or the clock may change)
+                # Same page before and after (a Clean, a redraw): the ghost the input removed, light cancelled out.
+                before = compare_images(rec.frames[i_ref], frame_b, Hm_small)
+                before["far"] = before["far"] & res["far"]
+                say("same page before and after: ghost of the frame before the input, against the last frame as reference")
+                report_compare(against_reference(before, res), frame_b, os.path.join(ROOT, "out", "cam-diff-removed.png"),
+                               "removed by the input: ")
         except ValueError as e:
             say(f"  compare skipped: {e}")
 
@@ -964,6 +1241,9 @@ def main():
     ap.add_argument("--source")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("-v", "--verbose", action="store_true")
+    ap.add_argument("--size", default=os.environ.get("PAPEROS_CAM_SIZE"), help="camera mode WxH (default: the largest that reaches the fps)")
+    ap.add_argument("--via", choices=["auto", "direct", "terminal"], default=os.environ.get("PAPEROS_CAM_VIA", "auto"),
+                    help="how ffmpeg reaches the camera: terminal = through Terminal.app (default when not run from a terminal app)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("devices")
     p = sub.add_parser("shot")
@@ -980,6 +1260,7 @@ def main():
     p.add_argument("--image", default="out/cam.png")
     p.add_argument("--frame", default="out/device.png")
     p.add_argument("--diff", default="out/cam-diff.png")
+    p.add_argument("--ref", help="camera image of the same page after Clean (Quality), same session: ghost relative to it")
     p.add_argument("--max-age", type=float, default=60, help="minutes a saved panel outline stays usable (default 60)")
     p = sub.add_parser("around")
     p.add_argument("gesture", choices=["tap", "long", "swipe"])
@@ -990,14 +1271,19 @@ def main():
     p.add_argument("--port")
     p.add_argument("--max-age", type=float, default=60)
     sub.add_parser("selftest")
+    sub.add_parser("serve", help="capture server; started by itself in Terminal.app when needed")
     a = ap.parse_args()
     VERBOSE = a.verbose
+    global VIA
+    # A shell of a terminal app (TERM_PROGRAM set) has that app's camera permission; an editor's shell may have none.
+    VIA = a.via if a.via != "auto" else ("direct" if os.environ.get("TERM_PROGRAM") else "terminal")
     sys.stdout.reconfigure(line_buffering=True)
     os.chdir(ROOT)
     limit = a.limit or {"devices": 60, "shot": 60, "video": int(getattr(a, "seconds", 0)) + 60, "calibrate": 60, "compare": 60,
-                        "around": int(getattr(a, "before", 0) + getattr(a, "after", 0)) + 150, "selftest": 300}[a.cmd]
-    arm_limit(limit)
-    fn = {"devices": cmd_devices, "shot": cmd_shot, "video": cmd_video, "calibrate": cmd_calibrate, "compare": cmd_compare,
+                        "around": int(getattr(a, "before", 0) + getattr(a, "after", 0)) + 150, "selftest": 300, "serve": 0}[a.cmd]
+    if limit:
+        arm_limit(limit)
+    fn = {"serve": cmd_serve, "devices": cmd_devices, "shot": cmd_shot, "video": cmd_video, "calibrate": cmd_calibrate, "compare": cmd_compare,
           "around": cmd_around, "selftest": cmd_selftest}[a.cmd]
     sys.exit(fn(a) or 0)
 

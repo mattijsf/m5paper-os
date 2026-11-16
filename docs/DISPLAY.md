@@ -235,6 +235,16 @@ whether text is comfortable to read, ghosting too faint for the camera), batched
 - Numbers are compared only within one session (before and after a change, A against B). No camera goldens, no thresholds in `make check`.
 - Exposure, focus and white balance: macOS's avfoundation cannot lock them; `uvc-util` (not installed) could for a UVC camera. The
   normalisation makes stills robust to auto exposure; in a video a big flash can make auto exposure hunt for a few frames.
+- **Camera**: Logitech C922 Pro Stream Webcam (since 2026-11-16), above the device, the panel turned 90 degrees in the image, about
+  300x540 camera pixels at 1920x1080. **Measured limits (2026-11-16, room light in the morning)**: about 10 fps whatever is asked (auto
+  exposure lengthens the frame time in dim light; at 1080p and 720p alike), so timings are good to about 100 ms; autofocus hunts on pages
+  with little contrast (the Ramp came out blurred, text pages are sharp). More light, or locking exposure and focus (`uvc-util`), would fix both.
+- **Camera permission**: macOS gives the camera per app. An editor that never asks for the camera gets no Camera prompt (it does not appear in
+  System Settings > Privacy & Security > Camera), so ffmpeg started from its shell opens the camera and receives no frames. `cam.py`
+  therefore runs ffmpeg through a **capture server in one Terminal window** (`cam.py serve`, started by itself the first time, Unix
+  socket `out/cam-run/serve.sock` readable by the owner only, runs nothing but ffmpeg, quits after 30 idle minutes). Terminal has the
+  permission. From a terminal app (`TERM_PROGRAM` set) ffmpeg runs directly; `--via direct|terminal` overrides.
+- avfoundation timestamps do not advance reliably for this camera (`-t` never ends): stills and videos are stopped on the wall clock.
 
 Commands (`uv run --script tools/cam.py ...`; every command has a run limit and prints progress, like `tools/device.py`):
 
@@ -246,12 +256,21 @@ Commands (`uv run --script tools/cam.py ...`; every command has a run limit and 
 | `make cam-compare` | `device-shot` + `cam-shot` + `compare`: warp to 540x960, residual against the frame dump. Prints the **ghost number** (mean, p95) overall and per region (3 columns x 4 rows), the measured lightness per gray level on flat areas (the Display lab Ramp), and writes `out/cam-diff.png` (camera, frame dump, ghost heat map). |
 | `calibrate` | registers `out/cam.png` against `out/device.png`, saves the outline, draws it into `out/cam-calibrated.png`. |
 | `around tap X Y` / `long X Y` / `swipe X1 Y1 X2 Y2` | frame dump, video, the input through the serial port, the serial log read line by line, `>refresh`, frame dump after. Each push in the refresh log gets a host time (its `[disp] push` line arrives when the push call returns), and the video says per push when its rect starts and stops changing on the panel. Writes `out/cam-timing.png` (change per frame, push markers), `out/cam-frames.png` (frames with the most change), `out/cam-around.mp4`, and `compare` of the last frame against the frame dump after. Refuses a serial port that another process holds. |
+| `compare --ref IMG` | ghost relative to a camera image of the same page after Clean (Quality) in the same session: the uneven light cancels out. Use this for ghost numbers. |
 | `selftest` | synthetic camera images (perspective, uneven light, blur, noise): registration within 0.5 px, the ghost of Checker under White found in the right region and rising with the amount, timing of a synthetic Fast push within a frame. |
 
 What "ghost" measures: pixels the frame dump says are white and at least 3 px away from any ink, and how much darker than expected the
 camera sees them. The known page for it is the Display lab: Checker, then White (one Fast pass each), then `make cam-compare`; "Clean
 (Quality)", then `make cam-compare` again gives the floor of the same session. On a reader page the previous page's lines sit in the
 same rows as the current ones, so a reader ghost shows mostly in the word gaps and margins: compare turns within one session.
+
+**First results (2026-11-16, C922)**: the registration matched every page with text (147-222 SIFT inliers). Display lab Checker then White:
+the checkerboard is plainly visible on the panel (`out/cam-diff-white.png`). Without a reference the numbers mix ghost and light
+(about 1-2 % in the lower and middle regions even after a Clean); `around tap 140 917` (Clean) with the same page before and after reports
+the ghost the Clean removed: **0.8-1.1 % of contrast in the checker area, 0.3-0.6 % in header and footer** (`out/cam-diff-removed.png`).
+The Quality push of the Clean shows on the panel from about +0.4 s to +1.5 s after the push call (dark frames at +0.65 to +0.94 s): about
+1.1 s of visible waveform, the refresh log's push call returns after 104 ms. The Ramp: g0..g15 measured monotonic except g11 darker than
+g10 and g5 = g6 (a blurred shot with ghosts of earlier screens visible: a vertical line and a wavy band; repeat after a Clean, in focus).
 
 `--source FILE` replays a video in real time instead of a camera (tests of the pipeline without a camera). The panel can show private
 messages: the images stay in `out/` (gitignored); never commit, upload or paste them, and do not record screens that show secrets.

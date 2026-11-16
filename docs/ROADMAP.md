@@ -383,8 +383,8 @@ P6-11 last (it needs the relay and a device that can pair).
   sleep screen with a summary; off by default; measure the cost. (2026-11-15: simulator and device with RTC wakes; awake time
   measured, the mAh figure in POWER.md is an estimate: no current meter)
 - [x] **P7-6 Quick panel** (swipe down): Wi-Fi state, battery, sleep now, clean screen. (simulator; Sleep now on the device is a pending check)
-- [~] **P7-7 Camera on the panel.** (2026-11-15: `tools/cam.py` built and self-tested on synthetic images; `around` ran against the device
-  with a replayed video; the webcam itself is not connected yet) A webcam pointed at the device: `make cam-shot`, `make cam-video`,
+- [~] **P7-7 Camera on the panel.** (2026-11-16: works with the C922 webcam: shots, video, compare, `around`; the Display lab ghost
+  test and the Clean flash measured; open: the rest of the "To verify with the camera" list, more light or locked exposure/focus for 30 fps) A webcam pointed at the device: `make cam-shot`, `make cam-video`,
   `tools/cam.py compare` (ghosting number per region against the frame dump), `tools/cam.py around tap|swipe ...` (input + video +
   refresh log: refresh timing as the panel shows it). The set-up is not stable over days: register the panel on every run, compare numbers
   only within one session, never goldens (DISPLAY.md "Camera on the panel"). Done when the four commands have run with the real camera

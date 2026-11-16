@@ -63,7 +63,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 228 tests; 172 goldens (2026-11-16); `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
-| Camera on the panel | `make cam-shot` / `cam-video` / `cam-compare`, `tools/cam.py around tap X Y` | built and self-tested (synthetic images; `around` against the device with a replayed video); webcam not connected yet |
+| Camera on the panel | `make cam-shot` / `cam-video` / `cam-compare`, `tools/cam.py around tap X Y` | C922 webcam; captures through one Terminal window (camera permission); ~10 fps in room light |
 | Serial heartbeat | `make monitor` | `[beat]` and `[sd]` lines every 5 s (the refresh benchmark is gone since P1-1) |
 | Open books for the simulator | `make books` | 5 EPUB + 1 TXT in `sim-data/sd/books/` (not in git) |
 
@@ -212,18 +212,18 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 ## To verify with the camera (P7-7)
 
-The webcam (`tools/cam.py`, DISPLAY.md "Camera on the panel") checks these instead of a person's eyes. Not run yet: **the webcam is not
-connected** (2026-11-15: macOS lists only the built-in camera; the user will plug it in). Numbers are per session (the set-up moves).
+The webcam (`tools/cam.py`, DISPLAY.md "Camera on the panel") checks these instead of a person's eyes. Numbers are per session (the
+set-up moves). Webcam: C922, connected 2026-11-16; about 10 fps in room light, autofocus hunts on low-contrast pages (DISPLAY.md).
 
-- **Ghosting, known page**: Display lab Checker, then White: `make cam-compare` (ghost number, mostly in the left and middle columns of
-  the checker area), then "Clean (Quality)" and `make cam-compare` again for the floor of the same session.
+- **Ghosting, known page: done 2026-11-16**: Checker then White shows the checkerboard on the panel; the Clean removed 0.8-1.1 % of
+  contrast in the checker area (0.3-0.6 % elsewhere); the Quality flash is visible for about 1.1 s (DISPLAY.md "First results").
 - **Reader (P4-6)**: ghost number after 1, 10 and 30 page turns against a fresh Clean, at the four text sizes; whether the ghost-budget
   Quality clean (`ghostLimit`) brings it back to the floor; `around tap 400 500` on a page for the Fast pass, the settle and the real turn
   time on the panel (refresh log: ~150-210 ms render + 87 ms push call + about 0.3 s of waveform); the cover thumbnail's grays.
 - **Fast then settle** in general (P1-3): `around tap` on a toggle and on a list row: the rect's visible span against the push times,
   the edge quality of the touch dot; the Clean flash (quick panel or Display lab) as a video.
-- **Gray levels**: the Display lab Ramp (`compare` prints the measured lightness per level: is the order monotonic, where do levels
-  merge), the gray(9) dividers in a real list, the gray(13) icon wells of the launcher tiles, gray(3) metadata on other screens. Whether
+- **Gray levels**: the Display lab Ramp (`compare` prints the measured lightness per level; first, blurred shot 2026-11-16: g11 darker
+  than g10, g5 = g6, ghosts of earlier screens in the bars: repeat after a Clean and in focus), the gray(9) dividers in a real list, the gray(13) icon wells of the launcher tiles, gray(3) metadata on other screens. Whether
   the text is comfortable stays a question for a person's eyes.
 - **Sleep screen** (P3-6, P7-5 item 2): a still after the device powers off (the cover's grays, the summary line), and stills an hour and
   several hours later: does it stay sharp.
@@ -616,3 +616,4 @@ None of these block Phase 1, Phase 2, or the reader.
   three recorder-excluded queue sensors), `core/companion_crypto` (libsodium) and `core/companion`, Settings > Home Assistant > Phone
   (QR pairing, `ui/qr`), inbox / scheduled refresh / replies / Somdoku on the relay, fixtures encrypted with pyca/cryptography; device
   round trip with a scripted test phone through live Home Assistant.
+- 2026-11-16: P7-7 with the real webcam (C922): capture server in Terminal (the editor gets no camera permission), wall-clock stops, `compare --ref`, `around` reports the ghost a Clean removed; Display lab ghost test and Clean flash measured.
