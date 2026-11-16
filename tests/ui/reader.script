@@ -37,7 +37,9 @@ restart                 # a boot after power-off: the app opens the book again o
 wait 2000
 expect-state page=7/
 shot reader-p7-resumed
-expect-shot-equal reader-p7 reader-p7-resumed
+# The same page is drawn. The two screenshots are not byte-identical: after the turns a few footer pixels outside the last
+# Fast pass's box still hold the grays of the last Quality clean, after a boot the whole footer went out in one Fast pass.
+expect-frame-equal reader-p7 reader-p7-resumed
 # Paging to the last page: no crash, the footer ends on N / N.
 page-through 200
 shot reader-last

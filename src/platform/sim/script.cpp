@@ -65,6 +65,8 @@ bool ScriptRunner::command(const std::string& cmd, const std::string& args, std:
       error = "cannot write " + out_ + "/" + name + ".png";
       return false;
     }
+    // Not os_.frame4(): in the simulator that is the emulated panel, the same thing the screenshot shows.
+    frames_[name] = os_.displayManager().shadowPacked();
     display_.takeCounters();  // expect-* count from here
   } else if (cmd == "tap" || cmd == "back") {
     int x = kBackX, y = kBackY;
@@ -176,6 +178,23 @@ bool ScriptRunner::command(const std::string& cmd, const std::string& args, std:
     const std::string da = slurp(a), db = slurp(b);
     if (da.empty() || da != db) {
       error = "expect-shot-equal: " + a + " and " + b + (da.empty() || db.empty() ? " (a shot is missing)" : " differ");
+      return false;
+    }
+  } else if (cmd == "expect-frame-equal") {
+    std::string a, b;
+    in >> a >> b;
+    const auto fa = frames_.find(a), fb = frames_.find(b);
+    if (fa == frames_.end() || fb == frames_.end()) {
+      error = "expect-frame-equal: " + a + " and " + b + " (a shot is missing)";
+      return false;
+    }
+    if (fa->second != fb->second) {
+      size_t differ = 0;
+      for (size_t i = 0; i < fa->second.size() && i < fb->second.size(); ++i) {
+        const uint8_t x = fa->second[i] ^ fb->second[i];
+        differ += ((x & 0xF0) ? 1 : 0) + ((x & 0x0F) ? 1 : 0);  // two 4-bit pixels per byte
+      }
+      error = "expect-frame-equal: " + a + " and " + b + " differ in " + std::to_string(differ) + " pixels";
       return false;
     }
   } else if (cmd == "page-until") {

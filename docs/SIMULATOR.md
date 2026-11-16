@@ -80,6 +80,8 @@ timer-wake            # power-off, then the RTC alarm: the clock jumps and the d
 expect-off 7200       # the device switched itself off with a wake alarm in N seconds (0 = no alarm, -1 = it is on)
 expect-state page=7/  # the top screen's debugState() contains the text (Screen::debugState(); the reader says page=N/M)
 expect-shot-equal A B # two earlier shots are byte-identical (resume after restart, same page on the second visit)
+expect-frame-equal A B # what the screen drew at two earlier shots is identical; the shots themselves may differ, because they
+                      # show the emulated panel with its history (pixels outside a Fast pass's box keep the last Quality state)
 page-through 200      # tap the right zone until the reader's last page (page=N/N); fails after 200 taps
 ```
 
@@ -165,7 +167,7 @@ A task is done only when `make check` passes.
 - **Whole UI scripts on the device (P7-2)**: `tools/device.py script tests/ui/NAME.script` (add `--sim` to run the same thing against the simulator's
   remote mode) opens the script's `# app:` screen with `>set screen`, plays `wait`, `tap`, `long`, `swipe`, `back`, `shot`, `expect-no-quality`,
   `expect-max-pushed` (from `>refresh`), `expect-state`, `page-through`, `page-until` (from the new `>state` = `Screen::debugState()`) and
-  `expect-shot-equal`, saves every `shot` to `out/device-ui/` and compares it with the golden: IDENTICAL, identical below the status bar (the top 56
+  `expect-shot-equal` / `expect-frame-equal` (the same on the device: its shot is the drawn frame), saves every `shot` to `out/device-ui/` and compares it with the golden: IDENTICAL, identical below the status bar (the top 56
   rows hold the live clock and battery), or DIFFERENT with a pixel count.
   **The tool never hangs**: a serial write times out after 5 s, an unanswered command is sent again with a line on stderr, and the whole
   run ends with exit code 3 after `--limit` seconds (default 90; a script: its waits + 20 s per step + 60). `-v` prints every script step.

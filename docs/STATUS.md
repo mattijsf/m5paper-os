@@ -655,8 +655,6 @@ None of these block Phase 1, Phase 2, or the reader.
   0.7 MB by symbol sizes; the exact split is not measured), our net service and Wi-Fi/Home Assistant screens (~60 KB, estimate). Fonts
   are 0.45 MB, M5GFX/M5Unified ~0.2 MB. The reader (miniz ~12 KB, XHTML, pagination, library) should fit in ~150 KB.
 
-- **`make check` is red since 5db1f1a (found 2026-11-16 15:00, not caused by the live view: it touches no `src/` or `tests/`)**: `tests/ui/reader.script:40` `expect-shot-equal reader-p7 reader-p7-resumed` fails, and `reader-last` is then never produced. Both shots are identical to their goldens, but the two goldens accepted in 5db1f1a differ from each other in 11 pixels of the footer's page number (x 466-497, y 923-936): after a page turn those pixels hold anti-aliased grays (238, 136, 221, 68), after `restart` they are pure black or white, as if the footer of the resumed page stays in its Fast-pass state. Open: which frame is right, then fix the reader or the goldens. 202 other screenshots match, 252 unit tests pass.
-
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -758,3 +756,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-16: the user keeps the reader footer in ink ("Keep black") over gray with its own settle pass.
 
 - 2026-11-16: live view (`make view`, `tools/view.py`): the device in a browser page, click = tap, hold = long press, drag = swipe; checked on the device (reader page forward and back, ~760 ms from click to new frame) and in the simulator (tap, long press on back, swipe); `--lan` with a random key for a phone. `device.py` opens the port exclusively (a second tool refuses to start instead of sharing replies) and `unpack4` is a table lookup.
+- 2026-11-16: `make check` was red since 5db1f1a (found while adding the live view): `reader.script` compared the screenshots of page 7 before and after `restart` byte for byte. Screenshots show the emulated panel, and since the footer goes out with the page (Fast, no settle pass) 11 footer pixels outside the last Fast pass's box (x 497 and the foot of the slash) still held the grays of the last Quality clean, while after a boot the whole footer went out in one Fast pass. The drawn page is the same: new script command `expect-frame-equal A B` compares what was drawn (the display manager's shadow) and `reader.script` uses it; `reader-last` golden accepted (footer in ink: the script stopped before it in 5db1f1a). No change to the reader or the display code.

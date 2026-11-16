@@ -329,12 +329,12 @@ def run_script(link, path, out_dir, golden_dir, verbose=False):
                 s = state()
                 if args not in s:
                     raise RuntimeError(f"expect-state '{args}': the screen says '{s[:80]}'")
-            elif cmd == "expect-shot-equal":
+            elif cmd in ("expect-shot-equal", "expect-frame-equal"):  # on the device a shot IS the drawn frame
                 a_name, b_name = args.split()[:2]
                 pa = read_png(os.path.join(out_dir, a_name + ".png"))[2]
                 pb = read_png(os.path.join(out_dir, b_name + ".png"))[2]
                 if pa != pb:
-                    raise RuntimeError(f"expect-shot-equal: {a_name} and {b_name} differ")
+                    raise RuntimeError(f"{cmd}: {a_name} and {b_name} differ")
             elif cmd in ("page-through", "page-until"):
                 parts = args.split()
                 max_taps = int(parts[0])

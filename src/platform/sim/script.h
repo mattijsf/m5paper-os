@@ -8,6 +8,9 @@
 //   restart                                         save and close the app, build the surface again (same data)
 //   expect-state TEXT                               the top screen's debugState() contains TEXT (reader: "page=3/33")
 //   expect-shot-equal A B                           the two screenshots (shot A, shot B) are byte-identical
+//   expect-frame-equal A B                          what the screen drew at shot A and at shot B is identical. The screenshots
+//                                                   may differ: they show the emulated panel, which keeps its history (a pixel
+//                                                   outside a Fast pass's box stays as the last Quality pass left it)
 //   page-until MAX TEXT                              taps the right zone until the page text contains TEXT (fails after MAX taps)
 //   page-through MAX [TAP_X TAP_Y [WAIT_MS]]         taps (default 400 500, 700 ms each) until debugState says "page=N/N" (last page),
 //                                                    at most MAX taps; fails if the end is not reached; prints the page count
@@ -15,8 +18,11 @@
 // when the clock is fake.
 #pragma once
 
+#include <cstdint>
 #include <functional>
+#include <map>
 #include <string>
+#include <vector>
 
 #include "core/os.h"
 #include "platform/sim/sim.h"
@@ -51,6 +57,7 @@ class ScriptRunner {
   Clock& clock_;
   Net& net_;
   std::string out_;
+  std::map<std::string, std::vector<uint8_t>> frames_;  // the drawn frame at every `shot`, for expect-frame-equal
   std::function<void()> idle_;
   std::function<void()> restart_;
   std::function<std::string()> timerWake_;
