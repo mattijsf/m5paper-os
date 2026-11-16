@@ -1,4 +1,5 @@
-# P7-1: Settings > Developer > Display lab. The four patterns; Checker and White are Fast passes (the ghost test), Clean is the Quality pass.
+# P7-1: Settings > Developer > Display lab. The patterns; Checker and White are Fast passes (the ghost test), Clean is the Quality pass.
+# Fast: the ramp left in its Fast state (a Page push, no settle pass): the emulated panel shows the driver's ordered dither.
 wait 300
 tap 140 700             # launcher: Settings
 wait 600
@@ -11,13 +12,19 @@ tap 200 164             # Checker
 wait 300
 expect-no-quality
 shot lab-checker
-tap 330 164             # White: after a Fast pass over the checkerboard
+tap 270 164             # White: after a Fast pass over the checkerboard
 wait 300
 expect-no-quality
 shot lab-white
-tap 450 164             # Text
+tap 367 164             # Text
 wait 900
 shot lab-text
 tap 140 880             # Clean (Quality)
 wait 2500
 shot lab-cleaned
+tap 465 164             # Fast: the ramp as one Fast push
+wait 300
+expect-no-quality
+wait 2500                # no settle pass comes
+shot lab-fast-ramp
+expect-state lab=4

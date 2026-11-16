@@ -271,6 +271,13 @@ Settings > Developer > Display lab (task P7-1) shows: the 16-step gray ramp, a g
 (checkerboard then white), a fine-text sample, and counters for pushes per mode. Use it to tune
 `ghostLimit` and the settle delay, and to compare custom waveforms.
 
+**Fast (2026-11-16)**: a fifth pattern, the same ramp pushed as `Hint::Page`: one Fast pass and no settle pass, so the panel
+keeps what the driver's Fast mode makes of 16 grays. An ordered dither (what the driver source says, "Fast then settle" above)
+shows 16 bands of rising brightness; a threshold would show black bands and white bands only. For the camera: a still of the
+whole ramp is enough, no pixel detail needed. Check the counters line or `tools/device.py refresh` for an `F ... why=page`
+push: a Page push can be the reader's every-10th Quality clean, and then the ramp is in real grays. The segment "Check" is
+the checkerboard (five labels: "Checker" did not fit).
+
 **As built (2026-11-15, `DisplayLabPage` in `apps/settings/settings_app.cpp`)**: four patterns behind a Segmented control.
 **Ramp**: 16 labelled bars gray(0) to gray(15). **Checker** and **White**: pure black and white, shown with one Fast pass each, so Checker then
 White shows what a Fast pass leaves behind; "Clean (Quality)" is the cleaning pass. **Text**: the caption size in gray 0/3/5/7/9, the body size in

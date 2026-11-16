@@ -627,10 +627,12 @@ class StoragePage : public Page {
 };
 
 // Display lab (docs/DISPLAY.md "Test patterns", task P7-1): what only eyes on the panel can judge. A gray ramp, a ghosting test
-// (checkerboard, then white, both as Fast passes; Clean = the Quality pass), text samples in every gray and size.
+// (checkerboard, then white, both as Fast passes; Clean = the Quality pass), text samples in every gray and size, and the
+// ramp left in its Fast state ("Fast": pushed as Hint::Page, Fast with no settle pass) to see what the panel driver makes of
+// grays in Fast mode: an ordered dither gives 16 bands of rising brightness, a threshold gives black bands and white bands.
 class LabView : public ui::Widget {
  public:
-  enum class Mode { Ramp, Checker, White, Text };
+  enum class Mode { Ramp, Checker, White, Text, FastRamp };
   void setMode(Mode m, Hint h) {
     mode_ = m;
     invalidate(h);
@@ -638,7 +640,7 @@ class LabView : public ui::Widget {
   Mode mode() const { return mode_; }
   void draw(Canvas& c) override {
     const int x = frame.x, y = frame.y, w = frame.w, h = frame.h;
-    if (mode_ == Mode::Ramp) {
+    if (mode_ == Mode::Ramp || mode_ == Mode::FastRamp) {
       // 16 steps, black at the top, each labelled with its level (the label in the colour that contrasts).
       const int step = h / 16;
       for (int i = 0; i < 16; ++i) {
@@ -682,7 +684,7 @@ class DisplayLabPage : public Page {
   void build(ui::Column& root) override {
     setTitle("Display lab");
     root.add<ui::Spacer>(ui::s1);
-    auto* modes = root.add<ui::Segmented>(std::vector<std::string>{"Ramp", "Checker", "White", "Text"}, 0);
+    auto* modes = root.add<ui::Segmented>(std::vector<std::string>{"Ramp", "Check", "White", "Text", "Fast"}, 0);  // Check = the checkerboard
     root.add<ui::Spacer>(ui::s1);
     view_ = root.add<LabView>();
     view_->flex = 1;
@@ -702,7 +704,11 @@ class DisplayLabPage : public Page {
     modes->onChange = [this](int i) {
       // Checker and White are pure black and white: Feedback = one Fast pass, so going Checker -> White shows the ghost a Fast pass leaves.
       const LabView::Mode m = static_cast<LabView::Mode>(i);
-      view_->setMode(m, m == LabView::Mode::Checker || m == LabView::Mode::White ? Hint::Feedback : Hint::Content);
+      // Fast: the ramp as a Page push, which stays in Fast (black and white) until the next push. Check the counters line: a
+      // Page push can be the reader's every-10th Quality clean, then the ramp is in 16 grays and shows nothing.
+      const Hint h = m == LabView::Mode::Checker || m == LabView::Mode::White ? Hint::Feedback
+                     : m == LabView::Mode::FastRamp ? Hint::Page : Hint::Content;
+      view_->setMode(m, h);
       update();
     };
     update();
