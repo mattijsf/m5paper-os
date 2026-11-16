@@ -219,6 +219,10 @@ field), "Clear" (both disabled while the field is empty); a caption above them s
 Paste appends at the caret (always the end) and stops at the field's limit (`setMaxChars`, in characters, cut at a character boundary); a
 one-line field turns line feeds into spaces. `setLines(n)` makes a multi-line field (body size, 32 px lines, line feeds kept, the last n
 lines shown; Enter of a bound keyboard types a line feed when no Enter action is given); `onChange` runs after every change.
+With a paired phone that shares the clipboard (D23, `clipboard::syncing()`), the sheet's caption first ends in ", checking your
+phone..." while the relay is read (`clipboard::pull`), then shows the count again ("Clipboard from your phone: N characters" when the
+phone's text arrived) and enables Paste if there is something; every `clipboard::set` by anything but the phone is sent to the phone.
+UI script `textfield-phone`.
 `clipboardMenu = false` turns the sheet off. Test screen `widgets6`, script `textfield-menu` (and `keyboard-menu-masked` in `keyboard`).
 
 ## Gestures (`core/gesture`, task P2-1)

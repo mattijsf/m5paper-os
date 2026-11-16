@@ -360,6 +360,11 @@ P6-11 last (it needs the relay and a device that can pair).
   in a chat becomes an encrypted command to the phone (no favourites target any more; Somdoku's "Stuur naar WhatsApp" moves to the
   clipboard or a reply, decided with the owner). Goldens with encrypted fixtures. Done when: the simulator shows a fixture feed decrypted
   end to end and rejects a tampered one; the same on the device against the live relay with test blobs.
+- [~] **P6-12 Clipboard sync with the phone** (D23). `clip` in COMPANION.md 7 both ways; Paper:
+  `clipboard::Sync` installed at boot (`apps/inbox/clipboard_sync`), push on every copy, pull before a paste, Settings switch; phone:
+  share target, Quick Settings tile, app button and switch, `setPrimaryClip` on a received `clip`. Built and tested in the simulator
+  and the JVM tests (2026-11-16). Done when: on the real phone and device, a copy on the Paper is on the phone's clipboard within a
+  minute, and text shared on the phone is offered by Paste on the Paper.
 - [ ] **P6-11 Android companion app.** Read: P6-8, the owner's answers (phone, Android version). Kotlin, sideloaded, signed with a key
   on the Mac (never in a repo). NotificationListenerService for WhatsApp and Proton Mail (MessagingStyle for WhatsApp), QR pairing,
   encryption with libsodium (Lazysodium) using the shared vectors, posting to the webhook, `onNotificationRemoved` as "read", the
@@ -417,6 +422,6 @@ P6-11 last (it needs the relay and a device that can pair).
 | E-books | P4; open books fetched by `tools/fetch-books.sh`, pushed to the card in P4-0 |
 | Easy to add apps | APPS.md; P2-4, P2-5 |
 | WhatsApp unread | P6-8 to P6-11 (companion app, encrypted relay through Home Assistant, D22) |
-| WhatsApp send, clipboard | P6-7 clipboard (D21); replies through the phone, P6-10/P6-11 (D22) |
+| WhatsApp send, clipboard | P6-7 clipboard (D21); replies through the phone, P6-10/P6-11 (D22); clipboard sync, P6-12 (D23) |
 | Recent mail | P6-8 to P6-11 (Proton Mail notifications: sender, subject, maybe a preview; D22) |
 | Home Assistant control | P5 |

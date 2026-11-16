@@ -269,7 +269,8 @@ class ListScreen : public Screen {
     if (!haveData_) status_->setText("Loading...");
     HaClient ha = ctx().ha();
     const int64_t t = now();
-    ctx().async([ha, t]() mutable { return fetchRelay(ha, t); }, [this, announce](RelayFetch f) {
+    const bool clip = ctx().config.phone.shareClipboard;
+    ctx().async([ha, t, clip]() mutable { return fetchRelay(ha, t, clip); }, [this, announce](RelayFetch f) {
       busy_ = false;
       fetchedOnce_ = true;
       lastFetchMs_ = ctx().clock.millis();
@@ -294,6 +295,7 @@ class ListScreen : public Screen {
         markSeen();
         rebuild();
         if (!f.applied.notes.empty()) ctx().toast(f.applied.notes.back());  // the phone's answer to a reply
+        else if (f.clipFromPhone) ctx().toast("Clipboard from your phone");
         return;
       }
       error_ = true;

@@ -43,6 +43,7 @@ object Link {
     // Settings that survive re-pairing.
     var baseUrl: String? = null; private set
     var repliesAllowed = false; private set
+    var clipboardShared = true; private set
     private val sends = mutableListOf<Long>()
 
     private fun pairingFile(ctx: Context) = File(ctx.noBackupFilesDir, "pairing.json")
@@ -56,6 +57,7 @@ object Link {
             val o = JSONObject(settingsFile(ctx).readText())
             baseUrl = o.optString("url").ifEmpty { null }
             repliesAllowed = o.optBoolean("replies", false)
+            clipboardShared = o.optBoolean("clipboard", true)
             o.optJSONArray("sends")?.let { a -> for (i in 0 until a.length()) sends += a.getLong(i) }
         }
         runCatching {
@@ -166,7 +168,25 @@ object Link {
         saveSettings(ctx)
     }
 
+    @Synchronized
+    fun setClipboardShared(ctx: Context, shared: Boolean) {
+        load(ctx)
+        clipboardShared = shared
+        saveSettings(ctx)
+    }
+
     // ---- phone to Paper
+
+    enum class ClipSent { SENT, OFF, NOT_PAIRED, EMPTY }
+
+    /** The user shared text with the Paper (share sheet, tile, app button): one `clip` envelope. Never automatic. */
+    fun sendClip(ctx: Context, text: String?): ClipSent {
+        load(ctx)
+        if (!clipboardShared) return ClipSent.OFF
+        if (stage != Stage.ACTIVE) return ClipSent.NOT_PAIRED
+        val plain = Messages.clip(text ?: "", System.currentTimeMillis() / 1000) ?: return ClipSent.EMPTY
+        return if (send(ctx, plain)) ClipSent.SENT else ClipSent.NOT_PAIRED
+    }
 
     /** Seals and queues one message. Only while ACTIVE (section 2: before that, only the hello). */
     @Synchronized
@@ -235,6 +255,7 @@ object Link {
                     }
                 }
                 is Messages.Incoming.Reply -> if (stage == Stage.ACTIVE) handleReply(ctx, a.counter, a.entry.ts, msg)
+                is Messages.Incoming.Clip -> if (stage == Stage.ACTIVE) ClipSync.fromPaper(ctx, msg, a.entry.ts)
                 is Messages.Incoming.Unpair -> {
                     forget(ctx, notifyPaper = false)
                     return ReceiveReport(n, dropped, null)
@@ -278,7 +299,8 @@ object Link {
     }
 
     private fun saveSettings(ctx: Context) {
-        val o = JSONObject().put("url", baseUrl ?: "").put("replies", repliesAllowed).put("sends", JSONArray(sends))
+        val o = JSONObject().put("url", baseUrl ?: "").put("replies", repliesAllowed).put("clipboard", clipboardShared)
+            .put("sends", JSONArray(sends))
         writeAtomic(settingsFile(ctx), o.toString())
     }
 

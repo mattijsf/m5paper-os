@@ -48,7 +48,8 @@ class RefreshSurface : public Surface {
     HaClient ha = HaClient::fromNet(os_.net(), os_.secrets());
     auto alive = alive_;
     const int64_t now = os_.platform().clock.now();
-    os_.worker().async([ha, now]() mutable { return refreshFeeds(ha, now); }, [this, alive](RefreshResult r) {
+    const bool clip = os_.config().phone.shareClipboard;
+    os_.worker().async([ha, now, clip]() mutable { return refreshFeeds(ha, now, clip); }, [this, alive](RefreshResult r) {
       if (*alive) finish(r);
     });
     timer_ = os_.timers().after(kMaxAwakeMs, [this] {
@@ -111,9 +112,9 @@ class RefreshSurface : public Surface {
 
 }  // namespace
 
-RefreshResult refreshFeeds(HaClient ha, int64_t now) {
+RefreshResult refreshFeeds(HaClient ha, int64_t now, bool takeClip) {
   RefreshResult out;
-  RelayFetch f = fetchRelay(ha, now);  // one queue for both apps (docs/COMPANION.md)
+  RelayFetch f = fetchRelay(ha, now, takeClip);  // one queue for both apps (docs/COMPANION.md)
   const bool ok = f.paired && f.http.ok() && f.applied.parsed;
   const bool gone = !f.paired || f.http.error == HaError::NotFound;  // no badge for a feed that cannot exist
   for (const FeedDef& d : kFeeds) {

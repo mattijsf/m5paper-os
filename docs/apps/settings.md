@@ -55,7 +55,8 @@ the token and the Authorization header are never shown or logged. Developer > "H
   "net":      { "lingerSec": 20, "timezone": "CET-1CEST,M3.5.0,M10.5.0/3" },
   "reader":   { "fontSize": "M", "margins": "normal", "lineSpacing": 1.35 },
   "ha":       { "baseUrl": "http://homeassistant.local:8123" },
-  "launcher": { "resumeLastApp": true }
+  "launcher": { "resumeLastApp": true },
+  "phone":    { "clipboard": true }
 }
 ```
 
@@ -105,5 +106,7 @@ Pairing with the companion Android app (DECISIONS.md D22, `docs/COMPANION.md` se
 Settings list is full (eight rows). Not paired: "Pair phone" makes new keys and a pairing id and shows a QR code
 (`paperos1:<pid>:<public key>:<HA_URL>`, `ui/qr.h`), then polls `sensor.paperos_relay_pairing` every 3 s for at most 15 minutes. When
 the phone's hello arrives: the phone name and a six-digit code to compare with the phone; "Codes match" saves the pairing to
-`/data/companion.json` (secret: never shown, logged or readable over USB) and sends `paired`. Paired: the phone name and "Unpair"
+`/data/companion.json` (secret: never shown, logged or readable over USB) and sends `paired`. Paired: the phone name, the switch
+"Share the clipboard" (`phone.clipboard`, default on; DECISIONS.md D23: a copy on the Paper goes to the phone, what the phone shares
+arrives before a paste) and "Unpair"
 (with a confirmation; sends `unpair`, best effort, and deletes the pairing and the saved notifications). UI script `phone-pair`.

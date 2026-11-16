@@ -35,9 +35,7 @@ class ComposeScreen : public Screen {
     counter_ = col->add<ui::Label>("", Type::Caption, ui::secondary);
     col->add<ui::Spacer>(ui::s1);
     auto* buttons = col->add<ui::Row>(ui::s2);
-    paste_ = buttons->add<ui::Button>("Paste", [this] {
-      if (!field_->paste()) ctx().toast(clipboard::empty() ? "Clipboard is empty" : "The message is full");
-    }, ui::Button::Kind::Secondary);
+    paste_ = buttons->add<ui::Button>("Paste", [this] { paste(); }, ui::Button::Kind::Secondary);
     send_ = buttons->add<ui::Button>("Send", [this] { confirm(); });
     send_->flex = 1;
     field_->onChange = [this] { update(); };
@@ -64,7 +62,29 @@ class ComposeScreen : public Screen {
   void update() {
     counter_->setText(std::to_string(ui::TextField::charCount(field_->text())) + " / " + std::to_string(kMaxChars));
     setEnabled(send_, !busy_ && !trimmed(field_->text()).empty());
-    setEnabled(paste_, !busy_ && !clipboard::empty());
+    setEnabled(paste_, !busy_ && (!clipboard::empty() || clipboard::syncing()));  // syncing: the phone may have something
+  }
+
+  // What the phone shared last comes first (clipboard sync, D23): read the relay, then paste.
+  void paste() {
+    if (pulling_) return;
+    if (!clipboard::syncing()) {
+      pasteNow();
+      return;
+    }
+    pulling_ = true;
+    paste_->setText("Paste...");
+    std::weak_ptr<bool> alive = alive_;
+    clipboard::pull([this, alive](bool) {
+      if (alive.expired()) return;
+      pulling_ = false;
+      paste_->setText("Paste");
+      pasteNow();
+      update();
+    });
+  }
+  void pasteNow() {
+    if (!field_->paste()) ctx().toast(clipboard::empty() ? "Clipboard is empty" : "The message is full");
   }
 
   static void setEnabled(ui::Button* b, bool on) {
@@ -134,6 +154,8 @@ class ComposeScreen : public Screen {
   Target to_;
   std::string initial_;
   bool busy_ = false;
+  bool pulling_ = false;
+  std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
   ui::TextField* field_ = nullptr;
   ui::Label* counter_ = nullptr;
   ui::Button *paste_ = nullptr, *send_ = nullptr;

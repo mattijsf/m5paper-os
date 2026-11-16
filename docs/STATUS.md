@@ -29,6 +29,11 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 - **P6-7 clipboard (D21), 2026-11-16.** `core/clipboard`; Paste / Copy all / Clear on a long press in every text field. The direct
   WhatsApp send of D21 is gone with the WhatsApp integration (D22): no Home Assistant script, no favourites (config key and the device
   test aid `>set favorite` removed); a reply goes to the phone through the relay (apps/inbox.md "Replying").
+- **P6-12 clipboard sync with the phone (D23), 2026-11-16: built, simulator and JVM tests only.** `clip` both ways (COMPANION.md 7):
+  every copy on the Paper is pushed to the phone; the phone sends on the share sheet ("Send to Paper"), the Quick Settings tile
+  ("Clipboard to Paper") or the app's button; the Paper's clipboard sheet and the reply screen's Paste read the relay first. Switches
+  on both sides (Paper: Settings > Home Assistant > Phone, config `phone.clipboard`). **Not installed on the phone and not run on
+  the device** (wireless adb went offline; no real pairing exists yet).
 
 - **D22, 2026-11-16: the inbox moves to an end-to-end encrypted companion app; Home Assistant is not trusted with message text.**
   Done: both add-ons removed from Home Assistant (WhatsApp Gateway logged out first, then its integration, the add-on with its data and
@@ -59,8 +64,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Simulator build | `make sim` | OK (first build ~3 min, then seconds) |
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
-| Firmware build | `make fw` | OK, 2.73 MB (52.1% of the 5 MB slot, 2026-11-16; libsodium added ~130 KB) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 228 tests; 172 goldens (2026-11-16); `out/gallery.html` |
+| Firmware build | `make fw` | OK, 2.74 MB (52.2% of the 5 MB slot, 2026-11-16; libsodium added ~130 KB) |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 229 tests; 172 goldens (2026-11-16); `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Camera on the panel | `make cam-shot` / `cam-video` / `cam-compare`, `tools/cam.py around tap X Y` | C922 webcam; captures through one Terminal window (camera permission); `cam.py lock` (uvc-util) at the start of a session; video 30 fps at 640x480 |
@@ -254,6 +259,11 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **P6-12 clipboard sync** (D23): install the companion APK (`adb install -r`, keeps the pairing and notification access), then with
+  a real pairing: copy on the Paper and check the phone's clipboard within a minute (the phone reads `to_phone` every minute); share
+  text on the phone (share sheet and the tile) and long-press a field on the Paper: the sheet should say "Clipboard from your phone".
+  Unknown until then: whether `setPrimaryClip` from the foreground service works on Android 17 (allowed for writes as far as known)
+  and whether Android 13+ shows its own "copied" overlay for it.
 - **Somdoku** (P7-8): flash, open, play and solve today's puzzle on the device; puzzle generation time on the worker; the
   board and the hatched squares on the physical panel (eyes, once); the clock across a light sleep and a power-off.
 
@@ -618,3 +628,7 @@ None of these block Phase 1, Phase 2, or the reader.
   round trip with a scripted test phone through live Home Assistant.
 - 2026-11-16: P7-7 with the real webcam (C922): capture server in Terminal (the editor gets no camera permission), wall-clock stops, `compare --ref`, `around` reports the ghost a Clean removed; Display lab ghost test and Clean flash measured.
 - 2026-11-16: P7-7 uvc-util built (`~/.local/bin`), `cam.py lock` / `unlock`, video modes chosen within the USB budget (30 fps at 640x480); the Ramp measured in focus.
+- 2026-11-16: P6-12 clipboard sync with the phone (D23): `clip` in COMPANION.md 7, `clipboard::Sync` (`apps/inbox/clipboard_sync`),
+  push on copy, pull before a paste, the relay fetch keeps rx without overwriting a newer tx, Settings switch; Android: share target,
+  Quick Settings tile, app button and switch. 229 unit tests, 172 goldens (new `textfield-phone-menu`, `textfield-phone-pasted`),
+  35 JVM tests. Not on the phone or device yet.

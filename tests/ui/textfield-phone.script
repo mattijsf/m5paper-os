@@ -1,0 +1,11 @@
+# app: widgets6
+# Clipboard sync with the paired phone (DECISIONS.md D23, COMPANION.md 7 `clip`): the phone shared "Pick up bread / and milk"
+# (fixture ha-clip.example.test). A long press reads the relay first, so the sheet offers the phone's text; Paste puts it in the
+# three-line field. Copy all on the Paper pushes a `clip` to the relay (fixture answers 200; no visible change).
+wait 300
+long 270 215            # the three-line field: the sheet reads the relay
+wait 1500
+shot textfield-phone-menu
+tap 270 724             # Paste
+wait 900
+shot textfield-phone-pasted

@@ -188,6 +188,12 @@ exceed 1000 bytes.
 `reply` envelope. `why`: `""` (sent), `gone` (no such notification or it has no reply action), `stale` (older than 6 hours),
 `too_long`, `too_soon`, `hourly_limit`, `failed` (the RemoteInput send threw).
 
+**`clip`** (D23): `{"t":"clip","text":"Pick up bread","ts":1763200000}`: the user shared text with the Paper (share sheet,
+Quick Settings tile or the app's button; never automatic: Android lets an app read the clipboard only while it has focus). `text`
+1..900 characters, cut by the sender, then shortened until the plaintext fits 1000 bytes. The Paper replaces its clipboard with it
+(the newest `clip` of a queue wins) unless it is older than 24 hours by `ts` or the Paper's "Share the clipboard" is off; such a
+`clip` is read and acked, not applied. A clipboard Android marks sensitive (`ClipDescription.EXTRA_IS_SENSITIVE`) is never sent.
+
 **`unpair`**: `{"t":"unpair"}`.
 
 ### 7.2 Paper to phone (`D`)
@@ -204,6 +210,11 @@ towards the limits. Never more than one send per envelope (counter), also after 
 **`dismiss`**: `{"t":"dismiss","keys":["..."]}`: the user cleared these on the Paper ("Mark all read"). v1 phone behaviour:
 none by default; an app setting may cancel those notifications on the phone. Never marks anything read inside WhatsApp.
 
+**`clip`** (D23): `{"t":"clip","text":"Somdoku 12:34","ts":1763200100}`, same limits as above. Sent after every copy on the Paper
+(a field's "Copy all", a game's "Kopieer score") while a phone is paired and "Share the clipboard" is on; best effort, nothing is
+queued on the Paper. The phone replaces its clipboard with it (label `PaperOS`) unless it is older than 24 hours by `ts` and by the
+queue entry's `ts`, or the app's "Share the clipboard" is off. A `clip` that came from the phone is never sent back.
+
 **`unpair`**: `{"t":"unpair"}`.
 
 ## 8. Behaviour
@@ -217,6 +228,8 @@ none by default; an app setting may cancel those notifications on the phone. Nev
   nothing is queued on the Paper) and says "Sent to your phone". A later `result` shows as a toast in the inbox ("Reply to
   Anna sent" / "Reply to Anna not sent: <reason>").
 - "Mark all read": clears the local items of that app and sends `dismiss` with their keys.
+- Clipboard (D23): a text field's clipboard sheet and the reply screen's Paste read `to_paper` first, so a `clip` the phone just
+  sent is there; any read of the queue (inbox, scheduled refresh) applies a `clip` too.
 - Not paired: the inbox says so and points to Settings > Home Assistant > Phone.
 
 **Phone**

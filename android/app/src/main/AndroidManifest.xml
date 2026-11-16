@@ -37,6 +37,41 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
+        <!-- Clipboard to the Paper (D23): the share sheet and the Quick Settings tile. No UI of their own. -->
+        <activity
+            android:name=".ShareToPaperActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:label="Send to Paper"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ClipToPaperActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <service
+            android:name=".ClipTileService"
+            android:exported="true"
+            android:icon="@android:drawable/ic_menu_send"
+            android:label="Clipboard to Paper"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <service
             android:name=".CaptureListener"
             android:exported="true"

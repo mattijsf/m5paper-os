@@ -93,4 +93,20 @@ class MessagesTest {
         assertEquals("hourly_limit", g(sends = (1..20).map { now - 60L * it }))
         assertEquals("", g(sends = (1..19).map { now - 60L * it }))
     }
+
+    @Test fun clipBothWays() {
+        val o = obj(Messages.clip("Pick up bread\nand milk", 1768480000))
+        assertEquals("clip", o.getString("t"))
+        assertEquals("Pick up bread\nand milk", o.getString("text"))
+        assertEquals(1768480000, o.getLong("ts"))
+        assertNull(Messages.clip("   ", 1))
+        assertEquals(Messages.MAX_CLIP, obj(Messages.clip("x".repeat(5000), 1)).getString("text").length)
+        // Escapes and multi-byte characters: shortened until the plaintext fits.
+        val quotes = Messages.clip("\"".repeat(900), 1)!!
+        assertTrue(quotes.size <= Envelope.MAX_PLAINTEXT)
+        val euros = Messages.clip("€".repeat(900), 1)!!
+        assertTrue(euros.size <= Envelope.MAX_PLAINTEXT)
+        val parsed = Messages.parse("""{"t":"clip","text":"Somdoku 12:34","ts":5}""".toByteArray())
+        assertEquals(Messages.Incoming.Clip("Somdoku 12:34", 5), parsed)
+    }
 }

@@ -387,6 +387,12 @@ class PhonePage : public Page {
     if (companion::loadPairing(p)) {
       state_ = "paired";
       holder_->add<ui::ListItem>("Paired phone", p.phoneName, true, ui::Icon::Check);
+      // D23: a copy on the Paper goes to the phone; what the phone shares arrives before a paste.
+      auto* clip = holder_->add<ui::ListItem>("Share the clipboard", "Copy on one, paste on the other", true, ui::Icon::FileText);
+      clip->setToggle(cfg().phone.shareClipboard, [this](bool on) {
+        cfg().phone.shareClipboard = on;
+        save();
+      });
       holder_->add<ui::Spacer>(ui::s2);
       text("WhatsApp and Proton Mail notifications from this phone come here end-to-end encrypted. Home Assistant only relays them.",
            Type::Body, ui::secondary, 4);

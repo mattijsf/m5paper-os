@@ -244,3 +244,47 @@ TEST_CASE("companion: the notification store survives a save and load") {
   REQUIRE(back.sent.size() == 1);
   CHECK(back.sent[0].ref == 7);
 }
+
+TEST_CASE("companion: clip envelopes both ways (D23): the phone's newest clip wins, old or unwanted ones are dropped") {
+  Pair pr;
+  Notifs n;
+  const std::string clipOld = R"({"t":"clip","text":"first","ts":1768480000})";
+  const std::string clipNew = R"({"t":"clip","text":"Somdoku 12:34\nno mistakes","ts":1768480050})";
+  ApplyResult r = applyQueue(pr.paper, n, state({{1, pr.fromPhone(1, clipOld)}, {2, pr.fromPhone(2, clipNew)}}), kNow);
+  CHECK(r.accepted == 2);
+  CHECK(r.hasClip);
+  CHECK(r.clip == "Somdoku 12:34\nno mistakes");
+  CHECK(n.items.empty());  // a clip is not a notification
+
+  ApplyResult off = applyQueue(pr.paper, n, state({{3, pr.fromPhone(3, clipNew)}}), kNow, false);
+  CHECK(off.accepted == 1);  // read (and acked), not applied
+  CHECK_FALSE(off.hasClip);
+
+  const std::string stale = R"({"t":"clip","text":"yesterday","ts":)" + std::to_string(kNow - kClipMaxAge - 60) + "}";
+  const std::string empty = R"({"t":"clip","text":"","ts":1768480050})";
+  ApplyResult old = applyQueue(pr.paper, n, state({{4, pr.fromPhone(4, stale)}, {5, pr.fromPhone(5, empty)}}), kNow);
+  CHECK(old.accepted == 2);
+  CHECK_FALSE(old.hasClip);
+
+  Session phone;
+  REQUIRE(deriveSession(pr.phone.sk, pr.paper.pk, pr.paper.pid, pr.paper.pk, pr.phone.pk, phone));
+  auto openClip = [&](const std::string& body) {
+    JsonDocument d;
+    REQUIRE(!deserializeJson(d, body));
+    Opened o;
+    REQUIRE(open(phone.d2p, kDirD2P, pr.paper.pid, d["env"].as<std::string>(), o) == OpenError::None);
+    CHECK(o.plain.size() <= kMaxPlain);
+    JsonDocument m;
+    REQUIRE(!deserializeJson(m, o.plain));
+    CHECK(m["t"] == "clip");
+    CHECK(m["ts"] == kNow);
+    return m["text"].as<std::string>();
+  };
+  CHECK(openClip(clipEnvelope(pr.paper, "Copied on the Paper", kNow)) == "Copied on the Paper");
+  CHECK(pr.paper.tx == 1);
+  CHECK(openClip(clipEnvelope(pr.paper, std::string(2000, 'x'), kNow)).size() == kMaxClipChars);
+  const std::string quotes = openClip(clipEnvelope(pr.paper, std::string(900, '"'), kNow));  // each escapes to 2 bytes
+  CHECK(quotes.size() < 500);
+  CHECK(!quotes.empty());
+  CHECK(clipEnvelope(pr.paper, "", kNow).empty());
+}

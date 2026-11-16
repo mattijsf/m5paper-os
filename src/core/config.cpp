@@ -40,6 +40,7 @@ void Config::reset() {
   reader = ReaderConfig{};
   ha = HaConfig{};
   launcher = LauncherConfig{};
+  phone = PhoneConfig{};
 }
 
 bool Config::load() {
@@ -73,6 +74,7 @@ bool Config::load() {
   readString(doc["ha"]["baseUrl"], ha.baseUrl);
 
   if (doc["launcher"]["resumeLastApp"].is<bool>()) launcher.resumeLastApp = doc["launcher"]["resumeLastApp"].as<bool>();
+  if (doc["phone"]["clipboard"].is<bool>()) phone.shareClipboard = doc["phone"]["clipboard"].as<bool>();
   return true;
 }
 
@@ -93,6 +95,7 @@ bool Config::save() const {
   doc["reader"]["lineSpacing"] = reader.lineSpacing;
   doc["ha"]["baseUrl"] = ha.baseUrl;
   doc["launcher"]["resumeLastApp"] = launcher.resumeLastApp;
+  doc["phone"]["clipboard"] = phone.shareClipboard;
   std::string out;
   serializeJsonPretty(doc, out);
   return fs::writeFile(path_, out + "\n");

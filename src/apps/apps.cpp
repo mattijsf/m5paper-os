@@ -1,5 +1,6 @@
 #include "apps/apps.h"
 
+#include "apps/inbox/clipboard_sync.h"
 #include "apps/inbox/scheduled_refresh.h"
 #include "apps/launcher/launcher.h"
 #include "apps/uitest/uitest.h"
@@ -32,6 +33,7 @@ std::unique_ptr<Surface> createSurface(const std::string& name, Os& os, bool res
 }
 
 std::unique_ptr<Surface> createBootSurface(const std::string& name, Os& os) {
+  inbox::installClipboardSync(os);  // the clipboard shared with a paired phone (D23); idempotent
   const bool scheduled = os.takeScheduledWake();  // always asked: it also forgets the remembered wake time
   if (scheduled && name.empty()) return inbox::createRefreshSurface(os);
   return createSurface(name, os, true);

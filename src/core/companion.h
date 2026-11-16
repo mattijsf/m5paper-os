@@ -18,6 +18,8 @@ constexpr const char* kToPaperEntity = "sensor.paperos_relay_to_paper";
 constexpr const char* kPairingEntity = "sensor.paperos_relay_pairing";
 constexpr int64_t kKeepSeconds = 7 * 86400;   // notifications older than this are dropped on the Paper
 constexpr size_t kMaxReplyChars = 900;
+constexpr size_t kMaxClipChars = 900;          // a `clip` text (section 7), cut by the sender
+constexpr int64_t kClipMaxAge = 24 * 3600;     // an older `clip` from the phone is not applied
 
 struct Pairing {
   bool paired = false;
@@ -63,8 +65,11 @@ struct ApplyResult {
   bool ack = false;        // the queue holds entries the Paper has read (id <= rx): ack them
   bool unpaired = false;   // the phone sent `unpair`
   std::vector<std::string> notes;  // result toasts: "Reply to Anna sent", "Reply to Anna not sent: ..."
+  bool hasClip = false;    // the phone sent its clipboard (the newest `clip` wins; only when `takeClip`)
+  std::string clip;
 };
-ApplyResult applyQueue(Pairing& pairing, Notifs& notifs, const std::string& stateJson, int64_t now);
+// `takeClip` false (Settings does not share the clipboard): `clip` envelopes are read and dropped.
+ApplyResult applyQueue(Pairing& pairing, Notifs& notifs, const std::string& stateJson, int64_t now, bool takeClip = true);
 // Drops notifications older than kKeepSeconds; true if something went.
 bool expire(Notifs& notifs, int64_t now);
 
@@ -77,6 +82,9 @@ std::string pairedEnvelope(Pairing& pairing);
 std::string replyEnvelope(Pairing& pairing, const std::string& key, const std::string& text, int64_t now);
 std::string dismissEnvelope(Pairing& pairing, const std::vector<std::string>& keys);
 std::string unpairEnvelope(Pairing& pairing);
+// The Paper's clipboard for the phone: {"t":"clip","text":"...","ts":now}, the text cut to 900 characters and, if needed,
+// shorter until the plaintext fits 1000 bytes. "" for an empty text.
+std::string clipEnvelope(Pairing& pairing, const std::string& text, int64_t now);
 
 // {"queue":"to_paper","upto":17}
 std::string ackBody(const std::string& queue, uint64_t upto);

@@ -168,9 +168,14 @@ def main(out, presets):
     for path in (to_paper, pairing):
         write(out, g, "GET", path, {"message": "Entity not found."}, status=404)
     write(out, g, "POST", push, {"message": "Service script.paperos_relay_push not found."}, status=400)
+    c = "ha-clip.example.test"  # the phone shared its clipboard (D23, COMPANION.md 7 `clip`)
+    write(out, c, "GET", to_paper, relay_state("sensor.paperos_relay_to_paper",
+                                               queue([{"t": "clip", "text": "Pick up bread\nand milk", "ts": NOW - 60}])))
+    write(out, c, "POST", push, "[]")
+    write(out, c, "POST", ack, "[]")
     # The paired state of the UI test presets that read a relay.
     for name in ("inbox", "inbox-mail", "inbox-error", "inbox-wifi", "inbox-empty", "inbox-gone", "inbox-gone-mail", "whatsapp-send",
-                 "whatsapp-reply-result", "whatsapp-send-missing", "sched-refresh", "somdoku"):
+                 "whatsapp-reply-result", "whatsapp-send-missing", "sched-refresh", "somdoku", "textfield-phone"):
         os.makedirs(os.path.join(presets, name, "data"), exist_ok=True)
         with open(os.path.join(presets, name, "data", "companion.json"), "w") as f:
             f.write(preset_pairing())

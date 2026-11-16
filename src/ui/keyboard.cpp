@@ -286,10 +286,18 @@ void TextField::openMenu() {
   auto sheet = std::make_unique<Sheet>();
   Sheet* raw = sheet.get();
   Column* col = sheet->content();
+  const bool syncing = clipboard::syncing();
+  // A count, never the text (it may be a password).
+  auto caption = [](bool checking) {
+    const size_t n = charCount(clipboard::get());
+    std::string t = n == 0 ? std::string("Clipboard is empty")
+                           : std::string(clipboard::source() == clipboard::kFromPhone ? "Clipboard from your phone: " : "Clipboard: ") +
+                                 std::to_string(n) + (n == 1 ? " character" : " characters");
+    return checking ? t + ", checking your phone..." : t;
+  };
+  auto* info = col->add<Label>(caption(syncing), Type::Caption, secondary);
+  info->maxLines = 2;
   const size_t clipChars = charCount(clipboard::get());
-  col->add<Label>(clipChars == 0 ? "Clipboard is empty"
-                                 : "Clipboard: " + std::to_string(clipChars) + (clipChars == 1 ? " character" : " characters"),
-                  Type::Caption, secondary);  // a count, never the text (it may be a password)
   std::weak_ptr<bool> alive = alive_;
   TextField* self = this;
   auto* paste = col->add<Button>("Paste", [raw, self, alive] {
@@ -311,6 +319,17 @@ void TextField::openMenu() {
   }, Button::Kind::Secondary);
   clear->enabled = !text_.empty();
   r->addOverlay(std::move(sheet));
+  if (!syncing) return;
+  // The phone may have shared something newer: read the relay, then show what the clipboard holds now.
+  clipboard::pull([alive, r, raw, info, paste, caption](bool) {
+    if (alive.expired() || !r->hasOverlay(raw)) return;
+    info->setText(caption(false));
+    const bool on = !clipboard::empty();
+    if (paste->enabled != on) {
+      paste->enabled = on;
+      paste->invalidate(Hint::Content);
+    }
+  });
 }
 
 bool TextField::onTouch(const Gesture& g) {

@@ -24,7 +24,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 
-/** One screen: access, Home Assistant token, pairing, replies, status. Never shows message contents or the token. */
+/** One screen: access, Home Assistant token, pairing, replies, clipboard, status. Never shows message contents or the token. */
 class MainActivity : Activity() {
     private lateinit var access: TextView
     private lateinit var grant: Button
@@ -39,6 +39,8 @@ class MainActivity : Activity() {
     private lateinit var confirm: Button
     private lateinit var unpair: Button
     private lateinit var replies: CheckBox
+    private lateinit var clipboard: CheckBox
+    private lateinit var sendClip: Button
     private lateinit var counts: TextView
     private lateinit var relay: TextView
     private val handler = Handler(Looper.getMainLooper())
@@ -101,6 +103,13 @@ class MainActivity : Activity() {
             text = "Allow replies from the Paper (sent through the WhatsApp notification)"
             setOnCheckedChangeListener { _, on -> if (on != Link.repliesAllowed) Link.setRepliesAllowed(this@MainActivity, on) }
         })
+
+        clipboard = add(CheckBox(this).apply {
+            text = "Share the clipboard with the Paper (a copy on the Paper lands here; send yours with the share sheet, the " +
+                "\"Clipboard to Paper\" tile or the button below)"
+            setOnCheckedChangeListener { _, on -> if (on != Link.clipboardShared) Link.setClipboardShared(this@MainActivity, on) }
+        })
+        sendClip = button("Send clipboard to the Paper") { ClipSync.sendCurrent(this) }
 
         text(18f).text = "Status"
         counts = text(14f)
@@ -179,6 +188,9 @@ class MainActivity : Activity() {
         unpair.text = if (stage == Link.Stage.PENDING) "Cancel pairing" else "Unpair"
         replies.isChecked = Link.repliesAllowed
         replies.visibility = if (stage == Link.Stage.ACTIVE) View.VISIBLE else View.GONE
+        clipboard.isChecked = Link.clipboardShared
+        clipboard.visibility = replies.visibility
+        sendClip.visibility = if (stage == Link.Stage.ACTIVE && Link.clipboardShared) View.VISIBLE else View.GONE
 
         counts.text = buildString {
             append("Notifications (posted / updated / removed / live):")

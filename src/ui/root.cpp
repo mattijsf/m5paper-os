@@ -89,6 +89,12 @@ Widget* Root::overlayOf(Widget* w) const {
   return nullptr;
 }
 
+bool Root::hasOverlay(const Widget* w) const {
+  for (const auto& o : overlays_)
+    if (o.get() == w) return true;
+  return false;
+}
+
 Widget* Root::addOverlay(std::unique_ptr<Widget> w) {
   Widget* raw = w.get();
   w->screen_ = this;

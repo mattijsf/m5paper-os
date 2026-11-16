@@ -17,6 +17,6 @@ struct RefreshResult {
   int feedsOk = 0;
 };
 // Reads the companion relay (relay_fetch.h) and writes both inbox badges. Blocking (worker thread).
-RefreshResult refreshFeeds(HaClient ha, int64_t now);
+RefreshResult refreshFeeds(HaClient ha, int64_t now, bool takeClip);
 
 }  // namespace pos::inbox

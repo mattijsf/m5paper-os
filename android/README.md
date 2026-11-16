@@ -31,6 +31,11 @@ and the P6 cards in `docs/ROADMAP.md`.
   before the send, so never two sends per counter). **Replies are off until the user turns on "Allow
   replies from the Paper" in the app**; while off, a reply is answered with `result` `why: "failed"`.
   `dismiss` does nothing on the phone (v1).
+- Clipboard (D23, `ClipSync`): a `clip` from the Paper replaces the phone's clipboard (label `PaperOS`). The other way only on
+  the user's action, since Android lets an app read the clipboard only while it has focus: the share sheet target "Send to
+  Paper" (`ShareToPaperActivity`), the Quick Settings tile "Clipboard to Paper" (`ClipTileService` opens `ClipToPaperActivity`,
+  which reads on window focus) and the app's button. A clipboard marked sensitive is never sent. Switch "Share the clipboard with
+  the Paper" (default on, `settings.json` `clipboard`).
 - Backup and device transfer are off. No accessibility service.
 
 Notification contents are the user's private messages: never log, print or commit them. Check the app

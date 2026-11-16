@@ -263,3 +263,20 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
 - **Rejected**: keeping the add-ons and hardening Home Assistant further (the threat is any integration inside Core); D8 (Home
   Assistant companion app notification sensors: plaintext in Home Assistant); the device talking to the phone directly on the LAN
   (only at home, the phone would need an open port).
+
+## D23. The clipboard is shared with the paired phone
+
+- **Decision**: the Paper's clipboard (D21) and the phone's sync through the companion relay (D22) as a new message `clip` in both
+  directions (COMPANION.md 7). Paper to phone: every copy on the Paper goes to the phone at once (best effort) and replaces the
+  phone's clipboard. Phone to Paper: only on a user action (the share sheet target "Send to Paper", the Quick Settings tile
+  "Clipboard to Paper", the app's button), because Android 10+ lets an app read the clipboard only while it has focus; the Paper
+  takes it on its next read of the relay, and a text field's clipboard sheet and the reply screen's Paste read the relay first.
+- **Switches**: Settings > Home Assistant > Phone "Share the clipboard" (config `phone.clipboard`, default on) and the app's
+  "Share the clipboard with the Paper" (default on). Off on either side: nothing is sent from that side and a received `clip` is
+  dropped.
+- **Privacy**: the text travels end-to-end encrypted like a notification; Home Assistant sees only an envelope's size. A masked field
+  (a password) never offers Copy, a clipboard Android marks sensitive is never sent, a `clip` older than 24 hours is not applied, and
+  neither side logs or stores the text beyond the clipboard itself.
+- **Rejected**: reading the phone's clipboard in the background (Android does not allow it; an accessibility service or a keyboard
+  app would, and both are far more access than this is worth); a "Send to phone" button instead of sending every copy (the owner asked
+  for sync; a copy is already a deliberate act on the Paper).

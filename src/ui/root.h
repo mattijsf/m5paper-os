@@ -40,6 +40,8 @@ class Root : public Surface {
   // Removes an overlay and redraws what was under it. Safe to call from the overlay's own handlers.
   void closeOverlay(Widget* w);
   bool hasOverlay() const { return !overlays_.empty(); }
+  // True while `w` is one of the open overlays (a sheet that a late async result wants to update).
+  bool hasOverlay(const Widget* w) const;
   // Shows a one-line message at the bottom for `ms` (needs timers), replacing the previous one.
   void showToast(const std::string& text, uint32_t ms = 3000);
   // Redraws a region of the root (and the overlays over it) with `hint`.

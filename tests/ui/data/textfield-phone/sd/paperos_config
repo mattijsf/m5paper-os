@@ -1,0 +1,5 @@
+# Fake values for the clipboard sync UI test (D23).
+HA_TOKEN=fake-token-for-ui-tests
+HA_URL=https://ha-clip.example.test
+WIFI_SSID=HomeNet
+WIFI_PASSWORD=home-password

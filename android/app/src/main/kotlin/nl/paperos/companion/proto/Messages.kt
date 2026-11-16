@@ -9,6 +9,8 @@ object Messages {
     const val MAX_KEY = 120
     const val MAX_MSGS = 6
     const val MAX_CHAT = 100
+    const val MAX_CLIP = 900
+    const val CLIP_MAX_AGE_S = 24 * 3600L
 
     /** One message of a `post`. Mail uses [subj]; WhatsApp leaves it null. */
     data class Msg(val from: String, val text: String, val ts: Long, val subj: String? = null)
@@ -73,11 +75,23 @@ object Messages {
 
     fun unpair(): ByteArray = JSONObject().put("t", "unpair").bytes()
 
+    /** The phone's clipboard for the Paper (D23): cut to 900 characters, shorter until it fits. Null for blank text. */
+    fun clip(text: String, ts: Long): ByteArray? {
+        var t = cut(text, MAX_CLIP)
+        while (t.isNotBlank()) {
+            val b = JSONObject().put("t", "clip").put("text", t).put("ts", ts).bytes()
+            if (b.size <= Envelope.MAX_PLAINTEXT) return b
+            t = cut(t, t.length * 3 / 4) // multi-byte characters or escapes made it too long
+        }
+        return null
+    }
+
     /** Paper to phone. Unknown types parse as [Other]. */
     sealed class Incoming {
         object Paired : Incoming()
         data class Reply(val key: String, val text: String, val ts: Long) : Incoming()
         data class Dismiss(val keys: List<String>) : Incoming()
+        data class Clip(val text: String, val ts: Long) : Incoming()
         object Unpair : Incoming()
         object Other : Incoming()
     }
@@ -90,6 +104,7 @@ object Messages {
             "dismiss" -> Incoming.Dismiss(
                 (o.optJSONArray("keys") ?: JSONArray()).let { a -> (0 until a.length()).map { a.optString(it) } },
             )
+            "clip" -> Incoming.Clip(cut(o.optString("text"), MAX_CLIP), o.optLong("ts", 0))
             "unpair" -> Incoming.Unpair
             else -> Incoming.Other
         }

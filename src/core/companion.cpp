@@ -23,6 +23,12 @@ std::string cut(const std::string& s, size_t chars) {
   return s.substr(0, std::min(i, s.size()));
 }
 
+size_t charCount(const std::string& s) {
+  size_t n = 0;
+  for (char c : s) n += (static_cast<unsigned char>(c) & 0xC0) != 0x80;
+  return n;
+}
+
 std::string str(JsonVariantConst v, size_t chars) { return v.is<const char*>() ? cut(v.as<std::string>(), chars) : std::string(); }
 
 int64_t num(JsonVariantConst v) { return v.is<int64_t>() ? v.as<int64_t>() : v.is<double>() ? static_cast<int64_t>(v.as<double>()) : 0; }
@@ -183,7 +189,7 @@ std::string resultText(const std::string& why) {
   return "the phone could not send it";
 }
 
-ApplyResult applyQueue(Pairing& p, Notifs& n, const std::string& stateJson, int64_t now) {
+ApplyResult applyQueue(Pairing& p, Notifs& n, const std::string& stateJson, int64_t now, bool takeClip) {
   ApplyResult r;
   JsonDocument doc;
   if (deserializeJson(doc, stateJson)) return r;
@@ -246,6 +252,13 @@ ApplyResult applyQueue(Pairing& p, Notifs& n, const std::string& stateJson, int6
         n.sent.erase(it);
         break;
       }
+    } else if (t == "clip") {
+      const std::string text = str(m["text"], kMaxClipChars);
+      const int64_t ts = num(m["ts"]);
+      if (takeClip && !text.empty() && (now <= 0 || ts <= 0 || now - ts <= kClipMaxAge)) {
+        r.hasClip = true;
+        r.clip = text;
+      }
     } else if (t == "unpair") {
       r.unpaired = true;
       break;
@@ -281,6 +294,19 @@ std::string dismissEnvelope(Pairing& p, const std::vector<std::string>& keys) {
     a.add(k);
   }
   return push(p, d);
+}
+
+std::string clipEnvelope(Pairing& p, const std::string& text, int64_t now) {
+  std::string t = cut(text, kMaxClipChars);
+  while (!t.empty()) {
+    JsonDocument d;
+    d["t"] = "clip";
+    d["text"] = t;
+    d["ts"] = now;
+    if (measureJson(d) <= kMaxPlain) return push(p, d);
+    t = cut(t, charCount(t) * 3 / 4);  // escapes (quotes, line feeds) made it too long
+  }
+  return "";
 }
 
 std::string unpairEnvelope(Pairing& p) {

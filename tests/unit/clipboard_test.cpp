@@ -149,3 +149,38 @@ TEST_CASE("TextField: a one-line field turns line feeds into spaces, a multi-lin
   many.backspace();
   CHECK(many.text() == "one\ntw");
 }
+
+TEST_CASE("clipboard: the sync pushes copies but never what came from the phone; pull without a sync answers at once") {
+  TmpRoots t;
+  std::vector<std::string> pushed;
+  bool active = true;
+  clipboard::Sync s;
+  s.active = [&] { return active; };
+  s.push = [&](const std::string& text) { pushed.push_back(text); };
+  s.pull = [&](std::function<void(bool)> done) {
+    clipboard::set("from the phone", clipboard::kFromPhone);
+    done(true);
+  };
+  clipboard::setSync(s);
+  CHECK(clipboard::set("score", "somdoku"));
+  REQUIRE(pushed.size() == 1);
+  CHECK(pushed[0] == "score");
+  bool changed = false;
+  clipboard::pull([&](bool c) { changed = c; });
+  CHECK(changed);
+  CHECK(clipboard::get() == "from the phone");
+  CHECK(clipboard::source() == clipboard::kFromPhone);
+  CHECK(pushed.size() == 1);  // the phone's own text does not go back
+  active = false;  // unpaired or Settings switched it off
+  CHECK(clipboard::set("local", "field"));
+  CHECK(pushed.size() == 1);
+  bool called = false;
+  clipboard::pull([&](bool c) {
+    called = true;
+    changed = c;
+  });
+  CHECK(called);
+  CHECK_FALSE(changed);
+  clipboard::setSync({});
+  CHECK_FALSE(clipboard::syncing());
+}

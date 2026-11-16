@@ -9,6 +9,11 @@ namespace {
 
 const char* const kPath = "/data/clipboard.txt";
 
+Sync& sync() {
+  static Sync s;
+  return s;
+}
+
 // Length of the valid UTF-8 sequence that starts at s[i], 0 if there is none (stray continuation byte, overlong form, surrogate,
 // beyond U+10FFFF, cut off at the end).
 size_t sequenceAt(const std::string& s, size_t i) {
@@ -84,7 +89,20 @@ bool set(const std::string& text, const std::string& src) {
     if (static_cast<unsigned char>(c) > 0x20 && c != 0x7F && who.size() < 32) who += c;
   const bool ok = fs::writeFile(kPath, who + "\n" + t);
   POS_LOG("clip", "%s: %u bytes from '%s'", ok ? "set" : "write failed", static_cast<unsigned>(t.size()), who.c_str());  // never the text
+  if (ok && who != kFromPhone && syncing() && sync().push) sync().push(t);
   return ok;
+}
+
+void setSync(Sync s) { sync() = std::move(s); }
+
+bool syncing() { return sync().active && sync().active(); }
+
+void pull(std::function<void(bool)> done) {
+  if (!syncing() || !sync().pull) {
+    if (done) done(false);
+    return;
+  }
+  sync().pull(std::move(done));
 }
 
 std::string get() {

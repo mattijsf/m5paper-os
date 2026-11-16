@@ -38,6 +38,9 @@ struct HaConfig {
 struct LauncherConfig {
   bool resumeLastApp = true;
 };
+struct PhoneConfig {
+  bool shareClipboard = true;  // the clipboard goes to and comes from the paired phone (DECISIONS.md D23)
+};
 
 class Config {
  public:
@@ -49,6 +52,7 @@ class Config {
   ReaderConfig reader;
   HaConfig ha;
   LauncherConfig launcher;
+  PhoneConfig phone;
 
   // Reads the file; anything missing or invalid keeps its default. Returns true if a file was read.
   bool load();
