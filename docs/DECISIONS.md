@@ -308,12 +308,25 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   the platform's `>=6.2.0` check (a post release reads as older) and the platform uninstalled itself. Fix: `uv pip install --python
   ~/.platformio/penv/bin/python "platformio==6.2.0"`. (2) The rebuilt libraries replace the ones in the shared package
   `~/.platformio/packages/framework-arduinoespressif32-libs` (other projects on this machine using it get them too).
-- **120 MHz PSRAM (tried 2026-11-16, not in use)**: ESP-IDF 5.5 has MSPI timing tables for a 240 MHz core clock only with flash at
-  120 MHz, so 120 MHz octal PSRAM needs 120 MHz flash as well (80 MHz flash fails to compile in `mspi_timing_tuning_configs.h`).
-  Flash holds the firmware and `/data`; asked the user before going on. pioarduino also sets the PSRAM speed from the flash speed:
-  override with values (`CONFIG_SPIRAM_SPEED_80M=n`, `CONFIG_SPIRAM_SPEED=120`), a "# ... is not set" line is ignored.
-  Baseline at 80 MHz: `>set psram-test 60` = 661 passes over 2 MB, 0 errors, 51 MB/s write + read.
-- **Next candidates** (each measured before it stays): 120 MHz flash + PSRAM (see above, the user decides), dropping
+- **120 MHz flash and PSRAM (in use since 2026-11-16, the owner chose to try it)**: ESP-IDF 5.5 times 120 MHz octal PSRAM only with
+  120 MHz flash (no MSPI table for 80 MHz flash at a 240 MHz core clock). Set with `board_build.f_flash = 120000000L` (pioarduino
+  derives the PSRAM speed from it and enables experimental features and flash HPM) and `board_build.f_image = 80000000L` (the image
+  header: esptool takes no 120m for the ESP32-S3; ESP-IDF switches to 120 after boot). `CONFIG_SPIRAM_TIMING_TUNING_POINT_VIA_
+  TEMPERATURE_SENSOR` must stay off: on this chip its init returns ESP_ERR_NOT_SUPPORTED and the boot aborts.
+  - **Measured**: PSRAM 51 -> 64 MB/s (`>set psram-test`); page turn 199 -> 140 ms, screen change 306 -> 190 ms, small tap 6 -> 5 ms
+    (`tools/latency.py`; flash at 120 MHz also speeds code and fonts: render 26 -> 12 ms). Boot memory test passes.
+  - **Stability**: 20 min soak (8429 passes over 2 MB, ~34 GB checked, 512 KB flash chunks re-read and CRC-compared every pass)
+    and 10 min soak + a page turn every 2 s: 0 errors, no reboot; chip 29.4 C at boot, at most 34.4 C. Not covered: the ~20 C drift
+    ESP-IDF warns about. **Guard**: the firmware restarts (the boot tunes again) when the chip is more than 12 C from its boot
+    temperature and nobody touched it for 30 s (`loop()` in `platform/device/main.cpp`; tested with `>set temp-guard 1`). The boot
+    log and every heartbeat show the temperature.
+  - **Before the change** the whole flash was saved to `backup/before-120m-2026-11-16.bin` (git-ignored: holds /data). To go back:
+    remove `board_build.f_flash` and `board_build.f_image`, delete `sdkconfig.papers3`, build.
+  - **Pitfalls**: ESP-IDF keeps an existing `sdkconfig.papers3` and applies `sdkconfig.defaults` only to options it does not
+    decide: **delete `sdkconfig.papers3` after changing `custom_sdkconfig` or the board frequencies**. That regeneration also
+    wipes `.pio/build` while compile jobs run: build twice. pioarduino ignores a "# ... is not set" line in `custom_sdkconfig`;
+    write `CONFIG_X=n`.
+- **Next candidates** (each measured before it stays): dropping
   unused components (Bluetooth, ESP-SR, RainMaker are built today) for flash and RAM, FreeRTOS tick rate, `-O2` for ESP-IDF.
 
 ## D26. The word game is PaperOS's own (Vijfje), not a copy of woordle.nl (2026-11-16)

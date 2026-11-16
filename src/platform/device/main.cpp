@@ -8,8 +8,12 @@
 #include <SD.h>
 #include <esp_mac.h>
 #include <esp_pthread.h>
+#include <esp_ota_ops.h>
+#include <esp_partition.h>
+#include <esp_rom_crc.h>
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 
 #include "core/fs.h"
@@ -79,8 +83,18 @@ Loop gLoop(gOs, gPolicy);
 // pass then writes a pseudo-random pattern (xorshift, a new seed per pass) over 2 MB of PSRAM and reads it back, while the UI
 // keeps running (taps, waveforms). Every pass with errors is logged, and a summary at the end:
 // "[psram] test: 2048 KB x N passes in Ss, E words wrong, R MB/s".
+float gBootTempC = 0;  // on-chip temperature at boot: 120 MHz PSRAM/flash timing is tuned near this (D25)
+float gTempGuardC = 12.0f;  // drift from gBootTempC that restarts the board (loop(); ">set temp-guard N" to test)
+
 struct PsramSoak {
   static constexpr size_t kWords = 2 * 1024 * 1024 / 4;
+  // Flash reads too (120 MHz flash, D25): each pass reads the next 512 KB of the running app partition; the first read of a
+  // chunk sets its CRC, every later read must give the same.
+  static constexpr size_t kChunk = 512 * 1024, kChunks = 6;
+  uint32_t crc[kChunks] = {};
+  bool crcSet[kChunks] = {};
+  uint32_t flashErrors = 0;
+  float tStart = 0, tMin = 999, tMax = -999;  // chip temperature (on-chip sensor), D25: 120 MHz PSRAM is tuned at boot
   uint32_t* buf = nullptr;
   uint32_t until = 0, t0 = 0, passes = 0, errors = 0, busyMs = 0;
   uint64_t bytes = 0;
@@ -93,8 +107,11 @@ struct PsramSoak {
     }
     t0 = millis();
     until = t0 + seconds * 1000u;
-    passes = errors = busyMs = 0;
+    passes = errors = busyMs = flashErrors = 0;
     bytes = 0;
+    for (auto& c : crcSet) c = false;
+    tStart = temperatureRead();
+    tMin = tMax = tStart;
     POS_LOG("psram", "test: started for %us", static_cast<unsigned>(seconds));
   }
   void step() {
@@ -117,12 +134,32 @@ struct PsramSoak {
     ++passes;
     if (bad) POS_LOG("psram", "pass %u: %u words wrong", static_cast<unsigned>(passes), static_cast<unsigned>(bad));
     errors += bad;
+    if (passes % 8 == 0) {
+      const float t = temperatureRead();
+      tMin = std::min(tMin, t);
+      tMax = std::max(tMax, t);
+    }
+    if (const esp_partition_t* app = esp_ota_get_running_partition()) {
+      const size_t k = passes % kChunks;
+      if ((k + 1) * kChunk <= app->size && esp_partition_read(app, k * kChunk, buf, kChunk) == ESP_OK) {  // buf: reused
+        const uint32_t c = esp_rom_crc32_le(0, reinterpret_cast<const uint8_t*>(buf), kChunk);
+        if (!crcSet[k]) {
+          crc[k] = c;
+          crcSet[k] = true;
+        } else if (c != crc[k]) {
+          ++flashErrors;
+          POS_LOG("psram", "pass %u: flash chunk %u read differently", static_cast<unsigned>(passes), static_cast<unsigned>(k));
+        }
+      }
+    }
     if (static_cast<int32_t>(millis() - until) >= 0) {
       heap_caps_free(buf);
       buf = nullptr;
-      POS_LOG("psram", "test: 2048 KB x %u passes in %us, %u words wrong, %u MB/s (write + read)", static_cast<unsigned>(passes),
-              static_cast<unsigned>((millis() - t0) / 1000), static_cast<unsigned>(errors),
-              static_cast<unsigned>(busyMs ? bytes / 1000 / busyMs : 0));
+      POS_LOG("psram", "test: 2048 KB x %u passes in %us, %u words wrong, %u MB/s (write + read); flash re-reads: %u differed; "
+              "chip %.1f C at the start, %.1f..%.1f C, %.1f C at boot",
+              static_cast<unsigned>(passes), static_cast<unsigned>((millis() - t0) / 1000), static_cast<unsigned>(errors),
+              static_cast<unsigned>(busyMs ? bytes / 1000 / busyMs : 0), static_cast<unsigned>(flashErrors), tStart, tMin, tMax,
+              gBootTempC);
     }
   }
 };
@@ -217,6 +254,10 @@ class SerialRemoteHost : public RemoteHost {
     }
     if (key == "epd-timing") {
       gDisplay.setTiming(value == "on");
+      return true;
+    }
+    if (key == "temp-guard") {  // test aid: ">set temp-guard 1" makes the drift restart easy to trigger (D25)
+      gTempGuardC = static_cast<float>(atof(value.c_str()));
       return true;
     }
     if (key == "psram-test") {  // ">set psram-test 60": D25, a soak test for PSRAM speed settings
@@ -317,6 +358,8 @@ void setup() {
           (int)M5.Display.height(), (int)M5.Display.getRotation());
   POS_LOG("boot", "psram=%u free=%u flash=%u heap=%u", (unsigned)ESP.getPsramSize(), (unsigned)ESP.getFreePsram(),
           (unsigned)ESP.getFlashChipSize(), (unsigned)ESP.getFreeHeap());
+  gBootTempC = temperatureRead();
+  POS_LOG("boot", "chip temperature %.1f C (PSRAM and flash timing are tuned at boot)", gBootTempC);
   POS_LOG("boot", "battery=%dmV level=%d%% charging=%d", (int)M5.Power.getBatteryVoltage(),
           (int)M5.Power.getBatteryLevel(), (int)M5.Power.isCharging());
 
@@ -352,10 +395,21 @@ void loop() {
   static uint32_t lastBeat = 0;
   if (millis() - lastBeat > 5000) {
     lastBeat = millis();
-    POS_LOG("beat", "up=%us board=%d display=%dx%d psram=%u/%u heap=%u battery=%dmV %d%% charging=%d",
+    // D25: flash and PSRAM run at 120 MHz with timing tuned at boot; ESP-IDF warns that a drift of about 20 C from the boot
+    // temperature can make accesses fail. A drift of more than 12 C restarts the board (the boot tunes again) once nobody has
+    // touched it for 30 s and no PSRAM test runs. App state is saved as it changes, the panel keeps its image.
+    const float t = temperatureRead();
+    if (std::fabs(t - gBootTempC) > gTempGuardC && millis() - gOs.lastInputMs() > 30000 && !gSoak.buf) {
+      POS_LOG("boot", "chip at %.1f C, %.1f C at boot: restarting to tune the 120 MHz memory timing again", t, gBootTempC);
+      if (Surface* s = gOs.surface()) s->prepareForPowerOff();
+      M5.Display.waitDisplay();
+      Serial.flush();
+      esp_restart();
+    }
+    POS_LOG("beat", "up=%us board=%d display=%dx%d psram=%u/%u heap=%u battery=%dmV %d%% charging=%d temp=%.1fC",
             (unsigned)(millis() / 1000), (int)M5.getBoard(), (int)M5.Display.width(), (int)M5.Display.height(),
             (unsigned)ESP.getFreePsram(), (unsigned)ESP.getPsramSize(), (unsigned)ESP.getFreeHeap(),
-            (int)M5.Power.getBatteryVoltage(), (int)M5.Power.getBatteryLevel(), (int)M5.Power.isCharging());
+            (int)M5.Power.getBatteryVoltage(), (int)M5.Power.getBatteryLevel(), (int)M5.Power.isCharging(), temperatureRead());
     POS_LOG("sd", "ok=%d size=%uMB free=%uMB data=%d config keys(len): %s", (int)gStorage.sdOk,
             (unsigned)gStorage.sdTotalMb, (unsigned)gStorage.sdFreeMb, (int)gStorage.dataOk, gCfgKeys.c_str());
   }
