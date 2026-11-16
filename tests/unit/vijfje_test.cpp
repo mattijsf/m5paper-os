@@ -100,16 +100,17 @@ TEST_CASE("vijfje: one word a day, each answer once per round") {
 }
 
 TEST_CASE("vijfje: the shared score") {
-  // Name, number, tries; an empty line; a line of squares per guess; nothing after the last line.
+  // Name (the one constant), number, tries; an empty line; a line of squares per guess; nothing after the last line.
+  const std::string name = kName;
   CHECK(shareText(12, "boter", {"tenen", "motor", "boter"}) ==
-        "Vijfje 12 3/6\n"
+        name + " 12 3/6\n"
         "\n"
         "\xF0\x9F\x9F\xA8\xE2\xAC\x9B\xE2\xAC\x9B\xF0\x9F\x9F\xA9\xE2\xAC\x9B\n"
         "\xE2\xAC\x9B\xF0\x9F\x9F\xA9\xF0\x9F\x9F\xA9\xE2\xAC\x9B\xF0\x9F\x9F\xA9\n"
         "\xF0\x9F\x9F\xA9\xF0\x9F\x9F\xA9\xF0\x9F\x9F\xA9\xF0\x9F\x9F\xA9\xF0\x9F\x9F\xA9");
-  CHECK(shareText(1, "kamer", {"kamer"}) == "Vijfje 1 1/6\n\n\xF0\x9F\x9F\xA9\xF0\x9F\x9F\xA9\xF0\x9F\x9F\xA9\xF0\x9F\x9F\xA9\xF0\x9F\x9F\xA9");
+  CHECK(shareText(1, "kamer", {"kamer"}) == name + " 1 1/6\n\n\xF0\x9F\x9F\xA9\xF0\x9F\x9F\xA9\xF0\x9F\x9F\xA9\xF0\x9F\x9F\xA9\xF0\x9F\x9F\xA9");
   const std::string lost = shareText(7, "kamer", std::vector<std::string>(6, "blind"));
-  CHECK(lost.rfind("Vijfje 7 X/6\n\n", 0) == 0);
+  CHECK(lost.rfind(name + " 7 X/6\n\n", 0) == 0);
   CHECK(lost.back() != '\n');
   int lines = 0;
   for (char c : lost) lines += c == '\n';

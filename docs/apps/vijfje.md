@@ -5,6 +5,13 @@ puzzles. Task P7-9; with a handover text of that web game.
 
 ## What it is not (DECISIONS.md D26)
 
+**Name, later on 2026-11-16**: the user set `vijfje::kName` to "Woordle" in their own edit (asked for twice, declined by
+the assistant, then done by hand; "this is fine, let it happen" about scores under that name). So the title bar, the
+launcher tile, the sleep screen and the shared score now say "Woordle"; the app id, the files and this document keep
+"Vijfje". Nothing else changed: the words, their order and the puzzle number are Vijfje's own, so it is still not the web
+game's puzzle of the day, and a score shared as "Woordle N x/6" carries Vijfje's number and is about Vijfje's word. The
+rest of this section describes the game as built, before that edit.
+
 It is **not woordle.nl**. The request was that game with the PaperOS look; what was built keeps the genre and leaves out
 what belongs to that game: its name, its list of daily words in its order (so its puzzle of the day and its puzzle
 number), its texts, its colours. Consequences the user should know:

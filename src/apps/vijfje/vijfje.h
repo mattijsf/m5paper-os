@@ -15,7 +15,7 @@ namespace pos::vijfje {
 
 constexpr int kLen = 5;
 constexpr int kTries = 6;
-constexpr const char* kName = "Vijfje";  // the title, and the first word of a shared score
+constexpr const char* kName = "Woordle";  // the title, and the first word of a shared score
 
 // Marks of one letter of a guess. The characters are also what the store keeps.
 constexpr char kRight = 'c';   // right place
@@ -51,7 +51,7 @@ std::array<char, 26> keyMarks(const std::string& answer, const std::vector<std::
 bool solved(const std::string& answer, const std::vector<std::string>& guesses);
 bool finished(const std::string& answer, const std::vector<std::string>& guesses);
 
-// The score as text for a chat: "Vijfje 12 4/6", an empty line, one line of squares per guess (X/6 when not guessed).
+// The score as text for a chat: "<kName> 12 4/6", an empty line, one line of squares per guess (X/6 when not guessed).
 std::string shareText(int number, const std::string& answer, const std::vector<std::string>& guesses);
 
 // What was played so far. `streak` counts days won in a row and is only valid on `lastWonDay` and the day after.

@@ -700,4 +700,5 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-16: P7-9 Vijfje (D26): `apps/vijfje` (game logic, word lists + `tools/gen-vijfje-words.py`, game and statistics screens, score to the clipboard); 8 unit test cases, 13 new goldens, 9 launcher goldens with the pager bar. Simulator only.
 - 2026-11-16: P7-9 Vijfje fetches more accepted guesses weekly from woordscore.nl (second part of the list only), cached for offline use; 3 unit test cases, `vijfje-list.script` with a fixture, live fetch checked in the simulator (5616 words).
 - 2026-11-16: simulator: the Fast pass is the panel driver's ordered dither instead of a 50 % threshold (grays show as dots at once, as the driver writes them); 55 goldens that show a Fast image changed. Vijfje: backspace one push (ink frame for empty tiles), used-up keys gray(10).
+- 2026-11-16: Vijfje: `kName` set to "Woordle" by the user (own edit); the share text unit test follows the constant, 15 goldens with the title or the tile regenerated; launcher tile label from `kName`.
 
