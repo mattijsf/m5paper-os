@@ -66,6 +66,10 @@ class Os {
   // parameters and the time zone. Call before creating the Surface.
   void loadConfig();
   Config& config() { return config_; }
+  // Writes config.json about a second after the last call (a flash write is 25-50 ms: a tap on a stepper shows first).
+  // flushConfig() writes a pending change now (before power-off).
+  void saveConfigSoon();
+  void flushConfig();
   NetService& net() { return net_; }
   // Plain-text status for the >status command: key names and lengths (never values), Wi-Fi, memory.
   std::string statusText();
@@ -99,6 +103,7 @@ class Os {
   std::unique_ptr<Surface> surface_;
   GestureRecognizer gestures_;
   uint32_t lastInputMs_ = 0;
+  bool configDirty_ = false, configTimer_ = false;
   // Tap-to-panel trace ("[lat]" log line, DISPLAY.md "Tap latency"): the touch event (Down or Up) that led to the
   // gestures of this pass, and when they were dispatched. 0 = nothing to report.
   uint32_t latEventMs_ = 0, latGestureMs_ = 0;

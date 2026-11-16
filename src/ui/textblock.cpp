@@ -1,5 +1,7 @@
 #include "ui/textblock.h"
 
+#include <cstring>
+
 #include <algorithm>
 
 #include "ui/root.h"
@@ -309,12 +311,14 @@ void TextBlock::setParagraphs(std::vector<Paragraph> paras) {
   paras_ = std::move(paras);
   pos_ = TextPos{0, 0};
   startsValid_ = pageValid_ = false;
+  ++gen_;
   invalidate(Hint::Screen);
 }
 
 void TextBlock::setStyle(const TextStyle& s) {
   style_ = s;
   startsValid_ = pageValid_ = false;
+  ++gen_;
   invalidate(Hint::Screen);
 }
 
@@ -324,6 +328,7 @@ void TextBlock::setInsets(int l, int t, int r, int b) {
   padR_ = r;
   padB_ = b;
   startsValid_ = pageValid_ = false;
+  ++gen_;
 }
 
 void TextBlock::layout() {
@@ -332,6 +337,7 @@ void TextBlock::layout() {
     style_.width = w;
     style_.height = h;
     startsValid_ = pageValid_ = false;
+    ++gen_;
   }
   if (onLayout) onLayout();
 }
@@ -355,6 +361,7 @@ void TextBlock::setPageStarts(std::vector<TextPos> starts) {
   if (starts_.empty()) starts_.push_back(TextPos{0, 0});
   startsValid_ = true;
   pageValid_ = false;
+  ++gen_;
 }
 
 void TextBlock::setChapter(std::vector<Paragraph> paras, std::vector<TextPos> starts, TextPos pos) {
@@ -362,6 +369,7 @@ void TextBlock::setChapter(std::vector<Paragraph> paras, std::vector<TextPos> st
   starts_ = std::move(starts);
   if (starts_.empty()) starts_.push_back(TextPos{0, 0});
   startsValid_ = true;
+  ++gen_;
   pos_ = starts_[pageIndexOf(starts_, pos)];
   pageValid_ = false;
   invalidate(pageHint);
@@ -433,16 +441,76 @@ bool TextBlock::onTouch(const Gesture& g) {
   return true;
 }
 
-void TextBlock::draw(Canvas& c) {
-  const Page& pg = page();
+bool TextBlock::preUsable() {
+  return pre_ && preValid_ && preGen_ == gen_ && preFrame_.x == frame.x && preFrame_.y == frame.y && preFrame_.w == frame.w &&
+         preFrame_.h == frame.h && preBg_ == bg();
+}
+
+bool TextBlock::prefetched(TextPos pos) { return preUsable() && prePos_ == pos; }
+
+void TextBlock::prefetch(TextPos pos) {
+  Canvas* c = canvas();
+  if (!c || frame.w <= 0 || frame.h <= 0) return;
+  const auto& s = pageStarts();
+  pos = s[pageIndexOf(s, pos)];
+  if (prefetched(pos)) return;
+  if (pre_ && (pre_->width() != frame.w || pre_->height() != frame.h)) pre_.reset();
+  if (!pre_) {
+    pre_.reset(new Canvas());
+    pre_->setColorDepth(lgfx::color_depth_t::grayscale_8bit);
+    pre_->setPsram(true);
+    if (!pre_->createSprite(frame.w, frame.h)) {
+      pre_->setPsram(false);
+      if (!pre_->createSprite(frame.w, frame.h)) {
+        pre_.reset();
+        return;
+      }
+    }
+  }
+  pre_->fillScreen(bg());
+  CanvasMetrics m(*c);
+  const Page pg = layoutPage(paras_, pos, style_, m);
+  drawPage(*pre_, pg, -frame.x, -frame.y);
+  prePos_ = pos;
+  preGen_ = gen_;
+  preFrame_ = frame;
+  preBg_ = bg();
+  preValid_ = true;
+}
+
+void TextBlock::drawPage(Canvas& c, const Page& pg, int ox, int oy) {
   for (const Line& line : pg.lines) {
     for (const Seg& seg : line.segs) {
       bool fake;
       const Type face = CanvasMetrics::faceFor(seg.type, seg.bold, seg.italic, fake);
-      drawText(c, seg.text, frame.x + padL_ + seg.x, frame.y + padT_ + line.y, face, ink, Anchor::TopLeft, bg());
-      if (fake) drawText(c, seg.text, frame.x + padL_ + seg.x + 1, frame.y + padT_ + line.y, face, ink, Anchor::TopLeft, ink);  // 2nd strike: no background fill
+      const int x = ox + frame.x + padL_ + seg.x, y = oy + frame.y + padT_ + line.y;
+      drawText(c, seg.text, x, y, face, ink, Anchor::TopLeft, bg());
+      if (fake) drawText(c, seg.text, x + 1, y, face, ink, Anchor::TopLeft, ink);  // 2nd strike: no background fill
     }
   }
+}
+
+void TextBlock::draw(Canvas& c) {
+  if (prefetched(pos_)) {
+    // The page was drawn ahead of time: copy the part of it inside the clip.
+    int32_t cx, cy, cw, ch;
+    c.getClipRect(&cx, &cy, &cw, &ch);
+    const int x0 = std::max<int>(frame.x, cx), x1 = std::min<int>(frame.x + frame.w, cx + cw);
+    const int y0 = std::max<int>(frame.y, cy), y1 = std::min<int>(frame.y + frame.h, cy + ch);
+    auto* dst = static_cast<uint8_t*>(c.getBuffer());
+    const auto* src = static_cast<const uint8_t*>(pre_->getBuffer());
+    if (dst && src && c.getColorDepth() == lgfx::color_depth_t::grayscale_8bit) {
+      for (int y = y0; y < y1 && x1 > x0; ++y)
+        std::memcpy(dst + y * c.width() + x0, src + (y - frame.y) * frame.w + (x0 - frame.x), static_cast<size_t>(x1 - x0));
+      return;
+    }
+  }
+  int32_t cx, cy, cw, ch;
+  c.getClipRect(&cx, &cy, &cw, &ch);
+  const int x0 = std::max<int>(frame.x, cx), x1 = std::min<int>(frame.x + frame.w, cx + cw);
+  const int y0 = std::max<int>(frame.y, cy), y1 = std::min<int>(frame.y + frame.h, cy + ch);
+  if (x1 > x0 && y1 > y0) c.fillRect(x0, y0, x1 - x0, y1 - y0, bg());  // what Root would have done (transparent = true)
+  drawPage(c, page(), 0, 0);
 }
 
 }  // namespace pos::ui

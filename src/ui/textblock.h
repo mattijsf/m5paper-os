@@ -8,6 +8,7 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -103,6 +104,8 @@ std::vector<Paragraph> parseMarked(const std::string& text);
 // Widget: shows one page at a time.
 class TextBlock : public Widget {
  public:
+  // Clears its own frame in draw(): a prefetched page is copied over it, so Root's fill would be wasted (~15 ms).
+  TextBlock() { transparent = true; }
   void setParagraphs(std::vector<Paragraph> paras);
   void setStyle(const TextStyle& s);  // width/height are taken from the frame (minus the insets) at layout time
   // Space between the frame and the text; touches still reach the widget there (the reader turns pages by zones).
@@ -127,6 +130,10 @@ class TextBlock : public Widget {
   std::function<void()> onLayout;           // after the frame (so the page size) is known: update "Page 1 of N" here
   std::function<void(int)> onPageChange;  // called with the new page index after a turn by touch
   Hint pageHint = Hint::Content;           // how a new page is drawn; the reader uses Hint::Page (no settle pass)
+  // Draws the page containing `pos` into a spare canvas now (call while the reader reads: ~90 ms on the device). When that
+  // page is shown next, its rows are copied instead of laid out and drawn. Any change of text, style or frame drops it.
+  void prefetch(TextPos pos);
+  bool prefetched(TextPos pos);  // tests
   bool onTouch(const Gesture& g) override;  // tap on the left third = back, elsewhere = forward; horizontal swipes
   Size measure(int availW) override { return {availW, 0}; }
   void layout() override;
@@ -142,6 +149,14 @@ class TextBlock : public Widget {
   bool startsValid_ = false;
   Page page_;
   bool pageValid_ = false;
+  void drawPage(Canvas& c, const Page& pg, int ox, int oy);
+  bool preUsable();
+  std::unique_ptr<Canvas> pre_;
+  TextPos prePos_;
+  bool preValid_ = false;
+  uint32_t gen_ = 0, preGen_ = 0;  // gen_ changes with everything that changes how a page looks
+  Rect preFrame_;
+  Color preBg_ = 0;
 };
 
 }  // namespace pos::ui

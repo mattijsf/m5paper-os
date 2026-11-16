@@ -67,6 +67,7 @@ class PageView : public ui::TextBlock {
   }
   void draw(Canvas& c) override {
     if (!message_.empty()) {
+      c.fillRect(frame.x, frame.y, frame.w, frame.h, bg());  // TextBlock is transparent: it clears its own frame
       ui::drawText(c, message_, frame.x + frame.w / 2, frame.y + frame.h / 2, Type::Body, ui::ink, ui::Anchor::MiddleCenter, bg());
       return;
     }
@@ -287,6 +288,7 @@ class PageScreen : public Screen {
       cur_ = idx;
       view_->goTo(ref.pos);
       updateFooter();
+      schedulePrefetch();
       return;
     }
     loading_ = true;
@@ -309,6 +311,7 @@ class PageScreen : public Screen {
           view_->setMessage("");
           view_->setChapter(std::move(paras), std::move(starts), pages_[idx].pos);
           updateFooter();
+          schedulePrefetch();
         });
   }
 
@@ -357,6 +360,16 @@ class PageScreen : public Screen {
   void turnTo(int idx) {
     showPage(idx);
     if (++turns_ % 5 == 0) saveProgress();
+  }
+
+  // While the page is being read, draw the next one ahead (DISPLAY.md "Tap latency": the next turn copies it in instead
+  // of ~90 ms of layout and drawing). 600 ms after a page shows: the turn's Fast waveform is done by then.
+  void schedulePrefetch() {
+    const int me = cur_;
+    ctx().timer(600, [this, me] {
+      if (cur_ != me || loading_ || state_ != State::Ready) return;
+      if (me + 1 < static_cast<int>(pages_.size()) && pages_[me + 1].chapter == loadedChapter_) view_->prefetch(pages_[me + 1].pos);
+    });
   }
 
   // The menu: a sheet over the page (docs/apps/reader.md "Page"). Text size, go to (by 10% and by page), contents, clean screen.

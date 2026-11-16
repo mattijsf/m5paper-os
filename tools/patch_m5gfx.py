@@ -42,6 +42,18 @@ WRITE_IMAGE_NEW = """  void Panel_EPD::writeImage(uint_fast16_t x, uint_fast16_t
         const int pw = _cfg.panel_width;
         const int stride = (pw + 1) >> 1;
         const bool fast = _epd_mode == epd_mode_t::epd_fast || _epd_mode == epd_mode_t::epd_fastest;
+        // Quantisation by table: qlut[bayer << 8 | value], the stock formulas of _draw_pixels for this mode (4 KB).
+        static uint8_t* qlut = nullptr;
+        static int qlut_fast = -1;
+        if (!qlut) qlut = (uint8_t*)heap_caps_malloc(16 * 256, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        if (!qlut) { goto stock; }
+        if (qlut_fast != (int)fast)
+        {
+          for (int bv = 0; bv < 16; ++bv)
+            for (int v = 0; v < 256; ++v)
+              qlut[bv << 8 | v] = fast ? ((v + (bv << 4)) < 248 ? 0 : 0xF) : (uint8_t)std::min(15, std::max(0, (v + bv - 8) >> 4));
+          qlut_fast = fast;
+        }
         const auto sx = param->src_x32;
         const auto sy0 = param->src_y;
         bool ok = true;
@@ -75,14 +87,15 @@ WRITE_IMAGE_NEW = """  void Panel_EPD::writeImage(uint_fast16_t x, uint_fast16_t
             if (flipy) { py = _cfg.panel_height - 1 - py; }
             const int lo = flipx ? px - (nb - 1) : px;  // leftmost panel x of the run
             const uint8_t* bay = &Bayer[(py & 3) << 2];
+            const uint8_t* lq[4] = { &qlut[bay[0] << 8], &qlut[bay[1] << 8], &qlut[bay[2] << 8], &qlut[bay[3] << 8] };
             uint8_t q[B + 1];
-            for (int k = 0; k < nb; ++k)  // k: left to right on the panel
+            if (flipx)
             {
-              const int b = flipx ? (nb - 1 - k) : k;
-              const int qx = lo + k;
-              const int bv = bay[qx & 3];
-              const int v = blk[b * w + i].get();
-              q[k] = fast ? ((v + (bv << 4)) < 248 ? 0 : 0xF) : (uint8_t)std::min(15, std::max(0, (v + bv - 8) >> 4));
+              for (int k = 0; k < nb; ++k) { q[k] = lq[(lo + k) & 3][blk[(nb - 1 - k) * w + i].get()]; }
+            }
+            else
+            {
+              for (int k = 0; k < nb; ++k) { q[k] = lq[(lo + k) & 3][blk[k * w + i].get()]; }
             }
             uint8_t* row = _buf + py * stride;
             int k = 0;
@@ -95,6 +108,7 @@ WRITE_IMAGE_NEW = """  void Panel_EPD::writeImage(uint_fast16_t x, uint_fast16_t
         if (ok) { return; }
       }
     }
+    stock:
 """
 PATCHES.append(("src/lgfx/v1/platforms/esp32/Panel_EPD.inl", WRITE_IMAGE_OLD, WRITE_IMAGE_NEW, "PAPEROS PATCH 1"))
 

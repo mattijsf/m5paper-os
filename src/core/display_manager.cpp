@@ -199,6 +199,8 @@ void DisplayManager::pushPass(Rect r, Hint hint) {
   uint32_t grayArea = 0;
   const uint32_t t0 = clock_.millis();
   const bool wantGray = hint == Hint::Screen && params_.grayAreaMin > 0 && score_ < params_.ghostLimit;
+  // Page too: skipping this diff (~25 ms) was tried, but a page turned under the open menu sheet then pushed the sheet's
+  // unchanged gray text again in Fast mode, black/white on the panel (golden menu-goto-60, 2026-11-16).
   Rect box = diff(r, changed, bw, hint == Hint::Feedback, wantGray ? &grayArea : nullptr);
   if (box.empty()) return;
   const uint32_t now = clock_.millis();

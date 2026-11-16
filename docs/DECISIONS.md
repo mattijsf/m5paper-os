@@ -280,3 +280,19 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
 - **Rejected**: reading the phone's clipboard in the background (Android does not allow it; an accessibility service or a keyboard
   app would, and both are far more access than this is worth); a "Send to phone" button instead of sending every copy (the owner asked
   for sync; a copy is already a deliberate act on the Paper).
+
+## D24. M5GFX is patched at build time where it is slow; pixels stay identical
+
+- **Why**: measured on the device (DISPLAY.md "Tap latency"), two M5GFX paths dominated the time from a tap to the panel driver
+  having the update: the per-pixel glyph drawing of BFF fonts (malloc + decode + a 1x1 fill per pixel) and the frame buffer write
+  of a rotated panel (one 4-bit read-modify-write per pixel, column-wise through PSRAM).
+- **Decision**: (1) the glyph path is replaced in our own code (`ui/text.cpp` "Fast text path"): glyphs are rasterised once by
+  LovyanGFX itself and cached; `tests/unit/text_fast_test.cpp` requires byte-identical output to LovyanGFX. (2) Driver changes are
+  applied by `tools/patch_m5gfx.py`, a PlatformIO pre-build script for the device that edits `.pio/libdeps/papers3/M5GFX`
+  (idempotent; it fails the build when the library text is not what the patch was written for). Patch 1: tiled, table-driven
+  frame buffer write for a rotated panel. Patch 2: the update task skips rows whose waveform finished. `>set epd-selftest on`
+  compares patch 1 with the stock code on the device (identical in Fast and Quality, 2026-11-16).
+- **Rejected**: vendoring M5GFX (150 MB, mostly fonts); a private-member hack (`#define private public`); our own panel driver (D2).
+- **Not done (needs the owner's go)**: ESP-IDF settings (64 KB data cache with 64-byte lines, 120 MHz octal PSRAM, experimental)
+  need pioarduino's `custom_sdkconfig`, which rebuilds the Arduino core from source.
+

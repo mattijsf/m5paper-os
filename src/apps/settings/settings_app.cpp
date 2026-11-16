@@ -39,7 +39,7 @@ std::string kbText(uint32_t b) {
 class Page : public Screen {
  protected:
   Config& cfg() { return ctx().os().config(); }
-  void save() { cfg().save(); }
+  void save() { ctx().os().saveConfigSoon(); }  // written ~1 s later (and before power-off): the tap redraws first
   static ui::Label* caption(ui::Column& root, const std::string& text) {
     root.add<ui::Spacer>(ui::s2);
     auto* l = root.add<ui::Label>(text, Type::Caption, ui::secondary);

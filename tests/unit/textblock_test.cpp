@@ -1,5 +1,7 @@
+#include <cstring>
 #include <doctest.h>
 
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -369,4 +371,47 @@ TEST_CASE("soft breaks: no first-line indent and no gap, in parseMarked and in t
   CHECK(pg.lines[3].y - pg.lines[2].y == pitch + st.paragraphGap);  // the gap comes only before a new paragraph
   CHECK(pg.lines[1].segs[0].x == 0);                     // no indent on a continued line
   CHECK(pg.lines[3].segs[0].x == st.indent);             // a real paragraph after body text is indented
+}
+
+TEST_CASE("TextBlock prefetch: a page drawn ahead is copied in, pixel for pixel what drawing it gives; changes drop it") {
+  auto setup = [](Canvas& canvas, DisplayManager*& dmOut, Root*& rootOut, TextBlock*& tbOut, FakeDisplay& display, FakeClock& clock) {
+    canvas.setColorDepth(lgfx::color_depth_t::grayscale_8bit);
+    canvas.createSprite(kScreenW, kScreenH);
+    canvas.fillScreen(kWhite);
+    dmOut = new DisplayManager(display, canvas, clock);
+    rootOut = new Root(canvas, *dmOut);
+    auto col = std::make_unique<Column>();
+    tbOut = col->add<TextBlock>();
+    tbOut->flex = 1;
+    tbOut->setInsets(40, 54, 40, 0);
+    rootOut->setRoot(std::move(col));
+    tbOut->setParagraphs(makeText(150, 21, true));
+    rootOut->render(canvas, *dmOut);
+  };
+  FakeDisplay d1, d2;
+  FakeClock c1, c2;
+  Canvas a, b;
+  DisplayManager *dmA, *dmB;
+  Root *rA, *rB;
+  TextBlock *tA, *tB;
+  setup(a, dmA, rA, tA, d1, c1);
+  setup(b, dmB, rB, tB, d2, c2);
+  const TextPos third = tA->pageStarts()[2];
+
+  tA->prefetch(third);  // A: drawn ahead, then shown
+  CHECK(tA->prefetched(third));
+  tA->goTo(third);
+  rA->render(a, *dmA);
+  tB->goTo(third);  // B: drawn the usual way
+  rB->render(b, *dmB);
+  CHECK(std::memcmp(a.getBuffer(), b.getBuffer(), static_cast<size_t>(kScreenW) * kScreenH) == 0);
+
+  TextStyle big = tA->style();
+  big.body = Type::ReadL;
+  tA->setStyle(big);
+  CHECK_FALSE(tA->prefetched(third));  // a style change drops it
+  delete rA;
+  delete rB;
+  delete dmA;
+  delete dmB;
 }

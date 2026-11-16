@@ -166,6 +166,42 @@ Remaining cost of a screen change: Up (60-150 ms) + render 57 + diff 25 + push c
 (~400 ms for a 492 x 824 area; fixed by the panel). Further savings would need a smaller changed area or a
 cheaper layout pass, not different scheduling.
 
+## Tap latency (2026-11-16)
+
+Measured with `tools/latency.py` (injected taps, the firmware's `[lat]` line per tap: event -> gesture -> render -> commit, with
+the diff and push-call times of the push) and `tools/cam.py around` (when the panel changes). Medians, finger up to the update
+handed to the panel driver; the waveform follows (Fast ~0.13-0.17 s visible).
+
+| Tap | before | after | what changed |
+|---|---|---|---|
+| reader page turn | 516 ms | **199 ms** (176 ms when the next page was prefetched) | fast text, M5GFX patch 1, prefetch, `Hint::Page` |
+| open a screen (Settings row) | 807 ms (246 idle) | **408 ms** (280 idle) | fast text, M5GFX patches |
+| small control (stepper) | 52 ms | **7 ms** | config written 1 s later, not on the tap |
+
+On the panel (camera, page turn): first change 0.53 s -> **0.38 s** after the tap, turn finished 0.67 s -> **0.55 s** (both include
+the camera's own ~0.2 s delay; at the start of the day, with the settle sweep, the turn ended at 1.6 s).
+
+Where the time went and what was done:
+- **Text drawing** (`ui/text.cpp` "Fast text path"): LovyanGFX decoded every BFF glyph with a malloc and wrote each pixel as a
+  1x1 fill: 10-20 ms per reader line, 155-361 ms per page. Glyphs are now rasterised once by LovyanGFX on a scratch canvas (exact:
+  the 16 alpha levels come back from black-on-white; the true glyph box from `drawChar` with the background fill turned off) and
+  blended straight into the 8-bit canvas with LovyanGFX's own positioning, fill and integer blend. Byte-identical
+  (`tests/unit/text_fast_test.cpp`, every font, anchor, colour pair, clipping, icons, the fake-bold strike over overlapping
+  glyphs). Page render 362 -> ~100 ms, screen render 121 -> 60 ms.
+- **Frame buffer write** (M5GFX patch 1, `tools/patch_m5gfx.py`, D24): our portrait UI on the landscape panel made M5GFX write
+  one 4-bit pixel per PSRAM byte, column-wise; while a waveform ran (the update task streams ~1 MB of PSRAM per frame) a page push
+  took 450-530 ms. Now 32 source rows per tile, quantised by table (Bayer and formulas unchanged) and written as whole bytes:
+  page push ~87 ms, also while a waveform runs. Identical frame buffer (`>set epd-selftest on`).
+- **Update task** (M5GFX patch 2): rows whose waveform finished get a zero line without reading the step buffer.
+- **Prefetch** (`TextBlock::prefetch`, reader): 600 ms after a page shows, the next page is drawn into a spare canvas; the turn
+  copies it in. **Skipping the diff for pages was tried and reverted**: a page turned under the open menu sheet then re-pushed the
+  sheet's unchanged gray text in Fast mode.
+- **Config writes**: Settings write `config.json` about a second after the last change (`Os::saveConfigSoon`; flushed before
+  power-off); a flash write on the tap cost 25-50 ms before the redraw.
+- **What remains**: a second screen change within ~1.5 s of the previous one meets that screen's settle waveform still running,
+  and everything that touches PSRAM (diff, push) then runs about twice as slow (408 vs 280 ms). The next lever is ESP-IDF's cache
+  and PSRAM settings (D24 "Not done") and fewer full-screen settle passes.
+
 ## Rules for UI code (enforced in review, see UI.md)
 
 1. **No animation, no scrolling.** Lists paginate. Progress is a static label.

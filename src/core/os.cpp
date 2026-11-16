@@ -176,6 +176,22 @@ uint32_t Os::msToNextDeadline() {
   return best;
 }
 
+void Os::saveConfigSoon() {
+  configDirty_ = true;
+  if (configTimer_) return;
+  configTimer_ = true;
+  timers_.after(1000, [this] {
+    configTimer_ = false;
+    flushConfig();
+  });
+}
+
+void Os::flushConfig() {
+  if (!configDirty_) return;
+  configDirty_ = false;
+  config_.save();
+}
+
 uint32_t Os::idleWaitMs() {
   constexpr uint32_t kMaxIdleMs = 1000;
   if (dm_.dirty() || worker_.hasCompleted() || (surface_ && surface_->dirty())) return 0;

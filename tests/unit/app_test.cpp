@@ -552,6 +552,13 @@ TEST_CASE("settings: changing the ghost limit and settle delay applies at once a
   env.tapAt(seg->frame.x + seg->frame.w - 20, seg->frame.y + 20);                // "1000 ms"
   CHECK(env.os.displayManager().params().settleMs == 1000);
 
+  // saved about a second after the last change (Os::saveConfigSoon), not on the tap itself (a flash write delays the redraw)
+  {
+    Config before;
+    before.load();
+    CHECK(before.display.settleMs != 1000);
+  }
+  env.os.flushConfig();  // what the timer (or a power-off) does
   // a fresh Config (a restart) reads the saved values
   Config again;
   REQUIRE(again.load());

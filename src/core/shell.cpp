@@ -253,6 +253,7 @@ void Shell::runDeferred() {
 
 void Shell::prepareForPowerOff() {
   if (sleeping_) return;
+  os_.flushConfig();  // a setting changed in the last second (Os::saveConfigSoon)
   // Remember what was open (the next boot resumes it), ask the app what the sleep screen should show, then leave the app so it
   // saves its state, and leave the sleep screen on the panel.
   Store sys("/data/system.json");
