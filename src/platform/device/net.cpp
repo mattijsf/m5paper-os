@@ -23,8 +23,27 @@ bool parseBssid(const std::string& s, uint8_t out[6]) {
 }
 
 // One kept-alive connection: the TLS handshake (about 1.5 s, 45 KB) is paid once per refresh.
-NetworkClientSecure gSecure;
-NetworkClient gPlain;
+// Arduino's HTTPClient reads a body of known length in a loop that only calls delay(0) (which never lets the lower-priority
+// IDLE task run) around NetworkClient::readBytes(), and that returns at once with 0 bytes when the TLS client's read() says
+// "no data yet" (-1). On the worker (core 0, priority 1) a slow server kept that loop spinning for > 5 s: IDLE0 never ran and
+// the task watchdog rebooted the board (2026-11-16, Woordle's word list; backtrace through writeToStreamDataBlock). These
+// clients sleep 1 ms whenever a read asked for data and got none, so the loop waits instead of spinning.
+template <class Base>
+class YieldingClient : public Base {
+ public:
+  int read() override {
+    const int c = Base::read();
+    if (c < 0) delay(1);
+    return c;
+  }
+  int read(uint8_t* buf, size_t size) override {
+    const int r = Base::read(buf, size);
+    if (size > 0 && r <= 0) delay(1);
+    return r;
+  }
+};
+YieldingClient<NetworkClientSecure> gSecure;
+YieldingClient<NetworkClient> gPlain;
 HTTPClient gHttp;
 
 }  // namespace

@@ -400,7 +400,8 @@ void setup() {
   pcfg.stack_size = 16 * 1024;
   pcfg.thread_name = "worker";
   // The UI loop (Arduino loopTask, priority 1) runs on core 1: the worker must never take its core, or a long job (indexing a
-  // book: 7-17 s) freezes the UI. Core 0 and the lowest priority.
+  // book: 7-17 s) freezes the UI. Core 0 and the lowest priority esp_pthread accepts (1; 0 is rejected and then the whole
+  // config, core and stack included, would be ignored).
   pcfg.prio = 1;
   pcfg.pin_to_core = 0;
   esp_pthread_set_cfg(&pcfg);

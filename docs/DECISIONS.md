@@ -366,6 +366,12 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   Tap latency unchanged (page turn 110 ms, screen change 148 ms, small tap 5 ms), EPD self-test identical, upload over USB works.
 - **Rule for code**: nothing to do per allocation; but a task that writes flash (the worker, the UI loop) keeps its stack in
   internal RAM (ESP-IDF: the cache is off during flash writes), and large fixed buffers should be heap blocks, not static arrays.
+- **Found while measuring (fixed, 2026-11-16)**: an HTTPS download on the worker could reboot the board. Arduino's HTTPClient
+  loops with `delay(0)` around `NetworkClient::readBytes()`, which returns 0 bytes at once while the TLS client has no data
+  yet; `delay(0)` never lets the lower-priority IDLE0 run, so after 5 s the task watchdog fired (Woordle's word list fetch,
+  backtrace through `writeToStreamDataBlock`). `platform/device/net.cpp` wraps the clients so a read that got nothing sleeps
+  1 ms. Woordle's fetch then: 5616 words, internal lowest 70K. (The worker's priority cannot be 0: `esp_pthread_set_cfg`
+  rejects it and would drop the whole config, core and stack included.)
 - **Left**: Bluetooth is linked but never started (small gain, risk to the core build); Wi-Fi buffer counts; the reader's
   prefetch canvas costs 486 KB of PSRAM (of ~5.5 MB free).
 
