@@ -16,6 +16,9 @@
 
 namespace pos {
 
+// A swipe up that starts this close to the bottom edge cleans the whole screen (Shell::onGesture).
+constexpr int kCleanEdgeH = 60;
+
 class Shell : public Surface {
  public:
   explicit Shell(Os& os);

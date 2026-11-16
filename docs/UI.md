@@ -234,8 +234,11 @@ UI script `textfield-phone`.
 | Swipe left / right / up / down | moved more than 80 px along one axis, within 800 ms |
 
 On `Down`, the widget under the finger shows its pressed state with `Hint::Feedback`. The action
-fires on `Up` inside the widget. Swipes are used only for paging (left/right) and for the quick
-panel (swipe down from the status bar: Wi-Fi toggle, sleep, power off).
+fires on `Up` inside the widget. Swipes are used only for paging (left/right), for the quick
+panel (swipe down from the status bar: Wi-Fi toggle, sleep, power off) and for the **clean gesture**:
+a swipe up that starts in the bottom 60 px (`kCleanEdgeH`) cleans the whole screen with one Quality pass, on every
+screen including full-screen reader pages (`Shell::onGesture`, 2026-11-16, chosen by the user). The side button cannot do
+this: the firmware cannot read it (HARDWARE.md). No app may use a swipe up from the bottom edge.
 
 ## Patterns
 

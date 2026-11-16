@@ -266,6 +266,13 @@ void Shell::onGesture(const Gesture& g) {
     runDeferred();
     return;
   }
+  // A swipe up that started at the bottom edge cleans the whole screen (one Quality pass), on every screen, full-screen
+  // reader pages included: "wipe the panel". The side button cannot do it: the firmware cannot read it (HARDWARE.md).
+  if (g.type == Gesture::SwipeUp && g.startY >= kScreenH - kCleanEdgeH && !sleeping_) {
+    POS_LOG("shell", "clean (swipe up from the bottom edge)");
+    os_.displayManager().forceClean();
+    return;
+  }
   root_.onGesture(g);
   runDeferred();
 }

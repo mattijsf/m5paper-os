@@ -644,3 +644,4 @@ None of these block Phase 1, Phase 2, or the reader.
   35 JVM tests. Not on the phone or device yet.
 - 2026-11-16: P7-7 reader ghosting with the camera (1/10/30 turns at M, 10 turns at S/L/XL, one page turn timed); finding: no automatic clean while reading; `device.py` fails fast after the first answer.
 - 2026-11-16: reader page turns as `Hint::Page` (no settle sweep, Quality clean every 10th page, `display.pageCleanEvery`); Page commits before Content; 23 reader goldens now show the black/white page; waits lengthened in `library` and `reader-menu` scripts (footer settle); flashed and measured with the camera.
+- 2026-11-16: clean gesture: swipe up from the bottom 60 px = one full-screen Quality pass on every screen (`Shell::onGesture`, `kCleanEdgeH`); unit test; on the device with the camera.

@@ -115,6 +115,8 @@ can be tuned on the device without rebuilding (task P7-1).
 - Screen at or over `ghostLimit`: Quality over the whole screen, drops pending settles.
   Image: Quality on the changed box only, does not touch the score.
 - Idle clean (`score >= 2 x ghostLimit`, 2 s without a push): `tick()` runs `forceClean()`.
+- Clean on demand: a swipe up from the bottom edge (UI.md "Gestures") runs `forceClean()` (`why=clean`). On the device
+  (2026-11-16, camera): one Quality push, 0.66 s visible on the panel, it removed 1.5 % of ghost from a reader page.
 - Every push is logged (`POS_LOG("disp", ...)` and the refresh log: `t= mode= rect= changed= why=`).
 - **`hal::Display::busy()` on the device is only "M5GFX update queue full"**: M5GFX cannot say
   whether a waveform is running. So the "coalesce while busy" rule rarely triggers on the device;

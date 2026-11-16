@@ -615,6 +615,29 @@ TEST_CASE("quick panel: a swipe down from the status bar opens it, one from the 
   CHECK_FALSE(env.shell->dirty());  // the sleep screen is what stays
 }
 
+TEST_CASE("clean gesture: a swipe up from the bottom edge is one full-screen Quality pass; from higher up it is not") {
+  Env env;
+  auto swipeUp = [&](int y0) {
+    Gesture g;
+    g.type = Gesture::SwipeUp;
+    g.startX = g.x = 270;
+    g.startY = static_cast<int16_t>(y0);
+    g.y = static_cast<int16_t>(y0 - 200);
+    env.shell->onGesture(g);
+  };
+  auto cleans = [&] {
+    int n = 0;
+    for (const auto& e : env.os.displayManager().refreshLog()) n += e.mode == 'Q' && std::string(e.why) == "clean";
+    return n;
+  };
+  const int before = cleans();
+  swipeUp(500);
+  CHECK(cleans() == before);
+  swipeUp(kScreenH - 20);
+  CHECK(cleans() == before + 1);
+  CHECK(env.os.displayManager().ghostScore() == doctest::Approx(0.0f));
+}
+
 TEST_CASE("launcher: the summary line leaves out what is not there") {
   using pos::apps::launcher::summaryLine;
   CHECK(summaryLine(0, "", -1) == "");
