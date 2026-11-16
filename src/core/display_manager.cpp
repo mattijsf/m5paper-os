@@ -71,11 +71,21 @@ void DisplayManager::invalidate(Rect r, Hint hint) {
   pending_.push_back({r, hint});
 }
 
-Rect DisplayManager::diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool wantBw) const {
+bool DisplayManager::flatGray(int x, int y, uint8_t q) const {
+  // The same level 2 px away on all four sides: inside a filled area, not on a 1-2 px anti-aliased edge or line.
+  const auto* src = static_cast<const uint8_t*>(canvas_.getBuffer());
+  if (x < 2 || y < 2 || x >= kScreenW - 2 || y >= kScreenH - 2) return false;
+  const size_t i = static_cast<size_t>(y) * kScreenW + x;
+  return kQuant.q[src[i - 2]] == q && kQuant.q[src[i + 2]] == q && kQuant.q[src[i - 2 * kScreenW]] == q &&
+         kQuant.q[src[i + 2 * kScreenW]] == q;
+}
+
+Rect DisplayManager::diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool wantBw, uint32_t* grayArea) const {
   const auto* src = static_cast<const uint8_t*>(canvas_.getBuffer());
   const uint8_t* old = shadow_.data();
   int minX = r.x + r.w, minY = r.y + r.h, maxX = -1, maxY = -1;
   changed = 0;
+  if (grayArea) *grayArea = 0;
   onlyBlackWhite = true;
   for (int y = r.y; y < r.y + r.h; ++y) {
     const size_t base = static_cast<size_t>(y) * kScreenW;
@@ -116,6 +126,22 @@ Rect DisplayManager::diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool 
           onlyBlackWhite = false;
           break;
         }
+      }
+    }
+    if (grayArea && *grayArea < params_.grayAreaMin) {
+      for (int x = lo; x <= hi; ++x) {
+        if (x + 8 <= hi + 1) {  // runs of pure white or black (most of a screen) are skipped 8 at a time
+          uint64_t a;
+          std::memcpy(&a, row + x, 8);
+          if (a == ~uint64_t{0} || a == 0) {
+            x += 7;
+            continue;
+          }
+        }
+        const uint8_t q = kQuant.q[row[x]];
+        if (q == 0 || q == 15) continue;
+        if (shadowValid_ && q == kQuant.q[orow[x]]) continue;  // unchanged inside the span
+        if (flatGray(r.x + x, y, q) && ++*grayArea >= params_.grayAreaMin) break;
       }
     }
   }
@@ -170,8 +196,10 @@ void DisplayManager::addSettle(Rect r, float added, uint32_t nowMs) {
 void DisplayManager::pushPass(Rect r, Hint hint) {
   uint32_t changed = 0;
   bool bw = true;
+  uint32_t grayArea = 0;
   const uint32_t t0 = clock_.millis();
-  Rect box = diff(r, changed, bw, hint == Hint::Feedback);
+  const bool wantGray = hint == Hint::Screen && params_.grayAreaMin > 0 && score_ < params_.ghostLimit;
+  Rect box = diff(r, changed, bw, hint == Hint::Feedback, wantGray ? &grayArea : nullptr);
   if (box.empty()) return;
   const uint32_t now = clock_.millis();
   const uint32_t dms = now - t0;
@@ -222,6 +250,19 @@ void DisplayManager::pushPass(Rect r, Hint hint) {
         score_ = 0;
         pages_ = 0;
         settles_.clear();
+      } else if (wantGray && grayArea >= params_.grayAreaMin) {
+        // Flat gray areas (icon wells): Fast would show them black or white and the settle pass would bring them in
+        // 0.6 s later, a second refresh. One Text pass shows the final screen at once. It counts like Fast then settle
+        // (half of what a Fast pass would add) and replaces the settles inside it.
+        push(box, Refresh::Text, changed, "screen-gray", dms);
+        score_ += added / 2;
+        updateShadow(box);
+        for (size_t i = 0; i < settles_.size();) {
+          const Rect s = settles_[i].rect;
+          const bool inside = s.x >= box.x && s.y >= box.y && s.x + s.w <= box.x + box.w && s.y + s.h <= box.y + box.h;
+          if (inside) settles_.erase(settles_.begin() + i);
+          else ++i;
+        }
       } else {
         push(box, Refresh::Fast, changed, "screen", dms);
         score_ += added;

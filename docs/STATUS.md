@@ -65,7 +65,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
 | Firmware build | `make fw` | OK, 2.74 MB (52.2% of the 5 MB slot, 2026-11-16; libsodium added ~130 KB) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 229 tests; 172 goldens (2026-11-16); `out/gallery.html` |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 231 tests; 173 goldens (2026-11-16); `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Camera on the panel | `make cam-shot` / `cam-video` / `cam-compare`, `tools/cam.py around tap X Y` | C922 webcam; captures through one Terminal window (camera permission); `cam.py lock` (uvc-util) at the start of a session; video 30 fps at 640x480 |
@@ -261,6 +261,11 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Screen passes with gray areas as one Text push** (`why=screen-gray`, 2026-11-16, simulator only: the device was reserved for other
+  testing). With the camera, `around tap 36 92` (back from an app to the launcher), before and after the change: number of waveforms
+  on the panel (expected one instead of Fast + settle sweep), the time until the final look and until the first visible change, whether
+  the gray(13) wells show in that one pass, and whether a Text push over an area that held a Fast image leaves ghost. Same for opening the
+  keyboard (a text field) and the Home app's tiles. If the Text push feels slow, `grayAreaMin = 0` in `DisplayParams` restores Fast then settle.
 - **P6-12 clipboard sync** (D23): the APK of e18ee72 is installed on the phone (2026-11-16 09:30, `adb install -r` over wireless
   adb; the app is not paired and has no token, stage NONE). Checked: the share target and the Quick Settings tile are registered, a
   share while unpaired does not crash and queues nothing. With a real pairing still to do: copy on the Paper and check the phone's clipboard within a minute (the phone reads `to_phone` every minute); share
@@ -645,3 +650,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-16: P7-7 reader ghosting with the camera (1/10/30 turns at M, 10 turns at S/L/XL, one page turn timed); finding: no automatic clean while reading; `device.py` fails fast after the first answer.
 - 2026-11-16: reader page turns as `Hint::Page` (no settle sweep, Quality clean every 10th page, `display.pageCleanEvery`); Page commits before Content; 23 reader goldens now show the black/white page; waits lengthened in `library` and `reader-menu` scripts (footer settle); flashed and measured with the camera.
 - 2026-11-16: clean gesture: swipe up from the bottom 60 px = one full-screen Quality pass on every screen (`Shell::onGesture`, `kCleanEdgeH`); unit test; on the device with the camera.
+- 2026-11-16: going home drew the icon wells in a second pass (Fast thresholded gray(13) to white, the settle 0.6 s later brought them in). A Screen pass with flat gray areas is now one Text push (`why=screen-gray`, DISPLAY.md "As implemented"); 2 unit tests, golden `launcher-back-first` (wells in the first push), `lab-*` goldens: push counters only. Simulator only; device check pending.

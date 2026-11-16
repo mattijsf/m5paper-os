@@ -341,11 +341,84 @@ TEST_CASE("diff: noise at the ends of a span is trimmed, a changed pixel inside 
 TEST_CASE("navigation: a screen change right after a Down pushes one Screen pass, no Feedback first") {
   Fixture f;
   // the pressed look is not queued on Down (see Pressable); the tap then replaces the screen
-  f.fill(kFull, gray(4));
+  f.fill(kFull, kBlack);
   f.dm.invalidateAll(Hint::Screen);
   f.dm.commit();
   REQUIRE(f.display.pushes.size() == 1);
   CHECK(f.display.pushes[0].mode == Refresh::Fast);
   CHECK(f.dm.refreshLogTail(1).find("why=screen") != std::string::npos);
   CHECK(f.dm.refreshLogTail(1).find("why=feedback") == std::string::npos);
+}
+
+TEST_CASE("Screen with flat gray areas (icon wells): one Text pass, no settle; anti-aliased edges and lines stay Fast then settle") {
+  Fixture f;
+  // A launcher-like screen: black frames, gray(13) wells (flat areas), a 1 px gray line.
+  for (int i = 0; i < 6; ++i) {
+    const int x = 40 + (i % 2) * 250, y = 170 + (i / 2) * 220;
+    f.canvas.drawRect(x, y, 230, 190, kBlack);
+    f.canvas.fillCircle(x + 115, y + 70, 44, gray(13));
+  }
+  f.fill(Rect{0, 56, kScreenW, 1}, gray(9));
+  f.dm.invalidateAll(Hint::Screen);
+  f.dm.commit();
+  REQUIRE(f.display.pushes.size() == 1);
+  CHECK(f.display.pushes[0].mode == Refresh::Text);
+  CHECK(f.dm.refreshLogTail(1).find("why=screen-gray") != std::string::npos);
+  CHECK(f.dm.nextDeadlineMs() == kNoDeadline);  // nothing left to settle
+  f.dm.tick(f.clock.ms + 5000);
+  CHECK(f.display.pushes.size() == 1);
+  const float textScore = f.dm.ghostScore();
+  CHECK(textScore > 0.0f);
+
+  // The same wells again, only the frames change: the gray is unchanged, so Fast then settle as before.
+  f.fill(Rect{40, 170, 230, 1}, kWhite);
+  f.dm.invalidateAll(Hint::Screen);
+  f.dm.commit();
+  REQUIRE(f.display.pushes.size() == 2);
+  CHECK(f.display.pushes[1].mode == Refresh::Fast);
+
+  // Thin gray lines and small gray specks (anti-aliased text) are no area: Fast, then a Text settle.
+  Fixture g;
+  for (int16_t y = 100; y < 900; y += 20) g.fill(Rect{20, y, 500, 1}, gray(9));
+  for (int i = 0; i < 200; ++i) g.fill(Rect{static_cast<int16_t>(20 + (i * 37) % 480), static_cast<int16_t>(105 + (i * 53) % 780), 2, 2}, gray(6));
+  g.dm.invalidateAll(Hint::Screen);
+  g.dm.commit();
+  REQUIRE(g.display.pushes.size() == 1);
+  CHECK(g.display.pushes[0].mode == Refresh::Fast);
+  g.dm.tick(g.clock.ms + 600);
+  REQUIRE(g.display.pushes.size() == 2);
+  CHECK(g.display.pushes[1].mode == Refresh::Text);
+
+  // grayAreaMin 0 switches it off.
+  DisplayParams p;
+  p.grayAreaMin = 0;
+  Fixture h(p);
+  h.fill(Rect{100, 100, 200, 200}, gray(13));
+  h.dm.invalidateAll(Hint::Screen);
+  h.dm.commit();
+  REQUIRE(h.display.pushes.size() == 1);
+  CHECK(h.display.pushes[0].mode == Refresh::Fast);
+}
+
+TEST_CASE("Screen with a gray area: a settle inside the pushed box is dropped, the ghost budget's Quality still wins") {
+  DisplayParams p;
+  p.ghostLimit = 1.0f;
+  Fixture f(p);
+  f.fill(Rect{100, 100, 50, 50}, gray(5));
+  f.dm.invalidate(Rect{100, 100, 50, 50}, Hint::Content);
+  f.dm.commit();  // Fast + a settle pending
+  CHECK(f.dm.nextDeadlineMs() != kNoDeadline);
+  f.fill(Rect{50, 50, 300, 300}, gray(13));
+  f.dm.invalidateAll(Hint::Screen);
+  f.dm.commit();
+  CHECK(f.display.pushes.back().mode == Refresh::Text);
+  CHECK(f.dm.nextDeadlineMs() == kNoDeadline);
+
+  f.fill(kFull, kBlack);  // over the limit next
+  f.dm.invalidateAll(Hint::Screen);
+  f.dm.commit();
+  f.fill(Rect{50, 50, 300, 300}, gray(13));
+  f.dm.invalidateAll(Hint::Screen);
+  f.dm.commit();
+  CHECK(f.display.pushes.back().mode == Refresh::Quality);
 }

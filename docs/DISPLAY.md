@@ -62,7 +62,7 @@ The DisplayManager maps hints to panel modes:
 | Feedback | Fast, immediately (a pressed look: after 120 ms of holding, see "Navigation speed") | none if the *changed pixels* are pure black/white, else Text | the result of a tap must reach the panel within 100 ms of the Up |
 | Content | Fast | Text after 600 ms without further changes in the region | "fast then settle" |
 | Page | Fast | **none** (drops older settles inside the page) | the reader's page turns. Every `pageCleanEvery`-th (10) is one full-screen **Quality** pass instead, which also brings the 16 grays back. Decided: the Text settle is a dark sweep over the whole text area 0.6 s after every turn (camera: the paper at ~60 % brightness for ~0.3 s); black/white text between cleans is preferred |
-| Screen | Fast full screen | Text after 600 ms; **Quality instead** if the ghost budget is spent | navigation is the natural place to hide a clean |
+| Screen | Fast full screen; **one Text pass instead** if the new pixels hold flat gray areas (`grayAreaMin`, below) | Text after 600 ms (none after the Text pass); **Quality instead** if the ghost budget is spent | navigation is the natural place to hide a clean |
 | Image | Quality on the image rect | none | only place a flash is expected |
 
 **Fast then settle.** A Fast pass shows the new content thresholded to black/white right away
@@ -113,6 +113,15 @@ can be tuned on the device without rebuilding (task P7-1).
 - A settle region merges with any overlapping or touching Fast region and restarts its timer
   (500 ms later change in the same area = new 600 ms from then). Unrelated regions keep their timers.
 - Screen at or over `ghostLimit`: Quality over the whole screen, drops pending settles.
+- **Screen with flat gray areas (2026-11-16)**: a Fast pass thresholds gray to black or white, so gray *areas* (the launcher's and
+  Home's gray(13) icon wells, the keyboard) were missing from the Fast pass and arrived only with the settle pass 0.6 s later: a second
+  refresh and on the panel a dark sweep. Now the diff of a
+  Screen pass also counts changed pixels of flat gray (levels 1..14 with the same level 2 px away on all four sides, so anti-aliased text
+  edges and 1 px dividers do not count; white or black 8-byte runs are skipped; it stops at the limit). At `grayAreaMin` (2000 px, a
+  disc of radius 25; `DisplayParams`, not in `config.json`) the pass is **one Text push** of the changed box (`why=screen-gray`): the final
+  screen at once, no settle afterwards, settles inside the box dropped. Ghost score: half of what the Fast pass would add (what Fast then
+  settle nets). Screens without gray areas (text, lists) keep Fast then settle. The Text push takes longer on the panel than a Fast one
+  (full screen 1.37 s against 0.5 s), but ends with the final look; one waveform instead of two.
   Image: Quality on the changed box only, does not touch the score.
 - Idle clean (`score >= 2 x ghostLimit`, 2 s without a push): `tick()` runs `forceClean()`.
 - Clean on demand: a swipe up from the bottom edge (UI.md "Gestures") runs `forceClean()` (`why=clean`). On the device

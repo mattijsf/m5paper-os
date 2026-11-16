@@ -6,7 +6,10 @@ wait 300
 expect-no-quality
 shot launcher-read
 back                    # the title bar's back arrow
-wait 900
+wait 100
+expect-no-quality
+shot launcher-back-first  # the first push already shows the gray icon wells (one Text pass, no settle pass later)
+wait 800
 expect-no-quality
 shot launcher-back      # same as the settled launcher
 tap 400 480             # Mail tile

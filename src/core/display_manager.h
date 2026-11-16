@@ -32,6 +32,11 @@ struct DisplayParams {
   // 0 = off. The ghost score alone never got there while reading (a turn added about 0.13 net; camera, 2026-11-16,
   // DISPLAY.md "Ghost budget").
   int pageCleanEvery = 10;
+  // A Screen change whose new pixels hold at least this many pixels of flat gray (levels 1..14 with the same level 2 px
+  // away on all four sides: fills such as the launcher's icon wells, not anti-aliased text edges) goes out as one Text
+  // pass instead of Fast then settle: Fast thresholds those areas to black or white, so they appeared only with the
+  // settle pass 0.6 s later, a second refresh. 0 = always Fast then settle.
+  uint32_t grayAreaMin = 2000;
 };
 
 struct RefreshEntry {
@@ -39,7 +44,7 @@ struct RefreshEntry {
   char mode = 'F';  // 'Q', 'T' or 'F'
   Rect rect;
   uint32_t changed = 0;  // pixels that differed from the shadow (settle and clean passes: region area)
-  const char* why = "";   // "feedback", "content", "screen", "image", "settle", "clean", "boot"
+  const char* why = "";   // "feedback", "content", "screen", "screen-gray", "image", "settle", "clean", "boot"
   uint32_t diffMs = 0;    // time spent comparing the canvas with the shadow before the push
   uint32_t pushMs = 0;    // time the hal::Display::push call itself took (it may block)
 };
@@ -95,8 +100,10 @@ class DisplayManager {
 
   void pushPass(Rect r, Hint hint);
   void push(Rect r, Refresh mode, uint32_t changed, const char* why, uint32_t diffMs = 0);
-  // Diff `r` against the shadow: returns the bounding box of changed pixels (empty if none).
-  Rect diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool wantBw) const;
+  // Diff `r` against the shadow: returns the bounding box of changed pixels (empty if none). With `grayArea` it also
+  // counts changed pixels of flat gray (see DisplayParams::grayAreaMin), stopping at grayAreaMin.
+  Rect diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool wantBw, uint32_t* grayArea = nullptr) const;
+  bool flatGray(int x, int y, uint8_t q) const;
   void updateShadow(Rect r);
   void addSettle(Rect r, float added, uint32_t nowMs);
 
