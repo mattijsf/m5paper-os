@@ -107,6 +107,10 @@ stored (D26), so the word of the day always comes from the built-in answers.
   28 KB) on the worker. On every open the file is read on the worker and checked (`validPacked`: sorted, a-z, whole
   words); until it is in, only the built-in words count. So the game works offline with the last fetched words, and with
   the built-in ones when nothing was ever fetched.
+- **By hand**: Statistieken > "Woordenlijst bijwerken" fetches the list now (button text "Ophalen..." meanwhile; toast
+  "Woordenlijst bijgewerkt" or "Ophalen lukte niet", the old words stay). Both paths share `fetchList`; the game screen
+  loads the new words when it is shown again. Also the way to run the fetch on the device for a measurement: info button
+  (tap 504 92), then the button (tap 270 870); `debugState` of the statistics screen says `list=N; busy=0|1`.
 - A guess is known if it is built in or in the fetched list. Saved guesses are not checked again on reload (the fetched
   list may not be loaded yet).
 - Store keys: `listTried`, `listFetched` (Unix seconds), `listWords`. The statistics screen's last line says

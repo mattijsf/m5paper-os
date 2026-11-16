@@ -37,9 +37,20 @@ tap 504 92              # the info button
 wait 900
 shot vijfje-list-stats
 expect-state view=stats
+tap 270 870             # Woordenlijst bijwerken: fetched again now
+wait 2500
+shot vijfje-list-updated
+expect-state list=4; busy=0
+wait 4000                # the toast goes
+wifi off
+tap 270 870             # offline: it says so, the words stay
+wait 3000
+shot vijfje-list-failed
+expect-state list=4; busy=0
+wait 4000
 back
 wait 900
-wifi off
+expect-state list=4;
 restart
 wait 1500
 expect-state list=4;

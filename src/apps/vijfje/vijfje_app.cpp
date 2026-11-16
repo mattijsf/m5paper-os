@@ -96,6 +96,45 @@ void saveStats(Store& st, const game::Stats& s) {
   st.set("turns", join(turns));
 }
 
+// Fetches the word list from the web and puts its accepted guesses in the app's cache (vijfje.h "More accepted words").
+// `done(packed)` runs on the UI thread with the packed words, or "" if it failed (the words that were there stay); it is
+// dropped if the screen that asked is gone by then. Wi-Fi comes up for it by itself.
+void fetchList(AppContext& ctx, std::function<void(std::string)> done) {
+  ctx.store.set("listTried", static_cast<double>(ctx.clock.now()));
+  ctx.store.save();
+  hal::HttpRequest req;
+  req.url = game::kListUrl;
+  req.timeoutMs = 15000;
+  AppContext* c = &ctx;  // outlives the callbacks: they are dropped with the screen, and the screens go before the app
+  ctx.http(req, [c, done](hal::HttpResponse r) {
+    if (r.status != 200 || r.body.empty() || r.body.size() > game::kListMaxBytes) {
+      c->log("word list not fetched: status %d, %u bytes", r.status, static_cast<unsigned>(r.body.size()));
+      done("");
+      return;
+    }
+    // Packing and the cache file on the worker.
+    const Cache cache = c->cache;  // a copy: the job may run after the app is gone
+    auto body = std::make_shared<std::string>(std::move(r.body));
+    c->async(
+        [cache, body] {
+          std::string packed = game::packGuessList(*body);
+          if (!packed.empty() && !cache.write(kListFile, packed)) packed.clear();
+          return packed;
+        },
+        [c, done](std::string packed) {
+          if (packed.empty()) {
+            c->log("word list: no words in it, or not written");
+          } else {
+            c->store.set("listFetched", static_cast<double>(c->clock.now()));
+            c->store.set("listWords", static_cast<int>(packed.size() / kLen));
+            c->store.save();
+            c->log("word list: %u words", static_cast<unsigned>(packed.size() / kLen));
+          }
+          done(std::move(packed));
+        });
+  });
+}
+
 // Diagonal lines over a rectangle, `step` px apart.
 void hatch(Canvas& c, int x, int y, int w, int h, int step) {
   for (int d = step / 2; d <= w + h - 2; d += step) {
@@ -399,23 +438,50 @@ class StatsScreen : public Screen {
         ui::Type::Body);
     rules->maxLines = 4;
     col->add<Legend>();
-    // Metadata: how many words are accepted and when more were fetched.
+    // Metadata: how many words are accepted and when more were fetched; a button fetches them now (the game does it by
+    // itself about once a week).
+    col->add<ui::Spacer>(4);
+    listLine_ = col->add<ui::Label>(listText(), ui::Type::Caption, ui::secondary);
+    listLine_->align = ui::TextAlign::Center;
+    update_ = col->add<ui::Button>("Woordenlijst bijwerken", [this] { updateList(); }, ui::Button::Kind::Secondary);
+  }
+
+  std::string debugState() const override {
+    return "view=stats list=" + std::to_string(ctx().store.get("listWords", 0)) + "; busy=" + (busy_ ? "1" : "0");
+  }
+
+ private:
+  std::string listText() const {
     std::string list = "Woorden: " + std::to_string(game::wordCount()) + " ingebouwd, ";
     const int fetched = ctx().store.get("listWords", 0);
     struct tm t{};
     if (fetched > 0 && localTime(static_cast<int64_t>(ctx().store.get("listFetched", 0.0)), t)) {
       char date[16];
       std::snprintf(date, sizeof date, "%d-%d-%d", t.tm_mday, t.tm_mon + 1, t.tm_year + 1900);
-      list += std::to_string(fetched) + " opgehaald op " + date;
-    } else {
-      list += "nog niets opgehaald";
+      return list + std::to_string(fetched) + " opgehaald op " + date;
     }
-    col->add<ui::Spacer>(4);
-    auto* listLine = col->add<ui::Label>(list, ui::Type::Caption, ui::secondary);
-    listLine->align = ui::TextAlign::Center;
+    return list + "nog niets opgehaald";
   }
 
-  std::string debugState() const override { return "view=stats"; }
+  void updateList() {
+    if (busy_) return;
+    busy_ = true;
+    update_->setText("Ophalen...");
+    fetchList(ctx(), [this](std::string packed) {
+      busy_ = false;
+      update_->setText("Woordenlijst bijwerken");
+      if (packed.empty()) {
+        ctx().toast("Ophalen lukte niet");
+      } else {
+        listLine_->setText(listText());
+        ctx().toast("Woordenlijst bijgewerkt");
+      }
+    });
+  }
+
+  ui::Label* listLine_ = nullptr;
+  ui::Button* update_ = nullptr;
+  bool busy_ = false;
 };
 
 class GameScreen : public Screen {
@@ -465,6 +531,8 @@ class GameScreen : public Screen {
       openDay();
       show();
     }
+    // The statistics screen may have fetched a new list meanwhile.
+    if (ctx().store.get("listFetched", 0.0) != listStamp_) loadList();
   }
   ~GameScreen() override {
     if (current_ == this) current_ = nullptr;
@@ -631,6 +699,7 @@ class GameScreen : public Screen {
 
   // The fetched words from the cache, read on the worker (about 30 KB). Until they are in, only the built-in words count.
   void loadList() {
+    listStamp_ = ctx().store.get("listFetched", 0.0);
     const Cache cache = ctx().cache;  // a copy: the job may run after the app is gone
     ctx().async(
         [cache] {
@@ -638,7 +707,7 @@ class GameScreen : public Screen {
           return game::validPacked(packed) ? packed : std::string();
         },
         [this](std::string packed) {
-          if (!packed.empty() && extra_.empty()) extra_ = std::move(packed);
+          if (!packed.empty()) extra_ = std::move(packed);
         });
   }
 
@@ -646,39 +715,11 @@ class GameScreen : public Screen {
   // shown, and a failure leaves the words that are there.
   void fetchListIfDue() {
     Store& st = ctx().store;
-    const int64_t now = ctx().clock.now();
-    if (!game::listDue(now, static_cast<int64_t>(st.get("listFetched", 0.0)), static_cast<int64_t>(st.get("listTried", 0.0)))) return;
-    st.set("listTried", static_cast<double>(now));
-    st.save();
-    hal::HttpRequest req;
-    req.url = game::kListUrl;
-    req.timeoutMs = 15000;
-    ctx().http(req, [this](hal::HttpResponse r) {
-      if (r.status != 200 || r.body.empty() || r.body.size() > game::kListMaxBytes) {
-        ctx().log("word list not fetched: status %d, %u bytes", r.status, static_cast<unsigned>(r.body.size()));
-        return;
-      }
-      // Packing and the cache file on the worker.
-      const Cache cache = ctx().cache;
-      auto body = std::make_shared<std::string>(std::move(r.body));
-      ctx().async(
-          [cache, body] {
-            std::string packed = game::packGuessList(*body);
-            if (!packed.empty() && !cache.write(kListFile, packed)) packed.clear();
-            return packed;
-          },
-          [this](std::string packed) {
-            if (packed.empty()) {
-              ctx().log("word list: no words in it, or not written");
-              return;
-            }
-            Store& st = ctx().store;
-            st.set("listFetched", static_cast<double>(ctx().clock.now()));
-            st.set("listWords", static_cast<int>(packed.size() / kLen));
-            st.save();
-            ctx().log("word list: %u words", static_cast<unsigned>(packed.size() / kLen));
-            extra_ = std::move(packed);
-          });
+    if (!game::listDue(ctx().clock.now(), static_cast<int64_t>(st.get("listFetched", 0.0)), static_cast<int64_t>(st.get("listTried", 0.0)))) return;
+    fetchList(ctx(), [this](std::string packed) {
+      if (packed.empty()) return;
+      extra_ = std::move(packed);
+      listStamp_ = ctx().store.get("listFetched", 0.0);
     });
   }
 
@@ -705,6 +746,7 @@ class GameScreen : public Screen {
   std::vector<std::string> guesses_;
   std::string typed_;  // the letters of the row being filled; not kept when the app is left
   std::string extra_;  // fetched words accepted as a guess, packed and sorted; "" until loaded or when there are none
+  double listStamp_ = -1;  // the store's listFetched that extra_ belongs to
   static GameScreen* current_;
 };
 GameScreen* GameScreen::current_ = nullptr;

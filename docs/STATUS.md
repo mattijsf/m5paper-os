@@ -71,7 +71,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
 | Firmware build | `make fw` | OK, 2.74 MB (52.2% of the 5 MB slot, 2026-11-16; libsodium added ~130 KB) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 250 tests; 193 goldens (2026-11-16); `out/gallery.html` |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 252 tests; 201 goldens (2026-11-16); `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Camera on the panel | `make cam-shot` / `cam-video` / `cam-compare`, `tools/cam.py around tap X Y` | C922 webcam; captures through one Terminal window (camera permission); `cam.py lock` (uvc-util) at the start of a session; video 30 fps at 640x480 |
@@ -287,15 +287,12 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   f859131 with its uncommitted core settings in `platformio.ini`): compiles and links; checked here: `firmware.elf` holds
   the `pos::vijfje` symbols, `firmware.bin` is 2,897,584 bytes (2.76 MB, 55.3% of the 5 MB slot; the 3 MB budget has
   248 KB left). Not flashed (a PSRAM soak was running on the device).
-  **First run on the device, memory pass 2026-11-16**: after opening the app the internal heap had 18 KB free (lowest 14 KB,
-  largest block 9 KB) against 108 KB idle, and 19 KB after going back to the launcher. **Not explained yet.** Reading of the
-  code (a guess until measured): the app keeps nothing after it closes (no statics but one pointer; the 28 KB word list, the
-  response body and the sort buffer are single large allocations freed with the screen or the job), but its first open fetches
-  the word list, so Wi-Fi and the kept-alive TLS connection are up for `net.lingerSec` (20 s) after it: about what Home shows
-  during TLS. To tell the two apart: measure 30 s after leaving, or open the app a second time (no fetch within a day:
-  `listTried` in `/data/apps/vijfje.json`), and read the log for `[vijfje] word list: N words` or `not fetched`. A heap that low
-  while the fetch runs is a risk by itself (an allocation failing while the user types): the memory pass moves small
-  allocations and mbedTLS to PSRAM (D27) and measures again.
+  **Memory on the device (memory pass, 2026-11-16)**: first reading, old configuration: 18 KB internal heap free after
+  opening the app (108 KB idle), still 19 KB back in the launcher. With D27 (45d5d23: ordinary allocations and mbedTLS in
+  PSRAM) and no fetch in that run: **141 KB free while the app is open (the idle level), 144 KB 30 s after leaving, PSRAM back
+  to idle after closing**: the app keeps nothing, its 28 KB word list is freed with the screen. The low first reading was most
+  likely the first list fetch (Wi-Fi + a new TLS connection) under the old configuration: fits, **not measured**; Home's TLS
+  fetch now bottoms out at 69 KB (was 18 KB). To measure the fetch: Statistieken > "Woordenlijst bijwerken" (apps/vijfje.md).
   **The word list fetch on the device**: HTTPS to woordscore.nl with the built-in CA bundle (never run), heap during it (a
   39 KB body + 22 KB of codes + the 28 KB packed list while TLS is up; expected to land in PSRAM, not measured), the
   cache write (28 KB to LittleFS on the worker), the log line `[vijfje] word list: N words`.
@@ -716,4 +713,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-16: P6-12: a copy whose `clip` push failed offline (or timed out, or a server error) is resent when Wi-Fi next comes up (`NetService::onConnected`, `clipboard::markUnsent` / `unsent`, `/data/clipboard_unsent` holds only the copy time); checked in the simulator with `wifi off` / `wifi on`. Not on the device.
 - 2026-11-16: tap latency round 3: M5GFX patch 3 (frame buffer write on both cores), the diff updates the shadow in the same pass, the reader saves its position a second after the turn. Page turn 140 -> 112 ms, screen change 190 -> 150 ms. Noted: with a book open, internal heap free drops ~111 -> ~78 KB (chapter text and layouts as small strings), back to ~101 KB after leaving.
 - 2026-11-16: D27 memory: allocations to PSRAM (`SPIRAM_MALLOC_ALWAYSINTERNAL=0`, 32 KB internal reserve), mbedTLS in PSRAM, core dumps off, log ring and serial buffer on the heap; `>set memreport` and `tools/memory.py`. Internal free idle 108 -> 141K, Home's lowest during TLS 18 -> 69K, Woordle 18 -> 126K; latency unchanged.
-
+- 2026-11-16: Vijfje: "Woordenlijst bijwerken" on the statistics screen (the list fetch by hand; shared `fetchList`), goldens `vijfje-list-updated`, `vijfje-list-failed`; device memory numbers of the app recorded.
