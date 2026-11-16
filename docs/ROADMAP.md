@@ -311,7 +311,7 @@ simulator first; each task ends with screenshots.
 companion Android app that encrypts each phone notification for the device; Home Assistant only relays ciphertext. The
 add-on route (P6-1 to P6-3, the send path of P6-7) is removed. The device app (P6-4 to P6-6) and the clipboard stay.
 **P6-8 to P6-11 wait for the owner's answers** to the companion-app questions in STATUS.md ("Open questions for the user").
-Read BACKEND.md "Companion app" and D22 before any of them. Order: P6-8 first; P6-9 and P6-10 can then run in parallel;
+Read BACKEND.md "Companion app" and D22 before any of them. P6-C0 (a listener-only app) runs ahead of them. Order: P6-8 first; P6-9 and P6-10 can then run in parallel;
 P6-11 last (it needs the relay and a device that can pair).
 
 - [-] **P6-1 WhatsApp add-on in Home Assistant.** (done 2026-11-15, **removed 2026-11-16** by D22: session logged out, integration
@@ -329,6 +329,10 @@ P6-11 last (it needs the relay and a device that can pair).
   stay. **The send path is gone** (D22): `script.paperos_whatsapp_send` was removed from Home Assistant; a send now ends in the toast
   "Not sent: no send script in Home Assistant". Sending comes back as a reply through the phone (P6-10, P6-11).
 
+- [~] **P6-C0 Android app v0** (started 2026-11-16, separately; source in `android/`): a notification
+  listener for WhatsApp and Proton Mail only, no network, no Home Assistant, no crypto; installed on the Pixel 9 Pro (Android 17) over
+  adb. It shows what the notifications really carry and becomes the base of P6-11. The four open questions still decide the network and
+  crypto part.
 - [ ] **P6-8 Protocol and crypto.** Read: D22, BACKEND.md "Companion app". Write `docs/COMPANION.md`: the threat model (Home
   Assistant reads, drops, delays and replays; never reads or forges), pairing (device X25519 key pair, private key in
   `/sd/paperos_config` under the secrets rules; QR code with the public key; the phone's public key back through Home Assistant;

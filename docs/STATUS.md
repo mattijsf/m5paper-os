@@ -108,6 +108,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 - **Inbox since D22 (2026-11-16)**: nothing of the companion app, the relay or the crypto exists. The "Not set up yet" state ran in the
   simulator and on the device against the live 404 (Pending device checks). Whether the WhatsApp linked device is
   gone from the phone's "Linked devices" list was not checked (the logout ran, Baileys logged "Intentional Logout"): the user looks.
+  Over adb it cannot be reached without opening the chat list (the Linked devices activity is not exported), so it was left alone.
 
 ## P6-1 progress (2026-11-15, done with the owner in Home Assistant; history: the add-on was removed on 2026-11-16, D22)
 
@@ -326,7 +327,9 @@ connected** (2026-11-15: macOS lists only the built-in camera; the user will plu
    - a. **WhatsApp reply scope**: is replying only to chats that still have a notification on the phone enough? (No new message to a
      chosen chat, so Somdoku's "Stuur naar WhatsApp" would become "Kopieer score" plus a reply, or go.)
    - b. **Mail**: are sender and subject (maybe a short preview) enough, without the full mail text?
-   - c. **Phone**: which phone model and Android version will run the app (the Pixel used for adb pairing earlier)?
+   - c. ~~**Phone**: which phone model and Android version?~~ **Read over adb 2026-11-16**: Google Pixel 9 Pro (`caiman`), Android 17
+     (SDK 37, security patch 2026-10-05), WhatsApp 2.26.45.13; adb over Wi-Fi at 192.168.1.51 (the port changes). Still to confirm:
+     that this phone is the one that runs the app.
    - d. **Always on**: is that phone always on and online at home (the inbox only fills while it is)?
 
 None of these block Phase 1, Phase 2, or the reader.
