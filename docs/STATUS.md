@@ -38,8 +38,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   `script.paperos_inbox_clear` + a recorder exclusion (home-assistant `ebc133d`), the orphaned entities removed. Live: both feed sensors
   answer 404 and the send script 400. The device shows "Not set up yet" for a missing feed (goldens `inbox-gone`, `inbox-gone-mail`) and a
   send ends in "Not sent: no send script in Home Assistant". **Next for the inbox: the owner's answers to open question 6**, then
-  ROADMAP P6-8 to P6-11. Left on the Home Assistant disk (delete by hand, the automation was not allowed to):
-  `/config/custom_components/whatsapp` and `/local_apps/protonmail_bridge`.
+  ROADMAP P6-8 to P6-11. The two leftovers on the Home Assistant disk (`/config/custom_components/whatsapp`,
+  `/local_apps/protonmail_bridge`) were deleted on 2026-11-16 (contents checked first: integration code and
+  add-on source only).
 
 - **Companion relay and the Paper side, 2026-11-16 (P6-8 to P6-10)**: `docs/COMPANION.md` v1 (89aa3e3, handed to the Android
   session), the Home Assistant relay (home-assistant `e04d613`), libsodium crypto in `core/companion_crypto`, `core/companion`,
@@ -47,9 +48,11 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   device through live Home Assistant with a scripted test phone** (Python, pyca/cryptography; fake notifications only): the device's
   QR decoded, the same six-digit code on both sides, three encrypted notifications shown (`out/dev-relay/5-whatsapp.png`,
   `6-chat.png`, `7-mail.png`), the queue acked, the Paper's `paired` and `unpair` envelopes decrypted by the test phone; the device was
-  unpaired and the queues emptied afterwards. **Needs the owner**: a Home Assistant restart (the recorder exclusion of the relay only
-  takes effect then), and deleting `/config/custom_components/whatsapp` and `/local_apps/protonmail_bridge` (refused to the
-  automation). Next: the Android app (P6-C0 / P6-11, separate task), then a real pairing.
+  unpaired and the queues emptied afterwards. Home Assistant restarted 2026-11-16 08:51 (`ha core check` passed first; after the
+  restart: running, no repair issues, no failed config entries, no `whatsapp` entities, the relay sensors restored), so the recorder
+  exclusion of the relay is loaded (not observed directly). Left: an orphan `script.paperos_inbox_clear` entity, unavailable since
+  e04d613 removed the script (harmless; remove it in Settings > Entities). Next: the Android app (P6-C0 / P6-11, separate task),
+  then a real pairing.
 
 ## What works today
 
