@@ -392,7 +392,9 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
 7. **Vijfje (P7-9, D26)**: (a) the word list is small (2254 accepted words, written by hand): may an open Dutch word list
    (OpenTaal) be downloaded to widen `assets/vijfje/extra.txt`? (b) Vijfje is alone on launcher page 2: fine, or should
    the two games share a place (a 2 x 4 grid, a Games folder)? (c) the handover's `woordscore.nl/woordlijst.txt` answers
-   10 + 30 words instead of 844 + 5616: if the scoreboard depends on that file, its daily refresh may be broken.
+   10 + 30 words instead of 844 + 5616. **** (read as: that file is
+   a placeholder for now). When it is: its second part (accepted guesses) can widen `extra.txt`; its first part (the web
+   game's daily answers in order) stays out (D26).
 
 None of these block Phase 1, Phase 2, or the reader.
 
