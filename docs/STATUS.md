@@ -106,7 +106,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   has been requested from the live instance yet (tasks P5-1, P5-2).
 - Which Home Assistant user the token belongs to. The Home app and the inbox calls have **not been run with a non-admin token** (D18 assumes they work); the swap to a dedicated non-admin user comes after development.
 - **Inbox since D22 (2026-11-16)**: nothing of the companion app, the relay or the crypto exists. The "Not set up yet" state ran in the
-  simulator only (fixture 404); the live 404 was checked with the browser, not with the device. Whether the WhatsApp linked device is
+  simulator and on the device against the live 404 (Pending device checks). Whether the WhatsApp linked device is
   gone from the phone's "Linked devices" list was not checked (the logout ran, Baileys logged "Intentional Logout"): the user looks.
 
 ## P6-1 progress (2026-11-15, done with the owner in Home Assistant; history: the add-on was removed on 2026-11-16, D22)
@@ -257,9 +257,10 @@ connected** (2026-11-15: macOS lists only the built-in camera; the user will plu
   nothing newer than the seen marker) and the mail feed; (4) the current while awake (the mAh figures are estimates); (5) a side-button
   press that lands within -90 s .. +180 s of the alarm runs the refresh first (a touch then ends it in a normal boot: simulator only).
 
-- **Inbox "Not set up yet"** (D22): open WhatsApp and Mail on the device against the live Home Assistant (both sensors 404 since
-  2026-11-16): frame dumps should match the goldens `inbox-gone` / `inbox-gone-mail` apart from the clock, and the launcher badges
-  should read 0. Somdoku "Stuur naar WhatsApp" up to Send: the toast "Not sent: no send script in Home Assistant" (nothing can be sent:
+- **Inbox "Not set up yet"** (D22): **done on the device 2026-11-16 07:21** (firmware 49ed875): WhatsApp and Mail against the live
+  Home Assistant logged `GET /api/states/sensor.paperos_*_inbox -> 404` and showed "Not set up yet"; frame dumps
+  (`out/dev-d22/whatsapp.png`, `mail.png`) identical to the goldens below the status bar; launcher without badges. Not run: Somdoku
+  "Stuur naar WhatsApp" up to Send on the device (simulator golden `whatsapp-send-missing` covers the 400 toast; nothing can be sent,
   the integration is gone).
 - ~~Mark all read with `before`~~ and the real group message: dropped with the add-on route (D22).
 
