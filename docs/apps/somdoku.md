@@ -30,7 +30,7 @@ says so and shows no puzzle.
   cell; tapping the selected cell or beside the grid lets it go. A slip (the cell filled last changed again before another
   cell is touched) does not turn yellow; letting the cell go or pausing does not end it, only selecting another cell does
   (the web game's `justFilled`; `debugState` shows the marks, `marks=ygg;`). Filled digit = ink Headline digit, black cell = solid ink,
-  selected cell = thick ink frame (paper on a black cell). The key holding the selected cell's value is drawn filled. The
+  selected cell = thick ink frame (paper on a black cell). The keys never change (no key shows the selected cell's value: selecting or filling refreshes only the board). The
   title bar's pause button (only while playing) goes back to Ready with the clock stopped.
 - **Done**: "Opgelost in 3:42", the streak, the timeline as tiles (kept = solid ink, changed = hatched square) and one
   button, "Kopieer score" (to `core/clipboard`, toast "Score gekopieerd"). **No send button**. To share: paste the score into a reply in the inbox (the

@@ -142,13 +142,13 @@ class Board : public ui::Widget {
   }
 };
 
-// The keys: 1 2 3 / 4 Zwart Wis. The key that holds the selected cell's value is drawn filled.
+// The keys: 1 2 3 / 4 Zwart Wis. Always drawn the same: no key shows the selected cell's value, so selecting a cell or
+// filling it refreshes only the board, never the keys (e-ink: less to refresh).
 class KeyPad : public ui::Widget {
  public:
   static constexpr int kKeyH = 76;
   static constexpr int kGap = 16;
   static constexpr int kValues[6] = {1, 2, 3, 4, kBlack, kEmpty};
-  int current = -2;  // the selected cell's value (-2: no cell selected)
   std::function<void(int)> onKey;
 
   ui::Size measure(int availW) override { return {availW, 2 * kKeyH + kGap}; }
@@ -163,16 +163,10 @@ class KeyPad : public ui::Widget {
     static const char* const kLabels[6] = {"1", "2", "3", "4", "Zwart", "Wis"};
     for (int k = 0; k < 6; ++k) {
       const Rect r = keyRect(k);
-      const bool on = current != -2 && kValues[k] != kEmpty && current == kValues[k];
-      if (on) {
-        c.fillRoundRect(r.x, r.y, r.w, r.h, 12, ui::ink);
-      } else {
-        c.drawRoundRect(r.x, r.y, r.w, r.h, 12, ui::ink);
-        c.drawRoundRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2, 11, ui::ink);
-      }
+      c.drawRoundRect(r.x, r.y, r.w, r.h, 12, ui::ink);
+      c.drawRoundRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2, 11, ui::ink);
       const ui::Type type = k < 4 ? ui::Type::Headline : ui::Type::Title;
-      ui::drawText(c, kLabels[k], r.x + r.w / 2, r.y + r.h / 2, type, on ? ui::paper : ui::ink, ui::Anchor::MiddleCenter,
-                   on ? ui::ink : ui::paper);
+      ui::drawText(c, kLabels[k], r.x + r.w / 2, r.y + r.h / 2, type, ui::ink, ui::Anchor::MiddleCenter, ui::paper);
     }
   }
 
@@ -369,7 +363,6 @@ class GameScreen : public Screen {
     if (v == View::Play) {
       board_->live = true;
       board_->selected = selected_;
-      keys_->current = selected_ >= 0 ? state_.cells[static_cast<size_t>(selected_)] : -2;
       updateNote();
     }
     if (root_->host()) root_->host()->relayout();
@@ -412,9 +405,7 @@ class GameScreen : public Screen {
     if (i >= 0 && i != justFilled_) justFilled_ = -1;
     selected_ = i;
     board_->selected = i;
-    keys_->current = i >= 0 ? state_.cells[static_cast<size_t>(i)] : -2;
     board_->invalidate(Hint::Feedback);
-    keys_->invalidate(Hint::Feedback);
     updateNote();
   }
 
@@ -437,9 +428,7 @@ class GameScreen : public Screen {
       return;
     }
     save();
-    keys_->current = to;
     board_->invalidate(Hint::Feedback);
-    keys_->invalidate(Hint::Feedback);
     updateNote();
   }
 
