@@ -1,6 +1,6 @@
-# PaperOS inbox feed: recent WhatsApp messages for the e-ink device (repo m5paper-os,
-# docs/BACKEND.md "Inbox feeds"). The device reads sensor.paperos_whatsapp_inbox over the
-# REST API; it never talks to WhatsApp itself.
+# PaperOS inbox feeds: recent WhatsApp messages and unread mail for the e-ink device (repo
+# m5paper-os, docs/BACKEND.md "Inbox feeds"). The device reads sensor.paperos_whatsapp_inbox and
+# sensor.paperos_mail_inbox over the REST API; it never talks to WhatsApp or Proton itself.
 #
 # Source: the "WhatsApp Gateway" add-on (FaserF, slug 605cee21_whatsapp) plus its `whatsapp`
 # integration, which fires whatsapp_message_received / whatsapp_message_sent. Field names
@@ -8,13 +8,13 @@
 # caption, media_type, sender_name, sender_number, from (chat JID; the group JID in a
 # group), is_group, id, raw.messageTimestamp; the sent event has "to" (chat JID).
 #
-# Privacy: Home Assistant has no per-user entity permissions, so the sensor is kept out of
-# the recorder (no history, no logbook) and must not be put on a dashboard. The message
-# events are excluded from the recorder as well: they carry the full raw message.
+# Privacy: Home Assistant has no per-user entity permissions, so the sensors are kept out of
+# the recorder (no history, no logbook) and must not be put on a dashboard. The message and
+# mail events are excluded from the recorder as well: they carry the message text.
 #
 # The feed holds recent messages, not "unread": a chat's items go when the owner answers in
 # that chat (from the phone too), when the device calls script.paperos_inbox_clear, or
-# after 48 hours. The mail feed (sensor.paperos_mail_inbox) comes with Proton Bridge + IMAP.
+# after 48 hours. The mail feed is described above its template below.
 #
 # Sending (DECISIONS.md D21, BACKEND.md "Sending a WhatsApp message"): the device calls script.paperos_whatsapp_send, never the
 # add-on or whatsapp.send_message itself. The guards live in the script: trimmed text of 1..1000 characters, a chat JID of
@@ -30,6 +30,7 @@ recorder:
     event_types:
       - whatsapp_message_received
       - whatsapp_message_sent
+      - imap_content
       - paperos_whatsapp_send_log
 
 script:
@@ -199,6 +200,68 @@ template:
                   'key': chat
                 } %}
                 {{ ([item] + (old | rejectattr('id', 'eq', item.id) | list))[:30] }}
+              {% endif %}
+            {% endif %}
+
+  # ------------------------------------------------------------------ Mail
+  # Source: Proton Mail Bridge (local add-on, addons/protonmail_bridge, IMAP over TLS on
+  # local-protonmail-bridge:143) + the core IMAP integration (folder INBOX, search
+  # "UnSeen UnDeleted", message data: text). Event fields from the integration source (2026.10):
+  # entry_id, uid, sender (address only), subject, date (datetime), text (first 2048 bytes,
+  # text/plain, else text/html), initial (false when only a removal re-triggered the newest
+  # message). Only the newest unread mail fires an event. The device fetches the full text with
+  # imap.fetch (entry = key, uid = id).
+  # The feed holds unread mail as it arrived: it is emptied when the IMAP unread count reaches 0
+  # (everything read elsewhere) or by script.paperos_inbox_clear; a mail read elsewhere while
+  # others stay unread remains in the list. Newest 20.
+  - triggers:
+      - trigger: event
+        event_type: imap_content
+        id: mail
+      - trigger: template
+        value_template: >
+          {{ integration_entities('imap') | select('match', 'sensor\\.') | map('states')
+             | select('eq', '0') | list | count > 0 }}
+        id: allread
+      - trigger: event
+        event_type: paperos_inbox_clear
+        event_data:
+          feed: mail
+        id: clear
+    sensor:
+      - name: PaperOS Mail inbox
+        unique_id: paperos_mail_inbox
+        icon: mdi:email
+        state: "{{ now().timestamp() | int }}"
+        attributes:
+          updated: "{{ now().isoformat() }}"
+          items: >
+            {% set old = this.attributes.get('items') or [] %}
+            {% if trigger.id == 'clear' %}
+              {% set before = (trigger.event.data.get('before') or 0) | int(0) %}
+              {{ old | selectattr('ts', 'gt', before) | list if before > 0 else [] }}
+            {% elif trigger.id == 'allread' %}
+              {{ [] }}
+            {% else %}
+              {% set d = trigger.event.data %}
+              {% set uid = (d.get('uid') or '') | string %}
+              {% if d.get('initial') == false or uid == '' %}
+                {{ old }}
+              {% else %}
+                {% set ts = as_timestamp(d.get('date'), now().timestamp()) | int %}
+                {% set text = ((d.get('text') or '') | string)
+                              | regex_replace('\r', '') | regex_replace('[ \t\u00a0]+', ' ')
+                              | regex_replace(' ?\n ?', '\n') | regex_replace('\n{3,}', '\n\n') | trim %}
+                {% set item = {
+                  'id': uid,
+                  'from': ((d.get('sender') or '?') | string)[:80],
+                  'chat': '',
+                  'subject': ((d.get('subject') or '') | string)[:150],
+                  'text': text[:1500],
+                  'ts': ts,
+                  'key': (d.get('entry_id') or '') | string
+                } %}
+                {{ ([item] + (old | rejectattr('id', 'eq', item.id) | list))[:20] }}
               {% endif %}
             {% endif %}
 
