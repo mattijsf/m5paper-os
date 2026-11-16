@@ -23,6 +23,8 @@ for s in "${scripts[@]}"; do
   name=$(basename "$s" .script)
   rm -rf "out/ui-data/$name"; mkdir -p "out/ui-data/$name"
   [ -d "tests/ui/data/$name" ] && cp -R "tests/ui/data/$name/." "out/ui-data/$name/"   # optional preset data (card file etc.)
+  # The emoji atlases are on every card (docs/UI.md "Emoji"): linked, not copied (1.7 MB).
+  if [ ! -e "out/ui-data/$name/sd/paperos/emoji" ]; then mkdir -p "out/ui-data/$name/sd/paperos" && ln -s "$PWD/assets/emoji" "out/ui-data/$name/sd/paperos/emoji"; fi
   app=$(sed -n 's/^# app: *//p' "$s" | head -1)   # optional "# app: NAME" header line
   time=$(sed -n 's/^# time: *//p' "$s" | head -1)  # optional "# time: 2026-11-16T09:00:00" header line (default below)
   rtc=$(sed -n 's/^# rtc: *//p' "$s" | head -1)    # optional "# rtc: unset": the clock was never set (--no-rtc) until a time sync

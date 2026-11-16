@@ -54,6 +54,23 @@ class Writer {
   bool ok_ = true;
 };
 
+// Random-access reader (large files read in pieces, e.g. the emoji atlases): open once, read ranges, close.
+class Reader {
+ public:
+  Reader() = default;
+  Reader(const Reader&) = delete;
+  Reader& operator=(const Reader&) = delete;
+  ~Reader() { close(); }
+  bool open(const std::string& virtualPath);
+  // True if all `n` bytes at `offset` were read.
+  bool readAt(uint64_t offset, void* data, size_t n);
+  void close();
+  bool isOpen() const { return f_ != nullptr; }
+
+ private:
+  FILE* f_ = nullptr;
+};
+
 // Creates the folder and every missing parent ("mkdir -p"). True if it exists afterwards.
 bool mkdirs(const std::string& virtualPath);
 

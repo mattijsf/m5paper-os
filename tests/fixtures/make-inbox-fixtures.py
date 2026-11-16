@@ -33,10 +33,13 @@ LONG = ("Here is the plan for the weekend, in case you missed it: Saturday we st
         "and the photos from last time are here https://photos.example.org/albums/summer-2025/holiday-with-everyone-all-in-one-album-name-that-is-very-long. "
         "Supercalifragilisticexpialidocious" + "x" * 70 + " ok?")
 
+# A group named mostly in emoji (like the user's family chat): grandpa, grandma, sunglasses, a yellow heart.
+FAMILY = "Pap\U0001F474Mam\U0001F475Family \U0001F60E \U0001F49B"
+
 WA = [  # newest first
-    ("Anna", "Family", "120363000000000001@g.us", 13 * 60 + 31, "See you!"),
-    ("Anna", "Family", "120363000000000001@g.us", 13 * 60 + 25, "I can bring the cake \U0001F382\U0001F600"),
-    ("Anna", "Family", "120363000000000001@g.us", 13 * 60 + 20, "Are you coming at six?"),
+    ("Anna", FAMILY, "120363000000000001@g.us", 13 * 60 + 31, "See you! \U0001F44D\U0001F3FD"),
+    ("Anna", FAMILY, "120363000000000001@g.us", 13 * 60 + 25, "I can bring the cake \U0001F382\U0001F600 for \U0001F468\u200D\U0001F469\u200D\U0001F467"),
+    ("Anna", FAMILY, "120363000000000001@g.us", 13 * 60 + 20, "Are you coming at six?"),
     ("Bram", "", "31600000002@s.whatsapp.net", 12 * 60 + 50, LONG),
     ("Carla", "Work", "120363000000000003@g.us", 11 * 60 + 5, "Meeting moved to Thursday"),
     ("Carla", "Work", "120363000000000003@g.us", 11 * 60 + 2, "Can someone send the agenda?"),

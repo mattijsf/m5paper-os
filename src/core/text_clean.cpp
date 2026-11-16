@@ -39,7 +39,7 @@ struct Emoji {
   unsigned cp;
   const char* text;
 };
-// The few that carry meaning in a short message; every other emoji is dropped.
+// The few that carry meaning in a short message: their text form when the panel has no emoji atlas (ui/text).
 const Emoji kEmoji[] = {{0x1F600, ":)"}, {0x1F603, ":)"}, {0x1F604, ":)"}, {0x1F601, ":)"}, {0x1F642, ":)"}, {0x1F60A, ":)"}, {0x263A, ":)"},
                         {0x1F602, ":D"}, {0x1F923, ":D"}, {0x1F609, ";)"}, {0x1F61B, ":P"}, {0x1F622, ":("}, {0x1F62D, ":("}, {0x1F641, ":("},
                         {0x2639, ":("},  {0x1F620, ">:("}, {0x2764, "<3"},  {0x1F496, "<3"},  {0x1F44D, "(+1)"}, {0x1F44E, "(-1)"}, {0x1F64F, "(thanks)"}};
@@ -197,6 +197,21 @@ std::string decodeEntities(const std::string& s) {
   return out;
 }
 
+bool isEmojiRange(unsigned cp) {
+  return (cp >= 0x2100 && cp <= 0x2BFF) || cp == 0x203C || cp == 0x2049 || cp == 0x3030 || cp == 0x303D || cp == 0x3297 ||
+         cp == 0x3299 || (cp >= 0x1F000 && cp <= 0x1FAFF);
+}
+
+bool isEmojiModifier(unsigned cp) {
+  return (cp >= 0xFE00 && cp <= 0xFE0F) || (cp >= 0x1F3FB && cp <= 0x1F3FF) || cp == 0x20E3 || (cp >= 0xE0020 && cp <= 0xE007F);
+}
+
+const char* emojiFallback(unsigned cp) {
+  for (const Emoji& e : kEmoji)
+    if (e.cp == cp) return e.text;
+  return nullptr;
+}
+
 bool hasGlyph(unsigned cp) { return (cp >= 0x20 && cp <= 0x7E) || (cp >= 0xA0 && cp <= 0x17F) || (cp >= 0x2010 && cp <= 0x2027) || cp == 0x20AC; }
 
 std::string hostOfUrl(const std::string& url) {
@@ -236,17 +251,20 @@ std::string cleanText(const std::string& inRaw, const CleanOptions& opt) {
       chars += ' ';
       continue;
     }
-    if (cp < 0x20 || cp == 0x7F || (cp >= 0x80 && cp < 0xA0) || cp == 0x200B || cp == 0x200C || cp == 0x200D || cp == 0xFE0F || cp == 0xFE0E || cp == 0xFEFF) continue;
+    if (cp == 0x200D) {  // a ZWJ sequence ("👨‍👩‍👧") keeps its first emoji: the joined one goes too
+      if (i < in.size()) {
+        unsigned next;
+        i += decodeAt(in, i, next);
+      }
+      continue;
+    }
+    if (cp < 0x20 || cp == 0x7F || (cp >= 0x80 && cp < 0xA0) || cp == 0x200B || cp == 0x200C || cp == 0xFEFF || isEmojiModifier(cp)) continue;
     if (cp == 0xAD) continue;  // soft hyphen
     if (hasGlyph(cp)) {
       appendUtf8(chars, cp);
       continue;
     }
-    for (const Emoji& e : kEmoji)
-      if (e.cp == cp) {
-        chars += e.text;
-        break;
-      }
+    if (isEmojiRange(cp)) appendUtf8(chars, cp);  // drawn from the emoji atlas, or as emojiFallback() / dropped without one
   }
   // 2. links to host names; long words cut
   std::string words;

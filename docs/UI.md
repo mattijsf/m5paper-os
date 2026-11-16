@@ -58,7 +58,7 @@ Fonts are baked to 4-bit anti-aliased bitmaps by `tools/gen-assets.sh` (task P1-
 | `read-S/M/L/XL` | Literata Regular | 24 / 28 / 32 / 38 | book text (plus Italic and Bold at M only; other sizes fake them) |
 
 Glyph ranges: U+0020-007E, U+00A0-00FF, U+0100-017F, U+2010-2027, U+20AC. Unknown code points
-draw as `?`. Emoji in messages are replaced by `?` in v1 (task P6-4 notes an improvement).
+draw as `?`; emoji come from the emoji atlases (below).
 Both fonts are under the SIL Open Font License; their licence files are in `assets/fonts/`
 (also `Lucide-LICENSE.txt`, ISC). API: `ui/text.h` (`drawText`, `measureText`, `lineHeight`,
 `ellipsize`, `sanitize`, `drawIcon`), tokens: `ui/theme.h`. Pitfalls found in P1-6:
@@ -262,6 +262,27 @@ Every UI task ends with a headless screenshot that the author looks at:
 `make shot` or a `tests/ui/*.script` run (`SIMULATOR.md`). Check: margins 24 px, nothing closer
 than 8 px to another element, targets at least 72 px, text not clipped, only theme tokens used,
 and the refresh log shows no Quality push outside `Hint::Image` and budget cleans.
+
+### Emoji
+
+Every text drawn with `drawText` / `measureText` / `ellipsize` shows emoji. Source: **Noto Emoji** (Google, SIL OFL 1.1, `assets/fonts/NotoEmoji.ttf`, licence `NotoEmoji-OFL.txt`):
+monochrome line art, which suits 16 grays better than colour emoji turned gray. `tools/gen-emoji.py` renders all 1426
+single-code-point emoji of the font at weight 600 (500 and thinner lose their inner lines at body size) as 4-bit alpha
+bitmaps, one atlas per size: 18 (caption), 22 (body, bodyStrong), 24 (read-S), 28 (title, read-M and up, headline),
+`assets/emoji/emoji-<px>.bin`, 1.7 MB together.
+
+- **On the card, not in the firmware**: one size alone is 260-600 KB, the firmware has about 250 KB left under its 3 MB
+  budget. The atlases live in `/sd/paperos/emoji/` (`make emoji` copies them into `sim-data/` and pushes them to the
+  device; `tools/ui-test.sh` links them into every test card). `ui/emoji` keeps only each atlas's index (16 bytes per
+  emoji) and reads a bitmap the first time a text needs it.
+- **Fast**: a read bitmap goes into the same glyph cache as the letters (`ui/text`), so after the first use an emoji line
+  draws like a line of letters (host: 7 us against 6 us per line, `emoji_test`); widths, ellipsis and line wrap include
+  emoji. Each emoji and size is read from the card once per boot.
+- **Placement**: on the font's baseline (the bottom of its "x"), at the font's size, advance as the font gives it.
+- **Sequences**: variation selectors, skin tones, the keycap mark and tags are dropped; a ZWJ sequence shows its first
+  emoji ("👨‍👩‍👧" -> 👨); flags show their two letter boxes. `core/text_clean` keeps emoji (it used to drop them).
+- **No card / no atlas**: a few emoji get a text form (`:)`, `<3`, `(+1)`), the rest disappear (never `?`).
+- **Score squares** keep their own drawing (below): they must stay apart on the gray panel.
 
 ### Score squares
 

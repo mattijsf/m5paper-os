@@ -70,7 +70,8 @@ with `POS_REGISTER_APP`.
 - Seen marker: `ctx.store` key `seen` = newest `ts` shown; dots use the marker as it was when the app started. Badge:
   `/data/cache/<id>/badge` = items newer than the marker; the scheduled refresh (P7-5, POWER.md) reads the relay too and writes both
   badges.
-- No polling. Text through `core/text_clean` (emoji, links, stray HTML).
+- No polling. Text through `core/text_clean` (links, stray HTML); emoji stay and are drawn from the emoji atlases on the card
+  (UI.md "Emoji"), also in chat and group names.
 
 ## Feed contract
 

@@ -20,10 +20,18 @@ struct CleanOptions {
   size_t maxWord = 60;     // a word longer than this is cut with an ellipsis (nothing wider than the column is wanted)
 };
 
-// What can be read on the panel: invalid UTF-8 and control characters dropped, characters without a glyph (emoji and the like)
-// replaced by a short text form or dropped, CR LF to LF, tabs and runs of blanks to one space, at most one blank line in a row,
+// What can be read on the panel: invalid UTF-8 and control characters dropped; emoji kept (ui/text draws them from the emoji
+// atlas, docs/UI.md "Emoji"), a ZWJ sequence as its first emoji, skin tones and other modifiers dropped; other characters
+// without a glyph dropped; CR LF to LF, tabs and runs of blanks to one space, at most one blank line in a row,
 // no blank lines or spaces at the ends. Never longer than the input plus a few bytes per emoji.
 std::string cleanText(const std::string& in, const CleanOptions& opt = {});
+
+// Code points in the emoji blocks (symbols, arrows, dingbats, U+1F000-1FAFF and a few others). ui/text draws those the atlas
+// has; isEmojiModifier() ones never stand alone.
+bool isEmojiRange(unsigned cp);
+bool isEmojiModifier(unsigned cp);
+// A short text form for a few emoji that carry meaning (":)", "<3", "(+1)"), for when no emoji atlas is there; nullptr otherwise.
+const char* emojiFallback(unsigned cp);
 
 // Whether the baked fonts have a glyph for the code point (the ranges of tools/gen-assets.sh; keep in sync with ui/text.cpp).
 bool hasGlyph(unsigned cp);

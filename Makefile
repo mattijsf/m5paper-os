@@ -5,7 +5,7 @@ PIO   ?= $(shell command -v pio || echo $(HOME)/.local/bin/pio)
 SIM   := .pio/build/sim/program
 PORT  ?= $(firstword $(wildcard /dev/cu.usbmodem*))
 
-.PHONY: help sim run shot test ui-test ui-accept gallery fw flash monitor device-shot view cam-shot cam-video cam-compare backup books clean check
+.PHONY: help emoji sim run shot test ui-test ui-accept gallery fw flash monitor device-shot view cam-shot cam-video cam-compare backup books clean check
 
 help:
 	@echo "make sim      build the simulator"
@@ -24,6 +24,7 @@ help:
 	@echo "make cam-video    webcam video to out/cam.mp4 (SECONDS=5, 60 fps if the camera can)"
 	@echo "make cam-compare  device-shot + cam-shot, then the ghosting number and out/cam-diff.png"
 	@echo "make backup   read the whole device flash to backup/flash-16MB.bin"
+	@echo "make emoji    copy the emoji atlases to sim-data/ and push them to the device's card (tools/push.py)"
 	@echo "make books    download public-domain test books into sim-data/sd/books/ and push them to the device (tools/push.py)"
 	@echo "make check    what must pass before a task is done: sim build, unit tests, UI golden tests, firmware build"
 
@@ -71,6 +72,12 @@ cam-compare: device-shot cam-shot
 backup:
 	@mkdir -p backup
 	$(HOME)/.platformio/penv/bin/esptool --port $(PORT) --baud 921600 read-flash 0 0x1000000 backup/flash-16MB.bin
+
+# The emoji atlases (docs/UI.md "Emoji"): into the simulator's card and onto the device's card (tools/push.py).
+emoji:
+	mkdir -p sim-data/sd/paperos/emoji
+	cp assets/emoji/*.bin sim-data/sd/paperos/emoji/
+	$(HOME)/.platformio/penv/bin/python tools/push.py --to /sd/paperos/emoji/ assets/emoji/*.bin
 
 books:
 	tools/fetch-books.sh

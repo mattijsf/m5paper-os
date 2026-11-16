@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <climits>
 #include <cstdio>
 
 namespace pos::fs {
@@ -207,6 +208,25 @@ bool Writer::close() {
   ok_ = (std::fclose(f_) == 0) && ok_;
   f_ = nullptr;
   return ok_;
+}
+
+bool Reader::open(const std::string& v) {
+  close();
+  const std::string p = resolve(v);
+  if (p.empty()) return false;
+  f_ = std::fopen(p.c_str(), "rb");
+  return f_ != nullptr;
+}
+
+bool Reader::readAt(uint64_t offset, void* data, size_t n) {
+  if (!f_ || offset > static_cast<uint64_t>(LONG_MAX)) return false;
+  if (std::fseek(f_, static_cast<long>(offset), SEEK_SET) != 0) return false;
+  return std::fread(data, 1, n, f_) == n;
+}
+
+void Reader::close() {
+  if (f_) std::fclose(f_);
+  f_ = nullptr;
 }
 
 bool mkdirs(const std::string& v) {

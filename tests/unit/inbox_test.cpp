@@ -46,7 +46,7 @@ TEST_CASE("inbox: feeds are cleaned (emoji, links, HTML mail)") {
                       {"from":"B","subject":"S\nT","text":"<p>Hello &amp; bye</p><p>Second</p>","ts":2}]}})", f));
   cleanFeed(f, true);
   CHECK(f.items[0].from == "A");
-  CHECK(f.items[0].text == "hi :) see example.com");
+  CHECK(f.items[0].text == "hi \xE2\x98\xBA see example.com");  // the emoji stays (docs/UI.md "Emoji")
   CHECK(f.items[1].subject == "S T");
   CHECK(f.items[1].text == "Hello & bye\n\nSecond");
   Feed g;

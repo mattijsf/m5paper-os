@@ -6,7 +6,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "core/text_clean.h"
 #include "gen/fonts.h"
+#include "ui/emoji.h"
 
 namespace pos::ui {
 
@@ -63,6 +65,12 @@ void useFont(Canvas& c, FontId id) {
   c.loadFont(fontData(id), lgfx::IFont::font_type_t::ft_lvgl);
   gLoadedOn = &c;
   gLoaded = id;
+}
+
+// Pixel size of a font (the emoji drawn in it come from the nearest atlas below it); 0: no emoji (icon fonts).
+int fontPx(FontId id) {
+  static const uint8_t kPx[] = {18, 22, 22, 28, 40, 24, 28, 32, 38, 28, 28, 0, 0, 0};
+  return kPx[static_cast<int>(id)];
 }
 
 bool hasGlyph(uint32_t cp) {  // the baked ranges (tools/gen-assets.sh RANGES)
@@ -167,26 +175,6 @@ void drawSquare(Canvas& c, Square kind, int x, int top, Color color) {
       c.drawLine(ax, ay, bx, by, color);
     }
   }
-}
-
-// Width of sanitized text with squares, the font already loaded.
-int widthWithSquares(Canvas& c, const std::string& s) {
-  int w = 0;
-  std::string run;
-  for (size_t i = 0; i < s.size();) {
-    uint32_t cp;
-    const size_t n = decode(s, i, cp);
-    if (squareKind(cp) != Square::None) {
-      if (!run.empty()) w += c.textWidth(run.c_str());
-      run.clear();
-      w += squareAdvance(c);
-    } else {
-      run += s.substr(i, n);
-    }
-    i += n;
-  }
-  if (!run.empty()) w += c.textWidth(run.c_str());
-  return w;
 }
 
 // ---- Fast text path (2026-11-16, DISPLAY.md "Tap latency")
@@ -338,6 +326,51 @@ const Glyph& glyphFor(FontId id, uint32_t cp) {
   return *g;
 }
 
+// ---- Emoji (docs/UI.md "Emoji"): bitmaps from the atlas on the card (ui/emoji), kept in the same glyph cache as the letters,
+// so after the first use an emoji costs what a letter costs. Placed on the font's baseline (the bottom of its "x").
+bool isEmoji(uint32_t cp) { return cp >= 0x2000 && !hasGlyph(cp) && squareKind(cp) == Square::None && emoji::available(cp); }
+
+bool hasEmoji(const std::string& s) {
+  for (size_t i = 0; i < s.size();) {
+    uint32_t cp;
+    i += decode(s, i, cp);
+    if (cp >= 0x2000 && isEmoji(cp)) return true;
+  }
+  return false;
+}
+
+int baselineOf(FontId id) {
+  const Glyph& x = glyphFor(id, 'x');
+  return x.ok && x.h > 0 ? x.yoff + x.h : fontPx(id) * 4 / 5;
+}
+
+const Glyph& emojiGlyph(FontId id, uint32_t cp) {
+  GlyphCache& gc = cache();
+  Glyph& g = gc.other[(static_cast<uint64_t>(id) << 32) | 0x80000000u | cp];  // apart from the font glyphs of the same code point
+  if (g.ready) return g;
+  g.ready = true;
+  emoji::Bitmap bm;
+  if (fontPx(id) == 0 || !emoji::load(emoji::atlasPx(fontPx(id)), cp, bm)) return g;
+  g.adv = static_cast<int16_t>(bm.adv);
+  g.xoff = static_cast<int16_t>(bm.x);
+  g.w = static_cast<int16_t>(bm.w);
+  g.yoff = static_cast<int16_t>(baselineOf(id) + bm.y);
+  g.h = static_cast<int16_t>(bm.h);
+  if (g.w > 0 && g.h > 0) {
+    uint8_t* a = gc.alloc(bm.levels.size());
+    if (!a) return g;
+    std::memcpy(a, bm.levels.data(), bm.levels.size());
+    g.alpha = a;
+  } else {
+    g.h = 0;
+  }
+  g.ok = true;
+  return g;
+}
+
+// Width of sanitized text with score squares and / or emoji, the font `id` already loaded on `c`.
+int widthSpecial(Canvas& c, FontId id, const std::string& s);
+
 // Draws like c.drawString(text, x, y) with the current font, datum `d`, colours `color` on `bg`. Returns false (and draws
 // nothing) when the fast path does not apply.
 bool fastDraw(Canvas& c, FontId id, const std::string& text, int x, int y, textdatum_t d, Color color, Color bg) {
@@ -348,13 +381,17 @@ bool fastDraw(Canvas& c, FontId id, const std::string& text, int x, int y, textd
   struct Item { const Glyph* g; };
   Item items[256];
   int n = 0;
+  bool anyEmoji = false;
   for (size_t i = 0; i < text.size();) {
     uint32_t cp;
     i += decode(text, i, cp);
     if (cp < 0x20 || (cp >= 0xFE00 && cp < 0xFE10)) continue;
-    if (cp > 0xFFFF || n == 256) return false;
-    const Glyph& g = glyphFor(id, cp);
+    if (n == 256) return false;
+    const bool emo = cp >= 0x2000 && isEmoji(cp);
+    if (cp > 0xFFFF && !emo) return false;
+    const Glyph& g = emo ? emojiGlyph(id, cp) : glyphFor(id, cp);
     if (!g.ok) return false;
+    anyEmoji = anyEmoji || emo;
     items[n++].g = &g;
   }
   const int height = c.fontHeight();
@@ -362,7 +399,7 @@ bool fastDraw(Canvas& c, FontId id, const std::string& text, int x, int y, textd
   else if (d & bottom_left) y -= height;
   else if (d & baseline_left) return false;  // not used by us
   if (d & (top_center | top_right)) {
-    const int cwidth = c.textWidth(text.c_str());
+    const int cwidth = anyEmoji ? widthSpecial(c, id, text) : c.textWidth(text.c_str());
     x -= (d & top_center) ? cwidth >> 1 : cwidth;
   }
   int sumX = n && items[0].g->xoff < 0 ? -items[0].g->xoff : 0;
@@ -430,6 +467,44 @@ bool fastDraw(Canvas& c, FontId id, const std::string& text, int x, int y, textd
   return true;
 }
 
+int widthSpecial(Canvas& c, FontId id, const std::string& s) {
+  int w = 0;
+  std::string run;
+  for (size_t i = 0; i < s.size();) {
+    uint32_t cp;
+    const size_t n = decode(s, i, cp);
+    if (squareKind(cp) != Square::None) {
+      if (!run.empty()) w += c.textWidth(run.c_str());
+      run.clear();
+      w += squareAdvance(c);
+    } else if (cp >= 0x2000 && isEmoji(cp)) {
+      if (!run.empty()) w += c.textWidth(run.c_str());
+      run.clear();
+      w += emojiGlyph(id, cp).adv;
+    } else {
+      run += s.substr(i, n);
+    }
+    i += n;
+  }
+  if (!run.empty()) w += c.textWidth(run.c_str());
+  return w;
+}
+
+// The slow path's emoji (a canvas the fast path does not take): the glyph's levels blended pixel by pixel.
+void drawEmojiSlow(Canvas& c, FontId id, uint32_t cp, int left, int top, Color color, Color bg) {
+  const Glyph& g = emojiGlyph(id, cp);
+  if (!g.ok) return;
+  if (color != bg) c.fillRect(left, top, g.adv, c.fontHeight(), bg);
+  for (int y = 0; y < g.h; ++y)
+    for (int x = 0; x < g.w; ++x) {
+      const uint32_t a = g.alpha[y * g.w + x];
+      if (!a) continue;
+      const uint32_t r = mix((bg >> 16) & 0xFF, (color >> 16) & 0xFF, a), gg = mix((bg >> 8) & 0xFF, (color >> 8) & 0xFF, a),
+                     b = mix(bg & 0xFF, color & 0xFF, a);
+      c.drawPixel(left + g.xoff + x, top + g.yoff + y, static_cast<Color>((r << 16) | (gg << 8) | b));
+    }
+}
+
 }  // namespace
 
 void setFastText(bool on) { gFastText = on; }
@@ -447,7 +522,19 @@ std::string sanitize(const std::string& s) {
     uint32_t cp;
     i += decode(s, i, cp);
     if (cp == '\n' || cp == '\t') cp = ' ';
-    append(out, hasGlyph(cp) || squareKind(cp) != Square::None ? cp : '?');
+    if (hasGlyph(cp) || squareKind(cp) != Square::None) {
+      append(out, cp);
+    } else if (cp == 0x200D) {  // a ZWJ sequence shows its first emoji: the joined one is skipped
+      if (i < s.size()) i += decode(s, i, cp);
+    } else if (isEmojiModifier(cp)) {
+      // variation selectors, skin tones, the keycap mark, tags: nothing of their own
+    } else if (isEmoji(cp)) {
+      append(out, cp);
+    } else if (isEmojiRange(cp)) {
+      if (const char* t = emojiFallback(cp)) out += t;  // no atlas on the card: ":)" for a few, nothing for the rest
+    } else {
+      append(out, '?');
+    }
   }
   return out;
 }
@@ -456,14 +543,17 @@ void drawText(Canvas& c, const std::string& utf8, int x, int y, Type type, Color
   useFont(c, fontFor(type));
   c.setTextColor(color, bg);
   const std::string text = sanitize(utf8);
+  const FontId id = fontFor(type);
   if (!hasSquares(text)) {
-    if (fastDraw(c, fontFor(type), text, x, y, datum(anchor), color, bg)) return;
-    c.setTextDatum(datum(anchor));
-    c.drawString(text.c_str(), x, y);
-    return;
+    if (fastDraw(c, id, text, x, y, datum(anchor), color, bg)) return;
+    if (!hasEmoji(text)) {
+      c.setTextDatum(datum(anchor));
+      c.drawString(text.c_str(), x, y);
+      return;
+    }
   }
-  // Text with score squares: drawn piece by piece from the left edge of the line.
-  const int w = widthWithSquares(c, text);
+  // Text with score squares (or emoji the fast path did not take): drawn piece by piece from the left edge of the line.
+  const int w = widthSpecial(c, id, text);
   int left = x;
   if (anchor == Anchor::TopCenter || anchor == Anchor::MiddleCenter) left = x - w / 2;
   if (anchor == Anchor::TopRight || anchor == Anchor::MiddleRight) left = x - w;
@@ -485,6 +575,10 @@ void drawText(Canvas& c, const std::string& utf8, int x, int y, Type type, Color
       flush();
       drawSquare(c, kind, left, top, color);
       left += squareAdvance(c);
+    } else if (cp >= 0x2000 && isEmoji(cp)) {
+      flush();
+      drawEmojiSlow(c, id, cp, left, top, color, bg);
+      left += emojiGlyph(id, cp).adv;
     } else {
       run += text.substr(i, n);
     }
@@ -496,7 +590,7 @@ void drawText(Canvas& c, const std::string& utf8, int x, int y, Type type, Color
 int measureText(Canvas& c, const std::string& utf8, Type type) {
   useFont(c, fontFor(type));
   const std::string text = sanitize(utf8);
-  return hasSquares(text) ? widthWithSquares(c, text) : c.textWidth(text.c_str());
+  return hasSquares(text) || hasEmoji(text) ? widthSpecial(c, fontFor(type), text) : c.textWidth(text.c_str());
 }
 
 int lineHeight(Canvas& c, Type type) {
