@@ -50,8 +50,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   `6-chat.png`, `7-mail.png`), the queue acked, the Paper's `paired` and `unpair` envelopes decrypted by the test phone; the device was
   unpaired and the queues emptied afterwards. Home Assistant restarted 2026-11-16 08:51 (`ha core check` passed first; after the
   restart: running, no repair issues, no failed config entries, no `whatsapp` entities, the relay sensors restored), so the recorder
-  exclusion of the relay is loaded (not observed directly). Left: an orphan `script.paperos_inbox_clear` entity, unavailable since
-  e04d613 removed the script (harmless; remove it in Settings > Entities). Next: the Android app (P6-C0 / P6-11, separate task),
+  exclusion of the relay is loaded (not observed directly). The orphan `script.paperos_inbox_clear` entity (left by e04d613, no
+  automation, script or dashboard referenced it) was removed from the entity registry. Next: the Android app (P6-C0 / P6-11, separate task),
   then a real pairing.
 
 ## What works today
