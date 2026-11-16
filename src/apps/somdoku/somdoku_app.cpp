@@ -2,13 +2,12 @@
 // game (game logic: somdoku.h). docs/apps/somdoku.md.
 //
 // One screen with three views: ready (name, day, streak, Start / Verder), play (the grid with its sums, a note, the keys)
-// and done (time, streak, the timeline, Kopieer score / Stuur naar WhatsApp). As on the web: no checking, the game ends by
+// and done (time, streak, the timeline, Kopieer score). As on the web: no checking, the game ends by
 // itself when the grid is right, the clock runs only while the puzzle is on screen and is shown only at the end.
 #include <ctime>
 #include <string>
 #include <vector>
 
-#include "apps/inbox/compose.h"
 #include "apps/somdoku/somdoku.h"
 #include "core/app.h"
 #include "core/clipboard.h"
@@ -26,7 +25,6 @@ using game::kEmpty;
 namespace {
 
 constexpr int kN = 5;
-constexpr const char* kDefaultFavorite = "Woordle challenge";
 
 const char* const kDays[] = {"zondag", "maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag"};
 const char* const kMonths[] = {"januari", "februari", "maart", "april", "mei", "juni",
@@ -274,8 +272,9 @@ class GameScreen : public Screen {
     doneStreak_->align = ui::TextAlign::Center;
     tiles_ = done_->add<TrailTiles>();
     done_->add<ui::Spacer>(8);
-    done_->add<ui::Button>("Kopieer score", [this] { copyScore(); }, ui::Button::Kind::Secondary);
-    done_->add<ui::Button>("Stuur naar WhatsApp", [this] { sendScore(); });
+    // No send button: WhatsApp cannot be sent to directly (companion relay, D22). The score goes to the clipboard and is pasted
+    // into a reply in the inbox, or on the phone.
+    done_->add<ui::Button>("Kopieer score", [this] { copyScore(); });
 
     show();
     if (!day_.empty()) {
@@ -298,7 +297,7 @@ class GameScreen : public Screen {
   ~GameScreen() override {
     if (current_ == this) current_ = nullptr;
   }
-  // The game screen of the running app (the app has one; another app's compose screen may be on top of it).
+  // The game screen of the running app (the app has one).
   static GameScreen* current() { return current_; }
 
   std::string debugState() const override {
@@ -308,7 +307,7 @@ class GameScreen : public Screen {
     return std::string("view=") + views[static_cast<int>(view_)] + " day=" + day_ + " number=" + std::to_string(number_) +
            " filled=" + std::to_string(filled) + " selected=" + std::to_string(selected_) +
            " grid=" + std::to_string(board_ ? board_->gridX() : 0) + "," + std::to_string(board_ ? board_->gridY() : 0) +
-           " ms=" + std::to_string(static_cast<long>(state_.activeMs));
+           " ms=" + std::to_string(static_cast<long>(state_.activeMs)) + " marks=" + game::marks(state_.trail) + ";";
   }
 
   // For the sleep screen.
@@ -402,15 +401,15 @@ class GameScreen : public Screen {
     if (view_ != View::Play) return;
     stopClock();
     playing_ = false;
-    selected_ = -1;
-    justFilled_ = -1;
+    selected_ = -1;  // justFilled_ stays, as on the web: pausing touches no other cell
     show();
   }
 
   void select(int i) {
     if (view_ != View::Play) return;
     if (i == selected_) i = -1;  // the same cell again lets it go
-    if (i != justFilled_) justFilled_ = -1;
+    // Only touching another cell ends a slip; letting the cell go does not (the web game's select(null)).
+    if (i >= 0 && i != justFilled_) justFilled_ = -1;
     selected_ = i;
     board_->selected = i;
     keys_->current = i >= 0 ? state_.cells[static_cast<size_t>(i)] : -2;
@@ -451,11 +450,6 @@ class GameScreen : public Screen {
       ctx().toast("Score gekopieerd");
     else
       ctx().toast("Kopi\xC3\xABren lukte niet");
-  }
-
-  void sendScore() {
-    const std::string fav = ctx().store.get("shareFavorite", std::string(kDefaultFavorite));
-    whatsapp::sendToFavorite(ctx(), fav, scoreText());
   }
 
   // --- the store ------------------------------------------------------------------------------------------------------

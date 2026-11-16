@@ -246,6 +246,12 @@ connected** (2026-11-15: macOS lists only the built-in camera; the user will plu
   screen (frame dump `out/dev-somdoku-ready.png`, same layout as the golden). Start was **not** pressed on purpose: it would
   start the user's clock on today's puzzle and the remote cannot reset `/data/apps/somdoku.json`. The log showed two
   `[perf] UI loop gap` of ~1.08 s around opening the app: check whether the generation (worker) or something else stalls the UI.
+- **Somdoku review (2026-11-16, side task)**: vectors regenerated from the current somdoku repo (a41a212): byte-identical,
+  500 days match. One divergence fixed: letting the selected cell go (tap it again, tap beside the grid) or pausing ended the
+  slip window, so wiping and refilling the last cell then counted as a change (yellow) where the web game keeps it green.
+  "Stuur naar WhatsApp" removed;
+  the done screen keeps "Kopieer score" only, the score is pasted into an inbox reply. `whatsapp::sendToFavorite` stays in the
+  inbox API, now without a caller.
 - **Flaky unit test**: `wifi_test.cpp:396` ("Wi-Fi goes off after the linger time") failed once in four runs on 2026-11-16
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
@@ -341,7 +347,8 @@ connected** (2026-11-15: macOS lists only the built-in camera; the user will plu
 
 6. **Companion app (D22, asked 2026-11-16)**: the answers decide P6-8 to P6-11; nothing is built before them.
    - a. **WhatsApp reply scope**: is replying only to chats that still have a notification on the phone enough? (No new message to a
-     chosen chat, so Somdoku's "Stuur naar WhatsApp" would become "Kopieer score" plus a reply, or go.)
+     chosen chat, so Somdoku's "Stuur naar WhatsApp" would become "Kopieer score" plus a reply, or go.) **Answered 2026-11-16: it
+     goes; Somdoku has "Kopieer score" only.**
    - b. **Mail**: are sender and subject (maybe a short preview) enough, without the full mail text?
    - c. ~~**Phone**: which phone model and Android version?~~ **Read over adb 2026-11-16**: Google Pixel 9 Pro (`caiman`), Android 17
      (SDK 37, security patch 2026-10-05), WhatsApp 2.26.45.13; adb over Wi-Fi at 192.168.1.51 (the port changes). Still to confirm:

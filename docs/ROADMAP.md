@@ -392,7 +392,8 @@ P6-11 last (it needs the relay and a device that can pair).
 
 - [~] **P7-8 Somdoku** (the user's own daily puzzle, somdoku.nl). Read: apps/somdoku.md. Port of the
   web game's generator and game logic, checked against 500 days of vectors from the web code; app with ready / play / done
-  views, clipboard and WhatsApp share. (2026-11-16: built and tested in the simulator; device run pending.)
+  views, score to the clipboard (no direct WhatsApp send). (2026-11-16: built and tested in the simulator;
+  device run pending.)
 
 ## Phase 8: Optional, ask the owner first
 

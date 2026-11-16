@@ -27,15 +27,14 @@ says so and shows no puzzle.
   is generated on the worker (`ctx.async`; at most a few hundred grids, well under a second on the device: measure).
 - **Play**: the 5x5 grid with the row sums left and the column sums stacked above; a note ("Nog 22 vakjes leeg.", "Alles
   ingevuld, maar het klopt nog niet."); keys 1 2 3 / 4 Zwart Wis. Tap a cell, then a key; the same value again empties the
-  cell; tapping the selected cell or beside the grid lets it go. Filled digit = ink Headline digit, black cell = solid ink,
+  cell; tapping the selected cell or beside the grid lets it go. A slip (the cell filled last changed again before another
+  cell is touched) does not turn yellow; letting the cell go or pausing does not end it, only selecting another cell does
+  (the web game's `justFilled`; `debugState` shows the marks, `marks=ygg;`). Filled digit = ink Headline digit, black cell = solid ink,
   selected cell = thick ink frame (paper on a black cell). The key holding the selected cell's value is drawn filled. The
   title bar's pause button (only while playing) goes back to Ready with the clock stopped.
-- **Done**: "Opgelost in 3:42", the streak, the timeline as tiles (kept = solid ink, changed = hatched square), "Kopieer
-  score" (to `core/clipboard`) and "Stuur naar WhatsApp" (`whatsapp::sendToFavorite`, favourite named by the app store key
-  `shareFavorite`, default "Woordle challenge"; opens the compose screen prefilled; nothing is sent without the user's Send
-  and confirmation). **Since the companion relay (2026-11-16)** the score is a reply to the newest live WhatsApp notification of the chat
-  with that name (the phone sends it); without one: the toast "No WhatsApp notification from <name> on your phone". "Kopieer score"
-  always works.
+- **Done**: "Opgelost in 3:42", the streak, the timeline as tiles (kept = solid ink, changed = hatched square) and one
+  button, "Kopieer score" (to `core/clipboard`, toast "Score gekopieerd"). **No send button**. To share: paste the score into a reply in the inbox (the
+  reply field's long press > Paste; the phone sends it) or on the phone.
 
 As on the web: no checking, no hints, the game ends by itself when the grid equals the solution.
 
@@ -49,13 +48,13 @@ puzzle stays visible). Not shown while playing.
 
 The app store (`/data/apps/somdoku.json`): `day`, `sums` (the puzzle's sums: a saved game of another puzzle is dropped),
 `cells`, `order`, `changed`, `edits`, `started`, `finished`, `activeMs`, `solved` (the solved days, newest 400, for the
-streak), `shareFavorite` (optional). Saved after every move. After a power-off the game comes back paused.
+streak). Saved after every move. After a power-off the game comes back paused.
 
 ## Score squares in text
 
 The share text holds 🟩 (U+1F7E9) and 🟨 (U+1F7E8). The fonts have no emoji, so `ui::drawText` / `measureText` draw score
 squares as boxes of the text's height: 🟩 solid, 🟨 hatched, ⬛ ⬜ 🟥 🟦 🟧 outlined (Woordle uses ⬛). The text itself keeps the
-real characters (clipboard, sent message). `ui::Label::keepLineBreaks` keeps a score's lines (the send confirmation).
+real characters (clipboard, a pasted reply). `ui::Label::keepLineBreaks` keeps a score's lines (the inbox send confirmation).
 
 ## Not built
 

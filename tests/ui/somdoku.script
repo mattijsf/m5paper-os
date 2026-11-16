@@ -1,8 +1,8 @@
 # app: somdoku
 # time: 2026-11-16T09:00:00
 # Somdoku (the user's own game, somdoku.nl): puzzle 6 of 2026-11-16 from the ported generator. Start, a slip put right at
-# once (stays green), a real change (yellow), pause and Verder, the rest filled in, the result, Kopieer score, and Stuur
-# naar WhatsApp up to the compose screen (nothing is sent).
+# once (stays green, also after letting the cell go and taking it again), a real change (yellow), pause and Verder, the
+# rest filled in, the result and Kopieer score.
 wait 1500
 shot somdoku-ready
 expect-state view=ready
@@ -20,6 +20,15 @@ tap 438 739
 wait 300
 tap 100 831
 wait 300
+tap 238 287            # cell 1 let go and taken again: still no other cell touched, so wiping and refilling it is a slip too
+wait 300
+tap 238 287
+wait 300
+tap 100 831
+wait 300
+tap 100 831
+wait 300
+expect-state marks=gg;
 tap 316 287
 wait 300
 tap 100 739
@@ -32,6 +41,7 @@ tap 269 739
 wait 600
 shot somdoku-progress
 expect-state filled=3 selected=0
+expect-state marks=ygg;
 tap 504 92              # pause
 wait 900
 shot somdoku-paused
@@ -135,14 +145,4 @@ tap 270 566             # Kopieer score
 wait 600
 shot somdoku-copied
 wait 4000                # the toast goes
-tap 270 656             # Stuur naar WhatsApp: the compose screen for the favourite "Woordle challenge", prefilled
-wait 1200
-shot somdoku-compose
-tap 330 504             # Send: the confirmation sheet with the score's lines (Cancel: nothing is sent)
-wait 900
-shot somdoku-confirm
-tap 270 900             # Cancel
-wait 900
-back                    # nothing is sent
-wait 900
 expect-state view=done
