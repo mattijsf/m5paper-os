@@ -114,7 +114,8 @@ stored (D26), so the word of the day always comes from the built-in answers.
 - A guess is known if it is built in or in the fetched list. Saved guesses are not checked again on reload (the fetched
   list may not be loaded yet).
 - Store keys: `listTried`, `listFetched` (Unix seconds), `listWords`. The statistics screen's last line says
-  "Woorden: 2254 ingebouwd, 5616 opgehaald op 16-11-2026" (or "nog niets opgehaald").
+  "Woorden: 2254 ingebouwd, 5616 opgehaald op 16-11" (or "nog niets opgehaald"; day and month only, with the year it did
+  not fit on the device).
 - Checked 2026-11-16 with the simulator against the live address (`--fixtures none`): 5616 words cached, equal to the
   file's second part. **On the device the same day** (by hand, D27 firmware): 5616 words, about 3 s (TLS 1.5 s,
   request 1.4 s, body 0.1 s), internal heap lowest 70 KB. Earlier the same day the address answered a 10 + 30 word placeholder.

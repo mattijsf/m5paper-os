@@ -443,6 +443,7 @@ class StatsScreen : public Screen {
     col->add<ui::Spacer>(4);
     listLine_ = col->add<ui::Label>(listText(), ui::Type::Caption, ui::secondary);
     listLine_->align = ui::TextAlign::Center;
+    listLine_->maxLines = 2;
     update_ = col->add<ui::Button>("Woordenlijst bijwerken", [this] { updateList(); }, ui::Button::Kind::Secondary);
   }
 
@@ -456,8 +457,9 @@ class StatsScreen : public Screen {
     const int fetched = ctx().store.get("listWords", 0);
     struct tm t{};
     if (fetched > 0 && localTime(static_cast<int64_t>(ctx().store.get("listFetched", 0.0)), t)) {
+      // Day and month only: with a four-digit count and the year the line did not fit (seen on the device, 2026-11-16).
       char date[16];
-      std::snprintf(date, sizeof date, "%d-%d-%d", t.tm_mday, t.tm_mon + 1, t.tm_year + 1900);
+      std::snprintf(date, sizeof date, "%d-%d", t.tm_mday, t.tm_mon + 1);
       return list + std::to_string(fetched) + " opgehaald op " + date;
     }
     return list + "nog niets opgehaald";

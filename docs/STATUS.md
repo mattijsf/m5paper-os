@@ -272,7 +272,20 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
-- **Vijfje (P7-9)**: nothing on the device yet (the firmware builds, see below): on 2026-11-16 the device and the
+- **Vijfje (P7-9), device run 2026-11-16 14:00** (firmware of main bb517a4, then the statistics line fix; injected taps, frame
+  dumps in `out/dev-vijfje/`): the game screen is **identical to the simulator golden** below the title bar (`1-open.png`);
+  a typed letter is a Fast push of its tile (70 x 70, push call 2-30 ms) and a settle 0.6 s later; "Onbekend woord" and "Te
+  weinig letters" toasts, the row is not used; **a backspace is one Fast push, no settle** (five in a row, refresh log), the
+  board afterwards identical to the opening frame; Statistieken; "Woordenlijst bijwerken": Wi-Fi join 1.36 s, HTTPS 2.87 s
+  (TLS 1.40 s), `[vijfje] word list: 5616 words`, heap 101 KB during TLS, 144 KB again after leaving, Wi-Fi off. **Found and
+  fixed**: the statistics line was cut off with the real numbers ("... opgehaald op 16-11-2..."): now day and month only, two
+  lines allowed; flashed and seen on the device (`9-stats-fixed.png`). One camera still (`cam-typed.png`, dark: exposure not
+  set for this session): board, typed tiles, keys and legend are on the panel; the gray(9) box of "zit er niet in" in the
+  legend is hard to see in it. `[perf] UI loop gap ~1.07 s` lines come with each frame dump (two dumps, two lines).
+  **Not run, on purpose: a played guess** (the row with marks, the keys' marks, won / lost, Kopieer score, statistics
+  counting): it would use up the user's puzzle of today and cannot be undone from here (`>rm` and `>cat` do not reach
+  `/data/apps`). So also not on the panel yet: the hatched ring, absent tiles, used-up keys. Next line: the older note.
+- **Vijfje (P7-9), older note**: (the firmware builds, see below): on 2026-11-16 the device and the
   `papers3` build were in use by other work (sdkconfig experiments; its builds exclude `apps/vijfje/`), the owner said
   "test in simulator". Done instead: simulator, unit tests, and `vijfje.cpp` + `words_data.cpp` compiled alone with the
   ESP32-S3 compiler (no warnings, 15 KB). To do: `make fw` with the app (size), flash, open it from launcher page 2, type a
@@ -720,3 +733,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-16: Vijfje: "Woordenlijst bijwerken" on the statistics screen (the list fetch by hand; shared `fetchList`), goldens `vijfje-list-updated`, `vijfje-list-failed`; device memory numbers of the app recorded.
 - 2026-11-16: fixed a reboot during HTTPS downloads (task watchdog: HTTPClient's read loop spun on core 0 while the TLS client had no data; `YieldingClient` in `platform/device/net.cpp`). Woordle's list fetch on the device: 5616 words, internal free lowest 70K; Home unchanged (lowest 69K).
 - 2026-11-16: Vijfje's list fetch ran on the device (5616 words, heap lowest 70 KB); it exposed a watchdog reboot in HTTPS downloads on the worker, fixed by the memory pass (54ad248).
+- 2026-11-16: Vijfje on the device (taps, frame dumps, list update, one camera still); statistics line shortened after it was cut off there. A played guess not run (today's puzzle).
