@@ -84,8 +84,10 @@ keeps a score:
 When the score reaches **`ghostLimit` (default 8.0)**, the next `Hint::Screen` commit uses
 Quality for the whole screen (one flash, during navigation where it is least noticed). If no
 navigation happens and the score reaches `2 x ghostLimit`, the manager cleans on the next idle
-moment (2 s without input). The reader counts page turns the same way; with defaults that is
-roughly one clean flash every 8 to 10 pages, never in the middle of reading a page.
+moment (2 s without input). **Measured 2026-11-16 (camera, reader at M)**: a page turn is a `Content` push of about 0.26
+of the screen (`changed=135994`), its settle pass takes half back, so the score rises about 0.13 per turn; the reader never
+commits `Screen`, so only the idle clean at 2 x `ghostLimit` = 16 remains, after roughly 120 turns. 30 turns gave **no**
+automatic clean. (This paragraph used to say "one clean every 8 to 10 pages": that is not what the code does.)
 
 `ghostLimit`, the settle delay and the idle delay live in `config.json` under `display` so they
 can be tuned on the device without rebuilding (task P7-1).
@@ -284,6 +286,14 @@ of white, while g11 to g12 is a jump of 0.24. Consequences for UI tokens (UI.md)
 almost white, gray(1)..gray(4) are hard to tell from ink. A faint vertical line shows in the dark bars at the same place in every shot
 (x about 410 of 540): a panel or driver artefact, not a ghost. At 30 fps the Clean's Quality push shows on the panel from +0.27 s to
 +1.23 s after the push call (0.96 s).
+
+**Reader ghosting (2026-11-16, camera locked, Alice; each block starts from a cleaned page, the ghost is measured against
+the same page after the menu's Clean)**: M after 1 turn 1.23 %, after 10 turns 1.54 %, after 30 turns 1.99 % (p95 4.9 / 5.8 /
+7.2 %); after 10 turns S 1.36 %, L 1.54 %, XL 1.71 %. No automatic Quality clean in any block (see "Ghost budget"). At 30 turns
+the ghost sits mostly in a rectangle over the upper half of the text (2.2-3.2 % per region), the lower middle stays at 0.2-0.8 %
+(`out/rg/M-30-diff.png`). One page turn at 30 fps (`around tap 400 500`): first visible change about 0.5 s after the tap, the Fast
+pass visible for about 0.17 s, the settle pass done on the panel about 1.6 s after the tap. Start times include the camera's own
+latency (about 0.2-0.25 s, the same offset appeared on the Clean); durations do not.
 
 `--source FILE` replays a video in real time instead of a camera (tests of the pipeline without a camera). The panel can show private
 messages: the images stay in `out/` (gitignored); never commit, upload or paste them, and do not record screens that show secrets.

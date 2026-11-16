@@ -1247,7 +1247,7 @@ def cmd_around(a):
 
 
 def dump(dev, link, path):
-    status, payload, hdr = dev.request(link, ">shot", timeout=30)
+    status, payload, hdr = dev.request(link, ">shot", timeout=10)
     if not status.startswith("#ok") or payload is None:
         sys.exit(f"frame dump failed: {status}")
     w, h = int(hdr[1]), int(hdr[2])

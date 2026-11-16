@@ -29,6 +29,7 @@ class Link:
 
     def __init__(self, port=None, sim=False, sim_args=()):
         self.sim = sim
+        self.answered = False  # once the device answered, it is awake: no more resends (they only hide a hang)
         if sim:
             root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             self.proc = subprocess.Popen(
@@ -75,6 +76,8 @@ class Link:
         return buf
 
     def close(self):
+        """Close the port. Do not keep an open port unread (for example while a camera works): close it and open a new
+        Link later. 2026-11-16: with the port held but unread for ~15 s, a >shot went unanswered for 60 s."""
         if self.sim:
             self.w.close()
             self.proc.wait(timeout=10)
@@ -98,17 +101,25 @@ def arm_limit(seconds):
     signal.alarm(int(seconds))
 
 
-def request(link, cmd, verbose=False, timeout=20, retries=2):
+def request(link, cmd, verbose=False, timeout=10, retries=2):
     """Send one command; return (status_line, payload_bytes or None, header or None).
 
     A device that light-sleeps (no host seen on the USB bus: the port is closed between two tool runs) does not hear a
-    command sent meanwhile (HARDWARE.md): it wakes by its own timer within a minute, so an unanswered command is sent
-    again, `retries` more times, before giving up."""
+    command sent meanwhile (HARDWARE.md): it wakes by its own timer within a minute, so the FIRST command of a Link is sent
+    again, `retries` more times, before giving up. Once the device has answered on this Link it is awake: a later command
+    gets one try of `timeout` seconds and then fails at once (resends there only turned a hang into minutes of waiting)."""
+    if link.answered:
+        retries = 0
     for attempt in range(retries + 1):
         try:
-            return _request_once(link, cmd, verbose, timeout)
+            r = _request_once(link, cmd, verbose, timeout)
+            link.answered = True
+            return r
         except TimeoutError:
             if attempt == retries or link.sim:
+                if link.answered:
+                    raise TimeoutError(f"no reply to {cmd!r} in {timeout} s although the device answered before on this "
+                                       f"link: busy or stalled; check `device.py log` / `status` now")
                 raise
             print(f"| no reply to {cmd!r} in {timeout} s (asleep or busy?), sending it again ({attempt + 2}/{retries + 1})", file=sys.stderr, flush=True)
 
@@ -228,7 +239,7 @@ def run_script(link, path, out_dir, golden_dir, verbose=False):
         return 2
     os.makedirs(out_dir, exist_ok=True)
 
-    def ok(cmd, timeout=20):
+    def ok(cmd, timeout=10):
         status, payload, hdr = request(link, cmd, verbose, timeout=timeout)
         if not status.startswith("#ok"):
             raise RuntimeError(f"{cmd}: {status}")
@@ -262,7 +273,7 @@ def run_script(link, path, out_dir, golden_dir, verbose=False):
                 time.sleep(int(args) / 1000.0)
             elif cmd == "shot":
                 name = args.split()[0]
-                payload, hdr = ok(">shot", timeout=30)
+                payload, hdr = ok(">shot", timeout=10)
                 w, h = int(hdr[1]), int(hdr[2])
                 pixels = unpack4(payload)
                 write_png(os.path.join(out_dir, name + ".png"), pixels, w, h)
