@@ -124,22 +124,42 @@ void Os::loopOnce() {
     Rect r = drawTouchMarker(canvas_, ev.x, ev.y);  // no Surface: just mark the touch
     dm_.invalidate(r, Hint::Feedback);
   }
+  uint32_t lastEvMs = ev.ms;
   if (surface_) {
     gestures_.tick(p_.clock.millis(), gs);
-    for (const Gesture& g : gs) surface_->onGesture(g);
+    for (const Gesture& g : gs) {
+      if (g.type != Gesture::Cancel) {  // trace to the next push (a Tap overrides its Down: measured from the finger lifting)
+        latEventMs_ = lastEvMs ? lastEvMs : p_.clock.millis();
+        latGestureMs_ = p_.clock.millis();
+      }
+      surface_->onGesture(g);
+    }
   }
   // 2. finished worker jobs, 3. due timers
   worker_.runCompleted();
   timers_.runDue();
   net_.tick();
   // 4. draw what changed (widgets mark themselves dirty), then commit what was invalidated
+  uint32_t renderMs = 0;
+  const uint32_t tRender = p_.clock.millis();
   if (surface_) {
-    const uint32_t t0 = p_.clock.millis();
     surface_->render(canvas_, dm_);
-    const uint32_t dt = p_.clock.millis() - t0;
-    if (dt >= 30) POS_LOG("perf", "render took %ums", static_cast<unsigned>(dt));  // layout + drawing of a screen change
+    renderMs = p_.clock.millis() - tRender;
+    if (renderMs >= 30) POS_LOG("perf", "render took %ums", static_cast<unsigned>(renderMs));  // layout + drawing of a screen change
   }
+  const size_t logBefore = dm_.refreshLog().size();
+  const uint32_t tCommit = p_.clock.millis();
   if (dm_.dirty()) dm_.commit();
+  if (latEventMs_ && dm_.refreshLog().size() != logBefore) {
+    // First push after a gesture: where the time went between the finger and the panel driver starting the waveform.
+    const RefreshEntry& e = dm_.refreshLog().back();
+    const uint32_t done = p_.clock.millis();
+    POS_LOG("lat", "event->gesture %u, ->render %u, render %u, commit %u (diff %u, push call %u, mode %c %dx%d), event->pushed %u ms",
+            static_cast<unsigned>(latGestureMs_ - latEventMs_), static_cast<unsigned>(tRender - latEventMs_), static_cast<unsigned>(renderMs),
+            static_cast<unsigned>(done - tCommit), static_cast<unsigned>(e.diffMs), static_cast<unsigned>(e.pushMs), e.mode,
+            static_cast<int>(e.rect.w), static_cast<int>(e.rect.h), static_cast<unsigned>(done - latEventMs_));
+    latEventMs_ = 0;
+  }
   dm_.tick(p_.clock.millis());
 }
 

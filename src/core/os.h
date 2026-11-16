@@ -99,6 +99,9 @@ class Os {
   std::unique_ptr<Surface> surface_;
   GestureRecognizer gestures_;
   uint32_t lastInputMs_ = 0;
+  // Tap-to-panel trace ("[lat]" log line, DISPLAY.md "Tap latency"): the touch event (Down or Up) that led to the
+  // gestures of this pass, and when they were dispatched. 0 = nothing to report.
+  uint32_t latEventMs_ = 0, latGestureMs_ = 0;
   Worker worker_;
   std::unique_ptr<Surface> pendingSurface_;
   bool hasPendingSurface_ = false;

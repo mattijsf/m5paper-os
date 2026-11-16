@@ -46,6 +46,10 @@ std::string ellipsize(Canvas& c, const std::string& utf8, Type type, int maxWidt
 // Replaces invalid UTF-8 and code points that have no glyph by '?'.
 std::string sanitize(const std::string& utf8);
 
+// Test aid: false draws every string through LovyanGFX (the reference the fast path must match byte for byte).
+void setFastText(bool on);
+unsigned fastTextDraws();  // strings drawn by the fast path on this thread (tests)
+
 // Draws a Lucide icon of `size` (32 or 64) with its box centred on (cx, cy).
 void drawIcon(Canvas& c, Icon icon, int cx, int cy, int size, Color color, Color bg = 0xFFFFFFu);
 

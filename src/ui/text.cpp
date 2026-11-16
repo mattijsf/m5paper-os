@@ -1,6 +1,10 @@
 #include "ui/text.h"
 
 #include <algorithm>
+#include <cstring>
+#include <memory>
+#include <unordered_map>
+#include <vector>
 
 #include "gen/fonts.h"
 
@@ -185,7 +189,251 @@ int widthWithSquares(Canvas& c, const std::string& s) {
   return w;
 }
 
+// ---- Fast text path (2026-11-16, DISPLAY.md "Tap latency")
+//
+// LovyanGFX draws a BFF (LVGL) glyph by mallocing and decoding its bitmap on every call and writing each pixel with its
+// own 1x1 writeFillRect: 10-20 ms per line of the reader on the device, 155-361 ms per page. Here every glyph is
+// rasterised once by LovyanGFX itself on a scratch canvas (black on white: the 16 alpha levels come back exactly, one
+// level = 17 gray values) and kept; drawing then clones LovyanGFX's draw_string + draw_alpha_bitmap_common (datum,
+// first-glyph shift, background fill from the first glyph's left to the last one's right, the same integer blend)
+// writing straight into an 8-bit canvas. tests/unit/text_test.cpp checks it is byte-identical to LovyanGFX.
+
+bool gFastText = true;
+thread_local unsigned gFastDraws = 0;
+
+inline uint8_t mix(uint32_t back, uint32_t fore, uint32_t alpha) {  // LovyanGFX's alpha_color for one channel, 4-bit alpha
+  const int32_t b = static_cast<int32_t>(back), f = static_cast<int32_t>(fore);
+  return static_cast<uint8_t>(b + ((f - b) * static_cast<int32_t>(alpha) + 7) / 15);
+}
+
+struct Glyph {
+  bool ready = false;  // probed
+  bool ok = false;     // usable by the fast path
+  int16_t adv = 0;     // what drawChar advances the pen by
+  int16_t xoff = 0;    // bitmap left relative to the pen (BFF bbox_x)
+  int16_t w = 0;       // bitmap width (BFF bbox_w)
+  int16_t yoff = 0;    // first bitmap row relative to the string's top (after the datum)
+  int16_t h = 0;       // bitmap rows (0: nothing drawn, e.g. a space)
+  const uint8_t* alpha = nullptr;  // w * h levels 0..15
+};
+
+constexpr int kSlots = 95 + 224 + 24 + 1;  // the baked ranges, see hasGlyph()
+int slotOf(uint32_t cp) {
+  if (cp >= 0x20 && cp <= 0x7E) return static_cast<int>(cp - 0x20);
+  if (cp >= 0xA0 && cp <= 0x17F) return 95 + static_cast<int>(cp - 0xA0);
+  if (cp >= 0x2010 && cp <= 0x2027) return 95 + 224 + static_cast<int>(cp - 0x2010);
+  if (cp == 0x20AC) return kSlots - 1;
+  return -1;
+}
+
+constexpr int kFonts = static_cast<int>(FontId::None);
+constexpr int kProbeW = 200, kProbeH = 160, kProbeX = 50, kProbeY = 40;
+
+// One per thread (the worker may draw text on its own canvases). Big allocations on purpose: on the device anything over
+// 16 KB comes from PSRAM, so the cache does not eat the internal heap Wi-Fi and TLS need.
+struct GlyphCache {
+  std::vector<Glyph> table;                                  // kFonts * kSlots
+  std::unordered_map<uint64_t, Glyph> other;                 // icons (private-use code points)
+  std::vector<std::unique_ptr<uint8_t[]>> pages;             // alpha bitmaps
+  size_t used = kPage;
+  static constexpr size_t kPage = 32 * 1024;
+  Canvas probe;
+  bool probeReady = false;
+
+  uint8_t* alloc(size_t n) {
+    if (n > kPage) return nullptr;
+    if (used + n > kPage) {
+      pages.emplace_back(new uint8_t[kPage]);
+      used = 0;
+    }
+    uint8_t* p = pages.back().get() + used;
+    used += n;
+    return p;
+  }
+};
+thread_local std::unique_ptr<GlyphCache> gCache;
+
+GlyphCache& cache() {
+  if (!gCache) {
+    gCache.reset(new GlyphCache());
+    gCache->table.resize(static_cast<size_t>(kFonts) * kSlots);
+  }
+  return *gCache;
+}
+
+void probeGlyph(GlyphCache& gc, FontId id, uint32_t cp, Glyph& g) {
+  g.ready = true;
+  Canvas& p = gc.probe;
+  if (!gc.probeReady) {
+    p.setColorDepth(lgfx::color_depth_t::grayscale_8bit);
+    p.setPsram(true);  // device: keep the 32 KB off the internal heap
+    if (!p.createSprite(kProbeW, kProbeH)) {
+      p.setPsram(false);  // host builds
+      if (!p.createSprite(kProbeW, kProbeH)) return;
+    }
+    gc.probeReady = true;
+  }
+  useFont(p, id);
+  const lgfx::IFont* font = p.getFont();
+  lgfx::FontMetrics m{};
+  font->getDefaultMetric(&m);
+  if (!font->updateFontMetric(&m, static_cast<uint16_t>(cp))) return;  // no glyph: LovyanGFX draws its dummy
+  // drawChar with the background fill switched off (filled_x far right) but fore != back: exactly the glyph's box is
+  // written, its empty pixels as `back`. On a canvas of a gray no level produces, the true box shows (LovyanGFX writes
+  // the box's empty rows too, over a neighbouring glyph: the fast path must do the same).
+  constexpr uint8_t kSentinel = 128;  // not mix(255, 0, a) for any a
+  p.fillScreen(static_cast<Color>(kSentinel) * 0x010101u);
+  lgfx::TextStyle ts;
+  ts.fore_rgb888 = 0x000000u;
+  ts.back_rgb888 = 0xFFFFFFu;
+  ts.size_x = ts.size_y = 1;
+  int32_t filled = 1 << 30;
+  g.adv = static_cast<int16_t>(font->drawChar(&p, kProbeX, kProbeY - m.y_offset, static_cast<uint16_t>(cp), &ts, &m, filled));
+  g.xoff = m.x_offset;
+  g.w = m.width;
+  const int x0 = kProbeX + m.x_offset;
+  if (x0 < 0 || x0 + g.w > kProbeW || g.w < 0) return;
+  const auto* buf = static_cast<const uint8_t*>(p.getBuffer());
+  int first = -1, last = -1;
+  for (int y = 0; y < kProbeH; ++y)
+    for (int x = 0; x < kProbeW; ++x)
+      if (buf[y * kProbeW + x] != kSentinel) {
+        if (x < x0 || x >= x0 + g.w) return;  // written outside the box the metrics give: not understood, keep LovyanGFX
+        if (first < 0) first = y;
+        last = y;
+      }
+  if (first == 0 || last == kProbeH - 1) return;  // may be cut by the probe canvas
+  g.h = first < 0 ? 0 : static_cast<int16_t>(last - first + 1);
+  g.yoff = first < 0 ? 0 : static_cast<int16_t>(first - kProbeY);
+  if (g.h > 0) {
+    // Black on white: level a (1..14) came out as mix(255, 0, a) (integer division truncates: level 1 is 239, not 238).
+    int8_t level[256];
+    std::memset(level, -1, sizeof level);
+    level[255] = 0;
+    for (uint32_t a = 1; a < 15; ++a) level[mix(255, 0, a)] = static_cast<int8_t>(a);
+    level[0] = 15;  // full alpha is the text colour itself
+    uint8_t* a = gc.alloc(static_cast<size_t>(g.w) * g.h);
+    if (!a) return;
+    for (int y = 0; y < g.h; ++y)
+      for (int x = 0; x < g.w; ++x) {
+        const int l = level[buf[(first + y) * kProbeW + x0 + x]];
+        if (l < 0) return;  // a hole in the box, or another bit depth: keep LovyanGFX
+        a[y * g.w + x] = static_cast<uint8_t>(l);
+      }
+    g.alpha = a;
+  }
+  g.ok = true;
+}
+
+const Glyph& glyphFor(FontId id, uint32_t cp) {
+  GlyphCache& gc = cache();
+  const int slot = slotOf(cp);
+  Glyph* g;
+  if (slot >= 0) {
+    g = &gc.table[static_cast<size_t>(id) * kSlots + slot];
+  } else {
+    g = &gc.other[(static_cast<uint64_t>(id) << 32) | cp];
+  }
+  if (!g->ready) probeGlyph(gc, id, cp, *g);
+  return *g;
+}
+
+// Draws like c.drawString(text, x, y) with the current font, datum `d`, colours `color` on `bg`. Returns false (and draws
+// nothing) when the fast path does not apply.
+bool fastDraw(Canvas& c, FontId id, const std::string& text, int x, int y, textdatum_t d, Color color, Color bg) {
+  if (!gFastText || c.getColorDepth() != lgfx::color_depth_t::grayscale_8bit || c.getRotation() != 0 ||
+      c.getTextSizeX() != 1.0f || c.getTextSizeY() != 1.0f || c.getTextPadding() != 0 || !c.getBuffer())
+    return false;
+  // Collect the glyphs first: any glyph the fast path cannot handle sends the whole string to LovyanGFX.
+  struct Item { const Glyph* g; };
+  Item items[256];
+  int n = 0;
+  for (size_t i = 0; i < text.size();) {
+    uint32_t cp;
+    i += decode(text, i, cp);
+    if (cp < 0x20 || (cp >= 0xFE00 && cp < 0xFE10)) continue;
+    if (cp > 0xFFFF || n == 256) return false;
+    const Glyph& g = glyphFor(id, cp);
+    if (!g.ok) return false;
+    items[n++].g = &g;
+  }
+  const int height = c.fontHeight();
+  if (d & middle_left) y -= height >> 1;
+  else if (d & bottom_left) y -= height;
+  else if (d & baseline_left) return false;  // not used by us
+  if (d & (top_center | top_right)) {
+    const int cwidth = c.textWidth(text.c_str());
+    x -= (d & top_center) ? cwidth >> 1 : cwidth;
+  }
+  int sumX = n && items[0].g->xoff < 0 ? -items[0].g->xoff : 0;
+
+  auto* cc = c.getColorConverter();
+  const bool fillbg = color != bg;
+  const uint32_t back = fillbg ? bg : c.getBaseColor();
+  uint8_t lut[16];
+  for (uint32_t a = 0; a < 16; ++a) {
+    if (a == 0) { lut[a] = static_cast<uint8_t>(cc->convert(back)); continue; }
+    if (a == 15) { lut[a] = static_cast<uint8_t>(cc->convert(color)); continue; }
+    const uint32_t r = mix((back >> 16) & 0xFF, (color >> 16) & 0xFF, a), gg = mix((back >> 8) & 0xFF, (color >> 8) & 0xFF, a),
+                   b = mix(back & 0xFF, color & 0xFF, a);
+    lut[a] = static_cast<uint8_t>(cc->convert((r << 16) | (gg << 8) | b));
+  }
+  const uint8_t backRaw = static_cast<uint8_t>(cc->convert(fillbg ? bg : color));  // fill colour (fillbg only)
+
+  int32_t clipX, clipY, clipW, clipH;  // int32_t is long on the ESP32: convert once
+  c.getClipRect(&clipX, &clipY, &clipW, &clipH);
+  const int cx = static_cast<int>(clipX), cy = static_cast<int>(clipY), cw = static_cast<int>(clipW), ch = static_cast<int>(clipH);
+  if (cw <= 0 || ch <= 0) return true;
+  const int clipR = cx + cw, clipB = cy + ch;
+  const int stride = c.width();
+  auto* buf = static_cast<uint8_t*>(c.getBuffer());
+  auto fill = [&](int fx, int fy, int fw, int fh) {
+    const int x0 = std::max(fx, cx), x1 = std::min(fx + fw, clipR), y0 = std::max(fy, cy), y1 = std::min(fy + fh, clipB);
+    for (int yy = y0; yy < y1; ++yy)
+      if (x1 > x0) std::memset(buf + yy * stride + x0, backRaw, static_cast<size_t>(x1 - x0));
+  };
+  int filled = 0;
+  for (int i = 0; i < n; ++i) {
+    const Glyph& g = *items[i].g;
+    const int pen = x + sumX;
+    if (fillbg) {
+      const int left = std::max(filled, pen + std::min<int>(g.xoff, 0));
+      const int right = pen + std::max<int>(g.w + g.xoff, g.adv);
+      filled = right;
+      if (left < right) {
+        int top = y, bottom = y + height;
+        if (g.h > 0) {
+          top = std::min(top, y + g.yoff);
+          bottom = std::max(bottom, y + g.yoff + g.h);
+        }
+        fill(left, top, right - left, bottom - top);
+      }
+    }
+    if (g.h > 0 && g.w > 0) {
+      const int gx = pen + g.xoff, gy = y + g.yoff;
+      const int x0 = std::max(gx, cx), x1 = std::min(gx + g.w, clipR);
+      const int y0 = std::max(gy, cy), y1 = std::min(gy + g.h, clipB);
+      for (int yy = y0; yy < y1; ++yy) {
+        const uint8_t* arow = g.alpha + (yy - gy) * g.w - gx;
+        uint8_t* drow = buf + yy * stride;
+        if (fillbg) {
+          for (int xx = x0; xx < x1; ++xx) drow[xx] = lut[arow[xx]];
+        } else {
+          for (int xx = x0; xx < x1; ++xx)
+            if (arow[xx]) drow[xx] = lut[arow[xx]];
+        }
+      }
+    }
+    sumX += g.adv;
+  }
+  ++gFastDraws;
+  return true;
+}
+
 }  // namespace
+
+void setFastText(bool on) { gFastText = on; }
+unsigned fastTextDraws() { return gFastDraws; }
 
 void forgetLoadedFont() {
   gLoadedOn = nullptr;
@@ -209,6 +457,7 @@ void drawText(Canvas& c, const std::string& utf8, int x, int y, Type type, Color
   c.setTextColor(color, bg);
   const std::string text = sanitize(utf8);
   if (!hasSquares(text)) {
+    if (fastDraw(c, fontFor(type), text, x, y, datum(anchor), color, bg)) return;
     c.setTextDatum(datum(anchor));
     c.drawString(text.c_str(), x, y);
     return;
@@ -277,6 +526,7 @@ void drawIcon(Canvas& c, Icon icon, int cx, int cy, int size, Color color, Color
   std::string s;
   append(s, gen::kIconCodepoint[static_cast<size_t>(icon)]);
   c.setTextColor(color, bg);
+  if (fastDraw(c, size >= 64 ? FontId::Lucide64 : FontId::Lucide32, s, cx, cy, textdatum_t::middle_center, color, bg)) return;
   c.setTextDatum(textdatum_t::middle_center);
   c.drawString(s.c_str(), cx, cy);
 }

@@ -19,6 +19,8 @@
 #include "core/loop.h"
 #include "core/os.h"
 #include "core/remote.h"
+#include "ui/text.h"
+
 #include "hal/platform.h"
 #include "hal/system.h"
 #include "platform/device/device.h"
@@ -73,6 +75,50 @@ PowerPolicy gPolicy(gOs, [](uint32_t ms) {
 Loop gLoop(gOs, gPolicy);
 
 // Remote control over the USB serial port (lines starting with '>', see core/remote.h).
+// Writes a test pattern into the panel's frame buffer twice, row by row (h = 1: M5GFX's stock writeImage) and as one rect
+// (the tiled writeImage of tools/patch_m5gfx.py), in Fast and Quality modes, and compares what the driver holds. Then the
+// UI is pushed again. The result is logged: "[epdtest] fast identical ...".
+void epdSelfTest() {
+  constexpr int W = 540, H = 240, Y = 300;
+  Canvas t;
+  t.setColorDepth(lgfx::color_depth_t::grayscale_8bit);
+  t.setPsram(true);
+  if (!t.createSprite(W, H)) {
+    POS_LOG("epdtest", "no memory");
+    return;
+  }
+  for (int y = 0; y < H; ++y)
+    for (int x = 0; x < W; ++x) t.drawPixel(x, y, gray(((x * 16) / W + y / 15) % 16) ^ ((x ^ y) & 1 ? 0x080808u : 0));
+  pos::ui::drawText(t, "Tiled write test 0123 AVAWAY", 20, 100, pos::ui::Type::Headline, kBlack, pos::ui::Anchor::TopLeft, kWhite);
+  std::vector<uint16_t> a(W * H), b(W * H);
+  M5.Display.waitDisplay();
+  for (auto mode : {lgfx::epd_fast, lgfx::epd_quality}) {
+    M5.Display.setEpdMode(mode);
+    M5.Display.startWrite();
+    M5.Display.fillRect(0, Y, W, H, TFT_WHITE);
+    for (int y = 0; y < H; ++y) {
+      M5.Display.setClipRect(0, Y + y, W, 1);
+      t.pushSprite(&M5.Display, 0, Y);
+    }
+    M5.Display.clearClipRect();
+    M5.Display.readRect(0, Y, W, H, a.data());
+    M5.Display.fillRect(0, Y, W, H, TFT_WHITE);
+    const uint32_t t0 = millis();
+    t.pushSprite(&M5.Display, 0, Y);
+    const uint32_t dt = millis() - t0;
+    M5.Display.readRect(0, Y, W, H, b.data());
+    M5.Display.endWrite();
+    int diff = 0;
+    for (int i = 0; i < W * H; ++i) diff += a[i] != b[i];
+    POS_LOG("epdtest", "%s %s (%d of %d pixels differ), rect write %u ms", mode == lgfx::epd_fast ? "fast" : "quality",
+            diff ? "DIFFERENT" : "identical", diff, W * H, static_cast<unsigned>(dt));
+  }
+  M5.Display.waitDisplay();
+  t.deleteSprite();
+  pos::ui::forgetLoadedFont();
+  gOs.displayManager().forceClean();  // the UI back on the panel
+}
+
 class SerialRemoteHost : public RemoteHost {
  public:
   void inject(const hal::TouchEvent& ev) override { gInput.inject(ev); }
@@ -118,6 +164,10 @@ class SerialRemoteHost : public RemoteHost {
     }
     if (key == "epd-timing") {
       gDisplay.setTiming(value == "on");
+      return true;
+    }
+    if (key == "epd-selftest") {  // tools/patch_m5gfx.py: the patched frame buffer write must equal the stock one
+      epdSelfTest();
       return true;
     }
     return false;
