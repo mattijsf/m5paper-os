@@ -38,8 +38,7 @@ and the P6 cards in `docs/ROADMAP.md`.
   the Paper" (default on, `settings.json` `clipboard`).
 - Look: the PaperOS "Ink" style (`Ink.kt`, docs/UI.md): the panel's 16 grays from its warm paper (`#E4E4DF`, measured on photos
   of the PaperS3) to its ink (`#1E1E1E`), Inter and Lucide icons (`res/font`, licences in `assets/licenses`), list rows with
-  dividers, ink and outline buttons, the Paper's pill toggle, a fixed matte grain over the window (`Ink.Grain`: static
-  specks at up to ~9% opacity, fixed seed); light only, edge to edge with the system-bar insets.
+  dividers, ink and outline buttons, the Paper's pill toggle; light only, edge to edge with the system-bar insets.
 - Backup and device transfer are off. No accessibility service.
 
 Notification contents are the user's private messages: never log, print or commit them. Check the app
