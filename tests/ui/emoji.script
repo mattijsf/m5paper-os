@@ -1,0 +1,4 @@
+# app: emoji
+# Emoji at every text size (docs/UI.md "Emoji"): a group name like the user's, faces, objects, sequences, a wrapped paragraph.
+wait 300
+shot emoji

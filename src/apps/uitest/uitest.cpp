@@ -274,6 +274,33 @@ std::unique_ptr<Widget> widgets5() {
   return root;
 }
 
+// emoji (2026-11-16, docs/UI.md "Emoji"): the atlases at every text size, a group name like the user's, sequences and a
+// wrapped paragraph. On the device: `tools/device.py set screen emoji`, then a frame dump and the camera.
+std::unique_ptr<Widget> emojiScreen() {
+  auto root = std::make_unique<Padding>(kMargin, s2, kMargin, s2);
+  auto* col = root->add<Column>(s1);
+  col->add<Label>("Emoji", Type::Headline);
+  const std::string family = "Pap\xF0\x9F\x91\xB4Mam\xF0\x9F\x91\xB5Luuk \xF0\x9F\x98\x8E Sanne \xF0\x9F\x92\x9B";
+  const std::string faces = "\xF0\x9F\x98\x80\xF0\x9F\x98\x82\xF0\x9F\xA5\xB0\xF0\x9F\x98\x8D\xF0\x9F\x98\x98\xF0\x9F\xA4\x94"
+                            "\xF0\x9F\x98\xA2\xF0\x9F\x98\xA1\xF0\x9F\x99\x88\xF0\x9F\x91\x8D\xF0\x9F\x99\x8F\xE2\x9D\xA4\xEF\xB8\x8F";
+  struct Row_ {
+    Type type;
+    std::string text;
+  };
+  const Row_ rows[] = {
+      {Type::Caption, "caption 18: " + family}, {Type::Body, "body 22: " + family}, {Type::BodyStrong, "bodyStrong 22: " + family},
+      {Type::Title, "title 28: " + family},     {Type::ReadS, "read-S 24: " + faces}, {Type::Body, faces},
+      {Type::Body, "\xF0\x9F\x8E\x82\xF0\x9F\x8E\x89\xF0\x9F\x8C\x9E\xE2\x98\x94\xF0\x9F\x9A\xB2\xF0\x9F\x8F\xA0\xF0\x9F\x90\xB6\xF0\x9F\x8D\x95\xE2\x9C\x85\xE2\x9D\x8C\xE2\x9A\xA0\xEF\xB8\x8F\xF0\x9F\x93\x85"},
+      {Type::Body, "skin tone \xF0\x9F\x91\x8D\xF0\x9F\x8F\xBD, family \xF0\x9F\x91\xA8\xE2\x80\x8D\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x91\xA7, flag \xF0\x9F\x87\xB3\xF0\x9F\x87\xB1"},
+  };
+  for (const Row_& r : rows) col->add<Label>(r.text, r.type);
+  auto* wrapped = col->add<Label>("A paragraph that wraps with emoji in it \xF0\x9F\x98\x8A: see you at six \xF0\x9F\x95\x95 at the "
+                                  "harbour \xE2\x9A\x93, bring the cake \xF0\x9F\x8E\x82 and the kids \xF0\x9F\x91\xA7\xF0\x9F\x91\xA6!",
+                                  Type::Body);
+  wrapped->maxLines = 4;
+  return root;
+}
+
 }  // namespace
 
 std::unique_ptr<Root> create(const std::string& name, Os& os) {
@@ -286,6 +313,7 @@ std::unique_ptr<Root> create(const std::string& name, Os& os) {
   if (name == "widgets5") root = widgets5();
   if (name == "widgets6") root = widgets6();
   if (name == "widgets2list") root = widgets2list();
+  if (name == "emoji") root = emojiScreen();
   if (!root) return nullptr;
   auto screen = std::make_unique<Root>(os.canvas(), os.displayManager(), &os.timers());
   screen->setRoot(std::move(root));

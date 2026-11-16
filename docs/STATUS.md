@@ -98,6 +98,11 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   hour grid with the now line; List), the next event under the launcher's date and on the sleep screen. Launcher page 2 now holds
   Woordle, Agenda and Weather. The APK is built (`android/app/build/outputs/apk/debug/app-debug.apk`), not installed.
 
+- **Emoji on the device, 2026-11-16 evening**: main (merge a002da2 + the emoji test screen) flashed; the four atlases pushed
+  to `/sd/paperos/emoji/` with `tools/push.py` (1.56 MB in 12.2 s, 110-131 KB/s, CRC checked). `set screen emoji` (test
+  screen, golden `emoji`): the frame dump is **identical** to the simulator's. First open 518 ms of UI loop (about 70
+  first-time card reads and the whole screen built; a text-only test screen's first open: 464 ms); later opens of both under
+  the 400 ms the loop logs. The live view (`tools/view.py --lan`) was stopped for this.
 - **Emoji on the panel, 2026-11-16**: Fluent Emoji High Contrast atlases
   (Noto Emoji for the rest) on the card,
   drawn by the fast text path (UI.md "Emoji"); `core/text_clean` keeps emoji. Simulator and host tests; not on the device yet.
@@ -312,10 +317,9 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
-- **Emoji (2026-11-16, simulator and host tests only)**: `make emoji` (pushes the four atlases, 1.5 MB, to `/sd/paperos/emoji/`
-  at ~90 KB/s: about 20 s) and flash; the WhatsApp list with the family group shows its emoji; the first draw of a new emoji
-  (one SD read each) against a cached one (`[lat]` lines); with the camera whether the Fluent High Contrast faces stay readable at
-  18 and 22 px on the panel. Not done yet: the live view (tools/view.py --lan) holds the serial port.
+- **Emoji, rest of the device check**: with the camera (the C922 was not plugged in on 2026-11-16 evening), whether the Fluent
+  High Contrast faces stay readable at 18 and 22 px on the panel (`tools/device.py set screen emoji`); a real WhatsApp
+  message with emoji (the inbox was empty at the check).
 - **P7-10 Agenda (D28)**: install the APK on the phone, switch on "Share the agenda" and grant calendar access (the user, once);
   check `files/status.json` `agenda_sent` > 0 and the Paper's Agenda app against the phone's calendar app (titles shown only on the
   Paper); an edit and a delete on the phone reach the Paper after a relay read; switching off empties the Paper. On the device:

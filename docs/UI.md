@@ -287,6 +287,8 @@ box is the font size, 0.86 of it above the baseline, with px/8 (at least 2 px) o
   emoji ("👨‍👩‍👧" -> 👨); flags show their two letter boxes. `core/text_clean` keeps emoji (it used to drop them).
 - **No card / no atlas**: a few emoji get a text form (`:)`, `<3`, `(+1)`), the rest disappear (never `?`).
 - **Score squares** keep their own drawing (below): they must stay apart on the gray panel.
+- **Test screen** `emoji` (`--app emoji` in the simulator, `tools/device.py set screen emoji` on the device): every size, a
+  group name, faces, objects, sequences and a wrapped paragraph; golden `emoji`.
 
 ### Score squares
 
