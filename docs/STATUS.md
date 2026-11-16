@@ -331,6 +331,11 @@ connected** (2026-11-15: macOS lists only the built-in camera; the user will plu
      (SDK 37, security patch 2026-10-05), WhatsApp 2.26.45.13; adb over Wi-Fi at 192.168.1.51 (the port changes). Still to confirm:
      that this phone is the one that runs the app.
    - d. **Always on**: is that phone always on and online at home (the inbox only fills while it is)?
+   **Assumed, not answered** (the owner said "Continue", 2026-11-16): (a) WhatsApp replies only
+   to chats that still have a notification on the phone, through its reply action; no new chats, no favourites; Somdoku's "Stuur naar
+   WhatsApp" works only while that group has a live notification, else a toast says so. (b) Mail: sender, subject and whatever preview
+   the notification shows; read-only. (d) The phone is mostly on and online at home; both sides queue and survive the phone being
+   away for hours. Protocol: docs/COMPANION.md.
 
 None of these block Phase 1, Phase 2, or the reader.
 

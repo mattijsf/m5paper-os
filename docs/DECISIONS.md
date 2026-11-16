@@ -227,13 +227,17 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   read every WhatsApp message and, through Bridge, the whole Proton mailbox, and could call `whatsapp.send_message` past the guards
   of `script.paperos_whatsapp_send`).
 - **Decision**: a small sideloaded Android app on the user's phone (NotificationListenerService) reads the WhatsApp and Proton Mail
-  notifications, encrypts each one for the PaperOS device (authenticated: X25519 + XChaCha20-Poly1305 / `crypto_box`, keys of both
-  ends, a counter or time window against replay) and posts only the ciphertext to Home Assistant. Home Assistant stores and forwards
-  the blobs (a webhook into a trigger-based relay sensor, kept out of the recorder) and is a dumb pipe: it can neither read nor forge
-  an item. The device decrypts (Monocypher, platform-free in `core`), then shows the same feed contract as today
+  notifications, encrypts each one for the PaperOS device (authenticated: X25519, HKDF-SHA256, ChaCha20-Poly1305, a counter per
+  direction against replay) and posts only the ciphertext to Home Assistant. Home Assistant stores and forwards the blobs (trigger-based
+  relay sensors filled through a script, kept out of the recorder) and is a dumb pipe: it can neither read nor forge an item. The
+  device decrypts (libsodium, one code path for simulator and firmware, in `core`), then shows the same feed contract as today
   (BACKEND.md "Inbox feeds"). Pairing by QR code (the device shows its public key; both ends show a short fingerprint the user
   compares). Commands back (reply, mark read) are encrypted device to phone the same way. **Send limits (length, rate, one target)
-  live in the phone app**, not in a Home Assistant script. Design sketch: BACKEND.md "Companion app"; tasks: ROADMAP.md Phase 6.
+  live in the phone app**, not in a Home Assistant script. The exact protocol: `docs/COMPANION.md`; tasks: ROADMAP.md Phase 6.
+- **2026-11-16 addendum (protocol v1)**: libsodium instead of Monocypher or mbedTLS (the device's precompiled mbedTLS 3.6.6 has
+  ChaCha20 and Poly1305 compiled out; libsodium 1.0.22 ships with the device libraries and in Homebrew); ChaCha20-Poly1305 IETF and
+  HKDF-SHA256 so Android needs no library (`XDH`, `ChaCha20-Poly1305`, `HmacSHA256` are in the platform from API 31); no webhook (the
+  phone needs a token to read its queue anyway, COMPANION.md section 6).
 - **Costs the user accepts**:
   - **Mail** shows only what the Proton Mail notification shows: sender and subject, maybe a short preview. No full body, no
     full-text fetch (D17 had rejected "notification text only" for this reason).

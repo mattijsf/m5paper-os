@@ -98,26 +98,13 @@ The package is `ha/paperos_inbox.yaml`, a copy of the live `packages/paperos_inb
 relay. `GET /api/states/sensor.paperos_*_inbox` answers **404** (checked live 2026-11-16 after the orphaned entities were removed):
 the inbox shows "Not set up yet" and drops its saved list (apps/inbox.md).
 
-## Companion app (D22, planned: tasks P6-8 to P6-11)
+## Companion app (D22)
 
-Design sketch from 2026-11-16; P6-8 turns it into `docs/COMPANION.md`. Nothing of it is built.
-
-- **Threat model**: Home Assistant and every integration in it may be hostile. It may read, drop, delay and replay what passes
-  through; it must not be able to read or forge an item, or make the phone send. The device parses everything from Home Assistant as
-  untrusted input (bounded JSON, sizes checked before decrypting).
-- **Phone side**: a sideloaded Kotlin app, NotificationListenerService for WhatsApp and Proton Mail, foreground service and a
-  battery-optimisation exemption. `onNotificationRemoved` (read or dismissed on the phone) can drop the item on the device.
-- **Pairing**: the device makes an X25519 key pair (private key in `/sd/paperos_config`, secret rules apply) and shows its public key
-  as a QR code; the app scans it and posts its own public key through Home Assistant; both show a short fingerprint and the user
-  confirms they match.
-- **Items**: `crypto_box`-style authenticated encryption (X25519 + XChaCha20-Poly1305) with both keys, plus a counter or time window
-  against replay. Device: Monocypher (one C file, platform-free, `core`). Phone: libsodium (Lazysodium).
-- **Relay in Home Assistant**: a webhook trigger (`POST /api/webhook/<id>`; the id is a secret) into a trigger-based template sensor
-  holding the last N blobs per feed, recorder-excluded. Home Assistant still sees timing, sizes and count.
-- **Commands back** (reply, mark read): encrypted device to phone, delivered through a sensor or event the app reads (it keeps a
-  websocket to Home Assistant; no Google push). **Send guards live in the phone app** (length, 10 s gap, 20 per hour, one chat), not
-  in Home Assistant. A reply works only while that chat's notification is still on the phone (its RemoteInput action).
-- **Limits**: muted chats and media are missing; mail has no body; the phone must be on and online.
+The protocol, the relay entities and calls, the credentials and the limits are in **`docs/COMPANION.md`** (v1, 2026-11-16).
+In short: the phone pushes ChaCha20-Poly1305 envelopes (X25519 + HKDF-SHA256 keys from a QR pairing) to
+`script.paperos_relay_push`; three recorder-excluded template sensors (`sensor.paperos_relay_to_paper`, `_to_phone`,
+`_pairing`) hold them; the Paper reads `to_paper` with its token, decrypts, and acks with `script.paperos_relay_ack`; replies go
+the other way and the send guards live in the phone app. Home Assistant sees timing, sizes and counts only.
 
 ### "Mark all read" from the device
 
