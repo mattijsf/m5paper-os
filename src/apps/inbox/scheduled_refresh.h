@@ -4,6 +4,7 @@
 
 #include <memory>
 
+#include "core/companion.h"
 #include "core/ha.h"
 #include "core/os.h"
 
@@ -16,6 +17,10 @@ struct RefreshResult {
   int unread = 0;
   int feedsOk = 0;
 };
+// Writes both inbox badges (/data/cache/<id>/badge) from the notification store: what is newer than each app's seen marker.
+// `gone`: no feed can exist (not paired, no relay), the badges become 0. Returns the unread total. For every reader of the
+// relay queue that is not an inbox app (the scheduled refresh, the Agenda app).
+int writeBadges(const companion::Notifs& notifs, bool gone = false);
 // Reads the companion relay (relay_fetch.h) and writes both inbox badges. Blocking (worker thread).
 RefreshResult refreshFeeds(HaClient ha, int64_t now, bool takeClip);
 

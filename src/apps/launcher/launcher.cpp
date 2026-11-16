@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <ctime>
 
+#include "core/agenda.h"
 #include "core/fs.h"
 #include "core/store.h"
 #include "core/timefmt.h"
@@ -37,6 +38,13 @@ std::string computeSummary(const std::vector<const AppEntry*>& apps) {
   return summaryLine(unread, reader.get("last.title", std::string()), reader.has("last.percent") ? reader.get("last.percent", -1) : -1);
 }
 
+// What is on now or comes next in the phone's agenda (core/agenda: the saved days, never the network). "" for none.
+std::string agendaLine(hal::Clock& clock) {
+  agenda::Agenda a;
+  if (!agenda::load(a)) return "";
+  return agenda::nextLine(a, clock.now());
+}
+
 // Home screen: header, then a 2 x 3 grid of tiles from the app registry (sorted by order), paged if
 // there are more than six apps. A tap opens the app.
 class LauncherScreen : public Screen {
@@ -46,6 +54,9 @@ class LauncherScreen : public Screen {
   void build(ui::Column& root) override {
     root.add<ui::Spacer>(ui::s3);
     date_ = root.add<ui::Label>(dateLine(shell_.os().platform().clock), ui::Type::Title);
+    agenda_ = root.add<ui::Label>("", ui::Type::Body);  // content (the next event): ink, body size, one line
+    agenda_->maxLines = 1;
+    showAgenda();
     summary_ = root.add<ui::Label>(computeSummary(apps_), ui::Type::Body);  // content (unread, the book being read): ink, body size
     root.add<ui::Spacer>(ui::s3);
 
@@ -67,6 +78,7 @@ class LauncherScreen : public Screen {
   }
 
   void onShow() override {
+    showAgenda();
     summary_->setText(computeSummary(apps_));  // the layout that follows makes room for it
     // Badges come from what apps cached earlier; the launcher never does network I/O.
     for (size_t i = 0; i < tiles_.size(); ++i) {
@@ -79,6 +91,13 @@ class LauncherScreen : public Screen {
   }
 
  private:
+  // The agenda line takes no room when there is nothing to say.
+  void showAgenda() {
+    const std::string line = agendaLine(shell_.os().platform().clock);
+    agenda_->visible = !line.empty();
+    agenda_->setText(line);
+  }
+
   void fill(int page) {
     page_ = page;
     for (size_t i = 0; i < tiles_.size(); ++i) {
@@ -100,7 +119,7 @@ class LauncherScreen : public Screen {
 
   Shell& shell_;
   std::vector<const AppEntry*> apps_;
-  ui::Label *date_ = nullptr, *summary_ = nullptr;
+  ui::Label *date_ = nullptr, *agenda_ = nullptr, *summary_ = nullptr;
   std::vector<ui::Tile*> tiles_;
   int page_ = 0;
 };

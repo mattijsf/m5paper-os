@@ -1,7 +1,7 @@
 // Reading the companion relay (docs/COMPANION.md 8, "Paper"): GET sensor.paperos_relay_to_paper, apply the envelopes to the local
 // notification store, save the pairing and the store, ack what was read. Blocking: run it on the worker (ctx.async); the inbox apps,
 // the scheduled refresh and the clipboard sync share it. A `clip` from the phone replaces the Paper's clipboard here (when
-// `takeClip`, i.e. Settings shares the clipboard).
+// `takeClip`, i.e. Settings shares the clipboard); an `agenda` from the phone replaces the days it covers in the saved agenda (D28).
 #pragma once
 
 #include <string>
@@ -18,6 +18,7 @@ struct RelayFetch {
   companion::ApplyResult applied;
   companion::Notifs notifs;  // the store after applying (also when the GET failed: what was saved before)
   bool clipFromPhone = false;  // the clipboard now holds what the phone sent
+  bool agendaChanged = false;  // the phone sent its calendar: /data/cache/agenda/agenda.json is new (core/agenda.h)
 };
 RelayFetch fetchRelay(HaClient& ha, int64_t now, bool takeClip);
 

@@ -300,7 +300,8 @@ void Shell::prepareForPowerOff() {
   if (haveInfo && !info.image.empty()) image = ui::loadImageFit(info.image, kSleepImageW, kSleepImageH);
   sleeping_ = true;  // nothing else draws over the sleep screen
   saveSleepInfo(haveInfo ? &info : nullptr);  // a scheduled refresh redraws the same screen with a new summary
-  drawSleepScreen(os_.canvas(), haveInfo ? &info : nullptr, image.get(), sleepNote(cachedUnread(), ""));
+  drawSleepScreen(os_.canvas(), haveInfo ? &info : nullptr, image.get(), sleepNote(cachedUnread(), ""),
+                  sleepAgendaLine(os_.platform().clock.now()));
   os_.displayManager().forceClean();
 }
 

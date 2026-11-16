@@ -65,6 +65,7 @@ object Ink {
     const val ICON_ALERT = 57463
     const val ICON_SHIELD = 57855
     const val ICON_UNLINK = 57757
+    const val ICON_CALENDAR = 57443
 
     private var regular: Typeface? = null
     private var strong: Typeface? = null

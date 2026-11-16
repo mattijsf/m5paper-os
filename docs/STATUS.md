@@ -80,6 +80,12 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   automation, script or dashboard referenced it) was removed from the entity registry. Next: the Android app (P6-C0 / P6-11, separate task),
   then a real pairing.
 
+- **P7-10 Agenda, 2026-11-16: built; simulator, host unit tests (7 cases) and the Android JVM tests (`AgendaTest`, 5); not run on
+  the phone or the device** (D28, apps/agenda.md, COMPANION.md 7.1 `agenda`). The phone's calendar, one way through the encrypted
+  relay: the companion app's switch "Share the agenda" (off by default, `READ_CALENDAR`), the Agenda app (Day: time blocks on an
+  hour grid with the now line; List), the next event under the launcher's date and on the sleep screen. Launcher page 2 now holds
+  Woordle, Agenda and Weather. The APK is built (`android/app/build/outputs/apk/debug/app-debug.apk`), not installed.
+
 ## What works today
 
 | Thing | Command | Result |
@@ -290,6 +296,11 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **P7-10 Agenda (D28)**: install the APK on the phone, switch on "Share the agenda" and grant calendar access (the user, once);
+  check `files/status.json` `agenda_sent` > 0 and the Paper's Agenda app against the phone's calendar app (titles shown only on the
+  Paper); an edit and a delete on the phone reach the Paper after a relay read; switching off empties the Paper. On the device:
+  the day view's gray(12) blocks and ink bars with the camera (gray(12) is near white on the panel: the bar must carry them),
+  the sleep screen line, `tools/memory.py --only agenda`.
 - **Weather (P7-11, 2026-11-16, simulator only)**: after the next flash open Weather on page 2 of the launcher: the log line
   `[weather] read: <condition>, N days, M hours, K rain blocks` (expect about 10 days, 24 or more hours, rain blocks > 0;
   -1 = the rain sensor did not answer), a frame dump with real values, the

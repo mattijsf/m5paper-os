@@ -406,6 +406,13 @@ P6-11 last (it needs the relay and a device that can pair).
   game in the genre, not a copy of woordle.nl: own name, own words and day order. Game logic with unit tests, game and
   statistics screens, score to the clipboard. (2026-11-16: built and tested in the simulator; device run pending.)
 
+- [~] **P7-10 Agenda**. Read: D28, COMPANION.md 7.1 `agenda`, apps/agenda.md. Phone: read the visible calendars (`READ_CALENDAR`, switch
+  "Share the agenda", off by default), pack 14 days into `agenda` runs, send changed days, the whole window daily. Paper:
+  `core/agenda` (store, apply, next line), the Agenda app (Day view with time blocks, List view), the line on the launcher and
+  the sleep screen. (2026-11-16: built; simulator, host unit tests and the Android JVM tests; not run on the phone or the device.)
+  Done when: a real calendar event made on the phone shows on the Paper within two minutes of a relay read, and an edit and a
+  delete follow.
+
 - [~] **P7-11 Weather**. Read:
   apps/weather.md, BACKEND.md "API calls used". App `weather`: `weather.thuis` state for now (condition, temperature, feels like,
   wind, humidity, rain chance), `weather.get_forecasts` (`?return_response`, daily and hourly) for the next hours and days, the rain graph from
@@ -439,4 +446,5 @@ P6-11 last (it needs the relay and a device that can pair).
 | WhatsApp send, clipboard | P6-7 clipboard (D21); replies through the phone, P6-10/P6-11 (D22); clipboard sync, P6-12 (D23) |
 | Recent mail | P6-8 to P6-11 (Proton Mail notifications: sender, subject, maybe a preview; D22) |
 | Home Assistant control | P5 |
+| Agenda | P7-10 (the phone's calendar, one way through the encrypted relay, D28) |
 | Weather | P7-11 (Google Weather through Home Assistant) |

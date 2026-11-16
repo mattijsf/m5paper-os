@@ -196,6 +196,32 @@ Quick Settings tile or the app's button; never automatic: Android lets an app re
 (the newest `clip` of a queue wins) unless it is older than 24 hours by `ts` or the Paper's "Share the clipboard" is off; such a
 `clip` is read and acked, not applied. A clipboard Android marks sensitive (`ClipDescription.EXTRA_IS_SENSITIVE`) is never sent.
 
+**`agenda`** (D28, one way: the Paper never changes the calendar): the phone's calendar for a run of days.
+
+```json
+{"t":"agenda","from":"2026-11-16","to":"2026-11-18",
+ "days":[{"d":0,"ev":[{"n":"Anna's birthday"},{"s":570,"e":615,"n":"Dentist","l":"Main St 4"}]},
+         {"d":2,"ev":[{"s":1320,"n":"Night train"}],"more":1}]}
+```
+
+| Field | Meaning |
+|---|---|
+| `from`, `to` | first and last day of the run, `YYYY-MM-DD` in the phone's time zone, `to` ≥ `from`, at most 14 days. The message **replaces everything the Paper holds for every day of the run**: a day that is not listed has no events |
+| `days[].d` | the day, counted from `from` (0 = `from`); each day at most once |
+| `days[].ev` | that day's events, at most 12: first the ones without `s` (all day, or begun on an earlier day), then by `s` |
+| `ev[].s`, `ev[].e` | start and end in minutes after that day's midnight on the phone (`s` 0..1439, `e` 0..1440, `e` ≥ `s`). `s` is left out when the event began before this day, `e` when it ends after it; an all-day event has neither. An event over several days is listed on every day it touches |
+| `ev[].n` | the title (80), `""` for an event without one |
+| `ev[].l` | the location (60), left out when empty |
+| `days[].more` | the number of events of that day that were left out (more than 12, or the plaintext limit); left out when 0 |
+
+The phone reads the calendars that are visible in its calendar app (`CalendarContract.Instances`, permission
+`READ_CALENDAR`, asked when the user switches on "Share the agenda"; off by default) for today and the 13 days after it.
+It sends a run when a day in it changed since that day was last sent (a calendar change, 60 s after the last one), the
+whole window once a day after the phone's midnight, and the whole window after pairing or switching the share on.
+Declined and cancelled events are not sent. Days are packed into as few envelopes as fit 1000 bytes (a day that does not
+fit alone loses its last events to `more`). With the share off (or the permission taken away) the phone sends one
+`agenda` with the whole window and no days, which empties the Paper's agenda.
+
 **`unpair`**: `{"t":"unpair"}`.
 
 ### 7.2 Paper to phone (`D`)
@@ -235,6 +261,10 @@ queue entry's `ts`, or the app's "Share the clipboard" is off. A `clip` that cam
 - "Mark all read": clears the local items of that app and sends `dismiss` with their keys.
 - Clipboard (D23): a text field's clipboard sheet and the reply screen's Paste read `to_paper` first, so a `clip` the phone just
   sent is there; any read of the queue (inbox, scheduled refresh) applies a `clip` too.
+- Agenda (D28): any read of the queue (inbox, Agenda app, scheduled refresh, clipboard pull) applies `agenda` messages in
+  counter order to `/data/cache/agenda/agenda.json` (private, deleted with the pairing). Days before the Paper's own today
+  are dropped. Times are shown as the phone sent them (the phone's wall clock); "today" and "next" use the Paper's clock
+  and time zone. The Paper sends nothing back.
 - Not paired: the inbox says so and points to Settings > Home Assistant > Phone.
 
 **Phone**

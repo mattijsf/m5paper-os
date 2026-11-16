@@ -32,7 +32,7 @@ struct Pairing {
 };
 bool loadPairing(Pairing& out);        // false (and not paired) when there is none or it is unreadable
 bool savePairing(const Pairing& p);    // atomic
-void forgetPairing();                  // deletes the pairing and the notification store
+void forgetPairing();                  // deletes the pairing, the notification store and the agenda
 
 // One phone notification as the Paper keeps it (a `post`).
 struct NotifMsg {
@@ -67,6 +67,7 @@ struct ApplyResult {
   std::vector<std::string> notes;  // result toasts: "Reply to Anna sent", "Reply to Anna not sent: ..."
   bool hasClip = false;    // the phone sent its clipboard (the newest `clip` wins; only when `takeClip`)
   std::string clip;
+  std::vector<std::string> agenda;  // the plaintexts of the `agenda` messages, in counter order (core/agenda.h applies them)
 };
 // `takeClip` false (Settings does not share the clipboard): `clip` envelopes are read and dropped.
 ApplyResult applyQueue(Pairing& pairing, Notifs& notifs, const std::string& stateJson, int64_t now, bool takeClip = true);

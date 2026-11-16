@@ -73,7 +73,8 @@ layout with the current book cover and progress, or the PaperOS mark, plus "Pres
 button to wake". Task P3-6 (simulator part done): `Shell::prepareForPowerOff()` asks the open app for `App::sleepInfo()`
 (title, subtitle, percent, cover path; the reader keeps these in its store while a book is open), closes the app, draws
 `core/sleep_screen` into the canvas and calls `forceClean()` (one Quality pass); the Shell draws nothing after that.
-One caption-sized line above the hint shows the cached unread count (and the time of the last scheduled refresh, see below).
+One caption-sized line above the hint shows the cached unread count (and the time of the last scheduled refresh, see below);
+above it, what the phone's agenda has on now or next (`sleepAgendaLine`, D28), as of the moment the screen was drawn.
 
 ### Resume after power-off
 

@@ -44,6 +44,7 @@ object Link {
     var baseUrl: String? = null; private set
     var repliesAllowed = false; private set
     var clipboardShared = true; private set
+    var agendaShared = false; private set // D28: off until the user switches it on (and grants READ_CALENDAR)
     private val sends = mutableListOf<Long>()
 
     private fun pairingFile(ctx: Context) = File(ctx.noBackupFilesDir, "pairing.json")
@@ -58,6 +59,7 @@ object Link {
             baseUrl = o.optString("url").ifEmpty { null }
             repliesAllowed = o.optBoolean("replies", false)
             clipboardShared = o.optBoolean("clipboard", true)
+            agendaShared = o.optBoolean("agenda", false)
             o.optJSONArray("sends")?.let { a -> for (i in 0 until a.length()) sends += a.getLong(i) }
         }
         runCatching {
@@ -116,6 +118,7 @@ object Link {
         baseUrl = qr.baseUrl
         saveSettings(ctx)
         savePairing(ctx)
+        AgendaSync.forget(ctx) // the new Paper holds no agenda yet
         val box = Outbox.of(ctx)
         box.clear()
         val hello = Envelope.sealHello(k.p2d, pid, phonePk, Messages.hello(Build.MODEL, BuildInfo.version(ctx)))
@@ -144,6 +147,7 @@ object Link {
             stage = Stage.ACTIVE
             savePairing(ctx)
             sendSync(ctx, force = true)
+            AgendaSync.requestFull(ctx)
         }
     }
 
@@ -159,6 +163,7 @@ object Link {
         pid = ByteArray(0); paperPk = ByteArray(0); phonePk = ByteArray(0)
         userConfirmed = false; pairedSeen = false; tx = 0; rx = 0
         pairingFile(ctx).delete()
+        AgendaSync.forget(ctx)
     }
 
     @Synchronized
@@ -166,6 +171,15 @@ object Link {
         load(ctx)
         repliesAllowed = allowed
         saveSettings(ctx)
+    }
+
+    /** D28: the calendar goes to the Paper (one way). Switching it on or off sends the whole window or the clearing run. */
+    @Synchronized
+    fun setAgendaShared(ctx: Context, shared: Boolean) {
+        load(ctx)
+        agendaShared = shared
+        saveSettings(ctx)
+        AgendaSync.requestFull(ctx)
     }
 
     @Synchronized
@@ -300,6 +314,7 @@ object Link {
 
     private fun saveSettings(ctx: Context) {
         val o = JSONObject().put("url", baseUrl ?: "").put("replies", repliesAllowed).put("clipboard", clipboardShared)
+            .put("agenda", agendaShared)
             .put("sends", JSONArray(sends))
         writeAtomic(settingsFile(ctx), o.toString())
     }

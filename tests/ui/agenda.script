@@ -1,0 +1,47 @@
+# P7-10: the Agenda app (docs/apps/agenda.md, D28). The phone's calendar comes through the encrypted relay (fixture
+# ha-agenda.example.test, tests/fixtures/make-inbox-fixtures.py): two `agenda` runs after two chats. Opened from launcher page 2;
+# today is Thursday 15 January 2026, 13:34. Day view first (time blocks, the now line), then the list, then the line on the
+# launcher and on the sleep screen.
+wait 800
+tap 480 922             # launcher: next page
+wait 900
+shot agenda-launcher-page2
+tap 400 266             # the Agenda tile
+wait 1500
+shot agenda-day
+expect-state view=day|date=2026-01-15
+tap 504 92              # refresh: the relay has nothing new, so nothing but the button's press reaches the panel
+wait 1500
+expect-state unchanged-reads=1
+expect-max-pushed 12000
+swipe 400 600 100 600   # next day
+wait 900
+shot agenda-day-tomorrow
+expect-state date=2026-01-16
+tap 508 164             # header arrow: Saturday (all day on Texel, the ferry)
+wait 900
+shot agenda-day-saturday
+tap 508 164             # Sunday
+tap 508 164             # Monday: nothing planned
+wait 900
+shot agenda-day-free
+tap 508 164             # Tuesday: the planning runs past midnight
+wait 900
+shot agenda-day-late
+tap 300 740             # the planning's block: the whole title and location in a sheet
+wait 700
+shot agenda-event-sheet
+tap 270 100             # outside the sheet: it closes
+wait 700
+tap 405 912             # List tab
+wait 900
+shot agenda-list
+expect-state view=list|rows=14
+tap 480 806             # list: next page
+wait 900
+shot agenda-list-p2
+back                    # the launcher: the agenda line under the date (lunch is on now), the WhatsApp badge from the same read
+wait 900
+shot agenda-launcher-line
+power-off
+shot agenda-sleep

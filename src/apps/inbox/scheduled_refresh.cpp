@@ -80,7 +80,7 @@ class RefreshSurface : public Surface {
       updated = buf;
     }
     if (r.feedsOk > 0) {  // nothing answered: the panel keeps what it shows (no flash, less time awake)
-      drawSleepScreen(os_.canvas(), have ? &info : nullptr, image.get(), sleepNote(cachedUnread(), updated));
+      drawSleepScreen(os_.canvas(), have ? &info : nullptr, image.get(), sleepNote(cachedUnread(), updated), sleepAgendaLine(now));
       os_.displayManager().forceClean();
     }
     os_.net().disconnect();
@@ -112,20 +112,27 @@ class RefreshSurface : public Surface {
 
 }  // namespace
 
+int writeBadges(const companion::Notifs& notifs, bool gone) {
+  int unread = 0;
+  for (const FeedDef& d : kFeeds) {
+    const Feed feed = feedFromNotifs(notifs, std::string(d.id) == "mail");
+    Store app(std::string("/data/apps/") + d.id + ".json");  // the app's own store: its seen marker
+    const int n = gone ? 0 : newCount(feed.items, app.get("seen", 0));
+    unread += n;
+    fs::mkdirs(std::string("/data/cache/") + d.id);
+    fs::writeFile(std::string("/data/cache/") + d.id + "/badge", std::to_string(n));
+  }
+  return unread;
+}
+
 RefreshResult refreshFeeds(HaClient ha, int64_t now, bool takeClip) {
   RefreshResult out;
   RelayFetch f = fetchRelay(ha, now, takeClip);  // one queue for both apps (docs/COMPANION.md)
   const bool ok = f.paired && f.http.ok() && f.applied.parsed;
   const bool gone = !f.paired || f.http.error == HaError::NotFound;  // no badge for a feed that cannot exist
-  for (const FeedDef& d : kFeeds) {
-    if (!ok && !gone) continue;  // an error: keep the badge as it was
-    const Feed feed = feedFromNotifs(f.notifs, std::string(d.id) == "mail");
-    Store app(std::string("/data/apps/") + d.id + ".json");  // the app's own store: its seen marker
-    const int n = gone ? 0 : newCount(feed.items, app.get("seen", 0));
-    if (ok) ++out.feedsOk;
-    out.unread += n;
-    fs::writeFile(std::string("/data/cache/") + d.id + "/badge", std::to_string(n));
-  }
+  if (!ok && !gone) return out;  // an error: keep the badges as they were
+  out.unread = writeBadges(f.notifs, gone);
+  if (ok) out.feedsOk = static_cast<int>(sizeof kFeeds / sizeof kFeeds[0]);
   return out;
 }
 

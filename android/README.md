@@ -31,6 +31,9 @@ and the P6 cards in `docs/ROADMAP.md`.
   before the send, so never two sends per counter). **Replies are off until the user turns on "Allow
   replies from the Paper" in the app**; while off, a reply is answered with `result` `why: "failed"`.
   `dismiss` does nothing on the phone (v1).
+- Agenda (D28, `AgendaSync`, `proto/Agenda`): with "Share the agenda" on (off by default; asks for `READ_CALENDAR`), the
+  visible calendars' next 14 days go to the Paper as `agenda` runs, one way: a changed day's run a minute after the change, the
+  whole window daily and after pairing; switching off sends one empty run. Only fingerprints are kept (`agenda.json`).
 - Clipboard (D23, `ClipSync`): a `clip` from the Paper replaces the phone's clipboard (label `PaperOS`). The other way only on
   the user's action, since Android lets an app read the clipboard only while it has focus: the share sheet target "Send to
   Paper" (`ShareToPaperActivity`), the Quick Settings tile "Clipboard to Paper" (`ClipTileService` opens `ClipToPaperActivity`,

@@ -376,3 +376,19 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   prefetch canvas costs 486 KB of PSRAM (of ~5.5 MB free).
 - **Names in code**: the app is `wordgame`
   everywhere (directory, namespace, id, tests, docs); data saved under the old id is adopted once (apps/wordgame.md "Names").
+
+## D28. The agenda comes from the phone's calendar, one way, through the encrypted relay
+
+- **Source**: the calendars the phone's calendar app shows (`CalendarContract.Instances`, `READ_CALENDAR`), read by the
+  companion app; not a Home Assistant calendar entity. Home Assistant only relays ciphertext, as for the inbox (D22): the
+  calendar is as private as the messages, so the same trust rule applies.
+- **One way**: the Paper shows, never changes. The phone sends `agenda` runs (COMPANION.md 7.1): today and the 13 days after
+  it, a run replaces every day it covers, at most 12 events a day (the rest is a count), titles 80 and places 60 characters,
+  no notes, attendees or descriptions. Declined and cancelled events stay on the phone.
+- **When**: a changed day's run a minute after the calendar changed, the whole window once a day and after pairing or the
+  switch; the Paper reads the relay as before (the Agenda app, the inbox, the scheduled refresh). Off by default on the phone
+  ("Share the agenda"); switching it off (or taking the permission away) sends an empty run that empties the Paper.
+- **Times** are the phone's wall clock; "now" and "today" on the Paper use its own clock and time zone (they normally agree).
+- **On the Paper**: the Agenda app (Day: blocks on an hour grid; List: every event, paged), one line on the launcher and on
+  the sleep screen with what is on now or next. The sleep screen's line is drawn at power-off (and by a scheduled refresh), so
+  it can be hours old: it names the event, not "in 5 minutes".

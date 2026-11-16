@@ -11,6 +11,10 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
 import android.net.Network
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import android.provider.CalendarContract
 import android.os.IBinder
 import org.json.JSONObject
 import java.io.File
@@ -28,6 +32,7 @@ class RelayService : Service() {
     @Volatile private var kicked = true
     private var thread: Thread? = null
     private var netCallback: ConnectivityManager.NetworkCallback? = null
+    private var calendarObserver: ContentObserver? = null
 
     private var backoffMs = BACKOFF_MIN
     private var nextPushAt = 0L
@@ -53,6 +58,11 @@ class RelayService : Service() {
                 wake()
             }
         }.also { runCatching { cm.registerDefaultNetworkCallback(it) } }
+        // The agenda (D28): a calendar change is sent a minute later (AgendaSync debounces). Registering needs no permission;
+        // reading does, and AgendaSync checks it.
+        calendarObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) = AgendaSync.calendarChanged(this@RelayService)
+        }.also { runCatching { contentResolver.registerContentObserver(CalendarContract.CONTENT_URI, true, it) } }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -65,6 +75,7 @@ class RelayService : Service() {
         running = false
         wake()
         netCallback?.let { runCatching { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(it) } }
+        calendarObserver?.let { runCatching { contentResolver.unregisterContentObserver(it) } }
         instance = null
         super.onDestroy()
     }
@@ -93,6 +104,7 @@ class RelayService : Service() {
             val box = Outbox.of(this)
             var next = nextPollAt
             if (box.size() > 0) next = minOf(next, nextPushAt)
+            AgendaSync.msUntilDue()?.let { next = minOf(next, now + it) }
             val waitMs = (next - now).coerceIn(1_000, 60_000)
             synchronized(lock) {
                 if (!kicked && running) lock.wait(waitMs)
@@ -148,6 +160,8 @@ class RelayService : Service() {
         }
 
         if (Link.stage == Link.Stage.ACTIVE && Link.hoursSinceSync() >= 1.0) Link.sendSync(this)
+        // The agenda (D28): changed days, the whole window once a day; queued into the outbox like any envelope.
+        if (Link.stage == Link.Stage.ACTIVE) runCatching { st.agendaSent += AgendaSync.tick(this) }
     }
 
     private fun relayFor(ha: HaClient) = Relay { item ->
@@ -196,6 +210,7 @@ class RelayService : Service() {
         var pairingCount = -1
         var pairingLen = 0
         var lastError: String? = null
+        var agendaSent = 0
 
         fun write(ctx: Context) {
             val o = JSONObject().put("stage", stage).put("state", state).put("outbox", outbox).put("pushed", pushed)
@@ -203,7 +218,7 @@ class RelayService : Service() {
                 .put("last_poll", lastPollCode).put("last_ack", lastAckCode)
                 .put("to_paper", JSONObject().put("n", toPaperCount).put("max_len", toPaperMaxLen).put("max_id", toPaperMaxId))
                 .put("pairing", JSONObject().put("n", pairingCount).put("len", pairingLen))
-                .put("error", lastError ?: "").put("at", System.currentTimeMillis() / 1000)
+                .put("agenda_sent", agendaSent).put("error", lastError ?: "").put("at", System.currentTimeMillis() / 1000)
             val f = File(ctx.filesDir, "status.json")
             val tmp = File(ctx.filesDir, "status.json.tmp")
             tmp.writeText(o.toString())

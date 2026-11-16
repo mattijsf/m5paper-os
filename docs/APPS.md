@@ -157,3 +157,4 @@ To hand text to any app instead, use the clipboard: `clipboard::set(text, "<your
 | Somdoku (the user's daily sum puzzle) | `apps/somdoku.md` | P7 |
 | Word game (daily five-letter word game in Dutch) | `apps/wordgame.md` | P7 |
 | Weather (Google Weather through Home Assistant) | `apps/weather.md` | P7 |
+| Agenda (the phone's calendar, one way) | `apps/agenda.md` | P7 |

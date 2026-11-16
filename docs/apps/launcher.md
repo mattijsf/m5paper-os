@@ -38,6 +38,8 @@ Since the word game (2026-11-16) there are seven apps: the pager bar shows ("1 /
   detail, "Sleep now" (power off), "Clean screen" (full Quality refresh).
 - On boot, if `config.launcher.resumeLastApp` is true (default) and the device was powered off
   from inside an app, the launcher opens that app directly.
+- Agenda line (D28): under the date, what the phone's agenda has on now or next (`agenda::nextLine`, apps/agenda.md); hidden when
+  there is nothing; from the saved agenda only. Golden `agenda-launcher-line`.
 - The status bar clock updates once per minute with `Hint::Content` on its own rect only.
 
 ## Quick panel (P7-6, as built)

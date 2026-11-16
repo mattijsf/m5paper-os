@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "core/agenda.h"
 #include "core/clipboard.h"
 #include "core/log.h"
 
@@ -40,6 +41,12 @@ RelayFetch fetchRelay(HaClient& ha, int64_t now, bool takeClip) {
   if (f.applied.accepted > 0 || f.applied.rejected > 0) POS_LOG("relay", "accepted %d, dropped %d", f.applied.accepted, f.applied.rejected);
   saveRx(pairing);
   companion::saveNotifs(f.notifs);
+  if (!f.applied.agenda.empty()) {  // the phone's calendar (one way, D28)
+    agenda::Agenda a;
+    agenda::load(a);
+    for (const std::string& plain : f.applied.agenda) f.agendaChanged = agenda::apply(a, plain, now) || f.agendaChanged;
+    if (f.agendaChanged) agenda::save(a);
+  }
   if (f.applied.hasClip) f.clipFromPhone = clipboard::set(f.applied.clip, clipboard::kFromPhone);  // never pushed back
   if (f.applied.ack) ha.callService("script", "paperos_relay_ack", companion::ackBody("to_paper", pairing.rx));  // best effort
   return f;

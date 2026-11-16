@@ -4,6 +4,7 @@
 
 #include <ArduinoJson.h>
 
+#include "core/agenda.h"
 #include "core/fs.h"
 
 namespace pos::companion {
@@ -114,6 +115,7 @@ bool savePairing(const Pairing& p) {
 void forgetPairing() {
   fs::removeAll(kPairingPath);
   fs::removeAll(kNotifsPath);
+  agenda::forget();
 }
 
 bool loadNotifs(Notifs& out) {
@@ -259,6 +261,8 @@ ApplyResult applyQueue(Pairing& p, Notifs& n, const std::string& stateJson, int6
         r.hasClip = true;
         r.clip = text;
       }
+    } else if (t == "agenda") {
+      r.agenda.push_back(o.plain);
     } else if (t == "unpair") {
       r.unpaired = true;
       break;

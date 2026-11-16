@@ -1,0 +1,5 @@
+# app: agenda
+# Paired, the relay answers, but the phone never sent a calendar (fixture ha-empty: "Share the agenda" is off on the phone).
+wait 1500
+expect-state nothing-received
+shot agenda-none

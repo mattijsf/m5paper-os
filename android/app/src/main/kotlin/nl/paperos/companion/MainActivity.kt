@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.content.pm.PackageManager
 import android.provider.Settings
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -49,6 +50,8 @@ class MainActivity : Activity() {
     private lateinit var replies: Ink.Toggle
     private lateinit var clipRow: Ink.Row
     private lateinit var clipboard: Ink.Toggle
+    private lateinit var agendaRow: Ink.Row
+    private lateinit var agenda: Ink.Toggle
     private lateinit var sendClipRow: Ink.Row
     private lateinit var countsBox: LinearLayout
     private val countRows = mutableMapOf<String, Ink.Row>()
@@ -125,6 +128,18 @@ class MainActivity : Activity() {
         clipRow = row(Ink.ICON_CLIPBOARD, "Share the clipboard").apply { sub("A copy on the Paper lands on this phone") }
         clipboard = Ink.Toggle(this).apply { onChange = { on -> Link.setClipboardShared(this@MainActivity, on); update() } }
         clipRow.end = clipboard
+        agendaRow = row(Ink.ICON_CALENDAR, "Share the agenda").apply { sub("The next two weeks of your calendar, read only") }
+        agenda = Ink.Toggle(this).apply {
+            onChange = { on ->
+                if (on && !AgendaSync.permitted(this@MainActivity)) {
+                    requestPermissions(arrayOf(Manifest.permission.READ_CALENDAR), REQ_CALENDAR)
+                } else {
+                    Link.setAgendaShared(this@MainActivity, on)
+                }
+                update()
+            }
+        }
+        agendaRow.end = agenda
         sendClipRow = row(Ink.ICON_SEND, "Send clipboard to the Paper").apply {
             sub("Also from Share > Send to Paper, or the Quick Settings tile")
             end = chevron()
@@ -162,6 +177,15 @@ class MainActivity : Activity() {
                 update()
             }
         }.start()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQ_CALENDAR) return
+        val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
+        Link.setAgendaShared(this, granted)
+        if (!granted) Toast.makeText(this, "The agenda needs access to the calendar", Toast.LENGTH_LONG).show()
+        update()
     }
 
     override fun onResume() {
@@ -239,6 +263,12 @@ class MainActivity : Activity() {
         unpair.text = if (stage == Link.Stage.PENDING) "Cancel pairing" else "Unpair"
         replies.on = Link.repliesAllowed
         clipboard.on = Link.clipboardShared
+        agenda.on = Link.agendaShared && AgendaSync.permitted(this)
+        if (Link.agendaShared && !AgendaSync.permitted(this)) {
+            Link.setAgendaShared(this, false) // the permission was taken away in Settings: the Paper's agenda is emptied
+            agenda.on = false
+        }
+        show(agendaRow, active)
         show(repliesRow, active)
         show(clipRow, active)
         show(sendClipRow, active && Link.clipboardShared)
@@ -270,5 +300,6 @@ class MainActivity : Activity() {
 
     companion object {
         private const val REQ_SCAN = 1
+        private const val REQ_CALENDAR = 3
     }
 }

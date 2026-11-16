@@ -5,7 +5,7 @@ encrypted with pyca/cryptography (not the Paper's libsodium code), times relativ
 
 Hosts: ha.example.test (a full queue, the pairing hello for the UI scripts' fixed random keys), ha-down.example.test (a short
 queue plus the phone's answer to a reply), ha-empty.example.test (an empty queue; pushes answer 400), ha-gone.example.test (no
-relay at all: 404 / 400).
+relay at all: 404 / 400), ha-clip.example.test (the phone's clipboard), ha-agenda.example.test (the phone's calendar, D28).
 
   uv run -q --no-project --with cryptography python -I tests/fixtures/make-inbox-fixtures.py tests/fixtures/http tests/ui/data
 """
@@ -134,6 +134,29 @@ def mail_items():
         out.append({"id": 4800 + i, "from": frm, "subject": subj, "text": text[:1500], "ts": ts, "key": "entry-proton"})
     return out
 
+def agenda_msgs():
+    """The phone's calendar as two runs (COMPANION.md 7.1 `agenda`): today (Thursday 2026-01-15) to Sunday, then Monday to
+    Thursday 22. Minutes after midnight on the phone. Fourteen rows on the Paper: three pages."""
+    def ev(n, s=None, e=None, l=None):
+        o = {}
+        if s is not None: o["s"] = s
+        if e is not None: o["e"] = e
+        o["n"] = n
+        if l: o["l"] = l
+        return o
+    return [
+        {"t": "agenda", "from": "2026-01-15", "to": "2026-01-18", "days": [
+            {"d": 0, "ev": [ev("Anna's birthday"), ev("Dentist", 570, 615, "Main St 4"), ev("Lunch with Carla", 780, 840, "Harbour caf\u00e9"),
+                            ev("Project review", 960, 1020), ev("Choir rehearsal", 1170, 1290, "Old church")]},
+            {"d": 1, "ev": [ev("School run", 525, 555), ev("Sprint demo", 720, 780, "Room 4")]},
+            {"d": 2, "ev": [ev("Weekend on Texel", None, None, "Den Burg"), ev("Ferry", 605, 625, "Den Helder")]},
+            {"d": 3, "ev": [ev("Weekend on Texel", None, 1080, "Den Burg")]}]},
+        {"t": "agenda", "from": "2026-01-19", "to": "2026-01-22", "days": [
+            {"d": 1, "ev": [ev("Quarterly planning with the whole department and the guests from the Utrecht office", 1200, None,
+                               "Conference centre De Nieuwe Wereld, room Zuiderzee")]},
+            {"d": 3, "ev": [ev("Car to the garage", 480, 510), ev("", 540, 540)], "more": 3}]},
+    ]
+
 def write(out, host, method, path, body, query="", status=None):
     p = os.path.join(out, name(host, method, path, query))
     with open(p, "w") as f:
@@ -173,9 +196,13 @@ def main(out, presets):
                                                queue([{"t": "clip", "text": "Pick up bread\nand milk", "ts": NOW - 60}])))
     write(out, c, "POST", push, "[]")
     write(out, c, "POST", ack, "[]")
+    a = "ha-agenda.example.test"  # the phone's calendar (D28, COMPANION.md 7.1 `agenda`) after two chats
+    write(out, a, "GET", to_paper, relay_state("sensor.paperos_relay_to_paper", queue(wa_posts()[-2:] + agenda_msgs())))
+    write(out, a, "POST", push, "[]")
+    write(out, a, "POST", ack, "[]")
     # The paired state of the UI test presets that read a relay.
     for name in ("inbox", "inbox-mail", "inbox-error", "inbox-wifi", "inbox-empty", "inbox-gone", "inbox-gone-mail", "whatsapp-send",
-                 "whatsapp-reply-result", "whatsapp-send-missing", "sched-refresh", "somdoku", "textfield-phone"):
+                 "whatsapp-reply-result", "whatsapp-send-missing", "sched-refresh", "somdoku", "textfield-phone", "agenda", "agenda-none"):
         os.makedirs(os.path.join(presets, name, "data"), exist_ok=True)
         with open(os.path.join(presets, name, "data", "companion.json"), "w") as f:
             f.write(preset_pairing())
