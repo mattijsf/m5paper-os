@@ -56,6 +56,19 @@ void Screen::setAction(Icon icon, std::function<void()> fn) {
   }
 }
 
+void Screen::setTitleAccessory(int width, std::function<void(Canvas&, const Rect&)> paint) {
+  accessoryW_ = paint ? width : 0;
+  accessoryFn_ = accessoryW_ > 0 ? std::move(paint) : nullptr;
+  if (shell_ && shell_->top() == this) {
+    if (accessoryFn_) shell_->titleBar().setAccessory(accessoryW_, accessoryFn_);
+    else shell_->titleBar().clearAccessory();
+  }
+}
+
+void Screen::refreshTitleAccessory() {
+  if (shell_ && shell_->top() == this && accessoryFn_) shell_->titleBar().refreshAccessory();
+}
+
 void Nav::pushScreen(std::unique_ptr<Screen> s) {
   Screen* raw = s.release();
   shell_.defer([this, raw] { shell_.push(std::unique_ptr<Screen>(raw), false); });
@@ -175,6 +188,8 @@ void Shell::showTop() {
   title_->setTitle(e.screen->title());
   title_->clearAction();
   if (e.screen->hasAction()) title_->setAction(e.screen->actionIcon_, e.screen->actionFn_);
+  title_->clearAccessory();
+  if (e.screen->accessoryFn_) title_->setAccessory(e.screen->accessoryW_, e.screen->accessoryFn_);
   e.screen->onShow();
   root_.relayout();  // whole panel: navigation is a Hint::Screen change
 }

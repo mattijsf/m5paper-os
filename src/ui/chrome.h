@@ -24,7 +24,18 @@ class StatusBar : public Widget {
   bool charging_ = false, wifi_ = false;
 };
 
-// Back arrow (72 x 72 target, long press = launcher), title, optional action button on the right.
+// A small picture in the title bar, drawn by the screen that set it (TitleBar::setAccessory). No touches.
+class TitleAccessory : public Widget {
+ public:
+  int width = 0;
+  std::function<void(Canvas&, const Rect&)> paint;
+  void draw(Canvas& c) override {
+    if (paint) paint(c, frame);
+  }
+};
+
+// Back arrow (72 x 72 target, long press = launcher), title, optional accessory (a small picture left of the action),
+// optional action button on the right.
 class TitleBar : public Widget {
  public:
   TitleBar();
@@ -34,6 +45,11 @@ class TitleBar : public Widget {
   // A 72 x 72 icon button at the right edge; clearAction() hides it.
   void setAction(Icon icon, std::function<void()> fn);
   void clearAction();
+  // A picture `width` px wide, the bar's height, just left of the action button (or the right margin); the title gets
+  // narrower. `paint` draws it into its frame. clearAccessory() removes it; refreshAccessory() redraws only it.
+  void setAccessory(int width, std::function<void(Canvas&, const Rect&)> paint);
+  void clearAccessory();
+  void refreshAccessory(Hint h = Hint::Feedback);
   IconButton* backButton() const { return back_; }
 
   Size measure(int availW) override { return {availW, kTitleBarH}; }
@@ -42,6 +58,7 @@ class TitleBar : public Widget {
  private:
   IconButton *back_, *action_;
   Label* title_;
+  TitleAccessory* accessory_;
 };
 
 // Bottom tabs: icon + label, selected = filled ink. 96 px high.

@@ -104,6 +104,9 @@ The Home app reuses the names of the icons in the user's Home Assistant dashboar
 - The back arrow (top left, 72x72 target) pops the screen stack; on an app's first screen it
   returns to the launcher. Long-press on it always goes to the launcher.
 - There is no hardware navigation (the side button belongs to the power controller).
+- The title bar may carry a small picture left of the action (`Screen::setTitleAccessory(width, paint)`, no touches;
+  `refreshTitleAccessory()` redraws only it): Somdoku's score tiles. Keep it ink and paper so its push needs no settle pass,
+  and redraw it in its own loop pass (a short `ctx.timer`), or it merges with other Feedback rects into one tall rectangle.
 
 ## Widgets (`src/ui/`, tasks P2-1 to P2-3)
 

@@ -35,6 +35,8 @@ TitleBar::TitleBar() {
   title_ = add<Label>("", Type::Title);
   action_ = add<IconButton>(Icon::Settings);
   action_->visible = false;
+  accessory_ = add<TitleAccessory>();
+  accessory_->visible = false;
   back_->onClick = [this] { if (onBack) onBack(); };
   back_->onLongPress = [this] { if (onHome) onHome(); };
 }
@@ -57,9 +59,34 @@ void TitleBar::clearAction() {
   invalidate(Hint::Content);
 }
 
+void TitleBar::setAccessory(int width, std::function<void(Canvas&, const Rect&)> paint) {
+  accessory_->width = width;
+  accessory_->paint = std::move(paint);
+  accessory_->visible = true;
+  layout();
+  invalidate(Hint::Content);
+}
+
+void TitleBar::clearAccessory() {
+  if (!accessory_->visible) return;
+  accessory_->visible = false;
+  accessory_->paint = nullptr;
+  layout();
+  invalidate(Hint::Content);
+}
+
+void TitleBar::refreshAccessory(Hint h) {
+  if (accessory_->visible) accessory_->invalidate(h);
+}
+
 void TitleBar::layout() {
   back_->frame = Rect{frame.x, frame.y, kTouchMin, frame.h};
-  const int right = action_->visible ? frame.x + frame.w - kTouchMin : frame.x + frame.w - kMargin;
+  int right = action_->visible ? frame.x + frame.w - kTouchMin : frame.x + frame.w - kMargin;
+  if (accessory_->visible) {
+    right -= accessory_->width;
+    accessory_->frame = Rect{static_cast<int16_t>(right), frame.y, static_cast<int16_t>(accessory_->width), frame.h};
+    right -= kMargin / 2;
+  }
   action_->frame = Rect{static_cast<int16_t>(frame.x + frame.w - kTouchMin), frame.y, kTouchMin, frame.h};
   const int tx = frame.x + kTouchMin;
   const Size s = title_->measure(right - tx);

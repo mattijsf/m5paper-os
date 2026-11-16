@@ -31,7 +31,11 @@ says so and shows no puzzle.
   cell is touched) does not turn yellow; letting the cell go or pausing does not end it, only selecting another cell does
   (the web game's `justFilled`; `debugState` shows the marks, `marks=ygg;`). Filled digit = ink Headline digit, black cell = solid ink,
   selected cell = thick ink frame (paper on a black cell). The keys never change (no key shows the selected cell's value: selecting or filling refreshes only the board). The
-  title bar's pause button (only while playing) goes back to Ready with the clock stopped.
+  title bar's pause button (only while playing) goes back to Ready with the clock stopped. Left of it, as in the web game's
+  header, the score so far (`Screen::setTitleAccessory`): 5 x 5 tiles of 11 px, one per cell in the order of filling,
+  kept = solid ink, changed later = ink frame with a diagonal, not yet = a gray(9) frame. Only in Play (not on the pause or
+  ready screen). It is redrawn only when the marks change, 30 ms after the move, as its own 11 x 11 ink-only push (no
+  settle); with the cell in one push the settle would cover the title bar down to the cell.
 - **Done**: "Opgelost in 3:42", the streak, the timeline as tiles (kept = solid ink, changed = hatched square) and one
   button, "Kopieer score" (to `core/clipboard`, toast "Score gekopieerd"). **No send button**. To share: paste the score into a reply in the inbox (the
   reply field's long press > Paste; the phone sends it) or on the phone.

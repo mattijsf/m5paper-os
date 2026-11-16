@@ -184,6 +184,32 @@ class KeyPad : public ui::Widget {
   }
 };
 
+// The score so far in the title bar while playing, as the web game's header: 5 x 5 small tiles, one per cell in the order
+// they were first filled; kept = solid ink, changed later = ink frame with a diagonal, not filled yet = a gray frame. It
+// changes only when a cell is filled for the first time or a filled cell is changed, so most moves do not redraw it.
+constexpr int kTallyTile = 11;
+constexpr int kTallyGap = 2;
+constexpr int kTallyW = kN * (kTallyTile + kTallyGap) - kTallyGap;
+
+void drawTally(Canvas& c, const Rect& f, const std::string& marks) {
+  const int x0 = f.x;
+  const int y0 = f.y + (f.h - kTallyW) / 2;
+  for (int i = 0; i < kN * kN; ++i) {
+    const int x = x0 + (i % kN) * (kTallyTile + kTallyGap);
+    const int y = y0 + (i / kN) * (kTallyTile + kTallyGap);
+    const char m = static_cast<size_t>(i) < marks.size() ? marks[static_cast<size_t>(i)] : ' ';
+    if (m == 'g') {
+      c.fillRect(x, y, kTallyTile, kTallyTile, ui::ink);
+    } else if (m == 'y') {
+      c.drawRect(x, y, kTallyTile, kTallyTile, ui::ink);
+      c.drawLine(x, y + kTallyTile - 1, x + kTallyTile - 1, y, ui::ink);
+      c.drawLine(x + 1, y + kTallyTile - 1, x + kTallyTile - 1, y + 1, ui::ink);
+    } else {
+      c.drawRect(x, y, kTallyTile, kTallyTile, ui::divider);
+    }
+  }
+}
+
 // The timeline as tiles, five to a row: kept = solid ink, changed later = a hatched square (legible on the gray panel).
 class TrailTiles : public ui::Widget {
  public:
@@ -340,6 +366,10 @@ class GameScreen : public Screen {
     view_ = v;
     ready_->visible = v == View::Ready || v == View::Wait;
     play_->visible = v == View::Play;
+    if (v == View::Play)
+      setTitleAccessory(kTallyW, [this](Canvas& c, const Rect& f) { drawTally(c, f, game::marks(state_.trail)); });
+    else
+      setTitleAccessory(0, nullptr);
     done_->visible = v == View::Done;
     start_->visible = v == View::Ready;
     readyStreak_->visible = v == View::Ready;
@@ -413,7 +443,11 @@ class GameScreen : public Screen {
     if (view_ != View::Play || selected_ < 0) return;
     const int from = state_.cells[static_cast<size_t>(selected_)];
     const int to = from == value ? kEmpty : value;
+    const std::string before = game::marks(state_.trail);
     game::noteMove(state_.trail, selected_, from, to, selected_ == justFilled_);
+    // The tally is redrawn a moment later, in its own push: together with the cell it would be one tall rectangle from the
+    // title bar down to the cell, and the cell's gray settle pass would then cover all of it. Alone it is ink only (no settle).
+    if (game::marks(state_.trail) != before) ctx().timer(30, [this] { refreshTitleAccessory(); });
     state_.cells[static_cast<size_t>(selected_)] = to;
     justFilled_ = selected_;
     tick();

@@ -51,6 +51,10 @@ class Screen {
   // An icon button at the right end of the title bar while this screen is on top (a refresh button, say).
   void setAction(Icon icon, std::function<void()> fn);
   bool hasAction() const { return static_cast<bool>(actionFn_); }
+  // A small picture in the title bar left of the action button while this screen is on top (Somdoku's score tiles):
+  // `width` px wide, drawn by `paint` into its frame. width 0 / no paint: none. refreshTitleAccessory() redraws only it.
+  void setTitleAccessory(int width, std::function<void(Canvas&, const Rect&)> paint);
+  void refreshTitleAccessory();
 
  protected:
   AppContext& ctx() const { return *ctx_; }
@@ -63,6 +67,8 @@ class Screen {
   std::string title_;
   Icon actionIcon_ = Icon::RefreshCw;
   std::function<void()> actionFn_;
+  int accessoryW_ = 0;
+  std::function<void(Canvas&, const Rect&)> accessoryFn_;
 };
 
 // What the sleep screen shows about the app being left (docs/POWER.md "Sleep screen"): a title with a picture and a progress,
