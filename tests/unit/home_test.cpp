@@ -1,5 +1,7 @@
 #include <doctest.h>
 
+#include <algorithm>
+
 #include <cstdlib>
 #include <set>
 #include <string>
@@ -41,14 +43,52 @@ TEST_CASE("home: the default home.json parses, with the full Evening scene and t
   CHECK(evening.calls[0].entity == "light.sofa_lamp");
   CHECK(callBody(evening.calls[0]) == "{\"brightness\":34,\"color_temp_kelvin\":2000,\"entity_id\":\"light.sofa_lamp\"}");
   CHECK(callBody(evening.calls[4]).find("\"xy_color\":[0.371,0.239]") != std::string::npos);
-  CHECK(c.tabs[0].items.size() == 10);  // the scene + nine lights
-  const Item& zit = c.tabs[0].items[2];
+  // As the house dashboard's Thuis tab (2026-11-16): two scenes, the Sofa lamp first, the living room, the kitchen, "All
+  // downstairs", then outside and upstairs.
+  CHECK(c.tabs[0].items.size() == 12);
+  CHECK(c.tabs[0].items[1].name == "Dining default");
+  CHECK(c.tabs[0].items[1].calls.size() == 2);
+  const Item& hoek = c.tabs[0].items[2];
+  CHECK(hoek.name == "Sofa lamp");
+  CHECK(hoek.entity == "light.sofa_lamp");
+  CHECK(iconByName(hoek.icon, pos::gen::Icon::Info) == pos::gen::Icon::LampFloor);
+  const Item& all = c.tabs[0].items[8];
+  CHECK(all.name == "All downstairs");
+  REQUIRE(all.also.size() == 1);
+  CHECK(all.also[0] == "light.kitchen_spots_relative");
+  CHECK_FALSE(all.dimmable);
+  for (const Item& it : c.tabs[0].items) CHECK(it.entity != "light.hall");  // gone since version 2
+  CHECK(configVersion(defaultConfigJson()) == 2);
+  CHECK(nameOf(c, "light.coffee_table") == "Coffee table");  // the dashboard's lamp names
+  CHECK(nameOf(c, "light.some_other_lamp") == "some other lamp");
+  CHECK(configVersion("{\"tabs\":[]}") == 1);
+  const Item& zit = c.tabs[0].items[4];
   CHECK(zit.name == "Lounge");
   CHECK(zit.entity == "light.lounge_relative");
   CHECK(zit.group == "light.lounge");
   CHECK(zit.members.size() == 3);
   CHECK(iconByName(zit.icon, pos::gen::Icon::Info) == pos::gen::Icon::Sofa);
   CHECK(iconByName("no-such-icon", pos::gen::Icon::Info) == pos::gen::Icon::Info);
+}
+
+TEST_CASE("home: \"All downstairs\" is on while any of its lamps is, and counts them") {
+  Config c;
+  std::string err;
+  REQUIRE(parseConfig(defaultConfigJson(), c, err));
+  const Item& all = c.tabs[0].items[8];
+  States st;
+  st["light.downstairs_relative"].known = true;
+  st["light.downstairs_relative"].state = "off";
+  st["light.kitchen_spots"].known = true;
+  st["light.kitchen_spots"].state = "on";  // only the kitchen
+  LightView v = lightView(all, st);
+  CHECK(v.on);
+  CHECK(v.onCount == 1);
+  CHECK(v.groupSize == 7);
+  st["light.kitchen_spots"].state = "off";
+  CHECK_FALSE(lightView(all, st).on);
+  const auto ids = entitiesOf(all);
+  CHECK(std::find(ids.begin(), ids.end(), "light.kitchen_spots_relative") != ids.end());
 }
 
 TEST_CASE("home: config errors and odd items") {
@@ -77,7 +117,7 @@ TEST_CASE("home: entities to read per item and per tab, no duplicates, the scene
   REQUIRE(parseConfig(defaultConfigJson(), c, err));
   auto scene = entitiesOf(c.tabs[0].items[0]);
   CHECK(scene.empty());
-  auto zit = entitiesOf(c.tabs[0].items[2]);
+  auto zit = entitiesOf(c.tabs[0].items[4]);
   REQUIRE(zit.size() == 5);  // stand-in, group, three lamps
   CHECK(zit[0] == "light.lounge_relative");
   CHECK(zit[1] == "light.lounge");
@@ -184,10 +224,17 @@ TEST_CASE("home: loadConfig writes the default once, the card's copy wins, a bro
   Config c = loadConfig(note);
   CHECK(c.tabs.size() == 3);
   CHECK(pos::fs::exists("/data/home.json"));
-  pos::fs::writeFile("/data/home.json", R"({"tabs":[{"title":"Mine","items":[{"type":"light","entity":"light.q"}]}]})");
+  // An internal copy as new as the default stays; an older one (no "version": the list the firmware wrote before) is replaced.
+  pos::fs::writeFile("/data/home.json", R"({"version":2,"tabs":[{"title":"Mine","items":[{"type":"light","entity":"light.q"}]}]})");
   c = loadConfig(note);
   REQUIRE(c.tabs.size() == 1);
   CHECK(c.tabs[0].title == "Mine");
+  pos::fs::writeFile("/data/home.json", R"({"tabs":[{"title":"Old","items":[{"type":"light","entity":"light.hall"}]}]})");
+  c = loadConfig(note);
+  CHECK(c.tabs.size() == 3);
+  std::string saved;
+  REQUIRE(pos::fs::readFile("/data/home.json", saved));
+  CHECK(configVersion(saved) == 2);
   pos::fs::writeFile("/sd/paperos/home.json", R"({"tabs":[{"title":"Card","items":[{"type":"light","entity":"light.q"}]}]})");
   CHECK(loadConfig(note).tabs[0].title == "Card");
   pos::fs::writeFile("/sd/paperos/home.json", "{ broken");

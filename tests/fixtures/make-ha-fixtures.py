@@ -27,7 +27,6 @@ STATES = {
     "light.kitchen_spots": ("unavailable", {}),
     "light.porch": ("off", {}),
     "light.driveway": ("on", {"brightness": 255}),
-    "light.hall": ("off", {}),
     "light.bedside_lamp": ("on", {"brightness": 25}),
     # climate
     "climate.living_room": ("heat", {"current_temperature": 20.5, "temperature": 21.0}),

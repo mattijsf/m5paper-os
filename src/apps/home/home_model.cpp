@@ -33,6 +33,8 @@ bool parseConfig(const std::string& json, Config& out, std::string& error) {
     error = "home.json is not valid JSON";
     return false;
   }
+  for (JsonPairConst kv : doc["names"].as<JsonObjectConst>())
+    if (kv.value().is<const char*>()) out.names[kv.key().c_str()] = kv.value().as<std::string>();
   for (JsonObjectConst t : doc["tabs"].as<JsonArrayConst>()) {
     Tab tab;
     tab.title = str(t["title"]);
@@ -48,6 +50,7 @@ bool parseConfig(const std::string& json, Config& out, std::string& error) {
       it.group = str(i["group"]);
       it.dimmable = i["dimmable"] | true;
       for (JsonVariantConst m : i["members"].as<JsonArrayConst>()) it.members.push_back(str(m));
+      for (JsonVariantConst m : i["also"].as<JsonArrayConst>()) it.also.push_back(str(m));
       it.temperature = str(i["temperature"]);
       it.humidity = str(i["humidity"]);
       for (JsonObjectConst c : i["calls"].as<JsonArrayConst>()) {
@@ -77,6 +80,10 @@ Config loadConfig(std::string& note) {
   std::string err, text;
   for (const char* path : {"/sd/paperos/home.json", "/data/home.json"}) {
     if (!fs::readFile(path, text)) continue;
+    if (std::string(path) == "/data/home.json" && configVersion(text) < configVersion(defaultConfigJson())) {
+      fs::writeFile(path, defaultConfigJson());  // the firmware's newer list (docs/apps/home.md "Config")
+      text = defaultConfigJson();
+    }
     if (parseConfig(text, cfg, err)) return cfg;
     note = std::string(path) + ": " + err + "; using the default";
     break;
@@ -85,6 +92,22 @@ Config loadConfig(std::string& note) {
   parseConfig(defaultConfigJson(), cfg, err);
   if (!haveFile && !fs::exists("/data/home.json")) fs::writeFile("/data/home.json", defaultConfigJson());
   return cfg;
+}
+
+std::string nameOf(const Config& c, const std::string& entity) {
+  auto it = c.names.find(entity);
+  if (it != c.names.end() && !it->second.empty()) return it->second;
+  std::string s = entity.substr(entity.find('.') == std::string::npos ? 0 : entity.find('.') + 1);
+  std::replace(s.begin(), s.end(), '_', ' ');
+  return s;
+}
+
+int configVersion(const std::string& json) {
+  JsonDocument filter;
+  filter["version"] = true;
+  JsonDocument doc;
+  if (deserializeJson(doc, json, DeserializationOption::Filter(filter))) return 1;
+  return doc["version"] | 1;
 }
 
 gen::Icon iconByName(const std::string& name, gen::Icon fallback) {
@@ -98,7 +121,8 @@ gen::Icon iconByName(const std::string& name, gen::Icon fallback) {
                                 {"car", gen::Icon::Car},           {"bed", gen::Icon::Bed},             {"thermometer", gen::Icon::Thermometer},
                                 {"droplets", gen::Icon::Droplets}, {"fan", gen::Icon::Fan},             {"wind", gen::Icon::Wind},
                                 {"settings", gen::Icon::Settings}, {"air-vent", gen::Icon::AirVent},    {"door-open", gen::Icon::DoorOpen},
-                                {"moon", gen::Icon::Moon},         {"sun", gen::Icon::Sun},             {"power", gen::Icon::Power}};
+                                {"moon", gen::Icon::Moon},         {"sun", gen::Icon::Sun},             {"power", gen::Icon::Power},
+                                {"lamp-floor", gen::Icon::LampFloor}};
   for (const Pair& p : kIcons)
     if (name == p.n) return p.i;
   return fallback;
@@ -112,6 +136,7 @@ std::vector<std::string> entitiesOf(const Item& item) {
   if (item.type != "scene") add(item.entity);
   add(item.group);
   for (const std::string& m : item.members) add(m);
+  for (const std::string& m : item.also) add(m);
   add(item.temperature);
   add(item.humidity);
   return out;
@@ -162,6 +187,8 @@ LightView lightView(const Item& item, const States& states) {
       auto g = states.find(item.group);
       if (g != states.end()) v.onCount = g->second.on() ? 1 : 0, v.groupSize = 1;
     }
+    // A switch over several stand-ins ("All downstairs"): on while any of its lamps is.
+    if (!item.also.empty() && v.onCount >= 0) v.on = v.onCount > 0;
     // The stand-in entity of a group may not report its state: the read-only group does.
     auto g = states.find(item.group);
     if (g != states.end() && g->second.known && (it == states.end() || !it->second.known)) {

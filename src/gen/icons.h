@@ -74,6 +74,7 @@ enum class Icon : uint8_t {
   List,
   Sunrise,
   Sunset,
+  LampFloor,
   Count
 };
 
@@ -147,6 +148,7 @@ constexpr uint32_t kIconCodepoint[] = {
   0xE106,  // list
   0xE179,  // sunrise
   0xE17A,  // sunset
+  0xE2DB,  // lamp-floor
 };
 
 }  // namespace pos::gen

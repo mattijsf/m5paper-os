@@ -1,5 +1,7 @@
 // The default home.json (docs/apps/home.md "Config"): taken from the user's house dashboard source
-// (read 2026-11-15). Entity ids are NOT yet verified against the live
+// (read 2026-11-15; order and the Sofa lamp, the
+// Dining area scene and "All downstairs" as its Thuis tab has them, 2026-11-16). Raise "version" with every change: the device's
+// /data/home.json is replaced by a newer default. Entity ids are NOT yet verified against the live
 // instance (STATUS.md, Pending device checks): the first Home refresh shows any that do not exist as "not found".
 #include "apps/home/home_model.h"
 
@@ -7,6 +9,12 @@ namespace pos::home {
 
 const char* defaultConfigJson() {
   return R"JSON({
+  "version": 2,
+  "names": {
+    "light.sofa_lamp": "Sofa lamp", "light.coffee_table": "Coffee table", "light.entrance": "Entrance",
+    "light.dining_table": "Dining table", "light.dining_floor_lamp": "Dining floor lamp", "light.reading_corner": "Reading corner",
+    "light.kitchen_spots": "Kitchen spots"
+  },
   "tabs": [
     { "title": "Lights", "icon": "lightbulb", "items": [
       { "type": "scene", "name": "Evening", "calls": [
@@ -18,6 +26,11 @@ const char* defaultConfigJson() {
         { "service": "light.turn_on", "entity": "light.reading_corner", "data": { "brightness": 113 } },
         { "service": "light.turn_on", "entity": "light.kitchen_spots", "data": { "brightness": 102, "color_temp_kelvin": 2724 } }
       ] },
+      { "type": "scene", "name": "Dining default", "calls": [
+        { "service": "light.turn_on", "entity": "light.dining_floor_lamp", "data": { "xy_color": [0.371, 0.239] } },
+        { "service": "light.turn_on", "entity": "light.dining_table", "data": { "color_temp_kelvin": 2000 } }
+      ] },
+      { "type": "light", "entity": "light.sofa_lamp", "name": "Sofa lamp", "icon": "lamp-floor" },
       { "type": "light", "entity": "light.downstairs_relative", "name": "Whole living room", "icon": "house", "group": "light.downstairs" },
       { "type": "light", "entity": "light.lounge_relative", "name": "Lounge", "icon": "sofa", "group": "light.lounge",
         "members": ["light.sofa_lamp", "light.coffee_table", "light.entrance"] },
@@ -25,9 +38,12 @@ const char* defaultConfigJson() {
         "members": ["light.dining_table", "light.dining_floor_lamp"] },
       { "type": "light", "entity": "light.reading_corner", "name": "Reading corner", "icon": "blocks" },
       { "type": "light", "entity": "light.kitchen_spots_relative", "name": "Kitchen spots", "icon": "cooking-pot", "group": "light.kitchen_spots" },
+      { "type": "light", "entity": "light.downstairs_relative", "also": ["light.kitchen_spots_relative"], "name": "All downstairs",
+        "icon": "moon", "dimmable": false,
+        "members": ["light.sofa_lamp", "light.coffee_table", "light.entrance", "light.dining_table", "light.dining_floor_lamp",
+                    "light.reading_corner", "light.kitchen_spots"] },
       { "type": "light", "entity": "light.porch", "name": "Porch", "icon": "lamp-wall-down" },
       { "type": "light", "entity": "light.driveway", "name": "Driveway", "icon": "car" },
-      { "type": "light", "entity": "light.hall", "name": "Hall", "icon": "lamp-wall-up" },
       { "type": "light", "entity": "light.bedside_lamp", "name": "Bedside lamp", "icon": "bed" }
     ] },
     { "title": "Climate", "icon": "thermometer", "items": [

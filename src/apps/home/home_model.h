@@ -24,6 +24,7 @@ struct Item {
   std::string group;   // read-only group entity for "x of y on"
   bool dimmable = true;
   std::vector<std::string> members;
+  std::vector<std::string> also;      // light: more entities that get the same on / off ("All downstairs": the kitchen too)
   std::vector<Call> calls;            // scene
   std::string temperature, humidity;  // room: sensor entity ids
 };
@@ -35,14 +36,19 @@ struct Tab {
 
 struct Config {
   std::vector<Tab> tabs;
+  std::map<std::string, std::string> names;  // "names": what the house calls a lamp ("light.coffee_table": "Coffee table")
 };
+// The name to show for an entity: from "names", else the id made readable ("light.sofa_lamp" -> "sofa lamp").
+std::string nameOf(const Config& c, const std::string& entity);
 
 // Parses home.json. False with `error` set if it is not valid or has no tabs; unknown item types are skipped.
 bool parseConfig(const std::string& json, Config& out, std::string& error);
 // The firmware's default home.json (the user's house dashboard, trimmed).
 const char* defaultConfigJson();
-// /sd/paperos/home.json wins over /data/home.json; a missing /data/home.json is written from the default. An unreadable file falls
-// back to the default and says so in `note`.
+// /sd/paperos/home.json wins over /data/home.json; a missing /data/home.json is written from the default, and so is one whose
+// "version" is older than the default's (the internal copy is the firmware's: own edits go on the card). An unreadable file
+// falls back to the default and says so in `note`.
+int configVersion(const std::string& json);  // "version" of a home.json, 1 when it has none
 Config loadConfig(std::string& note);
 
 gen::Icon iconByName(const std::string& name, gen::Icon fallback);

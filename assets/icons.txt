@@ -68,3 +68,4 @@ umbrella
 list
 sunrise
 sunset
+lamp-floor

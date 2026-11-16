@@ -28,12 +28,6 @@ constexpr uint32_t kRefreshAfterActionMs = 1500;
 constexpr uint32_t kPollMs = 30000;
 constexpr uint32_t kActiveWindowMs = 2 * 60 * 1000;
 
-std::string prettyId(const std::string& id) {  // "light.sofa_lamp" -> "sofa lamp"
-  std::string s = id.substr(id.find('.') == std::string::npos ? 0 : id.find('.') + 1);
-  for (char& c : s)
-    if (c == '_') c = ' ';
-  return s;
-}
 
 std::string celsiusText(double v) {
   char buf[24];
@@ -442,6 +436,7 @@ class HomeScreen : public Screen {
     std::vector<std::string> touched_ids = {it.entity};
     if (!it.group.empty()) touched_ids.push_back(it.group);
     for (const std::string& m : it.members) touched_ids.push_back(m);
+    for (const std::string& m : it.also) touched_ids.push_back(m);
     auto saved = std::make_shared<std::vector<std::pair<std::string, EntityState>>>();
     for (const std::string& id : touched_ids) {
       saved->emplace_back(id, states_.count(id) ? states_[id] : EntityState{});
@@ -449,7 +444,9 @@ class HomeScreen : public Screen {
     }
     applyAll();
     const std::string domain = it.type == "light" ? "light" : it.type == "fan" ? "fan" : "switch";
-    send({Call{domain + (on ? ".turn_on" : ".turn_off"), it.entity, "{}"}}, [this, saved] {
+    std::vector<Call> calls = {Call{domain + (on ? ".turn_on" : ".turn_off"), it.entity, "{}"}};
+    for (const std::string& e : it.also) calls.push_back(Call{domain + (on ? ".turn_on" : ".turn_off"), e, "{}"});  // on: each at its own level
+    send(calls, [this, saved] {
       for (const auto& kv : *saved) states_[kv.first] = kv.second;
       applyAll();
     });
@@ -515,7 +512,7 @@ class HomeScreen : public Screen {
     if (!it.members.empty()) {
       c->add<ui::Label>("Lamps", Type::Caption, ui::secondary);
       for (const std::string& m : it.members) {
-        auto* row = c->add<ui::ListItem>(prettyId(m));
+        auto* row = c->add<ui::ListItem>(nameOf(config_, m));
         auto s = states_.find(m);
         const std::string member = m;
         row->setToggle(s != states_.end() && s->second.on(), [this, member](bool on) {

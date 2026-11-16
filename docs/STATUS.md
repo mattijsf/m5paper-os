@@ -117,6 +117,10 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   (Noto Emoji for the rest) on the card,
   drawn by the fast text path (UI.md "Emoji"); `core/text_clean` keeps emoji. Simulator and host tests; not on the device yet.
 
+- **Home lights like the dashboard's Thuis tab, 2026-11-16 night**: the sofa lamp first, the dining scene, the all-downstairs switch, lamp names in the sheets, the hall
+  light gone; `home.json` version 2 replaces the device's old internal copy by itself. On the device against the live Home
+  Assistant (read only, nothing switched): all 17 lights read, both pages show real states (`out/dev-home/`).
+
 ## What works today
 
 | Thing | Command | Result |

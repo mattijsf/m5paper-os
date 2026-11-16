@@ -9,16 +9,16 @@ wait 900
 shot home-lights-p2
 tap 60 805
 wait 900
-tap 472 368             # Lounge toggle: off at once
+tap 472 464             # Lounge toggle (third row, under the Sofa lamp and Whole living room): off at once
 wait 300
 shot home-lights-lounge-off
 wait 2000
-tap 180 354             # the row text of Lounge: its sheet (brightness, lamps)
+tap 180 450             # the row text of Lounge: its sheet (brightness, lamps)
 wait 700
 shot home-light-sheet
 tap 270 120             # outside the sheet: closes it
 wait 700
-tap 270 181             # the scene button: toast, calls go out
+tap 140 181             # the Evening scene button: toast, calls go out
 wait 500
 shot home-scene
 wait 2500
