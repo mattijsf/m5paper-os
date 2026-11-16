@@ -13,3 +13,6 @@ shot keyboard-backspace
 tap 40 927              # 123 key
 wait 900
 shot keyboard-symbols
+long 270 104            # masked field: Paste and Clear only, never Copy
+wait 900
+shot keyboard-menu-masked

@@ -211,6 +211,28 @@ std::unique_ptr<Widget> widgets4() {
   return root;
 }
 
+// widgets6 (clipboard, D21): a one-line field bound to the keyboard and a three-line field; a long press on either opens
+// Paste / Copy all / Clear. The caption below shows the character count of the second field.
+std::unique_ptr<Widget> widgets6() {
+  auto root = std::make_unique<Column>(0);
+  auto* pad = root->add<Padding>(kMargin, s2, kMargin, s2);
+  auto* col = pad->add<Column>(s2);
+  col->add<Label>("Text fields", Type::Title);
+  auto* field = col->add<TextField>("Type here");
+  auto* note = col->add<TextField>("Note");
+  note->setLines(3);
+  note->setMaxChars(120);
+  note->setText("Line one of a note\nand a second line that is long enough to wrap onto a third");
+  auto* count = col->add<Label>("", Type::Caption, secondary);
+  auto update = [count, note] { count->setText(std::to_string(TextField::charCount(note->text())) + " / 120 characters"); };
+  note->onChange = update;
+  update();
+  pad->flex = 1;
+  auto* kb = root->add<Keyboard>();
+  bindKeyboard(*kb, *field);
+  return root;
+}
+
 // widgets5 (P2-7): TextBlock with headings, bold and italic runs; tap right = next page, left third = back.
 std::unique_ptr<Widget> widgets5() {
   auto root = std::make_unique<Padding>(kMargin, s2, kMargin, s2);
@@ -262,6 +284,7 @@ std::unique_ptr<Root> create(const std::string& name, Os& os) {
   if (name == "widgets3") root = widgets3();
   if (name == "widgets4") root = widgets4();
   if (name == "widgets5") root = widgets5();
+  if (name == "widgets6") root = widgets6();
   if (name == "widgets2list") root = widgets2list();
   if (!root) return nullptr;
   auto screen = std::make_unique<Root>(os.canvas(), os.displayManager(), &os.timers());

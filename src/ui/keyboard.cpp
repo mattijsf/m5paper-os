@@ -2,7 +2,10 @@
 
 #include <algorithm>
 
+#include "core/clipboard.h"
 #include "ui/controls.h"
+#include "ui/label.h"
+#include "ui/panels.h"
 #include "ui/root.h"
 
 namespace pos::ui {
@@ -227,18 +230,102 @@ std::vector<KeyTap> Keyboard::tapsFor(const std::string& text) const {
 TextField::~TextField() { *alive_ = false; }
 
 void TextField::setText(const std::string& t) {
-  if (t == text_) return;
-  text_ = t;
+  std::string v = t;
+  if (lines_ == 1) std::replace(v.begin(), v.end(), '\n', ' ');
+  if (v == text_) return;
+  text_ = v;
   invalidate(Hint::Feedback);
+  if (onChange) onChange();
 }
 
-void TextField::append(const std::string& utf8) { setText(text_ + utf8); }
+size_t TextField::charCount(const std::string& utf8) {
+  size_t n = 0;
+  for (unsigned char c : utf8)
+    if ((c & 0xC0) != 0x80) ++n;
+  return n;
+}
+
+std::string TextField::fitted(const std::string& utf8) const {
+  if (maxChars_ == 0) return utf8;
+  const size_t have = charCount(text_);
+  if (have >= maxChars_) return "";
+  size_t room = maxChars_ - have, i = 0;
+  while (i < utf8.size()) {
+    if ((static_cast<unsigned char>(utf8[i]) & 0xC0) != 0x80) {
+      if (room == 0) break;
+      --room;
+    }
+    ++i;
+  }
+  return utf8.substr(0, i);
+}
+
+void TextField::append(const std::string& utf8) {
+  const std::string add = fitted(utf8);
+  if (!add.empty()) setText(text_ + add);
+}
 
 void TextField::backspace() {
   if (text_.empty()) return;
   size_t i = text_.size() - 1;
   while (i > 0 && (static_cast<unsigned char>(text_[i]) & 0xC0) == 0x80) --i;
   setText(text_.substr(0, i));
+}
+
+bool TextField::paste() {
+  const std::string clip = clipboard::get();
+  if (clip.empty()) return false;
+  const size_t before = text_.size();
+  append(clip);
+  return text_.size() != before;
+}
+
+void TextField::openMenu() {
+  Root* r = host();
+  if (!r) return;
+  auto sheet = std::make_unique<Sheet>();
+  Sheet* raw = sheet.get();
+  Column* col = sheet->content();
+  const size_t clipChars = charCount(clipboard::get());
+  col->add<Label>(clipChars == 0 ? "Clipboard is empty"
+                                 : "Clipboard: " + std::to_string(clipChars) + (clipChars == 1 ? " character" : " characters"),
+                  Type::Caption, secondary);  // a count, never the text (it may be a password)
+  std::weak_ptr<bool> alive = alive_;
+  TextField* self = this;
+  auto* paste = col->add<Button>("Paste", [raw, self, alive] {
+    raw->close();
+    if (!alive.expired()) self->paste();
+  }, Button::Kind::Secondary);
+  paste->enabled = clipChars > 0;
+  if (!masked_) {  // a masked field (a password) is never copied
+    auto* copy = col->add<Button>("Copy all", [raw, self, alive, r] {
+      raw->close();
+      if (alive.expired()) return;
+      r->showToast(clipboard::set(self->text(), "field") ? "Copied" : "Could not copy");
+    }, Button::Kind::Secondary);
+    copy->enabled = !text_.empty();
+  }
+  auto* clear = col->add<Button>("Clear", [raw, self, alive] {
+    raw->close();
+    if (!alive.expired()) self->setText("");
+  }, Button::Kind::Secondary);
+  clear->enabled = !text_.empty();
+  r->addOverlay(std::move(sheet));
+}
+
+bool TextField::onTouch(const Gesture& g) {
+  if (!clipboardMenu) return false;
+  switch (g.type) {
+    case Gesture::Down:
+    case Gesture::Tap:
+    case Gesture::Cancel:
+      return true;  // the field takes the touch so that a long press reaches it
+    case Gesture::LongPress:
+      openMenu();
+      return true;
+    default:
+      return false;  // swipes go on to the parent (a Pager)
+  }
 }
 
 std::string TextField::shown() const {
@@ -249,12 +336,48 @@ std::string TextField::shown() const {
   return out;
 }
 
+namespace {
+constexpr int kFieldLineH = 32;  // line pitch of a multi-line field (Body, 22 px)
+}
+
+Size TextField::measure(int availW) {
+  if (lines_ == 1) return {availW, kTouchMin};
+  return {availW, lines_ * kFieldLineH + 2 * s2 - 8};
+}
+
 void TextField::draw(Canvas& c) {
   strokeRound(c, frame, kRadius, kStroke, ink);
   const int pad = s2;
   const int maxW = frame.w - 2 * pad - 4;
-  const int cy = frame.y + frame.h / 2;
   std::string s = shown();
+  if (lines_ > 1) {
+    const int top = frame.y + pad - 4;
+    if (s.empty()) {
+      drawText(c, placeholder_, frame.x + pad, top + kFieldLineH / 2, Type::Body, disabled, Anchor::MiddleLeft, bg());
+      c.fillRect(frame.x + pad, top + kFieldLineH / 2 - 13, 2, 26, ink);
+      return;
+    }
+    // Paragraphs at line feeds, each wrapped like a Label; the last `lines_` lines are shown.
+    std::vector<std::string> all;
+    size_t pos = 0;
+    while (true) {
+      const size_t e = s.find('\n', pos);
+      Label para(s.substr(pos, e == std::string::npos ? std::string::npos : e - pos), Type::Body);
+      para.maxLines = 0;
+      for (auto& l : para.lines(c, maxW)) all.push_back(std::move(l));
+      if (e == std::string::npos) break;
+      pos = e + 1;
+    }
+    const size_t first = all.size() > static_cast<size_t>(lines_) ? all.size() - lines_ : 0;
+    int y = top;
+    for (size_t i = first; i < all.size(); ++i, y += kFieldLineH)
+      drawText(c, all[i], frame.x + pad, y + kFieldLineH / 2, Type::Body, ink, Anchor::MiddleLeft, bg());
+    int cx = frame.x + pad + measureText(c, all.back(), Type::Body) + 2;
+    if (s.back() == ' ' && !all.back().empty()) cx += measureText(c, " ", Type::Body);
+    c.fillRect(std::min(cx, frame.x + frame.w - pad), y - kFieldLineH + kFieldLineH / 2 - 13, 2, 26, ink);  // caret
+    return;
+  }
+  const int cy = frame.y + frame.h / 2;
   if (s.empty()) {
     drawText(c, placeholder_, frame.x + pad, cy, Type::Body, disabled, Anchor::MiddleLeft, bg());
     c.fillRect(frame.x + pad, cy - 16, 2, 32, ink);  // caret
@@ -282,6 +405,7 @@ void bindKeyboard(Keyboard& kb, TextField& field, std::function<void()> onEnter,
         break;
       case Keyboard::Kind::Enter:
         if (onEnter) onEnter();
+        else if (f->lines() > 1) f->append("\n");  // a multi-line field without an Enter action takes a line feed
         break;
     }
   };

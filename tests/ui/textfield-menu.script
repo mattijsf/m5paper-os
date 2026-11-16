@@ -1,0 +1,29 @@
+# app: widgets6
+# Clipboard (DECISIONS.md D21): a long press on a text field opens Paste / Copy all / Clear. Paste is disabled while the
+# clipboard is empty, Copy all and Clear while the field is. Copy, paste into the three-line field, clear.
+wait 300
+long 270 104            # empty field, empty clipboard: everything disabled
+wait 900
+shot textfield-menu-empty
+tap 270 100             # outside the sheet: closes it
+wait 900
+type Score 42
+wait 600
+long 270 104
+wait 900
+shot textfield-menu
+tap 270 812             # Copy all: a toast
+wait 600
+shot textfield-copied
+wait 3000
+long 270 215            # the three-line field: Paste is enabled now
+wait 900
+shot textfield-menu-paste
+tap 270 724             # Paste: appended at the caret
+wait 900
+shot textfield-pasted
+long 270 104
+wait 900
+tap 270 900             # Clear
+wait 900
+shot textfield-cleared

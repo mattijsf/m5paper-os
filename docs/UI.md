@@ -140,6 +140,7 @@ class Widget {
 | `Toast` | one line at the bottom for 3 s | errors like "No Wi-Fi" |
 | `EmptyState` | 64 px icon + title + hint + optional button | empty lists, errors, loading |
 | `Keyboard` | QWERTY, 3 layers (abc / ABC / 123#), key 54x72 | Wi-Fi password, search |
+| `TextField` | one line (72 px) or `setLines(n)` wrapped lines; long press = Paste / Copy all / Clear | text input with the keyboard |
 | `TextBlock` | paginated rich text (paragraphs, bold/italic) | reader and message/mail detail |
 
 Loading is shown with `EmptyState` ("Loading..." + icon), never a spinner. Stale cached data is
@@ -211,6 +212,14 @@ tap on the left third = back, elsewhere forward, horizontal swipes. `setInsets(l
 the widget (and its touch area) fills the frame; `setChapter(paras, starts, pos)` swaps text, page starts and position in one Content refresh.
 The reader derives `PageView` from it to use its own touch zones. Test screens `widgets4` (keyboard), `widgets5`
 (text pages); script commands `type TEXT` and `type-max N TEXT`.
+
+Clipboard (`core/clipboard`, DECISIONS.md D21): one piece of text for the whole OS (4 KB, kept in `/data/clipboard.txt`, never logged).
+**Every `TextField` opens a sheet on a long press**: "Paste" (disabled while the clipboard is empty), "Copy all" (not offered in a masked
+field), "Clear" (both disabled while the field is empty); a caption above them says how many characters the clipboard holds, never its text.
+Paste appends at the caret (always the end) and stops at the field's limit (`setMaxChars`, in characters, cut at a character boundary); a
+one-line field turns line feeds into spaces. `setLines(n)` makes a multi-line field (body size, 32 px lines, line feeds kept, the last n
+lines shown; Enter of a bound keyboard types a line feed when no Enter action is given); `onChange` runs after every change.
+`clipboardMenu = false` turns the sheet off. Test screen `widgets6`, script `textfield-menu` (and `keyboard-menu-masked` in `keyboard`).
 
 ## Gestures (`core/gesture`, task P2-1)
 

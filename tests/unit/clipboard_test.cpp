@@ -109,3 +109,43 @@ TEST_CASE("clipboard: the text never reaches the log, and a damaged file reads a
   CHECK(clipboard::get().size() == clipboard::kMaxBytes);
   CHECK(clipboard::get().substr(0, 14) == "bad  byte and ");
 }
+
+// TextField and the clipboard (no Root needed: the field only invalidates when it has one).
+#include "ui/keyboard.h"
+
+TEST_CASE("TextField: maxChars counts code points, cuts typing and paste at a character boundary") {
+  TmpRoots t;
+  ui::TextField f;
+  int changes = 0;
+  f.onChange = [&] { ++changes; };
+  f.setMaxChars(5);
+  f.append("ab\xC3\xA9");  // a b é: 3 characters, 4 bytes
+  CHECK(f.text() == "ab\xC3\xA9");
+  CHECK(ui::TextField::charCount(f.text()) == 3);
+  f.append("\xC3\xA9\xC3\xA9\xC3\xA9");  // only two more fit
+  CHECK(f.text() == "ab\xC3\xA9\xC3\xA9\xC3\xA9");
+  CHECK(ui::TextField::charCount(f.text()) == 5);
+  f.append("x");  // full: nothing changes
+  CHECK(ui::TextField::charCount(f.text()) == 5);
+  CHECK(changes == 2);
+  f.setText("");
+  CHECK_FALSE(f.paste());  // empty clipboard
+  REQUIRE(clipboard::set("Somdoku 12:34", "game"));
+  CHECK(f.paste());
+  CHECK(f.text() == "Somdo");  // cut to the limit
+  CHECK_FALSE(f.paste());      // nothing fits any more
+}
+
+TEST_CASE("TextField: a one-line field turns line feeds into spaces, a multi-line field keeps them") {
+  TmpRoots t;
+  REQUIRE(clipboard::set("one\ntwo", "test"));
+  ui::TextField one;
+  CHECK(one.paste());
+  CHECK(one.text() == "one two");
+  ui::TextField many;
+  many.setLines(4);
+  CHECK(many.paste());
+  CHECK(many.text() == "one\ntwo");
+  many.backspace();
+  CHECK(many.text() == "one\ntw");
+}

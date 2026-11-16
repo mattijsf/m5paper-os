@@ -59,7 +59,10 @@ class Keyboard : public Widget {
   std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
 };
 
-// One-line text input box (72 px high). Shows the tail of the text if it does not fit; masked = bullets.
+// Text input box. One line (72 px high, shows the tail of the text if it does not fit; masked = bullets) or, with setLines(n),
+// n wrapped lines (line feeds kept; the last n lines are shown). The caret is always at the end.
+// A long press opens a sheet with Paste / Copy all / Clear (the OS clipboard, core/clipboard, DECISIONS.md D21): Paste is
+// disabled when the clipboard is empty, Copy all and Clear when the field is; a masked field has no Copy all.
 class TextField : public Widget {
  public:
   explicit TextField(std::string placeholder = "") : placeholder_(std::move(placeholder)) {}
@@ -67,15 +70,35 @@ class TextField : public Widget {
   const std::string& text() const { return text_; }
   void setText(const std::string& t);
   void setMasked(bool m) { masked_ = m; invalidate(Hint::Content); }
-  void append(const std::string& utf8);
+  // Wrapped lines shown (1 = the one-line field). Line feeds are kept only when lines > 1 (a one-line field turns them into spaces).
+  void setLines(int n) { lines_ = n < 1 ? 1 : n; }
+  int lines() const { return lines_; }
+  // Most characters (code points) the field takes, 0 = no limit. Typing and pasting stop there.
+  void setMaxChars(size_t n) { maxChars_ = n; }
+  size_t maxChars() const { return maxChars_; }
+  void append(const std::string& utf8);  // cut to fit maxChars, at a character boundary
   void backspace();  // removes the last character (UTF-8 aware)
-  Size measure(int availW) override { return {availW, kTouchMin}; }
+  // Appends the clipboard (cut to fit). False if the clipboard is empty or nothing fitted.
+  bool paste();
+  // Called after every change of the text (typing, paste, clear, setText).
+  std::function<void()> onChange;
+  bool clipboardMenu = true;  // false: no long-press sheet
+  // Opens the Paste / Copy all / Clear sheet (what a long press does).
+  void openMenu();
+
+  Size measure(int availW) override;
   void draw(Canvas& c) override;
+  bool onTouch(const Gesture& g) override;
+
+  static size_t charCount(const std::string& utf8);  // code points
 
  private:
   std::string shown() const;
+  std::string fitted(const std::string& utf8) const;  // the part of `utf8` that still fits
   std::string text_, placeholder_;
   bool masked_ = false;
+  int lines_ = 1;
+  size_t maxChars_ = 0;
   std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
 };
 
