@@ -1,5 +1,7 @@
 #include "ui/text.h"
 
+#include <algorithm>
+
 #include "gen/fonts.h"
 
 namespace pos::ui {
@@ -115,6 +117,74 @@ textdatum_t datum(Anchor a) {
   }
 }
 
+// Score squares (Somdoku, Woordle): the fonts have no emoji, so these are drawn as boxes of the text's height, in styles that
+// stay apart on the gray panel. The text itself keeps the real characters (clipboard, sent messages).
+enum class Square : uint8_t { None, Solid, Hatched, Outline };
+Square squareKind(uint32_t cp) {
+  switch (cp) {
+    case 0x1F7E9: return Square::Solid;    // green: right
+    case 0x1F7E8: return Square::Hatched;  // yellow: changed / wrong place
+    case 0x2B1B:                           // black large square: not in the word
+    case 0x2B1C:                           // white large square
+    case 0x1F7E5:                          // red
+    case 0x1F7E6:                          // blue
+    case 0x1F7E7:                          // orange
+      return Square::Outline;
+    default: return Square::None;
+  }
+}
+
+bool hasSquares(const std::string& s) {
+  for (size_t i = 0; i < s.size();) {
+    uint32_t cp;
+    i += decode(s, i, cp);
+    if (squareKind(cp) != Square::None) return true;
+  }
+  return false;
+}
+
+int squareSize(Canvas& c) { return std::max(8, static_cast<int>(c.fontHeight()) * 62 / 100); }
+int squareAdvance(Canvas& c) { return squareSize(c) + std::max(2, static_cast<int>(c.fontHeight()) / 10); }
+
+void drawSquare(Canvas& c, Square kind, int x, int top, Color color) {
+  const int s = squareSize(c);
+  const int y = top + (static_cast<int>(c.fontHeight()) - s) / 2;
+  if (kind == Square::Solid) {
+    c.fillRect(x, y, s, s, color);
+    return;
+  }
+  c.drawRect(x, y, s, s, color);
+  c.drawRect(x + 1, y + 1, s - 2, s - 2, color);
+  if (kind == Square::Hatched) {
+    const int step = std::max(4, s / 4);
+    for (int d = step; d < 2 * s; d += step) {
+      const int ax = x + std::max(0, d - s + 1), ay = y + std::min(d, s - 1);
+      const int bx = x + std::min(d, s - 1), by = y + std::max(0, d - s + 1);
+      c.drawLine(ax, ay, bx, by, color);
+    }
+  }
+}
+
+// Width of sanitized text with squares, the font already loaded.
+int widthWithSquares(Canvas& c, const std::string& s) {
+  int w = 0;
+  std::string run;
+  for (size_t i = 0; i < s.size();) {
+    uint32_t cp;
+    const size_t n = decode(s, i, cp);
+    if (squareKind(cp) != Square::None) {
+      if (!run.empty()) w += c.textWidth(run.c_str());
+      run.clear();
+      w += squareAdvance(c);
+    } else {
+      run += s.substr(i, n);
+    }
+    i += n;
+  }
+  if (!run.empty()) w += c.textWidth(run.c_str());
+  return w;
+}
+
 }  // namespace
 
 void forgetLoadedFont() {
@@ -129,7 +199,7 @@ std::string sanitize(const std::string& s) {
     uint32_t cp;
     i += decode(s, i, cp);
     if (cp == '\n' || cp == '\t') cp = ' ';
-    append(out, hasGlyph(cp) ? cp : '?');
+    append(out, hasGlyph(cp) || squareKind(cp) != Square::None ? cp : '?');
   }
   return out;
 }
@@ -137,13 +207,47 @@ std::string sanitize(const std::string& s) {
 void drawText(Canvas& c, const std::string& utf8, int x, int y, Type type, Color color, Anchor anchor, Color bg) {
   useFont(c, fontFor(type));
   c.setTextColor(color, bg);
-  c.setTextDatum(datum(anchor));
-  c.drawString(sanitize(utf8).c_str(), x, y);
+  const std::string text = sanitize(utf8);
+  if (!hasSquares(text)) {
+    c.setTextDatum(datum(anchor));
+    c.drawString(text.c_str(), x, y);
+    return;
+  }
+  // Text with score squares: drawn piece by piece from the left edge of the line.
+  const int w = widthWithSquares(c, text);
+  int left = x;
+  if (anchor == Anchor::TopCenter || anchor == Anchor::MiddleCenter) left = x - w / 2;
+  if (anchor == Anchor::TopRight || anchor == Anchor::MiddleRight) left = x - w;
+  const bool middle = anchor == Anchor::MiddleLeft || anchor == Anchor::MiddleCenter || anchor == Anchor::MiddleRight;
+  const int top = middle ? y - static_cast<int>(c.fontHeight()) / 2 : y;
+  c.setTextDatum(textdatum_t::top_left);
+  std::string run;
+  const auto flush = [&] {
+    if (run.empty()) return;
+    c.drawString(run.c_str(), left, top);
+    left += c.textWidth(run.c_str());
+    run.clear();
+  };
+  for (size_t i = 0; i < text.size();) {
+    uint32_t cp;
+    const size_t n = decode(text, i, cp);
+    const Square kind = squareKind(cp);
+    if (kind != Square::None) {
+      flush();
+      drawSquare(c, kind, left, top, color);
+      left += squareAdvance(c);
+    } else {
+      run += text.substr(i, n);
+    }
+    i += n;
+  }
+  flush();
 }
 
 int measureText(Canvas& c, const std::string& utf8, Type type) {
   useFont(c, fontFor(type));
-  return c.textWidth(sanitize(utf8).c_str());
+  const std::string text = sanitize(utf8);
+  return hasSquares(text) ? widthWithSquares(c, text) : c.textWidth(text.c_str());
 }
 
 int lineHeight(Canvas& c, Type type) {

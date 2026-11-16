@@ -50,3 +50,7 @@ arrow-up
 corner-down-left
 eye
 eye-off
+grid-3x3
+copy
+send
+pause

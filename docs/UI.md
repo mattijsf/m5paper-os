@@ -124,7 +124,7 @@ class Widget {
 | Widget | Purpose | Notes |
 |---|---|---|
 | `Column`, `Row`, `Stack`, `Spacer`, `Padding` | layout | `Column` stacks children top to bottom with a gap; a child with `flex=1` takes leftover space |
-| `Label` | text, one or more lines | token for style; `maxLines`, ellipsis |
+| `Label` | text, one or more lines | token for style; `maxLines`, ellipsis; `keepLineBreaks` (a line feed starts a new line) |
 | `IconView` | icon glyph | 32 or 64 |
 | `Button` | primary (filled ink) / secondary (2 px outline) / text | height 72; pressed = inverted |
 | `IconButton` | 72x72 target with a 32 px icon | |
@@ -247,3 +247,8 @@ Every UI task ends with a headless screenshot that the author looks at:
 `make shot` or a `tests/ui/*.script` run (`SIMULATOR.md`). Check: margins 24 px, nothing closer
 than 8 px to another element, targets at least 72 px, text not clipped, only theme tokens used,
 and the refresh log shows no Quality push outside `Hint::Image` and budget cleans.
+
+### Score squares
+
+`drawText` / `measureText` draw the score emoji (🟩 solid, 🟨 hatched, ⬛ ⬜ 🟥 🟦 🟧 outlined) as boxes of the text's height:
+the fonts have no emoji. The text keeps the real characters. docs/apps/somdoku.md.

@@ -56,6 +56,10 @@ enum class Icon : uint8_t {
   CornerDownLeft,
   Eye,
   EyeOff,
+  Grid3x3,
+  Copy,
+  Send,
+  Pause,
   Count
 };
 
@@ -111,6 +115,10 @@ constexpr uint32_t kIconCodepoint[] = {
   0xE0A1,  // corner-down-left
   0xE0BA,  // eye
   0xE0BB,  // eye-off
+  0xE0E9,  // grid-3x3
+  0xE09E,  // copy
+  0xE152,  // send
+  0xE12E,  // pause
 };
 
 }  // namespace pos::gen

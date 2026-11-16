@@ -20,6 +20,7 @@ class Label : public Widget {
   Color color;
   TextAlign align = TextAlign::Left;
   int maxLines = 1;  // text that does not fit ends with an ellipsis
+  bool keepLineBreaks = false;  // true: a line feed in the text starts a new line (score texts); false: it is a space
   int lineGap = 4;   // extra px between lines
 
   const std::string& text() const { return text_; }

@@ -1,0 +1,148 @@
+# app: somdoku
+# time: 2026-11-16T09:00:00
+# Somdoku (the user's own game, somdoku.nl): puzzle 6 of 2026-11-16 from the ported generator. Start, a slip put right at
+# once (stays green), a real change (yellow), pause and Verder, the rest filled in, the result, Kopieer score, and Stuur
+# naar WhatsApp up to the compose screen (nothing is sent).
+wait 1500
+shot somdoku-ready
+expect-state view=ready
+tap 270 420             # Start
+wait 900
+shot somdoku-play
+expect-state view=play
+tap 160 287            # cell 0
+wait 300
+tap 269 739
+wait 300
+tap 238 287            # cell 1: a miss, put right at once (a slip)
+wait 300
+tap 438 739
+wait 300
+tap 100 831
+wait 300
+tap 316 287
+wait 300
+tap 100 739
+wait 300
+tap 160 287            # back to cell 0: changed (yellow), then back to its digit
+wait 300
+tap 438 739
+wait 300
+tap 269 739
+wait 600
+shot somdoku-progress
+expect-state filled=3 selected=0
+tap 504 92              # pause
+wait 900
+shot somdoku-paused
+expect-state view=ready
+tap 270 420             # Verder
+wait 900
+expect-state view=play
+tap 394 287
+wait 300
+tap 438 739
+wait 300
+tap 472 287
+wait 300
+tap 269 831
+wait 300
+tap 160 365
+wait 300
+tap 100 831
+wait 300
+tap 238 365
+wait 300
+tap 269 831
+wait 300
+tap 316 365
+wait 300
+tap 269 739
+wait 300
+tap 394 365
+wait 300
+tap 100 739
+wait 300
+tap 472 365
+wait 300
+tap 438 739
+wait 300
+tap 160 443
+wait 300
+tap 100 739
+wait 300
+tap 238 443
+wait 300
+tap 269 739
+wait 300
+tap 316 443
+wait 300
+tap 438 739
+wait 300
+tap 394 443
+wait 300
+tap 269 831
+wait 300
+tap 472 443
+wait 300
+tap 100 831
+wait 300
+tap 160 521
+wait 300
+tap 269 831
+wait 300
+tap 238 521
+wait 300
+tap 438 739
+wait 300
+tap 316 521
+wait 300
+tap 100 831
+wait 300
+tap 394 521
+wait 300
+tap 269 739
+wait 300
+tap 472 521
+wait 300
+tap 100 739
+wait 300
+tap 160 599
+wait 300
+tap 438 739
+wait 300
+tap 238 599
+wait 300
+tap 100 739
+wait 300
+tap 316 599
+wait 300
+tap 269 831
+wait 300
+tap 394 599
+wait 300
+tap 100 831
+wait 300
+wait 600
+tap 472 599            # last cell
+wait 300
+tap 269 739
+wait 300
+wait 900
+shot somdoku-done
+expect-state view=done
+tap 270 566             # Kopieer score
+wait 600
+shot somdoku-copied
+wait 4000                # the toast goes
+tap 270 656             # Stuur naar WhatsApp: the compose screen for the favourite "Woordle challenge", prefilled
+wait 1200
+shot somdoku-compose
+tap 330 504             # Send: the confirmation sheet with the score's lines (Cancel: nothing is sent)
+wait 900
+shot somdoku-confirm
+tap 270 900             # Cancel
+wait 900
+back                    # nothing is sent
+wait 900
+expect-state view=done

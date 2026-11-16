@@ -13,17 +13,8 @@ size_t cpLen(const std::string& s, size_t i) {
   return std::min(n, s.size() - i);
 }
 
-}  // namespace
-
-void Label::setText(const std::string& t, Hint h) {
-  if (t == text_) return;
-  text_ = t;
-  invalidate(h);
-}
-
-std::vector<std::string> Label::lines(Canvas& c, int width) const {
-  const std::string s = sanitize(text_);
-  std::vector<std::string> out;
+// Word-wraps one paragraph (already sanitized) into `out`.
+void wrapInto(Canvas& c, const std::string& s, Type type, int width, std::vector<std::string>& out) {
   std::string line;
   size_t i = 0;
   auto fits = [&](const std::string& t) { return measureText(c, t, type) <= width; };
@@ -60,6 +51,31 @@ std::vector<std::string> Label::lines(Canvas& c, int width) const {
     i += k;
   }
   if (!line.empty()) out.push_back(line);
+}
+
+}  // namespace
+
+void Label::setText(const std::string& t, Hint h) {
+  if (t == text_) return;
+  text_ = t;
+  invalidate(h);
+}
+
+std::vector<std::string> Label::lines(Canvas& c, int width) const {
+  std::vector<std::string> out;
+  if (keepLineBreaks) {
+    size_t i = 0;
+    while (i <= text_.size()) {
+      size_t j = text_.find('\n', i);
+      if (j == std::string::npos) j = text_.size();
+      const size_t before = out.size();
+      wrapInto(c, sanitize(text_.substr(i, j - i)), type, width, out);
+      if (out.size() == before) out.push_back("");  // an empty line stays
+      i = j + 1;
+    }
+  } else {
+    wrapInto(c, sanitize(text_), type, width, out);
+  }
   if (out.empty()) out.push_back("");
 
   if (maxLines > 0 && static_cast<int>(out.size()) > maxLines) {

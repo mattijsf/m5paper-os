@@ -80,7 +80,8 @@ class ComposeScreen : public Screen {
     ui::Column* c = sheet->content();
     c->add<ui::Label>("Send to " + to_.name + "?", Type::Title)->maxLines = 2;
     auto* text = c->add<ui::Label>(trimmed(field_->text()), Type::Body);  // the message itself: ink
-    text->maxLines = 6;
+    text->maxLines = 7;
+    text->keepLineBreaks = true;  // a score is lines of squares
     c->add<ui::Label>("From your own WhatsApp account", Type::Caption, ui::secondary);
     c->add<ui::Button>("Send", [this, raw] {
       raw->close();

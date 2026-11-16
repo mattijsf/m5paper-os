@@ -368,6 +368,10 @@ home-assistant repo's own rules. Read BACKEND.md fully before any of them.
   only within one session, never goldens (DISPLAY.md "Camera on the panel"). Done when the four commands have run with the real camera
   and the "To verify with the camera" list in STATUS.md has a first pass.
 
+- [~] **P7-8 Somdoku** (the user's own daily puzzle, somdoku.nl). Read: apps/somdoku.md. Port of the
+  web game's generator and game logic, checked against 500 days of vectors from the web code; app with ready / play / done
+  views, clipboard and WhatsApp share. (2026-11-16: built and tested in the simulator; device run pending.)
+
 ## Phase 8: Optional, ask the owner first
 
 - [ ] **P8-1 Notification-sensor feeds** (DECISIONS.md D8) as a replacement if the WhatsApp

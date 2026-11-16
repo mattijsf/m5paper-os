@@ -209,7 +209,22 @@ connected** (2026-11-15: macOS lists only the built-in camera; the user will plu
 - **Sleep screen** (P3-6, P7-5 item 2): a still after the device powers off (the cover's grays, the summary line), and stills an hour and
   several hours later: does it stay sharp.
 
+## Somdoku and the send script (2026-11-16, night, autonomous)
+
+- **Send script installed** in Home Assistant (home-assistant commit `11371c7`, merged with the mail
+  feed added separately: `ha/paperos_inbox.yaml` is byte-identical to the installed file). Guards tested live through
+  the API with return_response: empty, too_long, a list target and an `@lid` JID were refused and nothing was logged as sent;
+  **one real message to the user's own number** (approved) went out (`ok`, message id 22 chars), and a second
+  call right after it was refused `too_soon`. Not tested: the hourly limit live, a group target, the device calling the script.
+  The recorder exclusion of the new sensor and event needs the next Home Assistant restart (they hold only timestamps).
+  Note: chats whose key is an `@lid` JID cannot be answered (the JID guard allows only `@s.whatsapp.net` / `@g.us`).
+- **Somdoku (P7-8)**: see docs/apps/somdoku.md. 500 days of puzzles match the web game. Device run pending.
+- **Flaky unit test**: `wifi_test.cpp:396` ("Wi-Fi goes off after the linger time") failed once in four runs on 2026-11-16
+  (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
+
 ## Pending device checks
+- **Somdoku** (P7-8): flash, open, play and solve today's puzzle on the device; puzzle generation time on the worker; the
+  board and the hatched squares on the physical panel (eyes, once); the clock across a light sleep and a power-off.
 
 - **P6-7 (2026-11-16, firmware of this commit, flashed)**: run on the device: the text-field sheet on `widgets6` (frame dump identical to the
   golden `textfield-menu-empty`), Clear on the three-line field, and the WhatsApp compose screen with a fake favourite added in memory
