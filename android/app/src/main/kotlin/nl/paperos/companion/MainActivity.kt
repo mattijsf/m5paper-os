@@ -164,7 +164,7 @@ class MainActivity : Activity() {
 
         val stage = Link.stage
         pairState.text = when {
-            stage == Link.Stage.NONE -> "Not paired. On the Paper: Settings > Phone > Pair phone, then scan its code here."
+            stage == Link.Stage.NONE -> "Not paired. On the Paper: Settings > Home Assistant > Phone > Pair, then scan its code here."
             stage == Link.Stage.ACTIVE -> "Paired (${Link.pidText()}). Notifications go to the Paper encrypted."
             Link.pairingExpired() -> "Pairing timed out. Scan the code again."
             !Link.userConfirmed -> "Check that the Paper shows the same code (pairing id ${Link.pidText()}):"
