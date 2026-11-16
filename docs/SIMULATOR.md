@@ -149,6 +149,8 @@ A task is done only when `make check` passes.
   the firmware drew (4-bit pixels over serial, converted to PNG), `tools/device.py tap 140 300`
   injects a touch. With these, device checks need neither eyes nor fingers. The dump is the
   frame buffer, not a photo: it cannot show ghosting or a half-played waveform.
+  Replies are queued and sent between main-loop passes (`RemoteHost::writable()`, 2026-11-16): a dump takes ~0.5 s and no
+  longer stops the UI (it held the loop ~1.07 s).
 - The simulator speaks the same protocol: `program --headless --remote` reads `>` commands on
   stdin and replies on stdout (`--name M5PaperS3` for an identical footer). Send `>shot` alone
   and wait for its reply: it runs after earlier touches were handled, so it answers after

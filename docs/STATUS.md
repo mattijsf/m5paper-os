@@ -750,3 +750,6 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-16: The word game: today's puzzle played on the device with injected taps (marks, resume, a fetched-only word, won screen, copy, statistics); camera stills of the marks on the panel.
 - 2026-11-16: the toast is an ink band over the status bar instead of a button-like pill at the bottom; 22 goldens; unit test taps through it at the top.
 - 2026-11-16: names in English: the word game is `wordgame` (directory, namespace, app id, tests, goldens, tools, docs); old saved data adopted on first open.
+- 2026-11-16: `>shot` streams between loop passes (no 1 s UI stall, 0.5 s per dump); the reader loads the next chapter two pages ahead (a boundary turn could wait ~1 s while the worker shared core 0 with the waveform task); 60 turns: median 105 ms, slowest 159 ms.
+- 2026-11-16: reader footer (chapter, "12 / 340") is part of the page's push (`Hint::Page`) and drawn in ink: the user saw the page number flicker more than the text (it got a Fast pass and then its own settle sweep); gray caption text breaks up in the Fast pass, so ink. One push per turn on the device.
+

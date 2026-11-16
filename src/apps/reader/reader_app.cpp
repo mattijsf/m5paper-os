@@ -87,7 +87,8 @@ class PageFooter : public ui::Widget {
     left_ = left;
     right_ = right;
     low_ = lowBattery;
-    invalidate(Hint::Content);
+    invalidate(Hint::Page);  // with the page: one refresh per turn. As Content the number changed twice (Fast, then its
+                             // settle sweep 0.6 s later) while the page text changed once
   }
   ui::Size measure(int availW) override { return {availW, kFooterH}; }
   bool onTouch(const Gesture& g) override { return forwardTo ? forwardTo->onTouch(g) : false; }
@@ -95,13 +96,13 @@ class PageFooter : public ui::Widget {
     const int cy = frame.y + kFooterH / 2 - 4;
     int right = frame.x + frame.w - kMarginX;
     if (low_) {
-      ui::drawIcon(c, Icon::BatteryLow, right - 16, cy, 32, ui::secondary, bg());
+      ui::drawIcon(c, Icon::BatteryLow, right - 16, cy, 32, ui::ink, bg());
       right -= 44;
     }
-    ui::drawText(c, right_, right, cy, Type::Caption, ui::secondary, ui::Anchor::MiddleRight, bg());
+    ui::drawText(c, right_, right, cy, Type::Caption, ui::ink, ui::Anchor::MiddleRight, bg());
     const int rw = ui::measureText(c, right_, Type::Caption);
     const int room = right - rw - 24 - (frame.x + kMarginX);
-    if (room > 40) ui::drawText(c, ui::ellipsize(c, left_, Type::Caption, room), frame.x + kMarginX, cy, Type::Caption, ui::secondary, ui::Anchor::MiddleLeft, bg());
+    if (room > 40) ui::drawText(c, ui::ellipsize(c, left_, Type::Caption, room), frame.x + kMarginX, cy, Type::Caption, ui::ink, ui::Anchor::MiddleLeft, bg());
   }
 
  private:
