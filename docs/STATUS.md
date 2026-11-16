@@ -655,6 +655,8 @@ None of these block Phase 1, Phase 2, or the reader.
   0.7 MB by symbol sizes; the exact split is not measured), our net service and Wi-Fi/Home Assistant screens (~60 KB, estimate). Fonts
   are 0.45 MB, M5GFX/M5Unified ~0.2 MB. The reader (miniz ~12 KB, XHTML, pagination, library) should fit in ~150 KB.
 
+- **`make check` is red since 5db1f1a (found 2026-11-16 15:00, not caused by the live view: it touches no `src/` or `tests/`)**: `tests/ui/reader.script:40` `expect-shot-equal reader-p7 reader-p7-resumed` fails, and `reader-last` is then never produced. Both shots are identical to their goldens, but the two goldens accepted in 5db1f1a differ from each other in 11 pixels of the footer's page number (x 466-497, y 923-936): after a page turn those pixels hold anti-aliased grays (238, 136, 221, 68), after `restart` they are pure black or white, as if the footer of the resumed page stays in its Fast-pass state. Open: which frame is right, then fix the reader or the goldens. 202 other screenshots match, 252 unit tests pass.
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
