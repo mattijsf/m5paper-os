@@ -19,7 +19,86 @@ WRITE_IMAGE_OLD = """  void Panel_EPD::writeImage(uint_fast16_t x, uint_fast16_t
     uint_fast16_t ys = y, ye = y + h - 1;
     _update_transferred_rect(xs, ys, xe, ye);
 """
-WRITE_IMAGE_NEW = """  void Panel_EPD::writeImage(uint_fast16_t x, uint_fast16_t y, uint_fast16_t w, uint_fast16_t h, pixelcopy_t* param, bool use_dma)
+WRITE_IMAGE_NEW = """  // PAPEROS PATCH 3 (tools/patch_m5gfx.py): the quantise-and-write of a tile batch on both cores. A helper task on the
+  // other core (priority 1: the EPD update task, priority 2, always goes first) takes chunks of 16 panel rows from an atomic
+  // counter, and so does the caller; the caller never waits for a helper that did not take part, so it is never slower than
+  // one core. Rows never overlap: the result is the same bytes (">set epd-selftest on").
+  struct paperos_tile_job {
+    const grayscale_t* blk; int w; int nb; int x; int px0; bool flipx; bool flipy; int pw; int ph; int stride;
+    uint8_t* buf; const uint8_t* qlut;
+    std::atomic<int> next{0};
+    int chunks = 0;
+    std::atomic<uint32_t> gen{0}, helper_in{0}, helper_out{0};
+  };
+  static paperos_tile_job paperos_job;
+  static TaskHandle_t paperos_helper = nullptr;
+  static constexpr int PAPEROS_CHUNK = 16;
+
+  static void paperos_tile_columns(const paperos_tile_job& j, int i0, int i1)
+  {
+    for (int i = i0; i < i1; ++i)
+    {
+      int px = j.px0;       // panel x of b = 0
+      int py = j.x + i;     // panel y
+      if (j.flipx) { px = j.pw - 1 - px; }
+      if (j.flipy) { py = j.ph - 1 - py; }
+      const int nb = j.nb;
+      const int lo = j.flipx ? px - (nb - 1) : px;  // leftmost panel x of the run
+      const uint8_t* bay = &Bayer[(py & 3) << 2];
+      const uint8_t* lq[4] = { &j.qlut[bay[0] << 8], &j.qlut[bay[1] << 8], &j.qlut[bay[2] << 8], &j.qlut[bay[3] << 8] };
+      uint8_t q[33];
+      if (j.flipx) { for (int k = 0; k < nb; ++k) { q[k] = lq[(lo + k) & 3][j.blk[(nb - 1 - k) * j.w + i].get()]; } }
+      else         { for (int k = 0; k < nb; ++k) { q[k] = lq[(lo + k) & 3][j.blk[k * j.w + i].get()]; } }
+      uint8_t* row = j.buf + py * j.stride;
+      int k = 0;
+      int qx = lo;
+      if (qx & 1) { uint8_t& byte = row[qx >> 1]; byte = (byte & 0xF0) | q[0]; k = 1; ++qx; }
+      for (; k + 1 < nb; k += 2, qx += 2) { row[qx >> 1] = (q[k] << 4) | q[k + 1]; }
+      if (k < nb) { uint8_t& byte = row[qx >> 1]; byte = (byte & 0x0F) | (q[k] << 4); }
+    }
+  }
+
+  static void paperos_tile_take(paperos_tile_job& j)
+  {
+    int c;
+    while ((c = j.next.fetch_add(1)) < j.chunks)
+    {
+      const int i0 = c * PAPEROS_CHUNK;
+      paperos_tile_columns(j, i0, std::min(j.w, i0 + PAPEROS_CHUNK));
+    }
+  }
+
+  static void paperos_helper_task(void*)
+  {
+    for (;;)
+    {
+      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+      const uint32_t g = paperos_job.gen.load();
+      paperos_job.helper_in.store(g);   // before taking: the caller then knows to wait for helper_out
+      paperos_tile_take(paperos_job);
+      paperos_job.helper_out.store(g);
+    }
+  }
+
+  static void paperos_tile_run(paperos_tile_job& j)
+  {
+    j.chunks = (j.w + PAPEROS_CHUNK - 1) / PAPEROS_CHUNK;
+    if (!paperos_helper)
+    {
+      xTaskCreatePinnedToCore(paperos_helper_task, "epdtile", 3072, nullptr, 1, &paperos_helper, xPortGetCoreID() ^ 1);
+    }
+    const uint32_t g = j.gen.load() + 1;
+    j.gen.store(g);
+    j.next.store(0);
+    if (paperos_helper && j.chunks > 1) { xTaskNotifyGive(paperos_helper); }
+    paperos_tile_take(j);
+    if (j.helper_in.load() == g)
+    {
+      while (j.helper_out.load() != g) { taskYIELD(); }  // it took a chunk of this batch: let it finish
+    }
+  }
+
+  void Panel_EPD::writeImage(uint_fast16_t x, uint_fast16_t y, uint_fast16_t w, uint_fast16_t h, pixelcopy_t* param, bool use_dma)
   {
     uint_fast16_t xs = x, xe = x + w - 1;
     uint_fast16_t ys = y, ye = y + h - 1;
@@ -79,31 +158,11 @@ WRITE_IMAGE_NEW = """  void Panel_EPD::writeImage(uint_fast16_t x, uint_fast16_t
           // Source pixel (x + i, y + y0 + b): with r & 1 the panel coordinates swap, then flip as in _draw_pixels.
           // The nb pixels of one panel row are consecutive: quantise them first, then write whole bytes (two pixels)
           // and read-modify-write only a half-used byte at either end.
-          for (uint_fast16_t i = 0; i < w; ++i)
-          {
-            int px = y + y0;      // panel x of b = 0
-            int py = x + i;       // panel y
-            if (flipx) { px = _cfg.panel_width - 1 - px; }
-            if (flipy) { py = _cfg.panel_height - 1 - py; }
-            const int lo = flipx ? px - (nb - 1) : px;  // leftmost panel x of the run
-            const uint8_t* bay = &Bayer[(py & 3) << 2];
-            const uint8_t* lq[4] = { &qlut[bay[0] << 8], &qlut[bay[1] << 8], &qlut[bay[2] << 8], &qlut[bay[3] << 8] };
-            uint8_t q[B + 1];
-            if (flipx)
-            {
-              for (int k = 0; k < nb; ++k) { q[k] = lq[(lo + k) & 3][blk[(nb - 1 - k) * w + i].get()]; }
-            }
-            else
-            {
-              for (int k = 0; k < nb; ++k) { q[k] = lq[(lo + k) & 3][blk[k * w + i].get()]; }
-            }
-            uint8_t* row = _buf + py * stride;
-            int k = 0;
-            int qx = lo;
-            if (qx & 1) { uint8_t& byte = row[qx >> 1]; byte = (byte & 0xF0) | q[0]; k = 1; ++qx; }
-            for (; k + 1 < nb; k += 2, qx += 2) { row[qx >> 1] = (q[k] << 4) | q[k + 1]; }
-            if (k < nb) { uint8_t& byte = row[qx >> 1]; byte = (byte & 0x0F) | (q[k] << 4); }
-          }
+          // Columns i (= panel rows) are shared between this core and a helper on the other core (PAPEROS PATCH 3).
+          paperos_tile_job& j = paperos_job;
+          j.blk = blk; j.w = w; j.nb = nb; j.x = x; j.px0 = y + y0; j.flipx = flipx; j.flipy = flipy;
+          j.pw = _cfg.panel_width; j.ph = _cfg.panel_height; j.stride = stride; j.buf = _buf; j.qlut = qlut;
+          paperos_tile_run(j);
         }
         if (ok) { return; }
       }

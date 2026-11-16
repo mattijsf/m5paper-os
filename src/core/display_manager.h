@@ -102,7 +102,9 @@ class DisplayManager {
   void push(Rect r, Refresh mode, uint32_t changed, const char* why, uint32_t diffMs = 0);
   // Diff `r` against the shadow: returns the bounding box of changed pixels (empty if none). With `grayArea` it also
   // counts changed pixels of flat gray (see DisplayParams::grayAreaMin), stopping at grayAreaMin.
-  Rect diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool wantBw, uint32_t* grayArea = nullptr) const;
+  // Also brings the shadow up to date for `r` (each row's raw changed span is copied as soon as it is measured): every push
+  // path used to copy the box in a second pass over the same PSRAM (DISPLAY.md "Tap latency").
+  Rect diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool wantBw, uint32_t* grayArea = nullptr);
   bool flatGray(int x, int y, uint8_t q) const;
   void updateShadow(Rect r);
   void addSettle(Rect r, float added, uint32_t nowMs);

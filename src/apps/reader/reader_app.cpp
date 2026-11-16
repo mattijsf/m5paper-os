@@ -359,7 +359,11 @@ class PageScreen : public Screen {
 
   void turnTo(int idx) {
     showPage(idx);
-    if (++turns_ % 5 == 0) saveProgress();
+    if (++turns_ % 5 == 0) {
+      // Not on the tap: the flash write (~35 ms on the device) would delay the page. A second later, when nobody waits.
+      // Leaving the book and power-off save anyway (onStop / prepareForPowerOff paths call saveProgress()).
+      ctx().timer(1000, [this] { saveProgress(); });
+    }
   }
 
   // While the page is being read, draw the next one ahead (DISPLAY.md "Tap latency": the next turn copies it in instead

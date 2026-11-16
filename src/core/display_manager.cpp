@@ -80,9 +80,9 @@ bool DisplayManager::flatGray(int x, int y, uint8_t q) const {
          kQuant.q[src[i + 2 * kScreenW]] == q;
 }
 
-Rect DisplayManager::diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool wantBw, uint32_t* grayArea) const {
+Rect DisplayManager::diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool wantBw, uint32_t* grayArea) {
   const auto* src = static_cast<const uint8_t*>(canvas_.getBuffer());
-  const uint8_t* old = shadow_.data();
+  uint8_t* old = shadow_.data();
   int minX = r.x + r.w, minY = r.y + r.h, maxX = -1, maxY = -1;
   changed = 0;
   if (grayArea) *grayArea = 0;
@@ -90,9 +90,10 @@ Rect DisplayManager::diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool 
   for (int y = r.y; y < r.y + r.h; ++y) {
     const size_t base = static_cast<size_t>(y) * kScreenW;
     const uint8_t* row = src + r.x + base;
-    const uint8_t* orow = old + r.x + base;
+    uint8_t* orow = old + r.x + base;
     const int w = r.w;
     int lo = 0, hi = w - 1;
+    int rawLo = 0, rawHi = w - 1;  // the raw changed span: copied to the shadow once the row is measured
     if (shadowValid_) {
       // First and last differing pixel of the row, 8 bytes at a time; sub-level noise (different raw
       // values, same panel level) is then trimmed off both ends. Unchanged rows cost one pass.
@@ -110,9 +111,14 @@ Rect DisplayManager::diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool 
       int j = w - 1;
       while (j > lo && row[j] == orow[j]) --j;
       hi = j;
+      rawLo = lo;
+      rawHi = hi;
       while (lo <= hi && kQuant.q[row[lo]] == kQuant.q[orow[lo]]) ++lo;
       while (hi >= lo && kQuant.q[row[hi]] == kQuant.q[orow[hi]]) --hi;
-      if (lo > hi) continue;
+      if (lo > hi) {  // sub-level noise only: no push, but the shadow follows the canvas
+        std::memcpy(orow + rawLo, row + rawLo, static_cast<size_t>(rawHi - rawLo + 1));
+        continue;
+      }
     }
     changed += static_cast<uint32_t>(hi - lo + 1);  // the changed span of the row (interior noise included)
     minX = std::min(minX, r.x + lo);
@@ -144,6 +150,7 @@ Rect DisplayManager::diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool 
         if (flatGray(r.x + x, y, q) && ++*grayArea >= params_.grayAreaMin) break;
       }
     }
+    std::memcpy(orow + rawLo, row + rawLo, static_cast<size_t>(rawHi - rawLo + 1));  // the shadow follows (after all reads)
   }
   if (changed == 0) return Rect{};
   return Rect{static_cast<int16_t>(minX), static_cast<int16_t>(minY), static_cast<int16_t>(maxX - minX + 1),
@@ -211,7 +218,6 @@ void DisplayManager::pushPass(Rect r, Hint hint) {
     case Hint::Feedback:
       push(box, Refresh::Fast, changed, "feedback", dms);
       score_ += added;
-      updateShadow(box);
       if (!bw) addSettle(box, added, now);
       break;
     case Hint::Page:
@@ -229,8 +235,7 @@ void DisplayManager::pushPass(Rect r, Hint hint) {
         // 2026-11-16); the user chose black/white text between cleans over that sweep.
         push(box, Refresh::Fast, changed, "page", dms);
         score_ += added;
-        updateShadow(box);
-        for (size_t i = 0; i < settles_.size();) {  // an older settle inside the page would bring the sweep back
+          for (size_t i = 0; i < settles_.size();) {  // an older settle inside the page would bring the sweep back
           if (touches(settles_[i].rect, box)) settles_.erase(settles_.begin() + i);
           else ++i;
         }
@@ -239,7 +244,6 @@ void DisplayManager::pushPass(Rect r, Hint hint) {
     case Hint::Content:
       push(box, Refresh::Fast, changed, "content", dms);
       score_ += added;
-      updateShadow(box);
       addSettle(box, added, now);
       break;
     case Hint::Screen:
@@ -258,8 +262,7 @@ void DisplayManager::pushPass(Rect r, Hint hint) {
         // (half of what a Fast pass would add) and replaces the settles inside it.
         push(box, Refresh::Text, changed, "screen-gray", dms);
         score_ += added / 2;
-        updateShadow(box);
-        for (size_t i = 0; i < settles_.size();) {
+          for (size_t i = 0; i < settles_.size();) {
           const Rect s = settles_[i].rect;
           const bool inside = s.x >= box.x && s.y >= box.y && s.x + s.w <= box.x + box.w && s.y + s.h <= box.y + box.h;
           if (inside) settles_.erase(settles_.begin() + i);
@@ -268,13 +271,11 @@ void DisplayManager::pushPass(Rect r, Hint hint) {
       } else {
         push(box, Refresh::Fast, changed, "screen", dms);
         score_ += added;
-        updateShadow(box);
-        addSettle(box, added, now);
+          addSettle(box, added, now);
       }
       break;
     case Hint::Image:
       push(box, Refresh::Quality, changed, "image", dms);
-      updateShadow(box);
       // The image area no longer needs a settle pass.
       for (size_t i = 0; i < settles_.size();) {
         if (touches(settles_[i].rect, box)) settles_.erase(settles_.begin() + i);

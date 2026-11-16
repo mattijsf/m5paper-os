@@ -66,7 +66,7 @@ def run(b, name, n):
     if name == "page":
         b.ok(">set screen launcher")
         time.sleep(1.5)
-        b.tap(140, 300)  # Read: the open book
+        b.tap(140, 300)  # Read: the open book (not at its last page: a turn there changes nothing)
         time.sleep(3)
         for _ in range(n):
             rows.append(b.measure(400, 500))

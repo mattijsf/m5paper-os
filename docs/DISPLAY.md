@@ -183,8 +183,8 @@ handed to the panel driver; the waveform follows (Fast ~0.13-0.17 s visible).
 
 | Tap | before | after | what changed |
 |---|---|---|---|
-| reader page turn | 516 ms | **140 ms** | fast text, M5GFX patch 1, prefetch, `Hint::Page` |
-| open a screen (Settings row) | 807 ms (246 idle) | **190 ms** | fast text, M5GFX patches, 64 KB data cache, 120 MHz flash + PSRAM (D25) |
+| reader page turn | 516 ms | **112 ms** | fast text, M5GFX patch 1, prefetch, `Hint::Page` |
+| open a screen (Settings row) | 807 ms (246 idle) | **150 ms** | fast text, M5GFX patches (two cores), 64 KB data cache, 120 MHz flash + PSRAM (D25), diff updates the shadow |
 | small control (stepper) | 52 ms | **5 ms** | config written 1 s later, not on the tap |
 
 On the panel (camera, page turn): first change 0.53 s -> **0.38 s** after the tap, turn finished 0.67 s -> **0.55 s** (both include
@@ -211,6 +211,14 @@ Where the time went and what was done:
   the previous one's settle waveform 408 -> 306 ms.
 - **120 MHz flash and PSRAM** (D25): PSRAM 51 -> 64 MB/s, and code and fonts (in flash) run faster: page turn 199 -> 140 ms,
   screen change 306 -> 190 ms (the collision with a running settle no longer shows in the median).
+- **Both cores for the frame buffer write** (M5GFX patch 3): a helper task on the other core (priority 1, below the EPD update
+  task) and the caller take 16-row chunks from one atomic counter; the caller waits only for a chunk the helper took. Page
+  push call 87 -> 61 ms; the self-test rect 28 -> 22 ms (still identical).
+- **Diff and shadow in one pass**: the diff copies each row's raw changed span into the shadow as it goes (rows with only
+  sub-level noise too); the second pass over the box after every push is gone. Unit tests and goldens unchanged.
+- **Reading position written a second after the turn** (every 5th turn), not on the tap: the flash write cost ~36 ms there.
+- Now (2026-11-16): page turn 112 ms, screen change 150 ms, small tap 5 ms. A chapter boundary still loads the next chapter
+  on the tap (~140 ms once per chapter; prefetching across chapters would remove it).
 
 ## Rules for UI code (enforced in review, see UI.md)
 

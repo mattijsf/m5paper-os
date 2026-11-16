@@ -702,3 +702,5 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-16: Display lab: fifth pattern "Fast" (the gray ramp left in its Fast state, `Hint::Page`) to check the driver's Fast dither with the camera; golden `lab-fast-ramp`, the five lab goldens with the wider control.
 - 2026-11-16: Fast pass dither confirmed on the panel with the camera (Display lab "Fast"); the Fast ramp is upside down so it is pushed also after Ramp; golden `lab-fast-after-ramp`.
 - 2026-11-16: P6-12: a copy whose `clip` push failed offline (or timed out, or a server error) is resent when Wi-Fi next comes up (`NetService::onConnected`, `clipboard::markUnsent` / `unsent`, `/data/clipboard_unsent` holds only the copy time); checked in the simulator with `wifi off` / `wifi on`. Not on the device.
+- 2026-11-16: tap latency round 3: M5GFX patch 3 (frame buffer write on both cores), the diff updates the shadow in the same pass, the reader saves its position a second after the turn. Page turn 140 -> 112 ms, screen change 190 -> 150 ms. Noted: with a book open, internal heap free drops ~111 -> ~78 KB (chapter text and layouts as small strings), back to ~101 KB after leaving.
+

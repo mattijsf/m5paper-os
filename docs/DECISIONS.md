@@ -290,7 +290,8 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   LovyanGFX itself and cached; `tests/unit/text_fast_test.cpp` requires byte-identical output to LovyanGFX. (2) Driver changes are
   applied by `tools/patch_m5gfx.py`, a PlatformIO pre-build script for the device that edits `.pio/libdeps/papers3/M5GFX`
   (idempotent; it fails the build when the library text is not what the patch was written for). Patch 1: tiled, table-driven
-  frame buffer write for a rotated panel. Patch 2: the update task skips rows whose waveform finished. `>set epd-selftest on`
+  frame buffer write for a rotated panel. Patch 2: the update task skips rows whose waveform finished. Patch 3: the
+  write of patch 1 runs on both cores (work-stealing counter; the helper runs below the EPD task, so waveform timing is untouched). `>set epd-selftest on`
   compares patch 1 with the stock code on the device (identical in Fast and Quality, 2026-11-16).
 - **Rejected**: vendoring M5GFX (150 MB, mostly fonts); a private-member hack (`#define private public`); our own panel driver (D2).
 - **ESP-IDF settings**: see D25 (the core is now built from source).
