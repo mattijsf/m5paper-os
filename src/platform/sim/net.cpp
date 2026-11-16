@@ -66,8 +66,12 @@ hal::HttpResponse Net::request(const hal::HttpRequest& req) {
     return r;
   }
   if (!fixturesDir_.empty()) {
-    const std::string name = fixtureFileName(req.method, req.url);
+    std::string name = fixtureFileName(req.method, req.url, req.body);  // a fixture for this body first, then for the URL
     std::ifstream f(fixturesDir_ + "/" + name, std::ios::binary);
+    if (!f && !req.body.empty()) {
+      name = fixtureFileName(req.method, req.url);
+      f.open(fixturesDir_ + "/" + name, std::ios::binary);
+    }
     if (!f) {
       r.error = "no fixture";
       missing_.push_back(req.method + " " + req.url + " -> " + name);

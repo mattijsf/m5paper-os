@@ -406,6 +406,13 @@ P6-11 last (it needs the relay and a device that can pair).
   game in the genre, not a copy of woordle.nl: own name, own words and day order. Game logic with unit tests, game and
   statistics screens, score to the clipboard. (2026-11-16: built and tested in the simulator; device run pending.)
 
+- [~] **P7-11 Weather**. Read:
+  apps/weather.md, BACKEND.md "API calls used". App `weather`: `weather.thuis` state for now (condition, temperature, feels like,
+  wind, humidity, rain chance), `weather.get_forecasts` (`?return_response`, daily and hourly) for the next hours and days; saved
+  copy first, then a read; not set up / unreachable / stale handled visibly. Condition icons from Lucide. Fixtures, UI scripts
+  `weather*`, unit tests. Done when: goldens accepted, `make check` green, the live entity read on the device. (2026-11-16: built
+  and tested in the simulator; the live read on the device is pending.)
+
 ## Phase 8: Optional, ask the owner first
 
 - [ ] **P8-1 Notification-sensor feeds** (DECISIONS.md D8) as a replacement if the WhatsApp
@@ -431,3 +438,4 @@ P6-11 last (it needs the relay and a device that can pair).
 | WhatsApp send, clipboard | P6-7 clipboard (D21); replies through the phone, P6-10/P6-11 (D22); clipboard sync, P6-12 (D23) |
 | Recent mail | P6-8 to P6-11 (Proton Mail notifications: sender, subject, maybe a preview; D22) |
 | Home Assistant control | P5 |
+| Weather | P7-11 (Google Weather through Home Assistant) |

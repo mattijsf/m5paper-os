@@ -26,8 +26,8 @@ void drawFontSheet(Canvas& c) {
   }
   // Icons: all of them at 32 px, a few at 64 px, on paper and on a filled well.
   const int n = static_cast<int>(ui::Icon::Count);
-  for (int i = 0; i < n; ++i) ui::drawIcon(c, static_cast<ui::Icon>(i), 36 + (i % 9) * 58, y + 24 + (i / 9) * 48, 32, ui::ink);
-  y += (n + 8) / 9 * 48 + 8;
+  for (int i = 0; i < n; ++i) ui::drawIcon(c, static_cast<ui::Icon>(i), 28 + (i % 12) * 44, y + 22 + (i / 12) * 44, 32, ui::ink);
+  y += (n + 11) / 12 * 44 + 8;
   c.fillRoundRect(12, y, 516, 84, 12, ui::fill);
   for (int i = 0; i < 6; ++i) ui::drawIcon(c, static_cast<ui::Icon>(i * 3), 56 + i * 86, y + 42, 64, ui::ink, ui::fill);
 }

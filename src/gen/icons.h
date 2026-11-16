@@ -60,6 +60,17 @@ enum class Icon : uint8_t {
   Copy,
   Send,
   Pause,
+  Calendar,
+  Cloud,
+  CloudSun,
+  CloudMoon,
+  CloudRain,
+  CloudRainWind,
+  CloudSnow,
+  CloudLightning,
+  CloudFog,
+  CloudHail,
+  Umbrella,
   Count
 };
 
@@ -119,6 +130,17 @@ constexpr uint32_t kIconCodepoint[] = {
   0xE09E,  // copy
   0xE152,  // send
   0xE12E,  // pause
+  0xE063,  // calendar
+  0xE088,  // cloud
+  0xE216,  // cloud-sun
+  0xE215,  // cloud-moon
+  0xE08E,  // cloud-rain
+  0xE08F,  // cloud-rain-wind
+  0xE090,  // cloud-snow
+  0xE08C,  // cloud-lightning
+  0xE214,  // cloud-fog
+  0xE08B,  // cloud-hail
+  0xE199,  // umbrella
 };
 
 }  // namespace pos::gen

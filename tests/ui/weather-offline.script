@@ -1,0 +1,6 @@
+# app: weather
+# P7-11: no saved copy and Home Assistant does not answer (ha-unreachable.example.test has no fixtures): the first read fails
+# and says so, with Retry.
+wait 1500
+shot weather-offline
+expect-state weather=none

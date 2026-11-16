@@ -45,6 +45,7 @@ Home Assistant (profile > Security) if the device is lost.
 | One entity | `GET /api/states/<entity_id>` | `{"entity_id","state","attributes":{...},"last_changed"}` |
 | Call a service | `POST /api/services/<domain>/<service>` body `{"entity_id":"light.x","brightness_pct":60}` | `200` + list of changed states |
 | Service with a response | `POST /api/services/<domain>/<service>?return_response` | `{"changed_states":[...],"service_response":{...}}` |
+| Weather forecast (P7-11) | `POST /api/services/weather/get_forecasts?return_response` body `{"entity_id":"weather.thuis","type":"daily"}` (and `hourly`) | `{"changed_states":[],"service_response":{"weather.thuis":{"forecast":[...]}}}` (apps/weather.md) |
 | Fire an event | `POST /api/events/<event_type>` body `{...}` | `200` (needs admin: see "Mark all read" below) |
 
 ### Reading the Home app's states

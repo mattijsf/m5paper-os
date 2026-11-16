@@ -76,13 +76,15 @@ Both fonts are under the SIL Open Font License; their licence files are in `asse
 
 Lucide line icons (ISC licence), baked from the Lucide icon font at **32 px** (rows, bars) and
 **64 px** (launcher tiles, empty states) through the same font pipeline, so an icon is a glyph:
-`ui::icon(canvas, Icon::Sofa, x, y, 32)`. `assets/icons.txt` lists the icon names to include (45 icons, `Icon::BookOpen` etc.);
+`ui::icon(canvas, Icon::Sofa, x, y, 32)`. `assets/icons.txt` lists the icon names to include (66 icons on 2026-11-16, `Icon::BookOpen` etc.);
 the generator writes `src/gen/icons.h` (`enum class Icon`) and the two icon fonts.
 Initial set: arrow-left, chevron-left, chevron-right, house, book-open, library, lightbulb,
 lightbulb-off, sofa, utensils, blocks, cooking-pot, lamp-wall-down, lamp-wall-up, car, bed, thermometer,
 droplets, fan, wind, message-circle, mail, mail-open, settings, wifi, wifi-off, battery,
 battery-low, battery-charging, refresh-cw, moon, power, sun, check, x, plus, minus, clock,
 folder, file-text, type, info, triangle-alert, door-open, air-vent.
+Weather conditions (P7-11, apps/weather.md): sun, moon, cloud, cloud-sun, cloud-moon, cloud-rain, cloud-rain-wind, cloud-snow,
+cloud-lightning, cloud-fog, cloud-hail, wind, umbrella, droplets.
 The Home app reuses the names of the icons in the user's Home Assistant dashboard so rooms look familiar.
 
 ## Screen anatomy

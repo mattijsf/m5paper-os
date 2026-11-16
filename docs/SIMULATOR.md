@@ -118,6 +118,9 @@ tests/fixtures/http/<METHOD>_<host>_<path with / replaced by _>[_<query hash>].j
 example: POST_ha.local_api_template.json, GET_ha.local_api_states_sensor.paperos_whatsapp_inbox.json
 ```
 
+A request with a body is first looked up as `<name>_b<FNV-1a of the body, 8 hex>.json`, then under the plain name: two POSTs to
+one URL that differ only in the body (the weather app's `weather.get_forecasts`, daily and hourly) get their own files, every other
+fixture keeps its plain name (`fixtureFileName(method, url, body)` in `core/http_fixture`).
 A `<name>.status` file next to it can hold a status code (to test errors). Unknown requests
 return status 0 with error "no fixture" and are listed at exit so missing fixtures are obvious.
 With `--fixtures none` the simulator uses the real network through libcurl and the real

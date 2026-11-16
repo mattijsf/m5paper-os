@@ -5,6 +5,17 @@
 
 namespace pos {
 
+namespace {
+uint32_t fnv1a(const std::string& s) {
+  uint32_t h = 2166136261u;
+  for (unsigned char c : s) {
+    h ^= c;
+    h *= 16777619u;
+  }
+  return h;
+}
+}  // namespace
+
 std::string fixtureFileName(const std::string& method, const std::string& url) {
   std::string rest = url;
   size_t scheme = rest.find("://");
@@ -24,16 +35,19 @@ std::string fixtureFileName(const std::string& method, const std::string& url) {
     if (c == '/') c = '_';
   std::string name = method + "_" + host + path;
   if (!query.empty()) {
-    uint32_t h = 2166136261u;
-    for (unsigned char c : query) {
-      h ^= c;
-      h *= 16777619u;
-    }
     char buf[12];
-    std::snprintf(buf, sizeof buf, "_%08x", static_cast<unsigned>(h));
+    std::snprintf(buf, sizeof buf, "_%08x", static_cast<unsigned>(fnv1a(query)));
     name += buf;
   }
   return name + ".json";
+}
+
+std::string fixtureFileName(const std::string& method, const std::string& url, const std::string& body) {
+  std::string name = fixtureFileName(method, url);
+  if (body.empty()) return name;
+  char buf[12];
+  std::snprintf(buf, sizeof buf, "_b%08x", static_cast<unsigned>(fnv1a(body)));
+  return name.substr(0, name.size() - 5) + buf + ".json";
 }
 
 }  // namespace pos

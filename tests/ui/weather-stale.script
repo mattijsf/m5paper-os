@@ -1,0 +1,6 @@
+# app: weather
+# P7-11: a copy saved at 07:10 this morning (tests/ui/data/weather-stale) and Home Assistant does not answer: the saved weather shows with the time it
+# was read, the hours start at the current hour (13:00), not at the saved 07:00.
+wait 1500
+shot weather-stale
+expect-state weather=fog|Saved data from 07:10: Home Assistant not reachable

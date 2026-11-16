@@ -54,3 +54,14 @@ grid-3x3
 copy
 send
 pause
+calendar
+cloud
+cloud-sun
+cloud-moon
+cloud-rain
+cloud-rain-wind
+cloud-snow
+cloud-lightning
+cloud-fog
+cloud-hail
+umbrella
