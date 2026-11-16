@@ -6,6 +6,7 @@
 #pragma once
 
 #include <array>
+#include <climits>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -21,6 +22,9 @@ constexpr char kRight = 'c';   // right place
 constexpr char kOther = 'p';   // in the word, at another place
 constexpr char kAbsent = 'a';  // not in the word (or no more of them)
 constexpr char kUnused = ' ';  // a key that was not tried yet
+
+// "No day". An int on purpose: INT32_MIN is a long on the ESP32, and Store::get has no overload for long.
+constexpr int kNoDay = INT_MIN;
 
 struct Date {
   int year = 0, month = 0, day = 0;
@@ -56,7 +60,7 @@ struct Stats {
   int won = 0;
   int streak = 0;
   int maxStreak = 0;
-  int lastWonDay = INT32_MIN;
+  int lastWonDay = kNoDay;
   std::array<int, kTries> turns{};  // games won in 1..6 tries
 };
 // Adds the finished game of `day` (call once per day).

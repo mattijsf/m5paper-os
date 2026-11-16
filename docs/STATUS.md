@@ -274,6 +274,10 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   guess with injected taps (key positions from `debugState`), frame dump against the goldens; with the camera: how the
   hatched ring and the gray(5) letters of absent tiles and keys show on the panel, and typing speed (a Fast push per
   letter plus its settle). For a person's fingers, batched: whether 45 px wide keys are comfortable.
+  **Device compile, found by the tap-latency pass 2026-11-16**: `make fw` failed on `vijfje_app.cpp`
+  (`Store::get("day", INT32_MIN)`: `int32_t` is `long` on the ESP32 and `Store` has no overload for it; the simulator
+  build does not see this). Fixed with `vijfje::kNoDay` (an `int`); the three call shapes were checked alone with the
+  ESP32-S3 compiler, **the whole file still was not** (no `papers3` build in that run).
   **The word list fetch on the device**: HTTPS to woordscore.nl with the built-in CA bundle (never run), heap during it (a
   39 KB body + 22 KB of codes + the 28 KB packed list while TLS is up; expected to land in PSRAM, not measured), the
   cache write (28 KB to LittleFS on the worker), the log line `[vijfje] word list: N words`.
@@ -402,6 +406,9 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
 None of these block Phase 1, Phase 2, or the reader.
 
 ## Notes for later tasks
+
+- **`Store::get` / `set` with fixed-width integers**: pass `int`, `bool`, `double` or a string. `int32_t`, `INT32_MIN`,
+  `int64_t`, `size_t` compile in the simulator and are ambiguous on the ESP32 (`int32_t` = `long`). Cast first.
 
 - **Two builds in one checkout (2026-11-16)**: an edit of `platformio.ini` makes PlatformIO wipe all of `.pio/build`, so
   other builds' simulator and test programs vanish mid-task. Build into a private folder instead:

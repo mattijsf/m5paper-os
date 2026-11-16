@@ -77,7 +77,7 @@ game::Stats loadStats(const Store& st) {
   s.won = st.get("won", 0);
   s.streak = st.get("streak", 0);
   s.maxStreak = st.get("maxStreak", 0);
-  s.lastWonDay = st.get("lastWon", INT32_MIN);
+  s.lastWonDay = st.get("lastWon", game::kNoDay);
   const std::vector<std::string> turns = split(st.get("turns", std::string()));
   for (size_t i = 0; i < turns.size() && i < s.turns.size(); ++i) s.turns[i] = std::atoi(turns[i].c_str());
   return s;
@@ -380,7 +380,7 @@ class StatsScreen : public Screen {
     for (int i = 0; i < kTries; ++i) bars->counts[static_cast<size_t>(i)] = s.turns[static_cast<size_t>(i)];
     bars->counts[kTries] = std::max(0, s.played - s.won);
     // Today's finished game is the solid bar.
-    if (clock && ctx().store.get("recorded", false) && ctx().store.get("day", INT32_MIN) == day) {
+    if (clock && ctx().store.get("recorded", false) && ctx().store.get("day", game::kNoDay) == day) {
       const std::string answer = ctx().store.get("answer", std::string());
       const std::vector<std::string> guesses = split(ctx().store.get("guesses", std::string()));
       bars->mark = game::solved(answer, guesses) ? static_cast<int>(guesses.size()) - 1 : kTries;
@@ -509,7 +509,7 @@ class GameScreen : public Screen {
     setTitle(name());
     answer_ = game::answerOf(day_);
     Store& st = ctx().store;
-    if (st.get("day", INT32_MIN) == day_ && st.get("answer", std::string()) == answer_) {
+    if (st.get("day", game::kNoDay) == day_ && st.get("answer", std::string()) == answer_) {
       for (const std::string& g : split(st.get("guesses", std::string()))) {
         // Checked against the lists when it was played; the fetched list may not be loaded yet, so only the shape here.
         if (game::finished(answer_, guesses_) || g.size() != static_cast<size_t>(kLen)) break;
