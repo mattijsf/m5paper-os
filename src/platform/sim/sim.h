@@ -22,7 +22,9 @@ class Clock : public hal::Clock {
  public:
   uint32_t millis() override;
   int64_t now() override;
-  void set(int64_t) override {}  // the simulator uses host time (or the fake start time)
+  // The simulator keeps host time (or the fake start time); setting it only ends --no-rtc, like a time sync on a device
+  // whose RTC was never set.
+  void set(int64_t) override { rtcUnset_ = false; }
   void setFake(bool fake) { fake_ = fake; }
   void setFakeStart(int64_t unixSeconds) { fakeStartUnix_ = unixSeconds; }
   bool fake() const { return fake_; }
@@ -31,7 +33,7 @@ class Clock : public hal::Clock {
 
  private:
   bool fake_ = false;
-  bool rtcUnset_ = false;
+  std::atomic<bool> rtcUnset_{false};  // read by the worker thread
   std::atomic<uint32_t> fakeMs_{0};  // read by the worker thread
   int64_t fakeStartUnix_ = 1700000000;
   std::chrono::steady_clock::time_point start_ = std::chrono::steady_clock::now();

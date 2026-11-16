@@ -177,6 +177,12 @@ class AppContext {
   // A Home Assistant client for jobs on the worker (ctx.async): HA_URL / HA_TOKEN from the card, requests through the net service
   // (Wi-Fi on demand). Blocking calls: never on the UI thread. docs/BACKEND.md.
   HaClient ha();
+  // Sets the clock from the internet when it is lost (battery ran flat): joins Wi-Fi once (one fast attempt, one scan) and
+  // waits up to 12 s for the time sync that follows every connect while the clock is unset. `done(ok, error)` on the UI
+  // thread; error is the net service's ("No known network in range", ...) or "No time from the network". Not while the
+  // clock is set (done(true) at once). For apps that cannot work without the date (Somdoku, Vijfje).
+  void syncClock(std::function<void(bool ok, const std::string& error)> done);
+  static constexpr const char* kNoNetworkTime = "No time from the network";  // syncClock's error when Wi-Fi came up but no time
   // One-shot timer on the UI thread; cancelled when the screen that was on top is destroyed.
   Timers::Id timer(uint32_t ms, std::function<void()> fn);
   void toast(const std::string& text);

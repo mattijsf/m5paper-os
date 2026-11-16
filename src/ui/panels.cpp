@@ -81,9 +81,9 @@ EmptyState::EmptyState(Icon icon, const std::string& title, const std::string& h
   auto* t = add<Label>(title, Type::Title);
   t->align = TextAlign::Center;
   if (!hint.empty()) {
-    auto* h = add<Label>(hint, Type::Body, secondary);
-    h->align = TextAlign::Center;
-    h->maxLines = 3;
+    hint_ = add<Label>(hint, Type::Body, secondary);
+    hint_->align = TextAlign::Center;
+    hint_->maxLines = 3;
   }
   if (!buttonText.empty()) {
     add<Spacer>(s1);

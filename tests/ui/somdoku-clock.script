@@ -1,0 +1,18 @@
+# app: somdoku
+# time: 2026-11-16T09:00:00
+# rtc: unset
+# Somdoku with a lost clock (battery ran flat): no puzzle, the button "Klok zetten". Without Wi-Fi it says so; with Wi-Fi it
+# joins, the time sync sets the clock and today's puzzle comes.
+wait 1500
+shot somdoku-noclock
+expect-state day= number=0
+wifi off
+tap 270 314              # Klok zetten, no Wi-Fi
+wait 3000
+shot somdoku-clock-failed
+expect-state day= number=0
+wifi on
+tap 270 314              # Klok zetten again
+wait 4000
+shot somdoku-clock-set
+expect-state view=ready day=2026-11-16 number=6

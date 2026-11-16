@@ -265,6 +265,9 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   "Stuur naar WhatsApp" removed;
   the done screen keeps "Kopieer score" only, the score is pasted into an inbox reply. `whatsapp::sendToFavorite` stays in the
   inbox API, now without a caller.
+- **Clock lost (2026-11-16)**: Somdoku and Vijfje show "Klok zetten" when the clock was never set (`ctx.syncClock`: one Wi-Fi
+  join, wait for the SNTP sync). The simulator's `Clock::set` now ends `--no-rtc`, so the flow runs headless
+  (`somdoku-clock`, `vijfje-clock`). Pending on the device: a real flat-battery start (clock lost) and the button.
 - **Flaky unit test**: `wifi_test.cpp:396` ("Wi-Fi goes off after the linger time") failed once in four runs on 2026-11-16
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 

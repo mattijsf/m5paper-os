@@ -19,7 +19,8 @@ all 500 days match. **If the web game's generator changes, every day's puzzle ch
 test passes again.
 
 The day is the device's local date (`net.timezone`). With the clock never set (no Wi-Fi since the battery ran out) the app
-says so and shows no puzzle.
+shows no puzzle but a button "Klok zetten" (`ctx.syncClock`: joins Wi-Fi once, waits for the time sync, then today's puzzle);
+a failure says "Geen wifi. Probeer het nog eens." or "Wel wifi, maar geen tijd ontvangen." (`tests/ui/somdoku-clock.script`).
 
 ## Screens (one Screen, three views)
 

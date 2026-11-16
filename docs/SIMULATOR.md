@@ -24,7 +24,8 @@ grayscale quantised to the panel's 16 levels. **UI work is verified by running
 
 Implemented: `--headless --script --out --data --time --scale --name --remote`; `--app NAME` opens a registered app (`--app read`), a UI test screen (`widgets1`, `widgets3`, ...) or the font
 sheet (`fonts`); without it the launcher shows (a script file can start with a `# app: NAME` line, which
-`tools/ui-test.sh` passes as `--app`). `--no-rtc` makes `now()` 0 like a device whose RTC was never set; `--fixtures` is ignored until P5. Script commands implemented: `wait`, `shot`,
+`tools/ui-test.sh` passes as `--app`). `--no-rtc` makes `now()` 0 like a device whose RTC was never set, until a time sync sets the clock (then the fake or host time; a
+script line `# rtc: unset` passes it); `--fixtures` is ignored until P5. Script commands implemented: `wait`, `shot`,
 `tap`, `long`, `swipe`, `back` (taps (36, 92), the back-arrow target), `expect-no-quality`,
 `expect-max-pushed N` (sum of pushed rectangle areas since the last `shot`). `type TEXT` and `type-max N TEXT` (tap the keys of the visible
 on-screen keyboard; with a limit every character key may push at most N pixels), `battery`, `wifi` wait for their features. `--time` takes `YYYY-MM-DDTHH:MM:SS` (UTC). In `--headless` runs the clock

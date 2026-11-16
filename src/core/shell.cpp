@@ -99,6 +99,40 @@ Timers::Id AppContext::timer(uint32_t ms, std::function<void()> fn) {
   if (e) e->timers.push_back(id);
   return id;
 }
+namespace {
+constexpr int64_t kClockSet = 1700000000;  // any earlier time is an unset clock
+
+struct ClockWait {
+  std::function<void(bool, const std::string&)> done;
+  int left = 48;  // x 250 ms = 12 s
+};
+
+// After the connect the sync runs as its own worker job (NetService::tick): look at the clock until it lands.
+void pollClock(AppContext* ctx, std::shared_ptr<ClockWait> w) {
+  if (ctx->clock.now() > kClockSet) {
+    w->done(true, "");
+  } else if (w->left-- <= 0) {
+    w->done(false, AppContext::kNoNetworkTime);
+  } else {
+    ctx->timer(250, [ctx, w] { pollClock(ctx, w); });
+  }
+}
+}  // namespace
+
+void AppContext::syncClock(std::function<void(bool, const std::string&)> done) {
+  if (clock.now() > kClockSet) {
+    done(true, "");
+    return;
+  }
+  auto w = std::make_shared<ClockWait>();
+  w->done = std::move(done);
+  NetService* net = &netService();
+  async([net] { return net->ensureConnected(); }, [this, w](NetService::Result r) {
+    if (!r.ok) w->done(false, r.error.empty() ? std::string("No Wi-Fi") : r.error);
+    else pollClock(this, w);
+  });
+}
+
 void AppContext::toast(const std::string& text) { shell_.root().showToast(text); }
 void AppContext::log(const char* fmt, ...) {
   char buf[200];

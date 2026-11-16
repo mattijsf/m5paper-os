@@ -96,7 +96,9 @@ No Wi-Fi at boot. `>set screen launcher` never resumes.
 - While the Home app is in the foreground and was touched in the last 2 minutes, linger is
   extended so toggles respond fast. The device does not light-sleep during that window.
 - Time sync: SNTP after a connect when the clock was never set or the last sync is over a day old, written to the BM8563 RTC on
-  the UI thread; the status bar updates at once (measured: the clock was set after the first connect).
+  the UI thread; the status bar updates at once (measured: the clock was set after the first connect). Nothing connects just
+  because the clock is lost (Wi-Fi stays off at boot); apps that need the date offer "Klok zetten" (`ctx.syncClock`, Somdoku,
+  Vijfje), and any other connect (Home, an inbox refresh, Settings > Wi-Fi) sets it too.
 - No background polling while the device is on. While it is off, the scheduled refresh below can fetch the inbox feeds (off by default).
 - TLS handshakes are expensive (~1.5 s, ~45 KB RAM); free heap measured: ~200 KB idle, ~150 KB with Wi-Fi up, ~104 KB during
   a TLS request. HTTPS to the public Home Assistant address is the expected case (BACKEND.md); the device keeps one

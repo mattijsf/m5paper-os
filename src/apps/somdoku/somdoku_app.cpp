@@ -248,27 +248,20 @@ class GameScreen : public Screen {
   void build(ui::Column& root) override {
     root_ = &root;
     current_ = this;
-    const int64_t now = ctx().clock.now();
-    struct tm t{};
-    if (now > 1700000000 && localTime(now, t)) {
-      day_ = game::dayString({t.tm_year + 1900, t.tm_mon + 1, t.tm_mday});
-      longDay_ = std::string(kDays[t.tm_wday]) + " " + std::to_string(t.tm_mday) + " " + kMonths[t.tm_mon];
-    }
-    number_ = day_.empty() ? 0 : game::puzzleNumber(day_);
-    name_ = day_.empty() ? "Somdoku" : "Somdoku " + std::to_string(number_);
-    setTitle(day_.empty() ? "Somdoku" : name_);
 
     // Ready (also the pause screen and the message while the puzzle is being made).
     ready_ = root.add<ui::Column>(20);
     ready_->add<ui::Spacer>(24);
-    readyName_ = ready_->add<ui::Label>(name_, ui::Type::Headline);
+    readyName_ = ready_->add<ui::Label>("", ui::Type::Headline);
     readyName_->align = ui::TextAlign::Center;
-    readyDay_ = ready_->add<ui::Label>(longDay_, ui::Type::Body);
+    readyDay_ = ready_->add<ui::Label>("", ui::Type::Body);
     readyDay_->align = ui::TextAlign::Center;
     readyStreak_ = ready_->add<ui::Label>("", ui::Type::Body);
     readyStreak_->align = ui::TextAlign::Center;
     ready_->add<ui::Spacer>(16);
     start_ = ready_->add<ui::Button>("Start", [this] { start(); });
+    // Without a clock (the battery ran flat): set it from the internet, then today's puzzle.
+    clockButton_ = ready_->add<ui::Button>("Klok zetten", [this] { setClock(); });
     readyHint_ = ready_->add<ui::Label>("", ui::Type::Body);
     readyHint_->align = ui::TextAlign::Center;
     readyHint_->maxLines = 3;
@@ -296,6 +289,23 @@ class GameScreen : public Screen {
     // into a reply in the inbox, or on the phone.
     done_->add<ui::Button>("Kopieer score", [this] { copyScore(); });
 
+    openDay();
+  }
+
+  // Today from the clock, and its puzzle (generated on the worker). Without a clock: nothing, the ready view says so.
+  void openDay() {
+    const int64_t now = ctx().clock.now();
+    struct tm t{};
+    if (now > 1700000000 && localTime(now, t)) {
+      day_ = game::dayString({t.tm_year + 1900, t.tm_mon + 1, t.tm_mday});
+      longDay_ = std::string(kDays[t.tm_wday]) + " " + std::to_string(t.tm_mday) + " " + kMonths[t.tm_mon];
+    }
+    number_ = day_.empty() ? 0 : game::puzzleNumber(day_);
+    name_ = day_.empty() ? "Somdoku" : "Somdoku " + std::to_string(number_);
+    setTitle(name_);
+    readyName_->setText(name_);
+    readyDay_->setText(longDay_);
+    readyDay_->visible = !longDay_.empty();
     show();
     if (!day_.empty()) {
       const std::string day = day_;
@@ -372,9 +382,12 @@ class GameScreen : public Screen {
       setTitleAccessory(0, nullptr);
     done_->visible = v == View::Done;
     start_->visible = v == View::Ready;
+    clockButton_->visible = day_.empty() && !syncing_;
     readyStreak_->visible = v == View::Ready;
     if (day_.empty()) {
-      readyHint_->setText("De klok is nog niet gezet. Verbind met wifi, dan komt de puzzel van vandaag.");
+      readyHint_->setText(syncing_ ? "Verbinden met wifi..."
+                                   : clockError_.empty() ? "De klok is nog niet gezet. Zet hem via wifi, dan komt de puzzel van vandaag."
+                                                         : clockError_);
     } else if (v == View::Wait) {
       readyHint_->setText("Puzzel maken...");
     } else if (v == View::Ready) {
@@ -464,6 +477,22 @@ class GameScreen : public Screen {
     save();
     board_->invalidate(Hint::Feedback);
     updateNote();
+  }
+
+  void setClock() {
+    if (syncing_) return;
+    syncing_ = true;
+    clockError_.clear();
+    show();
+    ctx().syncClock([this](bool ok, const std::string& error) {
+      syncing_ = false;
+      if (!ok) {
+        ctx().log("clock not set: %s", error.c_str());
+        clockError_ = error == AppContext::kNoNetworkTime ? "Wel wifi, maar geen tijd ontvangen. Probeer het nog eens."
+                                                            : "Geen wifi. Probeer het nog eens.";
+      }
+      openDay();
+    });
   }
 
   std::string scoreText() const { return game::shareText(name_, state_.activeMs / 1000, state_.trail, kN); }
@@ -556,6 +585,9 @@ class GameScreen : public Screen {
   ui::Label *doneTitle_ = nullptr, *doneStreak_ = nullptr;
   TrailTiles* tiles_ = nullptr;
 
+  ui::Button* clockButton_ = nullptr;
+  bool syncing_ = false;
+  std::string clockError_;
   std::string day_, longDay_, name_;
   int number_ = 0;
   game::Puzzle puzzle_;

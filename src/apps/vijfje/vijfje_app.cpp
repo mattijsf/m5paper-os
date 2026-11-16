@@ -59,6 +59,8 @@ std::string upper(const std::string& s) {
 
 constexpr const char* kListFile = "guesses";  // in the app's cache: the fetched words, packed (game::packGuessList)
 
+constexpr const char* kNoClockHint = "Zet hem via wifi, dan komt het woord van vandaag.";
+
 std::string triesText(int n) { return std::to_string(n) + (n == 1 ? " beurt" : " beurten"); }
 std::string daysText(int n) { return std::to_string(n) + (n == 1 ? " dag" : " dagen"); }
 
@@ -423,8 +425,8 @@ class GameScreen : public Screen {
     current_ = this;
 
     // Without a clock there is no word of the day.
-    noClock_ = root.add<ui::EmptyState>(Icon::Clock, "De klok is nog niet gezet",
-                                        "Verbind met wifi, dan komt het woord van vandaag.");
+    noClock_ = root.add<ui::EmptyState>(Icon::Clock, "De klok is nog niet gezet", kNoClockHint, "Klok zetten",
+                                        [this] { setClock(); });
 
     game_ = root.add<ui::Column>(14, ui::Align::Center);
     game_->add<ui::Spacer>(2);
@@ -535,9 +537,31 @@ class GameScreen : public Screen {
     st.save();
   }
 
+  // Without a clock (the battery ran flat): set it from the internet, then today's word.
+  void setClock() {
+    if (syncing_) return;
+    syncing_ = true;
+    clockError_.clear();
+    show();
+    ctx().syncClock([this](bool ok, const std::string& error) {
+      syncing_ = false;
+      if (!ok) {
+        ctx().log("clock not set: %s", error.c_str());
+        clockError_ = error == AppContext::kNoNetworkTime ? "Wel wifi, maar geen tijd ontvangen. Probeer het nog eens."
+                                                          : "Geen wifi. Probeer het nog eens.";
+      }
+      openDay();
+      show();
+      if (hasDay_) fetchListIfDue();
+    });
+  }
+
   void show() {
     const bool done = over();
     noClock_->visible = !hasDay_;
+    if (noClock_->button()) noClock_->button()->visible = !syncing_;
+    if (noClock_->hint())
+      noClock_->hint()->setText(syncing_ ? "Verbinden met wifi..." : clockError_.empty() ? kNoClockHint : clockError_);
     game_->visible = hasDay_;
     keys_->visible = hasDay_ && !done;
     done_->visible = done;
@@ -667,6 +691,8 @@ class GameScreen : public Screen {
 
   ui::Column* root_ = nullptr;
   ui::EmptyState* noClock_ = nullptr;
+  bool syncing_ = false;
+  std::string clockError_;
   ui::Column *game_ = nullptr, *done_ = nullptr;
   Board* board_ = nullptr;
   Legend* legend_ = nullptr;

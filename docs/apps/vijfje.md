@@ -66,7 +66,8 @@ changes, so it is never refreshed).
   key). A typed letter refreshes its tile only; a played row refreshes the row, and 30 ms later the keys in their own push.
   When the game is over the keys make way for "Geraden in 3 beurten" + the streak, or "Niet geraden" + "Het woord was:
   SPONS", and the buttons "Kopieer score" (to `core/clipboard`, toast "Score gekopieerd") and "Statistieken".
-  With the clock never set: "De klok is nog niet gezet", no board.
+  With the clock never set: "De klok is nog niet gezet", no board, and a button "Klok zetten" (`ctx.syncClock`: joins Wi-Fi
+  once, waits for the time sync, then the day's board; failures as in Somdoku; `tests/ui/vijfje-clock.script`).
 - **Statistieken** (`StatsScreen`, also the info button in the title bar): played, % guessed, streak, longest streak;
   games per number of tries as bars (1 to 6 and X for not guessed; today's game is the solid bar); the rules in three lines
   and the legend.

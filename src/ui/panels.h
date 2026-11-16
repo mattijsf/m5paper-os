@@ -49,9 +49,11 @@ class EmptyState : public Column {
   EmptyState(Icon icon, const std::string& title, const std::string& hint = "", const std::string& buttonText = "",
              std::function<void()> onButton = {});
   Button* button() const { return button_; }
+  Label* hint() const { return hint_; }  // null when made without a hint
 
  private:
   Button* button_ = nullptr;
+  Label* hint_ = nullptr;
 };
 
 }  // namespace pos::ui

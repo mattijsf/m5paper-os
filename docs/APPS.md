@@ -110,6 +110,7 @@ keep (`ctx.store`) in `onStop()`/`onHide()`. Power-off calls `onStop()` first.
 | `ctx.secrets` | read-only secrets by key (`HA_TOKEN`), from `/sd/paperos_config` |
 | `ctx.cache` | `read(name)`, `write(name, text)` under `/data/cache/<id>/`: show stale data first |
 | `ctx.timer(ms, fn)` | one-shot timer on the UI thread; cancelled with the screen |
+| `ctx.syncClock(done)` | the clock was lost (battery ran flat): joins Wi-Fi once and waits up to 12 s for the time sync; `done(ok, error)` |
 | `ctx.toast(text)` | 3 s message |
 | `ctx.clock` | `now()`, `millis()` |
 | `ctx.log` | `POS_LOG` with the app id as tag |
