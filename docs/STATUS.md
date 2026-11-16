@@ -86,7 +86,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   hour grid with the now line; List), the next event under the launcher's date and on the sleep screen. Launcher page 2 now holds
   Woordle, Agenda and Weather. The APK is built (`android/app/build/outputs/apk/debug/app-debug.apk`), not installed.
 
-- **Emoji on the panel, 2026-11-16**: Noto Emoji atlases on the card,
+- **Emoji on the panel, 2026-11-16**: Fluent Emoji High Contrast atlases
+  (Noto Emoji for the rest) on the card,
   drawn by the fast text path (UI.md "Emoji"); `core/text_clean` keeps emoji. Simulator and host tests; not on the device yet.
 
 ## What works today
@@ -299,10 +300,10 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
-- **Emoji (2026-11-16, simulator and host tests only)**: `make emoji` (pushes the four atlases, 1.7 MB, to `/sd/paperos/emoji/`
+- **Emoji (2026-11-16, simulator and host tests only)**: `make emoji` (pushes the four atlases, 1.5 MB, to `/sd/paperos/emoji/`
   at ~90 KB/s: about 20 s) and flash; the WhatsApp list with the family group shows its emoji; the first draw of a new emoji
-  (one SD read each) against a cached one (`[lat]` lines); with the camera whether weight-600 line art stays readable at 18
-  and 22 px on the panel. Not done yet: the live view (tools/view.py --lan) holds the serial port.
+  (one SD read each) against a cached one (`[lat]` lines); with the camera whether the Fluent High Contrast faces stay readable at
+  18 and 22 px on the panel. Not done yet: the live view (tools/view.py --lan) holds the serial port.
 - **P7-10 Agenda (D28)**: install the APK on the phone, switch on "Share the agenda" and grant calendar access (the user, once);
   check `files/status.json` `agenda_sent` > 0 and the Paper's Agenda app against the phone's calendar app (titles shown only on the
   Paper); an edit and a delete on the phone reach the Paper after a relay read; switching off empties the Paper. On the device:

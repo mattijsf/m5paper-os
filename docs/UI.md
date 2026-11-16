@@ -265,11 +265,15 @@ and the refresh log shows no Quality push outside `Hint::Image` and budget clean
 
 ### Emoji
 
-Every text drawn with `drawText` / `measureText` / `ellipsize` shows emoji. Source: **Noto Emoji** (Google, SIL OFL 1.1, `assets/fonts/NotoEmoji.ttf`, licence `NotoEmoji-OFL.txt`):
-monochrome line art, which suits 16 grays better than colour emoji turned gray. `tools/gen-emoji.py` renders all 1426
-single-code-point emoji of the font at weight 600 (500 and thinner lose their inner lines at body size) as 4-bit alpha
-bitmaps, one atlas per size: 18 (caption), 22 (body, bodyStrong), 24 (read-S), 28 (title, read-M and up, headline),
-`assets/emoji/emoji-<px>.bin`, 1.7 MB together.
+Every text drawn with `drawText` / `measureText` / `ellipsize` shows emoji. Source: **Microsoft Fluent Emoji, "High Contrast" style** (MIT, `assets/fonts/FluentEmoji-LICENSE.txt`): drawn
+for black and white, bold filled shapes that survive 16 grays and small sizes. Chosen by the user on 2026-11-16 over Noto
+Emoji ("These are ugly. Especially the grandma and grandpa"); the comparison of Noto, Fluent High Contrast, OpenMoji and
+gray-converted Fluent Flat and Twemoji is `tools/gen-emoji.py`'s history (colour sets turn yellow faces into pale gray, which
+the panel prints lighter still; OpenMoji's lines are too thin). The 57 emoji Fluent lacks come from **Noto Emoji** (SIL OFL
+1.1, `assets/fonts/NotoEmoji.ttf`, weight 600). `tools/gen-emoji.py` (needs the Fluent SVGs fetched first, see its top)
+renders 1426 single-code-point emoji as 4-bit alpha bitmaps, one atlas per size: 18 (caption), 22 (body, bodyStrong), 24
+(read-S), 28 (title, read-M and up, headline), `assets/emoji/emoji-<px>.bin`, 1.5 MB together. A Fluent emoji's 32 x 32
+box is the font size, 0.86 of it above the baseline, with px/8 (at least 2 px) on each side.
 
 - **On the card, not in the firmware**: one size alone is 260-600 KB, the firmware has about 250 KB left under its 3 MB
   budget. The atlases live in `/sd/paperos/emoji/` (`make emoji` copies them into `sim-data/` and pushes them to the
