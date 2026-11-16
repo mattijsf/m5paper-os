@@ -218,7 +218,11 @@ connected** (2026-11-15: macOS lists only the built-in camera; the user will plu
   call right after it was refused `too_soon`. Not tested: the hourly limit live, a group target, the device calling the script.
   The recorder exclusion of the new sensor and event needs the next Home Assistant restart (they hold only timestamps).
   Note: chats whose key is an `@lid` JID cannot be answered (the JID guard allows only `@s.whatsapp.net` / `@g.us`).
-- **Somdoku (P7-8)**: see docs/apps/somdoku.md. 500 days of puzzles match the web game. Device run pending.
+- **Somdoku (P7-8)**: see docs/apps/somdoku.md. 500 days of puzzles match the web game. On the device (firmware b5bcb97,
+  2026-11-16 04:23): the launcher shows the Somdoku tile; opening it generated puzzle 6 on the worker and showed the ready
+  screen (frame dump `out/dev-somdoku-ready.png`, same layout as the golden). Start was **not** pressed on purpose: it would
+  start the user's clock on today's puzzle and the remote cannot reset `/data/apps/somdoku.json`. The log showed two
+  `[perf] UI loop gap` of ~1.08 s around opening the app: check whether the generation (worker) or something else stalls the UI.
 - **Flaky unit test**: `wifi_test.cpp:396` ("Wi-Fi goes off after the linger time") failed once in four runs on 2026-11-16
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
