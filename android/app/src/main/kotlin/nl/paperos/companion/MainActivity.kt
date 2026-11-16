@@ -141,10 +141,15 @@ class MainActivity : Activity() {
         relayRow = row(Ink.ICON_REFRESH, "Relay")
         add(Ink.button(this, "Clear local counts", Kind.TEXT) { Store.clear(this) }, 8f)
 
-        setContentView(ScrollView(this).apply {
+        val scroll = ScrollView(this).apply {
             setBackgroundColor(Ink.paper)
             addView(col)
             padForSystemBars() // edge to edge (SDK 36): keep the page below the status bar and above the navigation bar
+        }
+        // The panel's matte grain over the whole window, fixed while the page scrolls.
+        setContentView(android.widget.FrameLayout(this).apply {
+            addView(scroll)
+            foreground = Ink.Grain()
         })
         RelayService.kick(this)
     }

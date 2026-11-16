@@ -2,7 +2,13 @@ package nl.paperos.companion
 
 import android.content.Context
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.BitmapShader
 import android.graphics.Canvas
+import android.graphics.ColorFilter
+import android.graphics.PixelFormat
+import android.graphics.Shader
+import android.graphics.drawable.Drawable
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
@@ -65,6 +71,31 @@ object Ink {
     const val ICON_ALERT = 57463
     const val ICON_SHIELD = 57855
     const val ICON_UNLINK = 57757
+
+    /**
+     * The panel's matte grain: a fixed tile of light and dark specks at a few percent opacity, drawn over everything (ink too)
+     * and not scrolling with the page, like the surface of the e-ink film. Same seed every time: it never shimmers.
+     * [strength] is the largest speck opacity (0..255); [cell] the speck size in device pixels.
+     */
+    class Grain(private val strength: Int = 22, private val cell: Int = 2) : Drawable() {
+        private val paint = Paint().apply {
+            val n = 96
+            val px = IntArray(n * n)
+            val r = java.util.Random(0x5EED)
+            for (k in px.indices) {
+                val a = (r.nextGaussian() * strength / 2.2).toInt().coerceIn(-strength, strength)
+                px[k] = if (a >= 0) (a shl 24) or 0x000000 else ((-a) shl 24) or 0xFFFFFF
+            }
+            val tile = Bitmap.createBitmap(px, n, n, Bitmap.Config.ARGB_8888)
+            val big = Bitmap.createScaledBitmap(tile, n * cell, n * cell, false) // hard-edged specks, no smoothing
+            shader = BitmapShader(big, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+        }
+
+        override fun draw(c: Canvas) = c.drawRect(bounds, paint)
+        override fun setAlpha(alpha: Int) { paint.alpha = alpha }
+        override fun setColorFilter(cf: ColorFilter?) { paint.colorFilter = cf }
+        @Deprecated("Drawable API") override fun getOpacity() = PixelFormat.TRANSLUCENT
+    }
 
     private var regular: Typeface? = null
     private var strong: Typeface? = null
