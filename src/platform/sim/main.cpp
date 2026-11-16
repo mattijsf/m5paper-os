@@ -36,6 +36,7 @@
 #include "apps/apps.h"
 #include "core/fs.h"
 #include "core/loop.h"
+#include "platform/posix/http_server.h"
 #include "platform/sim/script.h"
 #include "platform/sim/sim.h"
 
@@ -158,7 +159,8 @@ int main(int argc, char** argv) {
   sim::Net net;
   net.setFixturesDir(fixtures == "none" ? "" : fixtures);
   SimPower power;
-  hal::Platform platform{display, input, clock, net, power, name.c_str()};
+  platform::PosixHttpServer http(8080);  // 80 needs root on the Mac
+  hal::Platform platform{display, input, clock, net, power, name.c_str(), &http};
 
   display.setOutDir(outDir);
   fs::setRoots(dataDir + "/sd", dataDir + "/data");

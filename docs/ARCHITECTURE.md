@@ -46,6 +46,7 @@ src/
   hal/                abstract interfaces (headers only)
   platform/device/    main.cpp + HAL implementations on M5Unified
   platform/sim/       main.cpp + HAL implementations on SDL/host
+  platform/posix/     HAL implementations on BSD sockets, built for both (the HTTP server of Files over Wi-Fi, D30)
   gen/                generated fonts and icon tables. Never edit by hand (tools/gen-assets.sh)
 assets/               source TTF fonts, icon list
 tools/                asset generation, UI test runner, book fetch, USB file push

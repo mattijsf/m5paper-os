@@ -205,3 +205,10 @@ A task is done only when `make check` passes.
 - Things only the device can answer are listed per task as "Device check" in `ROADMAP.md`.
   If no device is attached, finish the task in the simulator and add the device check to
   `STATUS.md` under "Pending device checks". Never claim a device check passed without running it.
+
+## Real-time runs against the simulator
+
+`tools/device.py --sim script FILE` runs a UI script against the simulator in real time (waits are real), so other programs can
+talk to it meanwhile (Files over Wi-Fi: curl or a WebDAV client against `http://localhost:8080`). `--sim-data DIR` gives it
+another data root, for example a card with a fake Wi-Fi network (`tests/ui/data/files-wifi`). Copy a fresh build to
+`.pio/build/sim/program` with `rm` first: macOS kills a binary copied over the old one in place (exit 137).

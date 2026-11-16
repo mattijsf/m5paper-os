@@ -1,0 +1,13 @@
+# app: settings
+# Files over Wi-Fi (Settings > Storage, D30): the page joins Wi-Fi, starts the file server and shows the address and the
+# one-time code (the headless simulator's random is fixed, so the code is too). Leaving it stops the server.
+wait 800
+tap 270 665             # Storage
+wait 900
+shot files-storage
+tap 270 195             # Files over Wi-Fi
+wait 3000
+shot files-wifi
+expect-state running
+back
+wait 900

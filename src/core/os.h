@@ -79,6 +79,8 @@ class Os {
   Timers& timers() { return timers_; }
   // Time of the last touch event (boot time before the first one).
   uint32_t lastInputMs() const { return lastInputMs_; }
+  // Counts as a touch for auto-off (not for gestures): something is being used without a finger (files arriving over Wi-Fi).
+  void keepAwake() { lastInputMs_ = p_.clock.millis(); }
   PowerLog& powerLog() { return powerLog_; }
   bool touching() const { return gestures_.touching(); }
   // Milliseconds until the loop next has work of its own (timers, settle / clean, long press); kNoDeadline if none.

@@ -425,3 +425,27 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   40 minutes is not shown. Home only: the sensor is a REST call for the home zone, the office would need a second one in the
   Home Assistant config.
 - **Not used**: UV, pressure, visibility, gusts, dew point, weather alerts.
+
+## D30. Files over Wi-Fi: WebDAV and an upload page while one Settings page is open
+
+Answers STATUS.md open question 5 with its option a, widened from "upload" to managing the books folder.
+
+- **Where**: Settings > Storage > Files over Wi-Fi. The server runs only while that page is open and stops after 10 minutes
+  without a request; leaving the page stops it. Wi-Fi and the device are kept awake meanwhile (`NetService::keepAlive`,
+  `Os::keepAwake`).
+- **What**: `/sd/books` and everything in it, nothing else (`..`, encoded or not, is refused; names starting with a dot stay
+  hidden and cannot be written: the reader's `.paperos` cache, the uploads in progress). WebDAV class 1 and 2 (locks are
+  pretended: Finder mounts read-only without them), so Finder (Go > Connect to Server) and Android file managers can list,
+  upload, download, rename, make folders and delete; a plain page for any browser (list, upload with progress, delete).
+  The Mac's `._name` and `.DS_Store` files are accepted and thrown away.
+- **Protection**: a new six-digit code per start, shown on the panel, as the HTTP password (any name). Digest sign-in (macOS
+  sends no Basic password over plain HTTP) and Basic (browsers); ten wrong codes lock the server for a minute. Plain HTTP on the
+  home Wi-Fi: the code exchange (Digest) does not reveal the code, but the files themselves travel unencrypted. Port 80 on the
+  device, 8080 in the simulator.
+- **How**: an HTTP/1.1 server on BSD sockets shared by the device (lwIP) and the simulator (`src/platform/posix/http_server`),
+  because macOS sends its uploads chunked and ESP-IDF's own server cannot read chunked bodies; the answers come from shared,
+  unit-tested code (`core/file_server`). Uploads are written aside and renamed when complete.
+- **Found on the device**: with Wi-Fi receiving, the card now and then refused a write (EIO), in 5 of 6 one-megabyte uploads;
+  `fs::Writer` now reopens the file and writes the piece again at its place (up to three tries). Afterwards 9 of 9 arrived
+  byte-identical, a few needing a retry. Speed: about 70-100 KB/s (the card's write speed).
+- **Cost**: firmware +57 KB (2.97 MB of the 3 MB budget).

@@ -8,6 +8,8 @@
 #include <SD.h>
 #include <esp_mac.h>
 #include <esp_pthread.h>
+
+#include "platform/posix/http_server.h"
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
 #include <esp_rom_crc.h>
@@ -94,7 +96,8 @@ device::Input gInput;
 device::Clock gClock;
 device::Net gNet;
 device::Power gPower;
-hal::Platform gPlatform{gDisplay, gInput, gClock, gNet, gPower, "M5PaperS3"};
+platform::PosixHttpServer gHttp(80);
+hal::Platform gPlatform{gDisplay, gInput, gClock, gNet, gPower, "M5PaperS3", &gHttp};
 Os gOs(gPlatform);
 
 // Idle step: PowerPolicy light-sleeps when everything allows it (core/power_policy.h), else a short delay.

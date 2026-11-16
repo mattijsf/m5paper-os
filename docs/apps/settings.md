@@ -110,3 +110,12 @@ the phone's hello arrives: the phone name and a six-digit code to compare with t
 "Share the clipboard" (`phone.clipboard`, default on; DECISIONS.md D23: a copy on the Paper goes to the phone, what the phone shares
 arrives before a paste) and "Unpair"
 (with a confirmation; sends `unpair`, best effort, and deletes the pairing and the saved notifications). UI script `phone-pair`.
+
+## Files over Wi-Fi (Settings > Storage, P7-4, D30)
+
+The page joins Wi-Fi, starts the file server (`core/file_server` on `hal::HttpServer`) and shows the address
+(`http://192.168.1.69`, `:8080` in the simulator) and a new six-digit code. Mac: Finder > Go > Connect to Server, the address,
+name `paper` (any), password the code. Phone or any browser: open the address; the page lists the books folder, uploads with
+progress and deletes. Below, what arrived ("Received Alice.epub", "3 files, 4.1 MB received", "Receiving x, 1.2 MB" during an
+upload). Stop (or back) ends it; ten minutes without a request end it too ("Stopped after 10 minutes without use", Start again).
+Golden `files-storage`, `files-wifi` (UI script `files-wifi`, a fake Wi-Fi network on its test card).

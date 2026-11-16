@@ -54,6 +54,8 @@ class NetService {
   // Cached: UI code must not call the radio HAL while the worker is connecting or running TLS (the Wi-Fi stack
   // locks are held then and the UI thread stalled for seconds: measured 8 s on the device).
   bool online() const { return connected_; }
+  // Counts as use of the connection, so the linger does not switch Wi-Fi off (the file server while its page is open).
+  void keepAlive() { markActive(); }
   hal::WifiLink link();
   void disconnect();
   Result lastResult();

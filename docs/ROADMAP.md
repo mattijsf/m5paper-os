@@ -384,8 +384,10 @@ P6-11 last (it needs the relay and a device that can pair).
   the frame dumps with the goldens (pixel-identical expected: same code, same fonts).
 - [ ] **P7-3 Over-the-air update.** `make ota` uploads to the device over Wi-Fi (ArduinoOTA or
   an HTTP upload endpoint), using the second app slot; rollback if the new image does not boot.
-- [ ] **P7-4 Book upload over Wi-Fi.** Reader menu "Add books": device shows its address, a
-  small web page accepts uploads into `/sd/books`.
+- [x] **P7-4 Book upload over Wi-Fi.** (2026-11-16; D30) Settings > Storage > Files over Wi-Fi: while
+  the page is open the books folder is served as WebDAV (Finder, Android file managers) and as an upload page for a browser,
+  behind a one-time code; on the device tested from the Mac (curl, a WebDAV client library); Finder and Android not tried
+  (STATUS.md). A shortcut from the reader's library is left for later.
 - [x] **P7-5 Scheduled refresh.** RTC wake every N hours to fetch inbox feeds and redraw the
   sleep screen with a summary; off by default; measure the cost. (2026-11-15: simulator and device with RTC wakes; awake time
   measured, the mAh figure in POWER.md is an estimate: no current meter)

@@ -41,6 +41,8 @@ bool rename(const std::string& fromVirtual, const std::string& toVirtual);
 bool fileInfo(const std::string& virtualPath, uint64_t& size, int64_t& mtime);
 
 // Sequential writer (large files): open, write chunks, close. Parent folders are created.
+// A write the card refuses (EIO, seen on the device while Wi-Fi received at the same time: Files over Wi-Fi) is tried again
+// up to three times: the file is reopened and the piece written again at the same place.
 class Writer {
  public:
   ~Writer() { close(); }
@@ -48,10 +50,14 @@ class Writer {
   bool write(const void* data, size_t n);
   bool close();  // true if everything reached the file
   bool isOpen() const { return f_ != nullptr; }
+  unsigned retries() const { return retries_; }  // writes that needed another try
 
  private:
   FILE* f_ = nullptr;
   bool ok_ = true;
+  std::string path_;  // the real path, for a reopen
+  uint64_t pos_ = 0;  // bytes written so far
+  unsigned retries_ = 0;
 };
 
 // Random-access reader (large files read in pieces, e.g. the emoji atlases): open once, read ranges, close.

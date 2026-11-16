@@ -368,6 +368,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port")
     ap.add_argument("--sim", action="store_true")
+    ap.add_argument("--sim-data", help="--sim: the simulator's data root (default sim-data/), e.g. a test card with a Wi-Fi network")
     ap.add_argument("-v", "--verbose", action="store_true")
     ap.add_argument("cmd", choices=["shot", "tap", "long", "swipe", "log", "refresh", "status", "ls", "cat", "rm", "set", "poweroff", "wait-boot", "diff", "script", "scripts"])
     ap.add_argument("--out", default="out/device-ui", help="script: where the frame dumps go")
@@ -416,7 +417,7 @@ def main():
         print("IDENTICAL" if bad == 0 else f"DIFFERENT: {bad} of {len(pa)} pixels")
         sys.exit(0 if bad == 0 else 1)
 
-    link = Link(a.port, a.sim)
+    link = Link(a.port, a.sim, ("--data", a.sim_data) if a.sim_data else ())
     try:
         if a.cmd == "shot":
             if len(a.args) != 1:

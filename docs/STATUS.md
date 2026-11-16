@@ -121,6 +121,16 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   light gone; `home.json` version 2 replaces the device's old internal copy by itself. On the device against the live Home
   Assistant (read only, nothing switched): all 17 lights read, both pages show real states (`out/dev-home/`).
 
+- **Files over Wi-Fi (P7-4, D30), 2026-11-16 night**: Settings > Storage > Files over Wi-Fi serves the books folder as WebDAV
+  and an upload page while the page is open, behind a one-time code. **On the device** (192.168.1.69, port 80), tested from
+  the Mac: OPTIONS, PROPFIND, PUT with a length and chunked, GET, MOVE, COPY, MKCOL, DELETE, Digest and Basic sign-in, a wrong code
+  refused, `..` refused; nine 1 MB uploads byte-identical after the card-write retry (5 of 6 had failed before it: EIO from the
+  card while Wi-Fi received); a WebDAV client library (webdav4) passes list, upload, folder, rename, copy, download, delete. All
+  test files deleted again (only the six books are on the card). **Not tried**: Finder itself (macOS showed a sign-in dialog on
+  the user's screen before it connected, which a script cannot click), an Android phone, the page in a browser (the app's
+  browser pane may not open LAN addresses). In the simulator: `tools/device.py --sim --sim-data DIR` gives it a card with a
+  Wi-Fi network.
+
 ## What works today
 
 | Thing | Command | Result |
@@ -331,6 +341,8 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Files over Wi-Fi (D30)**: Finder > Go > Connect to Server with the address and the code (copy a book in, rename, delete); an
+  Android file manager (WebDAV) and Chrome on the phone (the upload page); a long upload (20 MB) for the retry rate.
 - **Emoji, rest of the device check**: with the camera (the C922 was not plugged in on 2026-11-16 evening), whether the Fluent
   High Contrast faces stay readable at 18 and 22 px on the panel (`tools/device.py set screen emoji`); a real WhatsApp
   message with emoji (the inbox was empty at the check).
@@ -488,13 +500,8 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
      wants a one-time 6-digit code shown on the panel; the image is still signature-checked. Nothing to host, but a port is open for
      that window and the upload is plain HTTP on the Wi-Fi.
    - **c. No OTA**: keep `make flash` over USB (works today, 18 s). Nothing to protect; the device has to be at the Mac.
-5. **P7-4 Book upload over Wi-Fi: how should it be protected?** Not built; pick one.
-   - **a. Upload page only while "Add books" is open** (recommended if uploads from the phone are wanted): the panel shows the address
-     and a one-time 6-digit code; the server takes only `.epub` / `.txt` up to a size limit, cleans the file name, writes only into
-     `/sd/books`, and stops when the screen closes or after 10 idle minutes. Plain HTTP: the code and the book cross the Wi-Fi unencrypted.
-   - **b. Pull from Home Assistant**: the device lists and downloads books from a folder on Home Assistant with its token over HTTPS.
-     No open port, works away from home; needs a place for books on the Home Assistant side that a non-admin token can read (not checked).
-   - **c. Keep USB**: `tools/push.py` (works today, about 90 KB/s) or the card in the Mac. Nothing to protect.
+5. ~~**P7-4 Book upload over Wi-Fi: how should it be protected?**~~ **Answered 2026-11-16: "Yes wifi file mode"** (option a,
+   with WebDAV for Finder and Android file managers): D30, built.
 
 6. **Companion app (D22, asked 2026-11-16)**: the answers decide P6-8 to P6-11; nothing is built before them.
    - a. **WhatsApp reply scope**: is replying only to chats that still have a notification on the phone enough? (No new message to a

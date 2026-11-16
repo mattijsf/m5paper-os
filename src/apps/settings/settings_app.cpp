@@ -6,6 +6,7 @@
 
 #include "core/app.h"
 #include "core/companion.h"
+#include "core/file_server.h"
 #include "core/fs.h"
 #include "core/os.h"
 #include "core/paired_owed.h"
@@ -606,11 +607,146 @@ class HaPage : public Page {
   }
 };
 
+// Files over Wi-Fi (docs/apps/settings.md, DECISIONS.md D30): while this page is open the Paper serves its books folder on the
+// home Wi-Fi, as WebDAV (Finder: Go > Connect to Server) and as an upload page for a browser, behind a one-time code shown here.
+// Leaving the page stops it; so do ten minutes without a request.
+class FilesPage : public Page {
+ public:
+  static constexpr uint32_t kIdleStopMs = 10u * 60 * 1000;
+
+  void build(ui::Column& root) override {
+    setTitle("Files over Wi-Fi");
+    root.add<ui::Spacer>(ui::s2);
+    state_ = root.add<ui::Label>("", Type::Body);
+    state_->maxLines = 2;
+    root.add<ui::Spacer>(ui::s2);
+    addrCap_ = root.add<ui::Label>("Address", Type::Caption, ui::secondary);
+    addr_ = root.add<ui::Label>("", Type::Title);
+    root.add<ui::Spacer>(ui::s1);
+    codeCap_ = root.add<ui::Label>("Code (the password)", Type::Caption, ui::secondary);
+    code_ = root.add<ui::Label>("", Type::Headline);
+    root.add<ui::Spacer>(ui::s2);
+    help_ = root.add<ui::Label>("Mac: Finder > Go > Connect to Server, then the address. Name: paper, password: the code.\n"
+                                "Phone or any browser: open the address.",
+                                Type::Body);
+    help_->maxLines = 5;
+    help_->keepLineBreaks = true;
+    root.add<ui::Spacer>(ui::s2);
+    activity_ = root.add<ui::Label>("", Type::Body);
+    activity_->maxLines = 2;
+    root.add<ui::Spacer>(0, 1);
+    button_ = root.add<ui::Button>("Stop", [this] {
+      if (running_) ctx().nav.pop();  // leaving stops the server (onHide)
+      else start();
+    }, ui::Button::Kind::Secondary);
+    root.add<ui::Spacer>(ui::s2);
+    showRunning(false);
+  }
+  void onShow() override {
+    if (!running_ && !starting_) start();
+  }
+  void onHide() override { stopServer(""); }
+  ~FilesPage() override { stopServer(""); }
+
+  std::string debugState() const override {
+    return std::string(running_ ? "running" : "stopped") + "|" + state_->text() + "|" + activity_->text();
+  }
+
+ private:
+  void showRunning(bool on) {
+    addrCap_->visible = addr_->visible = codeCap_->visible = code_->visible = help_->visible = on;
+    button_->setText(on ? "Stop" : "Start again");
+    button_->visible = on || !starting_;
+    if (auto* h = state_->host()) h->relayout();
+  }
+
+  void start() {
+    hal::HttpServer* http = ctx().os().platform().http;
+    if (!http) {
+      state_->setText("Not available on this device");
+      return;
+    }
+    starting_ = true;
+    state_->setText("Joining Wi-Fi...");
+    activity_->setText("");
+    showRunning(false);
+    NetService* net = &ctx().os().net();
+    ctx().async([net] { return net->ensureConnected(); }, [this, http](NetService::Result r) {
+      starting_ = false;
+      if (!r.ok) {
+        state_->setText("No Wi-Fi: " + r.error);
+        showRunning(false);
+        return;
+      }
+      hal::Clock* clock = &ctx().os().platform().clock;
+      code_text_ = files::newCode();
+      server_ = std::make_shared<files::FileServer>("/sd/books", code_text_, [clock] { return clock->millis(); });
+      auto srv = server_;
+      if (!http->start([srv](hal::ServerRequest& q) { return srv->handle(q); })) {
+        state_->setText("Could not start the file server");
+        showRunning(false);
+        return;
+      }
+      running_ = true;
+      const bool sim = std::string(ctx().os().platform().name) == "simulator";
+      const std::string ip = sim ? "localhost" : ctx().os().net().link().ip;
+      addr_->setText("http://" + ip + (http->port() == 80 ? "" : ":" + std::to_string(http->port())));
+      code_->setText(code_text_.substr(0, 3) + " " + code_text_.substr(3));
+      state_->setText("On while this page is open. The books folder is shared.");
+      showRunning(true);
+      tick();
+    });
+  }
+
+  // Once a second: what arrived, Wi-Fi and the device kept up, the idle stop.
+  void tick() {
+    if (!running_ || !server_) return;
+    ctx().os().net().keepAlive();
+    ctx().os().keepAwake();
+    const files::Stats s = server_->stats();
+    std::string a;
+    if (s.busy) {
+      a = "Receiving " + s.receiving + ", " + bytesText(s.receivingBytes);
+    } else if (!s.last.empty()) {
+      a = s.last;
+      if (s.received > 0) a += "\n" + std::to_string(s.received) + (s.received == 1 ? " file, " : " files, ") + bytesText(s.bytes) + " received";
+    }
+    if (a != activity_->text()) activity_->setText(a);
+    const uint32_t idle = ctx().os().platform().clock.millis() - server_->lastRequestMs();
+    if (!s.busy && idle >= kIdleStopMs) {
+      stopServer("Stopped after 10 minutes without use");
+      return;
+    }
+    ctx().timer(1000, [this] { tick(); });
+  }
+
+  void stopServer(const std::string& why) {
+    if (!running_) return;
+    running_ = false;
+    if (hal::HttpServer* http = ctx().os().platform().http) http->stop();
+    server_.reset();
+    if (!why.empty()) {
+      state_->setText(why);
+      showRunning(false);
+    }
+  }
+
+  ui::Label *state_ = nullptr, *addrCap_ = nullptr, *addr_ = nullptr, *codeCap_ = nullptr, *code_ = nullptr, *help_ = nullptr,
+            *activity_ = nullptr;
+  ui::Button* button_ = nullptr;
+  std::shared_ptr<files::FileServer> server_;
+  std::string code_text_;
+  bool running_ = false, starting_ = false;
+};
+
 class StoragePage : public Page {
  public:
   void build(ui::Column& root) override {
     setTitle("Storage");
     root.add<ui::Spacer>(ui::s2);
+    auto* files = root.add<ui::ListItem>("Files over Wi-Fi", "Add or delete books from a computer or phone", true, ui::Icon::Wifi);
+    files->setChevron();
+    files->onClick = [this] { ctx().nav.push<FilesPage>(); };
     sd_ = root.add<ui::ListItem>("SD card", "", true, ui::Icon::Folder);
     data_ = root.add<ui::ListItem>("Internal flash (/data)", "", true, ui::Icon::Folder);
     root.add<ui::Spacer>(ui::s3);

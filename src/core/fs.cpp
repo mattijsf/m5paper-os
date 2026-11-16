@@ -5,6 +5,8 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <chrono>
+#include <thread>
 #include <atomic>
 #include <cerrno>
 #include <climits>
@@ -205,15 +207,38 @@ bool Writer::open(const std::string& v) {
   if (p.empty()) return false;
   size_t slash = p.rfind('/');
   if (slash != std::string::npos && slash > 0 && !mkdirsReal(p.substr(0, slash))) return false;
+  noteChange(p);
   f_ = std::fopen(p.c_str(), "wb");
   ok_ = f_ != nullptr;
+  path_ = p;
+  pos_ = 0;
+  retries_ = 0;
+  if (f_) std::setvbuf(f_, nullptr, _IONBF, 0);  // each write reaches the file system now: a failure belongs to that piece
   return ok_;
 }
 
 bool Writer::write(const void* data, size_t n) {
-  if (!f_) return false;
-  if (std::fwrite(data, 1, n, f_) != n) ok_ = false;
-  return ok_;
+  if (!f_ || !ok_) return false;
+  if (std::fwrite(data, 1, n, f_) == n) {
+    pos_ += n;
+    return true;
+  }
+  // The file system marks the file broken after a disk error: reopen it and write the piece again where it belongs.
+  for (int attempt = 0; attempt < 3; ++attempt) {
+    std::fclose(f_);
+    f_ = nullptr;
+    std::this_thread::sleep_for(std::chrono::milliseconds(20 * (attempt + 1)));
+    f_ = std::fopen(path_.c_str(), "r+b");
+    if (!f_) continue;
+    std::setvbuf(f_, nullptr, _IONBF, 0);
+    if (std::fseek(f_, static_cast<long>(pos_), SEEK_SET) == 0 && std::fwrite(data, 1, n, f_) == n) {
+      pos_ += n;
+      ++retries_;
+      return true;
+    }
+  }
+  ok_ = false;
+  return false;
 }
 
 bool Writer::close() {
