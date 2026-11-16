@@ -30,7 +30,8 @@ data class Item(
  * Captured items, in memory and in app-private storage (filesDir, excluded from backup).
  *
  * items.json holds the latest item per notification key (contents, private).
- * counts.json holds only numbers per app, so it can be checked without seeing contents.
+ * counts.json holds only numbers per app (posted, updated, removed, held), so it can be checked
+ * without seeing contents.
  */
 object Store {
     /** Apps we keep. Everything else is dropped on arrival. */
@@ -43,6 +44,8 @@ object Store {
 
     private val items = LinkedHashMap<String, Item>()
     private val posted = HashMap<String, Int>()
+    private val updated = HashMap<String, Int>()
+    private val removed = HashMap<String, Int>()
     private var loaded = false
     var listenerConnected = false
         private set
@@ -63,23 +66,48 @@ object Store {
         notifyObservers()
     }
 
+    /** Adds or replaces the item for its key. Counts it as posted (new key) or updated. */
     @Synchronized
     fun add(ctx: Context, item: Item) {
         load(ctx)
-        items.remove(item.key)
+        val known = items.remove(item.key) != null
         items[item.key] = item
         while (items.size > MAX_ITEMS) items.remove(items.keys.first())
-        posted[item.app] = (posted[item.app] ?: 0) + 1
+        val m = if (known) updated else posted
+        m[item.app] = (m[item.app] ?: 0) + 1
         save(ctx)
         notifyObservers()
     }
 
-    /** Per app: (notifications posted since install, items held now). */
+    /** The notification was dismissed, read or cancelled on the phone. */
     @Synchronized
-    fun counts(ctx: Context): Map<String, Pair<Int, Int>> {
+    fun remove(ctx: Context, key: String) {
+        load(ctx)
+        val item = items.remove(key) ?: return
+        removed[item.app] = (removed[item.app] ?: 0) + 1
+        save(ctx)
+        notifyObservers()
+    }
+
+    /** After a (re)connect: drop held items whose notification is gone. */
+    @Synchronized
+    fun retainOnly(ctx: Context, liveKeys: Set<String>) {
+        load(ctx)
+        val gone = items.keys.filter { it !in liveKeys }
+        if (gone.isEmpty()) return
+        gone.forEach { k -> items.remove(k)?.let { removed[it.app] = (removed[it.app] ?: 0) + 1 } }
+        save(ctx)
+        notifyObservers()
+    }
+
+    data class Counts(val posted: Int, val updated: Int, val removed: Int, val held: Int)
+
+    /** Per app, since install (or the last Clear). */
+    @Synchronized
+    fun counts(ctx: Context): Map<String, Counts> {
         load(ctx)
         return APPS.keys.associateWith { app ->
-            (posted[app] ?: 0) to items.values.count { it.app == app }
+            Counts(posted[app] ?: 0, updated[app] ?: 0, removed[app] ?: 0, items.values.count { it.app == app })
         }
     }
 
@@ -88,6 +116,8 @@ object Store {
         load(ctx)
         items.clear()
         posted.clear()
+        updated.clear()
+        removed.clear()
         save(ctx)
         notifyObservers()
     }
@@ -105,8 +135,11 @@ object Store {
             for (i in 0 until a.length()) Item.fromJson(a.getJSONObject(i)).let { items[it.key] = it }
         }
         runCatching {
-            val p = JSONObject(countsFile(ctx).readText()).getJSONObject("posted")
-            p.keys().forEach { posted[it] = p.getInt(it) }
+            val o = JSONObject(countsFile(ctx).readText())
+            for ((name, m) in listOf("posted" to posted, "updated" to updated, "removed" to removed)) {
+                val p = o.optJSONObject(name) ?: continue
+                p.keys().forEach { m[it] = p.getInt(it) }
+            }
         }
     }
 
@@ -118,13 +151,12 @@ object Store {
     }
 
     private fun saveCounts(ctx: Context) {
-        val p = JSONObject()
-        val held = JSONObject()
-        APPS.keys.forEach { app ->
-            p.put(app, posted[app] ?: 0)
-            held.put(app, items.values.count { it.app == app })
+        val o = JSONObject()
+        for ((name, m) in listOf("posted" to posted, "updated" to updated, "removed" to removed)) {
+            o.put(name, JSONObject().apply { APPS.keys.forEach { put(it, m[it] ?: 0) } })
         }
-        val o = JSONObject().put("posted", p).put("held", held).put("connected", listenerConnected)
+        o.put("held", JSONObject().apply { APPS.keys.forEach { app -> put(app, items.values.count { it.app == app }) } })
+        o.put("connected", listenerConnected)
         writeAtomic(countsFile(ctx), o.toString())
     }
 

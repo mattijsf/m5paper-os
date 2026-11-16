@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- No INTERNET permission in v0: nothing leaves the phone. -->
-    <!-- allowBackup false: captured items never go into Google backups. -->
+    <!-- No INTERNET permission yet: nothing leaves the phone until the relay lands (v1). -->
+    <!-- WorkManager adds ACCESS_NETWORK_STATE, WAKE_LOCK, RECEIVE_BOOT_COMPLETED for the upload queue. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature
+        android:name="android.hardware.camera.any"
+        android:required="false" />
+
+    <!-- allowBackup false: captured items and keys never go into Google backups. -->
     <application
         android:allowBackup="false"
         android:dataExtractionRules="@xml/no_backup"
@@ -17,6 +23,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".ScanActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
 
         <service
             android:name=".CaptureListener"
