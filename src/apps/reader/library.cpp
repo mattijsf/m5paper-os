@@ -65,7 +65,13 @@ void LibraryScreen::build(ui::Column& root) {
   holder_->add<ui::EmptyState>(Icon::BookOpen, "Loading...", "")->flex = 1;
 }
 
-void LibraryScreen::onShow() { refresh(); }  // also after coming back from a book: progress and order changed
+void LibraryScreen::onShow() {
+  if (covered_) {  // the page screen comes over it in the same pass: scan when the reader comes back
+    covered_ = false;
+    return;
+  }
+  refresh();  // also after coming back from a book: progress and order changed
+}
 
 std::string LibraryScreen::debugState() const {
   if (!loaded_) return "loading";
@@ -78,17 +84,26 @@ void LibraryScreen::refresh() {
   struct Scan {
     std::vector<LibraryEntry> entries;
     std::shared_ptr<Canvas> thumb;
+    std::string thumbPath;
   };
+  // The card's cover is decoded once per book: decoding it again on every return from a book kept the worker busy for
+  // 2 to 3 s (JPEG of 220-270 KB), and a book tapped meanwhile opened that much later (device, 2026-11-16).
+  const std::string havePath = thumbPath_;
+  const std::shared_ptr<Canvas> have = thumb_;
   ctx().async(
-      [] {
+      [havePath, have] {
         Scan s;
         s.entries = scanLibrary();
-        if (!s.entries.empty() && s.entries[0].opened > 0 && !s.entries[0].cover.empty()) s.thumb = ui::loadImageFit(s.entries[0].cover, kCoverW, kCoverH);
+        if (!s.entries.empty() && s.entries[0].opened > 0 && !s.entries[0].cover.empty()) {
+          s.thumbPath = s.entries[0].cover;
+          s.thumb = (s.thumbPath == havePath && have) ? have : ui::loadImageFit(s.thumbPath, kCoverW, kCoverH);
+        }
         return s;
       },
       [this](Scan s) {
         entries_ = std::move(s.entries);
         thumb_ = std::move(s.thumb);
+        thumbPath_ = std::move(s.thumbPath);
         loaded_ = true;
         rebuild();
       });

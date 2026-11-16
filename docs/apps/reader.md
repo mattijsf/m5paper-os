@@ -13,6 +13,11 @@ bar for refresh quality and battery life.
   while nothing was opened): cover thumbnail (`Hint::Image`, 120x180; a framed book icon until P4-5), title, author,
   progress bar, "Continue". Page 1 then holds 5 rows, the other pages 7. The list is rebuilt from a scan on the
   worker each time the screen is shown (so progress and order are current after reading).
+  **One worker, so order matters (P4-6, device)**: when the app resumes into the open book, the library under it is not scanned
+  until it is shown (the scan and the cover decode held the book's open back: 2.45 s instead of 0.14 s); the card's cover is
+  decoded once per book, not on every return (the decode of a 220-270 KB JPEG kept the worker busy for 2 to 3 s, and a book
+  tapped meanwhile opened that much later); after a first open the cover is written to the cache after the first page's
+  chapter is loaded (written before it, the page came 1.9 s late and taps were dropped meanwhile).
 - Title and author come from the book's cache (`meta.json`, once it was opened) or from the file name
   "Title - Author.ext".
 - Empty state: "No books yet. Copy .epub or .txt files to the books folder on the SD card."
@@ -126,6 +131,13 @@ The page index file is `"PIX1"`, a u32 page count, then per page u16 chapter, u3
   out and copy the files into `/books/` with a computer.
 - Device check: page turn time (target under 0.6 s to readable text), ghosting after 10 turns,
   open time for a cached 1 MB EPUB (target under 1.5 s).
+  **Measured 2026-11-16 (P4-6, firmware with the three changes above)**: page turn 109 ms from the tap to the panel driver (median of
+  30, slowest 150 ms: the Quality clean of every 10th page), on the panel about 0.5 s after the tap (camera, DISPLAY.md). Cached
+  open 30-230 ms, the page's text on screen 0.7-1.4 s after the tap in the library (all six books; the largest is 609 KB, no 1 MB
+  EPUB is on the card). First open (convert + paginate, "Preparing book..." with a percentage): Pride and Prejudice 609 KB, 1577
+  pages 12.5 s; Frankenstein 440 KB, 922 pages 9.8 s; Max Havelaar 405 KB, 1667 pages 15.7 s; Sherlock Holmes 312 KB, 1240 pages
+  9.8 s: about 6-9 ms per page, most of it layout (text measuring is 40-55 % of that), so a 1 MB EPUB would take 20-25 s once.
+  The page's text follows 0.3-0.4 s after the book is ready. Ghosting: DISPLAY.md "Reader ghosting".
 
 ## Later (not v1)
 

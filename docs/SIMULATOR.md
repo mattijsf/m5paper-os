@@ -151,6 +151,11 @@ A task is done only when `make check` passes.
   the firmware drew (4-bit pixels over serial, converted to PNG), `tools/device.py tap 140 300`
   injects a touch. With these, device checks need neither eyes nor fingers. The dump is the
   frame buffer, not a photo: it cannot show ghosting or a half-played waveform.
+  **Log lines wait while a reply leaves** (`RemoteHost::replyLeaving()`, 2026-11-16): a log line printed between two pieces of a
+  frame dump (the heartbeat every 5 s, a push) lands inside the pixels, the host never sees `#ok` and reports "no reply to '>shot'".
+  Seen twice on 2026-11-16; in the failing case the heartbeat of that second shows the dump's 518 KB allocated. The device now holds
+  its serial log from a reply's first byte to its `#ok` / `#err` line and prints it then (`>log` has every line at once); 80 dumps
+  in a row across six heartbeats came back whole.
   Replies are queued and sent between main-loop passes (`RemoteHost::writable()`, 2026-11-16): a dump takes ~0.5 s and no
   longer stops the UI (it held the loop ~1.07 s).
 - The simulator speaks the same protocol: `program --headless --remote` reads `>` commands on

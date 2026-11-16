@@ -382,6 +382,15 @@ the ghost sits mostly in a rectangle over the upper half of the text (2.2-3.2 % 
 pass visible for about 0.17 s, the settle pass done on the panel about 1.6 s after the tap (before `Hint::Page`: see "Ghost budget"). Start times include the camera's own
 latency (about 0.2-0.25 s, the same offset appeared on the Clean); durations do not.
 
+**Reader ghosting with `Hint::Page` (P4-6, 2026-11-16 15:40, a new camera session at dusk: exposure 26 ms, focus 45; Alice at M from
+page 108, each block: menu Clean, N turns, still, menu Clean on the same page as the reference)**: 1 turn 1.27 %, 9 turns 1.15 %,
+10 turns 1.11 % (the 10th is the Quality clean), 29 turns 1.22 % (two cleans on the way, 9 turns since the last), 30 turns 1.14 %
+(the 30th is a clean); p95 4.5-5.5 %. The page right after a clean reads 1.1 %: that is this session's floor, so the ghost does
+not grow with the number of pages any more (before `Hint::Page`: 1.23 / 1.54 / 1.99 % after 1 / 10 / 30). The refresh log showed
+what the cadence promises: 9 Fast, then `page-clean`. Worst region 1.8 % on a short page (4 lines) after a full one: the previous
+page's lines are faintly there in the normalised image (`out/rg2/29-diff.png`). `ghostLimit`, `pageCleanEvery` and the settle
+defaults stay as they are.
+
 `--source FILE` replays a video in real time instead of a camera (tests of the pipeline without a camera). The panel can show private
 messages: the images stay in `out/` (gitignored); never commit, upload or paste them, and do not record screens that show secrets.
 

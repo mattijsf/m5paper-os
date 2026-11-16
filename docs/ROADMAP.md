@@ -280,7 +280,9 @@ simulator first; each task ends with screenshots.
   Done when: the EPUB opens, chapters and bold/italic render, reopening is instant.
 - [x] **P4-5 Reader menu.** Font size, contents, go to, clean screen; cover on the library card
   (`Hint::Image`). Goldens.
-- [ ] **P4-6 Reader on the device.** Device check and tuning: page turn time, ghosting over 30
+- [x] **P4-6 Reader on the device.** (2026-11-16: page turn 109 ms to the driver; ghost flat at 1.1-1.3 % over 30 pages, defaults
+  kept; cached open 30-230 ms, first open 10-16 s for the books on the card (the largest is 609 KB: no 1 MB EPUB was measured);
+  three worker-order fixes; numbers in apps/reader.md and DISPLAY.md) Device check and tuning: page turn time, ghosting over 30
   pages, cold open of a 1 MB EPUB, index time. Record numbers; adjust `ghostLimit`/settle
   defaults if needed.
 

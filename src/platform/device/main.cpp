@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <mutex>
 #include <string>
 
 #include "core/fs.h"
@@ -31,8 +32,32 @@
 
 using namespace pos;
 
+namespace {
+// Log lines wait while a remote reply leaves in pieces (RemoteHost::replyLeaving): the UI thread and the worker both log.
+std::mutex gLogMutex;
+bool gHoldLog = false;
+std::string gHeldLog;
+
+void holdLog(bool on) {
+  std::lock_guard<std::mutex> lock(gLogMutex);
+  gHoldLog = on;
+  if (!on && !gHeldLog.empty()) {
+    Serial.print(gHeldLog.c_str());
+    gHeldLog.clear();
+    gHeldLog.shrink_to_fit();
+  }
+}
+}  // namespace
+
 namespace pos::hal {
-void logWrite(const char* line) { Serial.print(line); }
+void logWrite(const char* line) {
+  std::lock_guard<std::mutex> lock(gLogMutex);
+  if (gHoldLog) {
+    if (gHeldLog.size() < 8192) gHeldLog += line;  // the log ring (>log) has every line anyway
+    return;
+  }
+  Serial.print(line);
+}
 
 StorageInfo storageInfo(const char* which) {
   StorageInfo s;
@@ -234,6 +259,7 @@ class SerialRemoteHost : public RemoteHost {
  public:
   void inject(const hal::TouchEvent& ev) override { gInput.inject(ev); }
   size_t writable() override { return static_cast<size_t>(std::max(0, Serial.availableForWrite())); }
+  void replyLeaving(bool on) override { holdLog(on); }
   void reply(const void* data, size_t n) override {
     const uint8_t* p = static_cast<const uint8_t*>(data);
     int stalls = 0;

@@ -131,16 +131,25 @@ bool remotePathAllowed(const std::string& p) {
 
 void Remote::say(const std::string& s) {
   std::string line = s + "\n";
-  send(line.data(), line.size());
+  // Every command's reply ends with "#ok" or "#err ...": until that line is out, the reply is open (header, payload, end).
+  send(line.data(), line.size(), s.rfind("#ok", 0) == 0 || s.rfind("#err", 0) == 0);
 }
 
-void Remote::send(const void* data, size_t n) {
+void Remote::send(const void* data, size_t n, bool closes) {
   const auto* p = static_cast<const uint8_t*>(data);
   out_.insert(out_.end(), p, p + n);
+  replyOpen_ = !closes;
   pump();
 }
 
+void Remote::setLeaving(bool on) {
+  if (on == leaving_) return;
+  leaving_ = on;
+  host_.replyLeaving(on);
+}
+
 void Remote::pump() {
+  if (outPos_ < out_.size()) setLeaving(true);  // from the first byte: nothing else may be written until the reply is out
   while (outPos_ < out_.size()) {
     const size_t room = host_.writable();
     if (room == 0) return;
@@ -151,6 +160,7 @@ void Remote::pump() {
   out_.clear();
   out_.shrink_to_fit();  // the 259 KB of a frame dump do not stay allocated
   outPos_ = 0;
+  if (!replyOpen_) setLeaving(false);  // between the header, the payload and "#ok" the reply is still leaving
 }
 
 void Remote::flushAll() {
@@ -158,6 +168,8 @@ void Remote::flushAll() {
   out_.clear();
   out_.shrink_to_fit();
   outPos_ = 0;
+  replyOpen_ = false;
+  setLeaving(false);
 }
 
 void Remote::queue(uint32_t at, hal::TouchEvent::Type t, int x, int y) {

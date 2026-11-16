@@ -271,14 +271,16 @@ class PageScreen : public Screen {
                       static_cast<unsigned>(r.timing.hits), static_cast<unsigned>(r.timing.misses));
           meta_ = std::move(r.meta);
           pages_ = std::move(r.pages);
-          if (meta_.epub && !meta_.cover.empty() && coverFile(meta_).empty()) {  // the cover is a write: after the book is open
-            const BookMeta m = meta_;
-            ctx().async([m] { return extractCover(m); }, [](bool) {});
-          }
           const bool resumed = r.progress.opened > 0;
           cur_ = resumed ? pageIndexFor(pages_, r.progress.chapter, r.progress.pos) : 0;
           state_ = State::Ready;
           showPage(cur_);
+          // The cover is a write (slow on the card): after the book is open, and queued after the first page's chapter.
+          // Queued before it, the page came 1.9 s after the book was ready and taps were dropped meanwhile (device, 2026-11-16).
+          if (meta_.epub && !meta_.cover.empty() && coverFile(meta_).empty()) {
+            const BookMeta m = meta_;
+            ctx().async([m] { return extractCover(m); }, [](bool) {});
+          }
         });
   }
 
@@ -537,10 +539,11 @@ class ReadApp : public App {
   void onStart(AppContext& ctx) override {
     store_ = &ctx.store;
     AppContext* c = &ctx;
-    ctx.nav.push<LibraryScreen>([c](const std::string& file) { c->nav.push<PageScreen>(file, c->store.get("font", 1)); });
-    // The book that was open at the last power-off comes back on its page (the library stays under it).
-    const std::string open = ctx.store.get("open", std::string());
-    if (!open.empty() && fs::exists(std::string(kBooksDir) + "/" + open)) ctx.nav.push<PageScreen>(open, ctx.store.get("font", 1));
+    // The book that was open at the last power-off comes back on its page (the library stays under it, not scanned yet).
+    std::string open = ctx.store.get("open", std::string());
+    if (!open.empty() && !fs::exists(std::string(kBooksDir) + "/" + open)) open.clear();
+    ctx.nav.push<LibraryScreen>([c](const std::string& file) { c->nav.push<PageScreen>(file, c->store.get("font", 1)); }, !open.empty());
+    if (!open.empty()) ctx.nav.push<PageScreen>(open, ctx.store.get("font", 1));
   }
 
  private:

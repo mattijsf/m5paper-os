@@ -119,7 +119,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 ## Not verified yet (do not assume)
 
-- **Reader on the physical panel (P4-6 stays open)**: the measurable part (ghosting after 10 and 30 turns, Fast then settle, the cover's
+- **Reader on the physical panel (P4-6 done 2026-11-16, numbers in apps/reader.md "Device check" and DISPLAY.md "Reader ghosting")**: the measurable part (ghosting after 10 and 30 turns, Fast then settle, the cover's
   grays, the Clean flash, the turn time on the panel) moved to "To verify with the camera". Still for a person's eyes, once, batched: is S
   24 px comfortable to read, is the bold double strike at S/L/XL acceptable, how the menu sheet feels.
 - **What the panel physically shows** (Fast then settle, ghosting, gray ramp, sharpness, the touch dot): see "To verify with the camera".
@@ -655,6 +655,14 @@ None of these block Phase 1, Phase 2, or the reader.
   0.7 MB by symbol sizes; the exact split is not measured), our net service and Wi-Fi/Home Assistant screens (~60 KB, estimate). Fonts
   are 0.45 MB, M5GFX/M5Unified ~0.2 MB. The reader (miniz ~12 KB, XHTML, pagination, library) should fit in ~150 KB.
 
+- **Reader, after P4-6 (2026-11-16)**: (1) no EPUB of 1 MB is on the card (the largest of the six test books is 609 KB), so the
+  card's "cold open of a 1 MB EPUB" is an extrapolation: 20-25 s once, from 6-9 ms per page; put a larger book on the card to
+  measure it. (2) A first open costs 10-16 s, most of it layout (text measuring 40-55 % of that): the place to look if that is
+  to get shorter. (3) A TXT book is one chapter: its whole text is loaded and parsed on every open (The Time Machine, 181 KB:
+  0.6 s after the book is ready); a 1 MB TXT would take several seconds per open unless TXT is split at import. (4) The worker
+  is one queue: a job a tap waits for must not be queued behind a slow write or a decode (the three cases found are fixed; the
+  cover write of a first open still delays whatever is tapped in the 2-3 s after the first page).
+
 ## Log
 
 - 2026-11-15: Phase 0. Research (M5Stack docs, M5GFX/M5Unified 0.3.0 source), stack chosen,
@@ -757,3 +765,10 @@ None of these block Phase 1, Phase 2, or the reader.
 
 - 2026-11-16: live view (`make view`, `tools/view.py`): the device in a browser page, click = tap, hold = long press, drag = swipe; checked on the device (reader page forward and back, ~760 ms from click to new frame) and in the simulator (tap, long press on back, swipe); `--lan` with a random key for a phone. `device.py` opens the port exclusively (a second tool refuses to start instead of sharing replies) and `unpack4` is a table lookup.
 - 2026-11-16: `make check` was red since 5db1f1a (found while adding the live view): `reader.script` compared the screenshots of page 7 before and after `restart` byte for byte. Screenshots show the emulated panel, and since the footer goes out with the page (Fast, no settle pass) 11 footer pixels outside the last Fast pass's box (x 497 and the foot of the slash) still held the grays of the last Quality clean, while after a boot the whole footer went out in one Fast pass. The drawn page is the same: new script command `expect-frame-equal A B` compares what was drawn (the display manager's shadow) and `reader.script` uses it; `reader-last` golden accepted (footer in ink: the script stopped before it in 5db1f1a). No change to the reader or the display code.
+- 2026-11-16: P4-6 reader on the device. Measured: page turn 109 ms (median of 30, slowest 150 ms), cached open 30-230 ms with the
+  text on screen in 0.7-1.4 s, first open 9.8-15.7 s (four EPUBs of 312-609 KB), ghost 1.27 / 1.15 / 1.11 / 1.22 / 1.14 % after
+  1 / 9 / 10 / 29 / 30 turns (flat: the floor of the session is 1.1 %), defaults kept. Fixed: the first page waited 1.9 s behind
+  the cover write and dropped taps (now 0.3-0.4 s); resuming into the open book waited behind the library scan and cover decode
+  (2.45 s -> 0.14 s); the library card's cover was decoded on every return (a book tapped then opened 2-3 s late). Found on the
+  way and fixed: a log line printed while a frame dump streamed out landed inside it ("no reply to '>shot'"): the device holds its
+  serial log while a reply leaves (`RemoteHost::replyLeaving`, unit test; 80 dumps in a row whole). Not measured: a 1 MB EPUB.

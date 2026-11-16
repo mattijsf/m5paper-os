@@ -40,6 +40,10 @@ class RemoteHost {
   // Bytes reply() can take right now without waiting (the device: free space in the USB TX buffer). Replies are queued and
   // sent in pieces of at most this from tick(), so a 259 KB frame dump no longer holds the UI loop for a second.
   virtual size_t writable() { return static_cast<size_t>(-1); }
+  // true: a reply is on its way out and may leave in pieces over several loop passes; false: it is out. The device holds
+  // its log lines back meanwhile: a line printed between two pieces lands inside the reply (a heartbeat in the pixels of a
+  // frame dump: the host then never sees "#ok" and reports "no reply to >shot", 2026-11-16).
+  virtual void replyLeaving(bool /*on*/) {}
   virtual void reboot() = 0;
   // Platform-specific debug switch (">set key value"). Returns false for unknown keys.
   virtual bool option(const std::string& /*key*/, const std::string& /*value*/) { return false; }
@@ -85,9 +89,12 @@ class Remote {
     hal::TouchEvent ev;
   };
   void say(const std::string& s);
-  void send(const void* data, size_t n);  // queue reply bytes (sent by pump())
+  void send(const void* data, size_t n, bool closes = false);  // queue reply bytes (sent by pump()); closes: the reply's last line
   void pump();                            // send what the host takes now
   void flushAll();                        // send everything, waiting (before a reboot or power-off)
+  void setLeaving(bool on);               // tells the host once per change
+  bool leaving_ = false;
+  bool replyOpen_ = false;                // a reply's closing "#ok" / "#err" line has not been queued yet
   std::vector<uint8_t> out_;
   size_t outPos_ = 0;
   void queue(uint32_t at, hal::TouchEvent::Type t, int x, int y);

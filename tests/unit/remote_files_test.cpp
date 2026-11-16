@@ -87,9 +87,16 @@ class FakePower : public hal::Power {
 class Host : public RemoteHost {
  public:
   void inject(const hal::TouchEvent&) override {}
-  void reply(const void* d, size_t n) override { out.append(static_cast<const char*>(d), n); }
+  void reply(const void* d, size_t n) override {
+    out.append(static_cast<const char*>(d), n);
+    if (room != static_cast<size_t>(-1)) room -= n;
+  }
+  size_t writable() override { return room; }
+  void replyLeaving(bool on) override { leaving.push_back(on); }
   void reboot() override {}
   std::string out;
+  size_t room = static_cast<size_t>(-1);  // bytes reply() takes before writable() says 0 (a full USB buffer)
+  std::vector<bool> leaving;
   bool has(const std::string& s) const { return out.find(s) != std::string::npos; }
 };
 
@@ -263,4 +270,33 @@ TEST_CASE("remote: poweroff needs 1..3600 seconds, never 0") {
 TEST_CASE("remote: state takes no arguments") {
   CHECK(parseRemoteCommand(">state").kind == RemoteCommand::State);
   CHECK(parseRemoteCommand(">state now").kind == RemoteCommand::None);
+}
+
+TEST_CASE("remote: a reply that leaves in pieces tells the host from its first byte to its last") {
+  // The device holds its log lines back between the two calls: a line printed between two pieces of a frame dump landed
+  // inside the pixels and the host never saw "#ok".
+  Env e;
+  e.host.room = 4;
+  e.remote.handleLine(">log");
+  CHECK(e.host.out.size() == 4);
+  REQUIRE(e.host.leaving.size() == 1);
+  CHECK(e.host.leaving[0] == true);
+  e.remote.tick();  // still no room: nothing changes
+  CHECK(e.host.out.size() == 4);
+  CHECK(e.host.leaving.size() == 1);
+  e.host.room = 3;
+  e.remote.tick();
+  CHECK(e.host.out.size() == 7);
+  CHECK(e.host.leaving.size() == 1);
+  e.host.room = static_cast<size_t>(-1);
+  e.remote.tick();
+  CHECK(e.host.out.substr(e.host.out.size() - 4) == "#ok\n");
+  REQUIRE(e.host.leaving.size() == 2);
+  CHECK(e.host.leaving[1] == false);
+  CHECK_FALSE(e.remote.busy());
+  // A reply that fits at once: on and off again in the same call.
+  e.remote.handleLine(">state");
+  REQUIRE(e.host.leaving.size() == 4);
+  CHECK(e.host.leaving[2] == true);
+  CHECK(e.host.leaving[3] == false);
 }
