@@ -1,0 +1,6 @@
+# app: whatsapp
+# D22 (2026-11-16): the WhatsApp feed sensor is gone from Home Assistant (404). A list saved before is dropped with its badge,
+# and the app says the inbox is not set up (it moves to the companion app), not "Cannot reach Home Assistant".
+wait 1500
+expect-state notsetup
+shot inbox-gone

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Writes the inbox HTTP fixtures of the UI tests (feed contract, docs/BACKEND.md "Inbox feeds"): fake messages, times relative to
 the simulator's test clock (2026-01-15T12:34:00Z = 13:34 in Amsterdam). Hosts: ha.example.test (normal), ha-down.example.test
-(WhatsApp link down), ha-empty.example.test (empty feeds). The send script (script.paperos_whatsapp_send, DECISIONS.md D21) answers
+(WhatsApp link down), ha-empty.example.test (empty feeds), ha-gone.example.test (no feed sensors at all: 404, as since DECISIONS.md D22). The send script (script.paperos_whatsapp_send, DECISIONS.md D21) answers
 "sent" on ha, "too_soon" on ha-down and 400 (no such script, as before it is installed) on ha-empty.
 
   python3 tests/fixtures/make-inbox-fixtures.py tests/fixtures/http
@@ -100,5 +100,9 @@ def main(out):
     for s in ("whatsapp", "mail"):
         write(out, e, "GET", f"/api/states/sensor.paperos_{s}_inbox", {"entity_id": "x", "state": "0", "attributes": {"updated": "2026-01-15T13:34:00+01:00", "items": []}})
     write(out, e, "POST", send, {"message": "Service script.paperos_whatsapp_send not found."}, "return_response", status=400)
+    g = "ha-gone.example.test"  # since D22 (2026-11-16): no feed sensors and no send script in Home Assistant
+    for s in ("whatsapp", "mail"):
+        write(out, g, "GET", f"/api/states/sensor.paperos_{s}_inbox", {"message": "Entity not found."}, status=404)
+    write(out, g, "POST", send, {"message": "Service script.paperos_whatsapp_send not found."}, "return_response", status=400)
 
 main(sys.argv[1])

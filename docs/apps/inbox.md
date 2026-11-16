@@ -1,10 +1,11 @@
 # WhatsApp and Mail (inbox apps)
 
-Two launcher tiles, one implementation (`src/apps/inbox/`): a list of recent messages. Home Assistant collects the messages
-(WhatsApp add-on, Proton Mail through Bridge + IMAP) and keeps them in two sensors; the device reads those. WhatsApp can also
-**send** (DECISIONS.md D21, "Sending" below): a reply in a conversation, or a new message to a favourite chat, through one guarded
-Home Assistant script. Mail stays read-only. How the sensors are filled, the send path and the risks are in `BACKEND.md`
-("Inbox feeds", "Sending a WhatsApp message").
+Two launcher tiles, one implementation (`src/apps/inbox/`): a list of recent messages. **Since 2026-11-16 (DECISIONS.md D22)**
+the messages are to come from a companion Android app that encrypts each phone notification for the device; Home Assistant only
+relays ciphertext and the device decrypts it into the feed contract below (BACKEND.md "Companion app", ROADMAP.md P6-8 to P6-11).
+**That is not built yet**: Home Assistant has no feed sensors (404) and both apps show "Not set up yet". The earlier source (a
+WhatsApp add-on and Proton Mail Bridge inside Home Assistant, D16/D17) is removed. WhatsApp could also **send** through a Home
+Assistant script (D21, "Sending" below); that script is removed too, and replies will go through the phone. Mail stays read-only.
 
 | Tile | Feed entity | Icon |
 |---|---|---|
@@ -30,7 +31,11 @@ Both are instances of `InboxApp` parameterised by `{id, name, icon, entity, kind
 - Bottom `Button` (secondary): "Mark all read" > confirmation sheet > calls
   `script.paperos_inbox_clear` with this feed, clears the list.
 - Chat only: if the WhatsApp link is down (the integration's connection sensor is off), a
-  notice row at the top: "WhatsApp link is down. Re-link in Home Assistant."
+  notice row at the top: "WhatsApp link is down. Re-link in Home Assistant." (Built for the add-on route; with the companion app
+  the equivalent is "phone not heard from", decided in P6-10.)
+- **Not set up** (since D22): when Home Assistant answers 404 for the feed sensor, the list shows `EmptyState` "Not set up yet" /
+  "Messages will come from the companion app on your phone. It is not built yet.", drops the saved list (`/data/cache/inbox/<feed>.json`)
+  and sets the badge to 0; the scheduled refresh does the same. Not "Cannot reach Home Assistant": that stays for network errors.
 
 ### Detail
 
@@ -40,7 +45,8 @@ Both are instances of `InboxApp` parameterised by `{id, name, icon, entity, kind
   excerpt from the feed; meanwhile fetches the full text
   (`POST /api/services/imap/fetch?return_response`, BACKEND.md) and replaces the excerpt when it
   arrives (re-paginate, keep page 1). If the fetch fails the excerpt stays, with a caption
-  "Showing the beginning only".
+  "Showing the beginning only". Since D22 there is no IMAP integration, so the fetch always fails; the companion app gives sender and
+  subject (maybe a preview) only, and P6-10 drops the fetch.
 
 ## As built (simulator, 2026-11-15)
 
@@ -57,10 +63,15 @@ Both are instances of `InboxApp` parameterised by `{id, name, icon, entity, kind
 - The link-down notice reads an optional `attributes.connected` (false = down) of the WhatsApp feed sensor: **an assumption**, the
   package has to provide it (P6-3).
 - Fixtures: `tests/fixtures/make-inbox-fixtures.py` (hosts `ha`, `ha-down`, `ha-empty` .example.test; the three presets under
-  `tests/ui/data/inbox*`). Scripts: `inbox`, `inbox-mail`, `inbox-link`, `inbox-empty`, `inbox-error`. The inbox uses the fixed UI fonts, not
+  `tests/ui/data/inbox*`). Scripts: `inbox`, `inbox-mail`, `inbox-link`, `inbox-empty`, `inbox-error`, `inbox-gone` / `inbox-gone-mail` (host
+  `ha-gone`: both sensors 404, a saved list that is dropped). The inbox uses the fixed UI fonts, not
   the reader's four text sizes; the chat and mail text pages use the reader's S face (24 px).
 
 ## Sending (WhatsApp, D21; simulator 2026-11-16)
+
+**Since D22 there is no send script in Home Assistant**: every send ends in the toast "Not sent: no send script in Home Assistant" and
+the text stays (UI script `whatsapp-send-missing`; Home Assistant answers 400, checked live 2026-11-16). Somdoku's "Stuur naar
+WhatsApp" (`whatsapp::sendToFavorite`) ends the same way. With the companion app only replies remain possible (P6-10, P6-11).
 
 - **Reply**: a secondary button at the bottom of a conversation, when its `key` is a chat JID the script accepts (`whatsapp::validChat`).
   The target is the sender (direct chat) or "Group with Anna" (a group: its name is not known, BACKEND.md).

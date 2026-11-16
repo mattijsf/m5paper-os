@@ -189,7 +189,8 @@ class ListScreen : public Screen {
   }
 
   std::string debugState() const override {
-    return std::string("rows=") + std::to_string(rowCount_) + "|" + status_->text() + (error_ ? "|error" : "");
+    return std::string("rows=") + std::to_string(rowCount_) + "|" + status_->text() + (error_ ? "|error" : "") +
+           (notSetUp_ ? "|notsetup" : "");
   }
 
  private:
@@ -201,6 +202,13 @@ class ListScreen : public Screen {
     pager_ = nullptr;
     convs_.clear();
     rowCount_ = 0;
+    if (notSetUp_) {  // the feed sensor does not exist in Home Assistant (404): the inbox moves to the companion app (D22)
+      holder_->add<ui::EmptyState>(kind_.icon, "Not set up yet",
+                                   "Messages will come from the companion app on your phone. It is not built yet.")->flex = 1;
+      markAll_->visible = false;
+      holder_->host()->relayout();
+      return;
+    }
     if (error_ && !haveData_) {
       holder_->add<ui::EmptyState>(Icon::WifiOff, "Cannot reach Home Assistant", "Check Wi-Fi and the address, then try again.", "Retry", [this] { refresh(true); })->flex = 1;
       markAll_->visible = false;
@@ -290,9 +298,21 @@ class ListScreen : public Screen {
         feed_ = std::move(f);
         haveData_ = true;
         error_ = false;
+        notSetUp_ = false;
         fs::writeFile(cachePath(kind_), r.body);
         status_->setText("Updated " + clockText());
         markSeen();
+        rebuild();
+        return;
+      }
+      notSetUp_ = r.error == HaError::NotFound;
+      if (notSetUp_) {  // the saved list belongs to a feed that is gone: drop it with its badge
+        feed_.items.clear();
+        haveData_ = false;
+        error_ = false;
+        fs::removeAll(cachePath(kind_));
+        writeBadge(0);
+        status_->setText("");
         rebuild();
         return;
       }
@@ -366,7 +386,7 @@ class ListScreen : public Screen {
   std::vector<Conversation> convs_;
   int rowCount_ = 0;
   int64_t seenAtStart_ = 0;
-  bool haveData_ = false, busy_ = false, error_ = false, fetchedOnce_ = false;
+  bool haveData_ = false, busy_ = false, error_ = false, notSetUp_ = false, fetchedOnce_ = false;
   uint32_t lastFetchMs_ = 0;
   ui::Column* holder_ = nullptr;
   ui::Pager* pager_ = nullptr;

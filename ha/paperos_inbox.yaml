@@ -1,37 +1,26 @@
-# PaperOS inbox feeds: recent WhatsApp messages and unread mail for the e-ink device (repo
-# m5paper-os, docs/BACKEND.md "Inbox feeds"). The device reads sensor.paperos_whatsapp_inbox and
-# sensor.paperos_mail_inbox over the REST API; it never talks to WhatsApp or Proton itself.
+# PaperOS inbox (repo m5paper-os, docs/BACKEND.md "Inbox feeds", DECISIONS.md D22).
 #
-# Source: the "WhatsApp Gateway" add-on (FaserF, slug 605cee21_whatsapp) plus its `whatsapp`
-# integration, which fires whatsapp_message_received / whatsapp_message_sent. Field names
-# below come from the integration and add-on source (v2.1.10): type "message", content,
-# caption, media_type, sender_name, sender_number, from (chat JID; the group JID in a
-# group), is_group, id, raw.messageTimestamp; the sent event has "to" (chat JID).
+# Since 2026-11-16 Home Assistant is not trusted with message text (D22): the WhatsApp Gateway add-on, its
+# `whatsapp` integration and the Proton Mail Bridge add-on are removed, and with them the WhatsApp feed, the
+# guarded send script (script.paperos_whatsapp_send), its rate-limit sensor and the IMAP mail feed.
 #
-# Privacy: Home Assistant has no per-user entity permissions, so the sensors are kept out of
-# the recorder (no history, no logbook) and must not be put on a dashboard. The message and
-# mail events are excluded from the recorder as well: they carry the message text.
+# What comes next (ROADMAP.md Phase 6): a companion Android app on the phone reads the WhatsApp and Proton Mail
+# notifications, encrypts each one for the PaperOS device (authenticated, end to end), and posts only the
+# ciphertext to Home Assistant. A relay sensor here will store and forward those blobs; it is added by the
+# relay task once the protocol is fixed. Home Assistant never sees plaintext and holds no send rules: those
+# live in the phone app.
 #
-# The feed holds recent messages, not "unread": a chat's items go when the owner answers in
-# that chat (from the phone too), when the device calls script.paperos_inbox_clear, or
-# after 48 hours. The mail feed is described above its template below.
-#
-# Sending (DECISIONS.md D21, BACKEND.md "Sending a WhatsApp message"): the device calls script.paperos_whatsapp_send, never the
-# add-on or whatsapp.send_message itself. The guards live in the script: trimmed text of 1..1000 characters, a chat JID of
-# the form <digits>@s.whatsapp.net or <digits>@g.us (one target, no lists), at least 10 s between sends and at most 20 per
-# hour (send times kept in sensor.paperos_whatsapp_sends), one run at a time. The device asks for confirmation first.
+# Kept for that relay:
+# - script.paperos_inbox_clear: "Mark all read" on the device calls it (a service call works for a
+#   non-admin user; firing events does not). Today nothing listens to its event.
+# - the recorder exclusion of the two feed entity ids, so whatever fills them later never reaches the history
+#   database.
 
 recorder:
   exclude:
     entities:
       - sensor.paperos_whatsapp_inbox
       - sensor.paperos_mail_inbox
-      - sensor.paperos_whatsapp_sends
-    event_types:
-      - whatsapp_message_received
-      - whatsapp_message_sent
-      - imap_content
-      - paperos_whatsapp_send_log
 
 script:
   paperos_inbox_clear:
@@ -52,231 +41,3 @@ script:
         event_data:
           feed: "{{ feed }}"
           before: "{{ before | default(0) | int(0) }}"
-
-  # Called by the device as POST /api/services/script/paperos_whatsapp_send?return_response with {"chat": ..., "text": ...}.
-  # The answer is service_response = {"ok": true/false, "reason": "", "message_id": "..."}; reason is one of empty,
-  # too_long, bad_chat, too_soon, hourly_limit (refused before sending: nothing went out) or send_failed (the
-  # integration did not confirm the send). Every attempt that passes the guards counts towards the rate limit, also a
-  # failed one, so a fault cannot turn into a burst of retries.
-  # Rate limit: the script fires paperos_whatsapp_send_log before it sends; the trigger-based template sensor
-  # sensor.paperos_whatsapp_sends keeps the times of the last hour in its attribute `times` (restored after a restart, and
-  # only the script and admins can fire that event: a non-admin token cannot). mode: single means one run at a time, so
-  # reading the list and adding to it cannot race. A script's own last_triggered cannot be used: it is set when the
-  # current run starts.
-  # Values are not stored in variables as text: Home Assistant turns a rendered "42" into a number, so the checks
-  # re-read the fields inside one template. whatsapp.send_message takes `target` (it splits on commas: the JID check
-  # allows none) and `message`, and answers {"success": true, "message_id": ...} (integration v2.1.10, services.yaml
-  # and __init__.py of FaserF/ha-whatsapp). A text that is only a number in another spelling ("4.50", "+5") goes out as
-  # Home Assistant renders it ("4.5", "5"); one that reads as a list or None is refused by the integration (send_failed).
-  paperos_whatsapp_send:
-    alias: PaperOS WhatsApp send
-    description: >
-      Sends one WhatsApp text message from the PaperOS device, with guards (length, chat form, at most one per 10 s and
-      20 per hour). Returns {"ok", "reason", "message_id"}.
-    mode: single
-    max_exceeded: silent
-    fields:
-      chat:
-        description: The chat JID, <digits>@s.whatsapp.net (a person) or <digits>@g.us (a group).
-        required: true
-        example: 31612345678@s.whatsapp.net
-        selector:
-          text:
-      text:
-        description: The message, 1 to 1000 characters after trimming.
-        required: true
-        example: Somdoku 12:34, no mistakes
-        selector:
-          text:
-            multiline: true
-    sequence:
-      - variables:
-          now_ts: "{{ now().timestamp() | int }}"
-      - variables:
-          recent: >-
-            {{ (state_attr('sensor.paperos_whatsapp_sends', 'times') or [])
-               | map('int', 0) | select('gt', now_ts - 3600) | list }}
-      - variables:
-          refusal: >-
-            {%- set msg = (text | default('', true) | string) | trim -%}
-            {%- set jid = (chat | default('', true) | string) | trim -%}
-            {%- if msg | length == 0 -%}empty
-            {%- elif msg | length > 1000 -%}too_long
-            {%- elif not (jid is match('^[0-9]{5,24}(-[0-9]{5,12})?@(s[.]whatsapp[.]net|g[.]us)$')) -%}bad_chat
-            {%- elif recent | count > 0 and now_ts - (recent | max) < 10 -%}too_soon
-            {%- elif recent | count >= 20 -%}hourly_limit
-            {%- endif -%}
-      - if:
-          - condition: template
-            value_template: "{{ refusal | string | trim != '' }}"
-        then:
-          - variables:
-              result:
-                ok: false
-                reason: "{{ refusal | string | trim }}"
-                message_id: ""
-          - stop: Refused by a guard
-            response_variable: result
-      - event: paperos_whatsapp_send_log
-        event_data:
-          ts: "{{ now_ts }}"
-      - action: whatsapp.send_message
-        continue_on_error: true
-        response_variable: sent
-        data:
-          target: "{{ chat | string | trim }}"
-          message: "{{ text | string | trim }}"
-      - variables:
-          done: "{{ sent is defined and sent is mapping and sent.get('success', false) == true }}"
-      - variables:
-          result:
-            ok: "{{ done }}"
-            reason: "{{ '' if done else 'send_failed' }}"
-            message_id: "{{ ((sent.get('message_id') if sent is defined and sent is mapping else '') or '') | string }}"
-      - stop: Done
-        response_variable: result
-
-template:
-  - triggers:
-      - trigger: event
-        event_type: whatsapp_message_received
-        id: received
-      - trigger: event
-        event_type: whatsapp_message_sent
-        id: sent
-      - trigger: event
-        event_type: paperos_inbox_clear
-        event_data:
-          feed: whatsapp
-        id: clear
-    sensor:
-      - name: PaperOS WhatsApp inbox
-        unique_id: paperos_whatsapp_inbox
-        icon: mdi:message-text
-        state: "{{ now().timestamp() | int }}"
-        attributes:
-          updated: "{{ now().isoformat() }}"
-          items: >
-            {% set max_age = 48 * 3600 %}
-            {% set t = now().timestamp() | int %}
-            {% set old = (this.attributes.get('items') or [])
-                         | selectattr('ts', 'gt', t - max_age) | list %}
-            {% set d = trigger.event.data %}
-            {% if trigger.id == 'clear' %}
-              {% set before = (d.get('before') or 0) | int(0) %}
-              {{ old | selectattr('ts', 'gt', before) | list if before > 0 else [] }}
-            {% elif trigger.id == 'sent' %}
-              {{ old | rejectattr('key', 'eq', (d.get('to') or d.get('recipient') or '') | string) | list }}
-            {% else %}
-              {% set chat = (d.get('from') or d.get('sender') or '') | string %}
-              {% set media = (d.get('media_type') or '') | string %}
-              {% set text = ((d.get('content') or d.get('caption') or '') | string) | trim %}
-              {% if text == '' and media != '' %}
-                {% set text = '[' ~ media ~ ']' %}
-              {% endif %}
-              {% if d.get('type') != 'message' or text == '' or chat == ''
-                    or chat.endswith('@broadcast') or chat.endswith('@newsletter') %}
-                {{ old }}
-              {% else %}
-                {% set raw_ts = (d.get('raw') or {}).get('messageTimestamp') %}
-                {% if raw_ts is mapping %}
-                  {% set raw_ts = raw_ts.get('low') %}
-                {% endif %}
-                {% set ts = raw_ts | int(t) %}
-                {% set number = (d.get('sender_number') or '') | string %}
-                {# Group name: looked up at event time (no polling) in the integration's "Chats" sensor, whose attribute `groups`
-                   lists the groups with their jid. That sensor is disabled by default: enable it in Home Assistant (Settings >
-                   Devices > WhatsApp > Chats). Without it, or when the group is not in the list, the name stays "Group". #}
-                {% set chats = integration_entities('whatsapp') | select('match', 'sensor\\..*_chats$') | list %}
-                {% set groups = (state_attr(chats[0], 'groups') if chats | count > 0 else none) or [] %}
-                {% set found = groups | selectattr('jid', 'eq', chat) | list %}
-                {% set group_name = ((found[0].get('name') or found[0].get('subject')) if found | count > 0 else none) or 'Group' %}
-                {% set item = {
-                  'id': (ts | string) ~ '-' ~ number ~ '-' ~ ((d.get('id') or '') | string)[-6:],
-                  'from': ((d.get('sender_name') or number or '?') | string)[:60],
-                  'chat': group_name[:40] if (d.get('is_group') or chat.endswith('@g.us')) else '',
-                  'text': text[:500],
-                  'ts': ts,
-                  'key': chat
-                } %}
-                {{ ([item] + (old | rejectattr('id', 'eq', item.id) | list))[:30] }}
-              {% endif %}
-            {% endif %}
-
-  # ------------------------------------------------------------------ Mail
-  # Source: Proton Mail Bridge (local add-on, addons/protonmail_bridge, IMAP over TLS on
-  # local-protonmail-bridge:143) + the core IMAP integration (folder INBOX, search
-  # "UnSeen UnDeleted", message data: text). Event fields from the integration source (2026.10):
-  # entry_id, uid, sender (address only), subject, date (datetime), text (first 2048 bytes,
-  # text/plain, else text/html), initial (false when only a removal re-triggered the newest
-  # message). Only the newest unread mail fires an event. The device fetches the full text with
-  # imap.fetch (entry = key, uid = id).
-  # The feed holds unread mail as it arrived: it is emptied when the IMAP unread count reaches 0
-  # (everything read elsewhere) or by script.paperos_inbox_clear; a mail read elsewhere while
-  # others stay unread remains in the list. Newest 20.
-  - triggers:
-      - trigger: event
-        event_type: imap_content
-        id: mail
-      - trigger: template
-        value_template: >
-          {{ integration_entities('imap') | select('match', 'sensor\\.') | map('states')
-             | select('eq', '0') | list | count > 0 }}
-        id: allread
-      - trigger: event
-        event_type: paperos_inbox_clear
-        event_data:
-          feed: mail
-        id: clear
-    sensor:
-      - name: PaperOS Mail inbox
-        unique_id: paperos_mail_inbox
-        icon: mdi:email
-        state: "{{ now().timestamp() | int }}"
-        attributes:
-          updated: "{{ now().isoformat() }}"
-          items: >
-            {% set old = this.attributes.get('items') or [] %}
-            {% if trigger.id == 'clear' %}
-              {% set before = (trigger.event.data.get('before') or 0) | int(0) %}
-              {{ old | selectattr('ts', 'gt', before) | list if before > 0 else [] }}
-            {% elif trigger.id == 'allread' %}
-              {{ [] }}
-            {% else %}
-              {% set d = trigger.event.data %}
-              {% set uid = (d.get('uid') or '') | string %}
-              {% if d.get('initial') == false or uid == '' %}
-                {{ old }}
-              {% else %}
-                {% set ts = as_timestamp(d.get('date'), now().timestamp()) | int %}
-                {% set text = ((d.get('text') or '') | string)
-                              | regex_replace('\r', '') | regex_replace('[ \t\u00a0]+', ' ')
-                              | regex_replace(' ?\n ?', '\n') | regex_replace('\n{3,}', '\n\n') | trim %}
-                {% set item = {
-                  'id': uid,
-                  'from': ((d.get('sender') or '?') | string)[:80],
-                  'chat': '',
-                  'subject': ((d.get('subject') or '') | string)[:150],
-                  'text': text[:1500],
-                  'ts': ts,
-                  'key': (d.get('entry_id') or '') | string
-                } %}
-                {{ ([item] + (old | rejectattr('id', 'eq', item.id) | list))[:20] }}
-              {% endif %}
-            {% endif %}
-
-  # Send times of script.paperos_whatsapp_send (its rate limit): unix seconds of the attempts of the last hour, newest
-  # last. No message text, no chat. State = the time of the last attempt.
-  - triggers:
-      - trigger: event
-        event_type: paperos_whatsapp_send_log
-    sensor:
-      - name: PaperOS WhatsApp sends
-        unique_id: paperos_whatsapp_sends
-        icon: mdi:send-clock
-        state: "{{ (trigger.event.data.get('ts') or now().timestamp()) | int(0) }}"
-        attributes:
-          times: >-
-            {%- set t = now().timestamp() | int -%}
-            {%- set old = (this.attributes.get('times') or []) | map('int', 0) | select('gt', t - 3600) | list -%}
-            {{ (old + [(trigger.event.data.get('ts') or t) | int(t)])[-30:] }}

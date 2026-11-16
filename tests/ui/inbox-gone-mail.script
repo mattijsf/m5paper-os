@@ -1,0 +1,5 @@
+# app: mail
+# D22: the mail feed sensor is gone from Home Assistant (404): the same "not set up" state.
+wait 1500
+expect-state notsetup
+shot inbox-gone-mail

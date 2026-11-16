@@ -63,7 +63,8 @@ the token and the Authorization header are never shown or logged. Developer > "H
 `inbox.whatsapp.favorites` (DECISIONS.md D21): the chats "New message" and other apps (a game's score) may start a WhatsApp message
 to; at most 8, each a `name` (shown, 40 characters) and a `chat` JID (`<digits>@s.whatsapp.net` or `<digits>@g.us`; others are
 ignored). No Settings screen edits it yet: write it into the file (it survives Settings saving the file). A chat's JID is the `key`
-of its items in `sensor.paperos_whatsapp_inbox`. Not secret, but private: it names the user's chats.
+of its items in `sensor.paperos_whatsapp_inbox`. Not secret, but private: it names the user's chats. Since D22 (2026-11-16) there is
+no send path to a favourite (only replies through the phone are planned), so the key has no effect beyond opening the compose screen.
 
 ## Secrets and provisioning: `/sd/paperos_config`
 

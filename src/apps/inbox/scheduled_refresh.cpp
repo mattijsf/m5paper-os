@@ -114,6 +114,11 @@ RefreshResult refreshFeeds(HaClient ha) {
   for (const FeedDef& f : kFeeds) {
     HaResult r = ha.get(std::string("/api/states/") + f.entity);
     Feed feed;
+    if (r.error == HaError::NotFound) {  // no such feed in Home Assistant (DECISIONS.md D22): nothing to count, no stale badge
+      fs::removeAll(std::string("/data/cache/inbox/") + f.id + ".json");
+      fs::writeFile(std::string("/data/cache/") + f.id + "/badge", "0");
+      continue;
+    }
     if (!r.ok() || !parseFeed(r.body, feed)) continue;
     ++out.feedsOk;
     Store app(std::string("/data/apps/") + f.id + ".json");  // the app's own store: its seen marker

@@ -64,7 +64,7 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   which is strictly better than deep sleep for long idle. E-ink keeps the image either way.
 - Details and open measurements: `POWER.md`.
 
-## D8. WhatsApp via phone notifications in Home Assistant, not a WhatsApp client  (superseded by D16, kept as fallback)
+## D8. WhatsApp via phone notifications in Home Assistant, not a WhatsApp client  (superseded by D16; no longer a fallback since D22: it puts message text in Home Assistant)
 
 - **Why**: WhatsApp has no API for reading personal messages. The alternatives are unofficial
   WhatsApp Web clients (Baileys, whatsapp-web.js, WAHA) running on a server: against WhatsApp's
@@ -130,7 +130,7 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   gitignored `config.local.json` is one command. Flash encryption is not enabled (it makes
   development and recovery harder); the trade-off is stated in `BACKEND.md`.
 
-## D16. WhatsApp through a Home Assistant add-on. Supersedes D8
+## D16. WhatsApp through a Home Assistant add-on. Supersedes D8  (superseded by D22; add-on removed 2026-11-16)
 
 - **Decision**: the user declined the phone-notification route and asked for a Home Assistant
   plugin that reads the messages and stores them, so the device only reads a small list.
@@ -147,7 +147,7 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   device code, only the triggers in the package change.
 - **Not verified**: event fields for groups, effect on phone notifications. Task P6-1.
 
-## D17. Proton Mail through Bridge + Home Assistant's IMAP integration. Supersedes D9
+## D17. Proton Mail through Bridge + Home Assistant's IMAP integration. Supersedes D9  (superseded by D22; Bridge add-on removed 2026-11-16)
 
 - **Decision**: Proton Mail
   Bridge runs where Home Assistant can reach it; the core IMAP integration fires `imap_content`
@@ -190,7 +190,7 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   strongest known network; never loop. The radio is 2.4 GHz only. The card on the device holds `HA_TOKEN`, `WIFI_SSID`,
   `WIFI_PASSWORD`, `HA_URL` (names and lengths only, checked 2026-11-15).
 
-## D20. WhatsApp data lives in a hardened Home Assistant sensor
+## D20. WhatsApp data lives in a hardened Home Assistant sensor  (superseded by D22)
 
 - **Decision**: the WhatsApp feed stays a Home Assistant template sensor (`sensor.paperos_whatsapp_inbox`, D16), hardened: the sensor and
   the `whatsapp_message_received` / `whatsapp_message_sent` events are excluded from the recorder (no history, no logbook) and the sensor is
@@ -203,7 +203,7 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
 - Related: the add-on's open endpoints (accepted risk, BACKEND.md "Add-on security"), D8 stays the fallback.
 
 
-## D21. A clipboard, and WhatsApp can send. Changes D16 "read-only"
+## D21. A clipboard, and WhatsApp can send. Changes D16 "read-only"  (send path superseded by D22; the clipboard stays)
 
 - **Decision**: the OS gets a text clipboard (`core/clipboard`: 4 KB, kept in `/data/clipboard.txt`), every text field offers
   Paste / Copy all / Clear on a long press, and the WhatsApp app can send a message (reply in a chat, or to a favourite chat from
@@ -217,3 +217,43 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   app and `apps/inbox/compose.h` for other apps (apps/inbox.md "Sending"). The compose screen and the sheet ran on the device (frame dumps).
   **Nothing is installed in Home Assistant and nothing has been sent.**
 - Mail stays read-only.
+
+## D22. Home Assistant is not trusted with message text: the inbox comes from an end-to-end encrypted companion app. Supersedes D16, D17, D20 and the send path of D21
+
+- **Rule**: "I do not trust HA fully, too many integrations that might go rogue". Every integration runs inside
+  Home Assistant Core with full access to all states and attributes, the event bus, `.storage` (config entries, an IMAP password in
+  plain JSON) and every service; a recorder exclusion does not help against that. So **message and mail text never reaches Home
+  Assistant in plaintext**, and Home Assistant holds **no send rights or send rules**: D16/D17 failed this (a rogue integration could
+  read every WhatsApp message and, through Bridge, the whole Proton mailbox, and could call `whatsapp.send_message` past the guards
+  of `script.paperos_whatsapp_send`).
+- **Decision**: a small sideloaded Android app on the user's phone (NotificationListenerService) reads the WhatsApp and Proton Mail
+  notifications, encrypts each one for the PaperOS device (authenticated: X25519 + XChaCha20-Poly1305 / `crypto_box`, keys of both
+  ends, a counter or time window against replay) and posts only the ciphertext to Home Assistant. Home Assistant stores and forwards
+  the blobs (a webhook into a trigger-based relay sensor, kept out of the recorder) and is a dumb pipe: it can neither read nor forge
+  an item. The device decrypts (Monocypher, platform-free in `core`), then shows the same feed contract as today
+  (BACKEND.md "Inbox feeds"). Pairing by QR code (the device shows its public key; both ends show a short fingerprint the user
+  compares). Commands back (reply, mark read) are encrypted device to phone the same way. **Send limits (length, rate, one target)
+  live in the phone app**, not in a Home Assistant script. Design sketch: BACKEND.md "Companion app"; tasks: ROADMAP.md Phase 6.
+- **Costs the user accepts**:
+  - **Mail** shows only what the Proton Mail notification shows: sender and subject, maybe a short preview. No full body, no
+    full-text fetch (D17 had rejected "notification text only" for this reason).
+  - **WhatsApp replies only while that notification is still on the phone** (its RemoteInput action). No "new message to a
+    favourite chat" (Somdoku's "Stuur naar WhatsApp" loses its path until a reply-based or phone-side alternative exists). Muted chats
+    and media are missing.
+  - **The phone must be on and online** (and the app not killed by battery optimisation: foreground service plus an exemption).
+  - **A sideloaded Kotlin app must be built, signed and maintained**, alongside the firmware.
+  - Home Assistant still sees metadata (timing, sizes, count) and can drop or delay items. The device treats everything from Home
+    Assistant as untrusted input (bounded JSON, sizes checked before decrypting).
+- **Gains**: Home Assistant, the Green and its backups hold no message or mail text; no unofficial WhatsApp client on the account (ban
+  risk gone); no decrypted Proton mailbox on the Green; read sync for free (a notification dismissed on the phone can drop the item
+  on the device); any app with notifications (Signal, SMS, calendar) could follow at little cost.
+- **Done on 2026-11-16**: both feeds emptied first; the WhatsApp Gateway session logged out
+  (the add-on's "Hard Reset & Logout": Baileys `logout()`, credentials deleted); the `whatsapp` integration, the WhatsApp Gateway
+  add-on (with its data), the FaserF add-on repository and the local Proton Mail Bridge add-on (with its data) removed; the package
+  cut down to `script.paperos_inbox_clear` and a recorder exclusion (home-assistant commit `ebc133d`), the orphaned entities removed.
+  The device shows "Not set up yet" for a missing feed (apps/inbox.md).
+- **Open (questions for the user, STATUS.md)**: WhatsApp reply scope, whether sender + subject is enough for mail, which phone and
+  Android version, whether the phone is always on and online at home. Nothing of the app or the crypto is built before the answers.
+- **Rejected**: keeping the add-ons and hardening Home Assistant further (the threat is any integration inside Core); D8 (Home
+  Assistant companion app notification sensors: plaintext in Home Assistant); the device talking to the phone directly on the LAN
+  (only at home, the phone would need an open port).

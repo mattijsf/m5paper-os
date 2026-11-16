@@ -4,19 +4,19 @@ The device talks to exactly one server: the user's Home Assistant (HA OS 2026.10
 and HACS). Home Assistant does the heavy work; the device only reads small JSON documents.
 
 1. **Home app**: read entity states, call services.
-2. **WhatsApp inbox**: a Home Assistant add-on is linked to the user's WhatsApp account and
-   fires an event per incoming message; a template sensor keeps the recent ones.
-3. **Mail inbox**: Proton Mail Bridge exposes the mailbox over IMAP; Home Assistant's IMAP
-   integration fires an event per new mail; a template sensor keeps the recent ones.
+2. **Inbox (WhatsApp, Mail)**: since 2026-11-16 (DECISIONS.md D22) Home Assistant is **not trusted with message text**. A
+   companion Android app on the user's phone reads the WhatsApp and Proton Mail notifications, encrypts each one for the
+   device, and posts only ciphertext; Home Assistant stores and forwards it ("Companion app" below). **Not built yet**: today
+   Home Assistant has no feed sensors and the inbox apps say "Not set up yet".
 
-The device never speaks WhatsApp or IMAP. It reads two sensors, and sends a WhatsApp message only through one Home Assistant
-script with guards (`script.paperos_whatsapp_send`, DECISIONS.md D21, "Sending a WhatsApp message" below). The reasons and the rejected
-alternatives are in `DECISIONS.md` D16 and D17.
+The device never speaks WhatsApp or IMAP, and Home Assistant never sees a message in plaintext. The earlier route (a WhatsApp
+add-on and Proton Mail Bridge inside Home Assistant, D16/D17) was removed on 2026-11-16; see "Removed: the add-on route" below.
 
 ```
-WhatsApp servers <--linked device--> [WhatsApp add-on] --event--> [template sensor] --+
-Proton Mail <--> [Proton Bridge] <--IMAP--> [HA IMAP integration] --event--> [sensor] +--> REST --> PaperOS
-lights, climate, switches ---------------------------------------------- states ------+
+phone: WhatsApp / Proton Mail notifications --> [companion app] --encrypted blob--> [HA webhook -> relay sensor] --+
+                                    ^                                                                             |
+                                    +---------- encrypted command (reply, mark read) <-- [HA command queue] <--+  +--> REST --> PaperOS
+lights, climate, switches -------------------------------------------------------------- states -----------------+
 ```
 
 ## Connection
@@ -63,6 +63,7 @@ build this before measuring.
 ## Inbox feeds
 
 Both feeds have the same shape so the device has one implementation (`apps/inbox.md`).
+Until 2026-11-16 Home Assistant filled these two sensors in plaintext (D16/D17); both are gone now (404).
 
 | Entity | state | attributes |
 |---|---|---|
@@ -86,213 +87,87 @@ Item (the **feed contract**):
 | `ts` | unix seconds | unix seconds |
 | `key` | chat id (JID): used to drop a chat's items | IMAP config entry id: used to fetch the full text |
 
-The package is `ha/paperos_inbox.yaml`, a copy of the live `packages/paperos_inbox.yaml` in the Home Assistant config repo (commit de1323d there; the
-Home Assistant repo is the source, sync by copying). It defines the **WhatsApp half only** (sensor and `script.paperos_inbox_clear`); the mail sensor comes with P6-2.
-**Exception (2026-11-16)**: this repo's copy is ahead of the live one by the send script `script.paperos_whatsapp_send` and its rate-limit sensor (DECISIONS.md D21, "Sending a WhatsApp message" below); they are not installed yet.
-Tested on the live Home Assistant 2026.10.1 (2026-11-15): the template rendered 8 cases in Home Assistant's own engine (direct, group with a `{low, high}` timestamp,
-media without text, poll ignored, status broadcast ignored, sent removes the chat, clear, first run without attributes), fake events fired through the API
-produced the items, a fake sent event removed that chat, the script emptied the feed. **Not tested**: a real WhatsApp message (the integration is not set up
-yet: it needs the add-on API token pasted by the user), the script with a non-admin token, the recorder exclusion (needs a Home Assistant restart), the 48 h expiry.
-The package has no `connected` attribute, so the inbox's "link is down" notice never shows until one is added.
+Since D22 this is the shape of a feed **after the device has decrypted it**: the relay holds ciphertext, the device turns each
+decrypted item into this contract and the list, detail and badge code stay as they are. The relay's own layout is fixed in task
+P6-8/P6-9 (ROADMAP.md). What a notification gives: WhatsApp (MessagingStyle) sender, group name and the message texts; Proton Mail
+sender and subject, maybe a short preview, never the full body (so mail `text` is short and `key` no longer names an IMAP entry).
 
-### WhatsApp: "WhatsApp for Home Assistant" (FaserF)
+The package is `ha/paperos_inbox.yaml`, a copy of the live `packages/paperos_inbox.yaml` in the Home Assistant config repo
+(the Home Assistant repo is the source, sync by copying). Since 2026-11-16 (home-assistant commit `ebc133d`) it holds only
+`script.paperos_inbox_clear` and a recorder exclusion of `sensor.paperos_whatsapp_inbox` / `sensor.paperos_mail_inbox`, kept for the
+relay. `GET /api/states/sensor.paperos_*_inbox` answers **404** (checked live 2026-11-16 after the orphaned entities were removed):
+the inbox shows "Not set up yet" and drops its saved list (apps/inbox.md).
 
-- Docs: https://faserf.github.io/ha-whatsapp/ . Two parts: an add-on ("App", from the add-on
-  repository `https://github.com/FaserF/hassio-addons`) that holds the WhatsApp connection
-  using the Baileys library, and the `whatsapp` integration that talks to it.
-- Linking: the add-on shows a QR code; scan it in WhatsApp > Linked devices. It then behaves
-  like WhatsApp Web: one more linked device on the user's own account.
-- Incoming messages fire the event **`whatsapp_message_received`** with these fields (read from the integration and add-on source v2.1.10;
-  an earlier version of this page had them wrong): `type` = `"message"` for text **and** media (not `"chat"`), `content`, `caption`,
-  `media_type`, `sender_name`, `sender_number`, `from` (the **chat** JID: the person's `...@s.whatsapp.net`, or the group's `...@g.us` in a
-  group), `sender` (the person's JID inside a group), `is_group`, `id`, and `raw` (the whole raw message; `raw.messageTimestamp` is a number
-  or `{low, high}`). There is **no `timestamp` field and no group name** in the event. The integration drops the user's own messages from the
-  received event.
-- The user's own replies (from the phone too) fire **`whatsapp_message_sent`** with `to` / `recipient` (the chat JID).
-- **Feed item mapping** (`packages/paperos_inbox.yaml`): `key` = `from` (chat JID); `chat` = `"Group"` for groups (the name is not in the event: improving
-  this is open), `""` for direct chats; `text` = `content`, else `caption`, else `"[<media_type>]"`; `ts` = `raw.messageTimestamp` (`low` of a mapping),
-  else now; `id` = `"<ts>-<sender_number>-<last 6 of the message id>"`; chats ending in `@broadcast` (status) or `@newsletter` are skipped. The device
-  never parses `id` (it is only a key) and shows a group message as "Anna - Group".
-- "Unread": WhatsApp gives a linked device no reliable "read on the phone" signal through this
-  integration. The feed therefore holds **recent messages** and drops a chat's items when the
-  user answers in that chat (`whatsapp_message_sent` to the same JID), when the device's "Mark
-  all read" is used, or when they are older than 48 hours.
+## Companion app (D22, planned: tasks P6-8 to P6-11)
 
-Installed on 2026-11-15 (task P6-1, done in Home Assistant): add-on
-"WhatsApp Gateway" 2.1.10 from the repository above, slug `605cee21_whatsapp`. Facts about it: it runs on the **host
-network**, its web UI / API listens on **port 8066**, it maps **`/config` read-write**, and its **API key is shown in its
-web UI**. It wrote its integration 2.1.10 to `custom_components/whatsapp` itself (`auto_install_integration`). Options set:
-`admin_notifications_enabled` false, `admin_numbers` empty, `mark_online` false (so the phone keeps its notifications),
-`welcome_message_enabled` false, `sync_full_history` false, webhook off; start on boot on, auto-update off. Still open: restart
-Home Assistant to load the integration, the web UI password (`ui_auth_enabled`: the user types it), add the integration, the QR
-link by the user, one real captured event (below).
+Design sketch from 2026-11-16; P6-8 turns it into `docs/COMPANION.md`. Nothing of it is built.
 
-Facts from the linking on 2026-11-15 (task P6-1, done with the owner): **the WhatsApp link is up since 19:51** (the QR code was scanned
-in the add-on's own web UI; the session survived an add-on restart: `hasCreds` true, connection open). Things learned:
-
-- The integration's **phone-number pairing rewrites a leading 0 to the country code 49**: enter numbers as `31...`.
-- The Home Assistant setup dialog **recreates the socket on every submit**, which voids a QR code or pairing code that was just shown:
-  **pair in the add-on's web UI**, not in the dialog.
-- The bundled Baileys is **7.0.0-rc14**, with open upstream pairing bugs (WhiskeySockets/Baileys #2600, #2737, #2770).
-- **Without `ui_auth_enabled` the add-on treats every private-network address as superadmin**: its web UI, chats API and send API are open
-  on port 8066 without a key; and it **broadcasts its API key over mDNS while it is not set up**. Set the UI password.
-- Add-on options now: `log_level` info, `mask_sensitive_data` true (besides those above).
-- Still open: the UI password (the user types it), the Home Assistant integration is not set up yet, and the question where WhatsApp
-  data may live (STATUS.md, open question 1).
-
-Risks and checks (task P6-1). **These need the owner's attention before installing:**
-
-1. **Terms of service.** The add-on is an unofficial client. Its own docs warn that automated
-   use "may violate their Terms of Service and lead to a permanent account ban" and recommend
-   a second number. Reading the user's personal messages requires linking the *personal*
-   account. PaperOS mostly reads; since D21 (2026-11-15) it can also send a message the user typed and confirmed on the device, through
-   a rate-limited script (below). The risk is not zero and it is the user's account. The owner chose this route on 2026-11-15
-   after the risk-free alternative (phone notification sensors, `DECISIONS.md` D8) was offered;
-   repeat this warning once at install time.
-2. **Phone notifications.** A linked device that reports itself "online" can stop WhatsApp
-   from pushing notifications to the phone. After linking, send a test message from another
-   account and confirm the phone still notifies. If not, set the add-on's presence to
-   unavailable (its API has `POST /set_presence`) or find its "mark online" option.
-3. **Never** enable the add-on's auto-responder, bot commands, or "mark as read" features.
-4. The link drops if the phone is offline for 14 days or WhatsApp is reinstalled: the feed
-   then silently stops. The integration has a connection `binary_sensor`; the inbox app shows
-   "WhatsApp link is down" when it is off (fetch it along with the feed).
-5. Group messages: the event has no group name, and **group names stay "Group": a decision, not an open task.** The only source without polling
-   is the integration's Chats sensor (`sensor.whatsapp_<number>_chats`, disabled by default), whose `groups` attribute lists every group chat with its `jid`;
-   enabling it would put the chat and group list into entity attributes that every Home Assistant login can read, and the owner wants this hardened (D20). The
-   sensor stays disabled on purpose. The package template still looks the name up there (`integration_entities('whatsapp')`, `selectattr('jid','eq',chat)`) and falls
-   back to "Group": tested in Home Assistant's engine without the sensor ("Group"), so it costs nothing and would work if the decision changes.
-   (`whatsapp.search_groups` only posts a persistent notification; `get_contacts` returns a response but is one call per event.)
-   `whatsapp_message_received`) for a direct and a group message and save redacted samples as fixtures; look for a way to get the group name.
-
-### Integration set up (2026-11-15, about 20:12-20:14)
-
-- The user pasted the add-on API token into the manual integration form (host `http://localhost:8066`): the `whatsapp` config entry is loaded and
-  `binary_sensor.whatsapp_<number>` (connected) is on. It also creates a `notify`, `switch ..._auto_responder` (off), `switch ..._moderation_engine`
-  (on by default: switched off, after which the entity disappears by design), `sensor ..._active_moderation_warnings` and an `update`. It offers **57
-  services**, including `whatsapp.send_message`, callable by any Home Assistant login. Integration options are at their defaults: `mark_as_read` false,
-  `self_messages` false.
-- The user restarted Home Assistant at about 20:14: afterwards the integration is loaded and connected and `sensor.paperos_whatsapp_inbox` restored its
-  state. **The recorder exclusion is verified**: a state change of the sensor (the clear script) produced no new history row (5 rows before, 5 after, all
-  from before the restart).
-- The connection `binary_sensor` now exists: the inbox's link-down notice could read it (today it reads an optional `connected` attribute that the package
-  does not set).
-- **Verified 20:24:31**: a real incoming direct message reached the feed 5 s after it was sent, with exactly the contract keys (`from` = display name, `chat` = "", `key` = `...@s.whatsapp.net`, numeric `ts` from `raw.messageTimestamp`, `id` = `<ts>-<number>-<6 chars>`).
-- **Still not verified**: a real group message in the feed, the clear script with a non-admin token, the 48 h expiry, group names.
-
-### Add-on security (accepted risk, 2026-11-15)
-
-- After the user set the UI password (`ui_auth_enabled` true, 20:15), from another machine on the home network and **without login** port 8066
-  answers 302/401 for the web UI, `/api/chats`, `/status`, `/stats`, `/logs` and `POST /send_message`.
-- **Still open without any login in add-on 2.1.10**: `GET /api/dashboard` (connection state, own number, last received message and sender, recent
-  lists), `GET /api/moderation/config`, and `GET` and `POST /api/autoresponder/config`. The POST handler has no auth middleware (source:
-  `whatsapp/app/src/routes/api/autoresponder.js`) and sets `enabled` and `message_template` from the body: anyone on the home network could switch on
-  auto-replies sent from the user's account. Verified only that an unauthenticated POST with an empty body returns 200 and changes nothing
-  (`enabled` stayed false); enabling was not tried. This is a defect of the add-on, not a setting.
-- **The owner chose to keep the add-on running** ("Keep running"). **Watch**: check each add-on update for auth on `/api/autoresponder/config` and
-  `/api/dashboard`.
-- The add-on's API token belongs only in the Home Assistant integration; it must **never** go on the device's SD card (the device needs only `HA_TOKEN` and `HA_URL`).
-
-### Mail: Proton Mail Bridge + the built-in IMAP integration
-
-Proton has no IMAP except through **Proton Mail Bridge** (needs a paid Proton plan), which
-decrypts mail locally and serves IMAP on port 1143 with its own generated password.
-
-1. **Run Bridge where Home Assistant can reach it** (task P6-2). Options, in order:
-   a. A Home Assistant add-on that runs Bridge and exposes IMAP. The known community add-on
-      (`fboulay/ha-addons-repository`, "ProtonMail Bridge") documents itself as send-only
-      (SMTP); check whether its current version or a fork exposes port 1143.
-   b. A small **local add-on** in the home-assistant repo wrapping the
-      `ghcr.io/belphemur/protonmail-bridge` image (ports 1143/1025, data in `/data`), logged in
-      once interactively (`init`, `login`, 2FA, then `info` prints the IMAP password).
-   c. Bridge on another always-on machine in the house.
-   Do not start b or c without telling the user what will be installed where.
-2. **IMAP integration** (core, https://www.home-assistant.io/integrations/imap): server = the
-   Bridge host, port 1143, STARTTLS, "verify SSL" off (Bridge uses a self-signed certificate),
-   username/password from Bridge, folder INBOX, search `UnSeen UnDeleted`. In its options
-   enable "message data: text" and keep push (IDLE) on.
-3. Each new mail fires **`imap_content`** with `sender`, `subject`, `date`, `text` (first
-   2048 bytes by default), `uid`, `entry_id`, `initial`. The package stores the newest 20.
-   When the integration's unread-count sensor drops to 0 (everything read elsewhere) the list
-   is emptied.
-4. **Full text on demand**: the mail detail screen calls
-   `POST /api/services/imap/fetch?return_response` with `{"entry": "<key>", "uid": "<id>"}` and
-   shows `service_response.text`. Home Assistant does the MIME decoding. HTML-only mails may
-   come back as HTML: the device strips tags (`core/text_clean`, task P6-6). Verify the exact
-   request/response shape in task P6-2 and record a fixture.
+- **Threat model**: Home Assistant and every integration in it may be hostile. It may read, drop, delay and replay what passes
+  through; it must not be able to read or forge an item, or make the phone send. The device parses everything from Home Assistant as
+  untrusted input (bounded JSON, sizes checked before decrypting).
+- **Phone side**: a sideloaded Kotlin app, NotificationListenerService for WhatsApp and Proton Mail, foreground service and a
+  battery-optimisation exemption. `onNotificationRemoved` (read or dismissed on the phone) can drop the item on the device.
+- **Pairing**: the device makes an X25519 key pair (private key in `/sd/paperos_config`, secret rules apply) and shows its public key
+  as a QR code; the app scans it and posts its own public key through Home Assistant; both show a short fingerprint and the user
+  confirms they match.
+- **Items**: `crypto_box`-style authenticated encryption (X25519 + XChaCha20-Poly1305) with both keys, plus a counter or time window
+  against replay. Device: Monocypher (one C file, platform-free, `core`). Phone: libsodium (Lazysodium).
+- **Relay in Home Assistant**: a webhook trigger (`POST /api/webhook/<id>`; the id is a secret) into a trigger-based template sensor
+  holding the last N blobs per feed, recorder-excluded. Home Assistant still sees timing, sizes and count.
+- **Commands back** (reply, mark read): encrypted device to phone, delivered through a sensor or event the app reads (it keeps a
+  websocket to Home Assistant; no Google push). **Send guards live in the phone app** (length, 10 s gap, 20 per hour, one chat), not
+  in Home Assistant. A reply works only while that chat's notification is still on the phone (its RemoteInput action).
+- **Limits**: muted chats and media are missing; mail has no body; the phone must be on and online.
 
 ### "Mark all read" from the device
 
-The package defines `script.paperos_inbox_clear` (field `feed`: `whatsapp` or `mail`; optional **`before`**, a unix time) which
-fires the `paperos_inbox_clear` event the sensors listen to. **`before`** (2026-11-15): the device sends the newest `ts` its list showed, and the
-template drops only items with `ts <= before` (`old | selectattr('ts', 'gt', before)`); without it, or 0, everything is cleared as before. So a message that
-arrived after the list was fetched is not lost by "Mark all read" (it was, with a real one). **Installed 2026-11-15 20:43** (Home Assistant repo commit 80e19b0, byte-identical to this repo's copy) and tested in Home Assistant's own template engine:
-clear with `before` as a number and as a string keeps the newer item, `before` 0 or missing clears all. After the reload `script.paperos_inbox_clear` has
-the fields `feed` and `before`, the feed kept its one real item, and a live call with `before=1` changed the sensor state and dropped nothing. **Not tested live**:
-a device "Mark all read" with the new firmware against a feed that holds a newer item (only with fake events when the feed has no real messages), a real group message.
-`event_data.before` is rendered with `| int(0)`. The device calls
-`POST /api/services/script/paperos_inbox_clear` with `{"feed":"whatsapp","before":<ts>}` (a service call works for a non-admin user;
-firing events directly does not).
+The package defines `script.paperos_inbox_clear` (field `feed`: `whatsapp` or `mail`; optional **`before`**, a unix time) which fires
+the `paperos_inbox_clear` event. **Kept for the relay** (P6-9 decides what it clears); since 2026-11-16 nothing listens to the event.
+`before`: the device sends the newest `ts` its list showed, so a message that arrived after the list was fetched is not lost.
+`event_data.before` is rendered with `| int(0)`. The device calls `POST /api/services/script/paperos_inbox_clear` with
+`{"feed":"whatsapp","before":<ts>}` (a service call works for a non-admin user; firing events directly does not). Installed and tested
+in Home Assistant's own engine on 2026-11-15 (home-assistant commit 80e19b0).
 
-### Sending a WhatsApp message (DECISIONS.md D21)
+### Sending a WhatsApp message (D21): removed by D22
 
-The device calls `POST /api/services/script/paperos_whatsapp_send?return_response` with `{"chat":"<JID>","text":"<message>"}` (a service
-call: works for a non-admin user like `paperos_inbox_clear`). It never calls `whatsapp.send_message` or the add-on itself. The script
-(`ha/paperos_inbox.yaml`) answers `service_response` = `{"ok": true|false, "reason": "...", "message_id": "..."}`.
+`script.paperos_whatsapp_send` (guards: 1..1000 characters, one chat JID, 10 s gap, 20 per hour) was installed on 2026-11-16 and
+sent one message to the user's own number; it was removed the same day with the add-on. The device code (compose, confirmation,
+`whatsapp::sendToFavorite`) stays; `POST /api/services/script/paperos_whatsapp_send?return_response` now answers **400** (checked live
+2026-11-16), which the device shows as the toast "Not sent: no send script in Home Assistant", keeping the text. The guards move to
+the phone app (P6-11); the script's design is in git (`ha/paperos_inbox.yaml` before D22, `tests/ha/check-send-script.py`).
 
-| Guard (inside the script) | Refusal `reason` |
-|---|---|
-| text trimmed, 1..1000 characters | `empty`, `too_long` |
-| chat is `<digits>@s.whatsapp.net` or `<digits>@g.us` (`<digits>-<digits>@g.us` for old groups): one target, no lists (the integration splits `target` on commas) | `bad_chat` |
-| at least 10 s since the last attempt | `too_soon` |
-| at most 20 attempts in the last hour | `hourly_limit` |
-| `mode: single` (`max_exceeded: silent`): one run at a time | (a second call while one runs gets no response) |
-| the integration did not answer `success: true` | `send_failed` |
+### Removed: the add-on route (D16, D17; 2026-11-15 to 2026-11-16)
 
-- **Rate limit, how**: before it sends, the script fires `paperos_whatsapp_send_log`; the trigger-based template sensor
-  `sensor.paperos_whatsapp_sends` keeps the times of the last hour in its attribute `times` (no text, no chat; restored after a restart;
-  excluded from the recorder). `mode: single` makes "read the list, then add to it" race-free. Every attempt that passes the guards counts,
-  a failed one too, so a fault cannot turn into a burst. Chosen because it needs no helper entities and survives restarts; the script's own
-  `last_triggered` cannot work (it is set when the current run starts), and a non-admin token cannot fire the event to fake or flush it.
-- **Integration fields** (FaserF/ha-whatsapp v2.1.10, `services.yaml` and `__init__.py`): `whatsapp.send_message` takes `target` (a JID or
-  number, or a comma list) and `message`, optional `account`, `quote`, `expiration`; it supports a response, `{"success": true,
-  "message_id": ...}`, and raises on failure (the script's `continue_on_error` turns that into `send_failed`). The integration also has a
-  recipient whitelist option (not set): it could be a second fence.
-- **Home Assistant pitfall**: a rendered template that reads as a Python literal becomes that type. The script therefore never keeps the
-  text in a variable; the checks re-read the field in one template. A message that is only a number in another spelling ("4.50", "+5")
-  goes out as Home Assistant renders it ("4.5", "5"); one that reads as a list or `None` is refused by the integration (`send_failed`).
-- **The device** (apps/inbox.md "Sending"): confirmation sheet first, always; it maps the answer to a toast: `Sent to <name>`, the
-  refusal reason ("Not sent: wait 10 seconds"), `400`/`404` = "Not sent: no send script in Home Assistant", a timeout = "No answer: check
-  WhatsApp first" (it may have gone out). The text stays in the field unless it was sent. The text is never logged on either side.
-- Whether the integration fires `whatsapp_message_sent` for a message sent through it (which would drop that chat from the feed, like a
-  reply from the phone) is not known.
-- **Checked**: the templates against 24 cases in a Jinja harness with stand-ins for Home Assistant's extensions
-  (`tests/ha/check-send-script.py`: guards, rate limit, hourly window, native types). **Not checked**: the script in Home Assistant itself
-  (not installed: it is installed together with the owner, in the Home Assistant repo, by its rules), the response over REST with a
-  non-admin token, what `mode: single` answers to a second call, a real send.
+Kept as a record; details in git history (this file before D22, home-assistant `addons/protonmail_bridge/` up to d97a365, and the
+Proton Mail notes).
+
+- **WhatsApp Gateway** (FaserF, Baileys 7.0.0-rc14, add-on 2.1.10 + `whatsapp` integration): linked on 2026-11-15, a real message
+  reached the feed in 5 s. Learned: without its UI password every private-network address was superadmin and its API key went out
+  over mDNS; `/api/dashboard` and `POST /api/autoresponder/config` had no auth even with it; the integration offered 57 services
+  (including `whatsapp.send_message`) to every Home Assistant login. Removal on 2026-11-16: "Hard Reset & Logout" in its web UI
+  (Baileys `logout()`: the linked device is dropped at WhatsApp, credentials deleted), then the integration, the add-on with its data,
+  and the add-on repository. Left on disk: `/config/custom_components/whatsapp` (unused code the add-on wrote; delete by hand).
+- **Proton Mail Bridge** (local add-on, Bridge 3.27.2 built on the Green; IMAP over SSL on port 143 for Core only, because the IMAP
+  integration speaks implicit TLS only): built and running, never logged in to Proton. Removed with its data on 2026-11-16; left on
+  disk: `/local_apps/protonmail_bridge` (the add-on source copy; delete by hand).
 
 ### Installing the package
 
 The Home Assistant config is a repo of its own: **live on push to main**,
 with its own rules (its docs: check YAML, push to main, wait for
-the sync, answer the user in Dutch there). Install as its own step in that repo: copy
-`ha/paperos_inbox.yaml` to `packages/paperos_inbox.yaml`, adjust entity ids, validate, push. (Done for the WhatsApp half on 2026-11-15; from now on the Home Assistant repo's file is the source and this copy is synced from it.)
+the sync, answer the user in Dutch there). The Home Assistant repo's `packages/paperos_inbox.yaml` is the source: change it
+there, validate, push, then copy it byte for byte to `ha/paperos_inbox.yaml` here.
 Add-ons and integrations set up in the UI live in `.storage/` and are not in git: record what
 was installed in that repo's `docs/HANDOVER.md`.
 
 ## Privacy
 
-Message and mail text is held in Home Assistant state (memory and
-`.storage/core.restore_state`) and cached on the device's internal flash. The package excludes
-both sensors from the recorder so text is not written to the history database. Nothing goes to
-a third party beyond what WhatsApp and Proton already hold. Never expose the two sensors under
-`www/` (public) or on a dashboard shared with guests. Someone else also uses this Home Assistant:
-the feeds contain the user's private messages, so they must not appear on shared dashboards.
-The device's sleep screen, which anyone near it can read, shows the unread count only ("3 unread"), never a sender or text.
+Home Assistant holds no message or mail text (D22); with the companion app it will hold ciphertext and metadata (timing, sizes,
+count) only. Decrypted text lives on the device: in memory and in its cache on the device's internal flash (`/data/cache/inbox/`).
+The device's sleep screen, which anyone near it can read, shows the unread count only ("3 unread"), never a sender or text. Someone else
+also uses this Home Assistant: nothing of the inbox may appear on a dashboard or under `www/`.
 
-## Fallback kept in reserve
+## No fallback through Home Assistant
 
-Phone notification sensors of the Home Assistant Android app (`DECISIONS.md` D8) can fill the
-same two sensors with no add-on and no terms risk (sender + text for WhatsApp, sender + subject
-for mail). If the WhatsApp add-on proves unreliable or the account gets a warning, switch the
-package's triggers; the device does not change.
+The Home Assistant Android app's notification sensors (D8) would put message text into Home Assistant in plaintext, so they are no
+longer a fallback (D22). Without the companion app the inbox simply stays empty.

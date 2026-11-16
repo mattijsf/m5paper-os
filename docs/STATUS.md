@@ -32,6 +32,15 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   for other apps. **The script is not installed in Home Assistant and nothing has been sent** (the repo copy of the package is now ahead of
   the live one). The send path is verified only against fixtures and a Jinja harness.
 
+- **D22, 2026-11-16: the inbox moves to an end-to-end encrypted companion app; Home Assistant is not trusted with message text.**
+  Done: both add-ons removed from Home Assistant (WhatsApp Gateway logged out first, then its integration, the add-on with its data and
+  the FaserF repository; the Proton Mail Bridge local add-on with its data), the feeds emptied before that, the package cut down to
+  `script.paperos_inbox_clear` + a recorder exclusion (home-assistant `ebc133d`), the orphaned entities removed. Live: both feed sensors
+  answer 404 and the send script 400. The device shows "Not set up yet" for a missing feed (goldens `inbox-gone`, `inbox-gone-mail`) and a
+  send ends in "Not sent: no send script in Home Assistant". **Next for the inbox: the owner's answers to open question 6**, then
+  ROADMAP P6-8 to P6-11. Left on the Home Assistant disk (delete by hand, the automation was not allowed to):
+  `/config/custom_components/whatsapp` and `/local_apps/protonmail_bridge`.
+
 ## What works today
 
 | Thing | Command | Result |
@@ -39,9 +48,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Simulator build | `make sim` | OK (first build ~3 min, then seconds) |
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
-| Firmware build | `make fw` | OK, 2.57 MB (49.0% of the 5 MB slot, 2026-11-16) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 210 tests; 160 goldens (2026-11-16); `out/gallery.html` |
-| Send script templates | `uv run -q --no-project --with jinja2 --with pyyaml python -I tests/ha/check-send-script.py ha/paperos_inbox.yaml` | 24 cases (Jinja stand-ins for Home Assistant, not Home Assistant itself) |
+| Firmware build | `make fw` | OK, 2.60 MB (49.6% of the 5 MB slot, 2026-11-16) |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 215 tests; 170 goldens (2026-11-16); `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Camera on the panel | `make cam-shot` / `cam-video` / `cam-compare`, `tools/cam.py around tap X Y` | built and self-tested (synthetic images; `around` against the device with a replayed video); webcam not connected yet |
@@ -81,6 +89,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Home Assistant token | The owner put it on the SD card: `/sd/paperos_config`, `HA_TOKEN=` | D19, apps/settings.md |
 | WhatsApp data | Lives in a hardened Home Assistant sensor (recorder-excluded, on no dashboard); the add-on keeps running despite its open endpoints | D20, BACKEND.md |
 | WhatsApp group names | Stay "Group": the integration's Chats sensor stays disabled (it would expose the chat list to every Home Assistant login) | BACKEND.md |
+| Home Assistant trust (2026-11-16) | Not trusted with message text ("too many integrations that might go rogue"): no plaintext in Home Assistant, send limits on the phone; companion Android app with end-to-end encryption; both add-ons removed | D22, BACKEND.md "Companion app" |
 | Home Assistant URL | The public HTTPS address, set by the user as `HA_URL=` on the card; not hard-coded or committed; works away from home. TLS cost: one kept-alive connection per refresh | D18 (note), BACKEND.md "Connection" |
 | Home Assistant token, during development | The token on the card stays as it is; after development it is replaced by a token of a dedicated non-admin user. Code stays within the non-admin API subset (per-entity `GET /api/states/<id>`, service calls; no `/api/template`, no event firing) so the swap needs no code change | D18 |
 | Books | SD card is in, empty: find open books ourselves | `tools/fetch-books.sh`, task P4-0 pushes them to the card |
@@ -96,14 +105,11 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 - Home Assistant: entity ids come from the dashboard repo, not from the live instance; nothing
   has been requested from the live instance yet (tasks P5-1, P5-2).
 - Which Home Assistant user the token belongs to. The Home app and the inbox calls have **not been run with a non-admin token** (D18 assumes they work); the swap to a dedicated non-admin user comes after development.
-- WhatsApp add-on: installed, **not linked yet**; event fields for groups and the effect on phone
-  notifications are unknown (task P6-1, see "P6-1 progress"). `ha/paperos_inbox.yaml` is a copy of the live WhatsApp package (tested with fake events only; see P6-3).
-- Proton Mail Bridge on Home Assistant OS: no confirmed add-on that exposes IMAP (task P6-2).
-- **WhatsApp sending (P6-7)**: `script.paperos_whatsapp_send` has never run in Home Assistant (not installed); unknown: the REST answer of a
-  script with `?return_response` as the device parses it, what `mode: single` answers to a second call, the call with a non-admin token,
-  whether a send through the integration fires `whatsapp_message_sent` (and drops that chat from the feed), a real message arriving.
+- **Inbox since D22 (2026-11-16)**: nothing of the companion app, the relay or the crypto exists. The "Not set up yet" state ran in the
+  simulator only (fixture 404); the live 404 was checked with the browser, not with the device. Whether the WhatsApp linked device is
+  gone from the phone's "Linked devices" list was not checked (the logout ran, Baileys logged "Intentional Logout"): the user looks.
 
-## P6-1 progress (2026-11-15, done with the owner in Home Assistant)
+## P6-1 progress (2026-11-15, done with the owner in Home Assistant; history: the add-on was removed on 2026-11-16, D22)
 
 - Add-on repository `https://github.com/FaserF/hassio-addons` added; "WhatsApp Gateway" 2.1.10 (slug `605cee21_whatsapp`)
   installed, running, start on boot, auto-update off. Options: `admin_notifications_enabled` false, `admin_numbers` empty,
@@ -211,6 +217,8 @@ connected** (2026-11-15: macOS lists only the built-in camera; the user will plu
 
 ## Somdoku and the send script (2026-11-16, night, autonomous)
 
+(The send script below was removed the same morning with the add-on, D22.)
+
 - **Send script installed** in Home Assistant (home-assistant commit `11371c7`, merged with the mail
   feed added separately: `ha/paperos_inbox.yaml` is byte-identical to the installed file). Guards tested live through
   the API with return_response: empty, too_long, a list target and an `@lid` JID were refused and nothing was logged as sent;
@@ -249,10 +257,14 @@ connected** (2026-11-15: macOS lists only the built-in camera; the user will plu
   nothing newer than the seen marker) and the mail feed; (4) the current while awake (the mAh figures are estimates); (5) a side-button
   press that lands within -90 s .. +180 s of the alarm runs the refresh first (a touch then ends it in a normal boot: simulator only).
 
-- **Mark all read with `before`**: a device "Mark all read" with the new firmware against a feed that holds a newer item (fake events only, when the feed has no real messages); a real group message in the feed.
+- **Inbox "Not set up yet"** (D22): open WhatsApp and Mail on the device against the live Home Assistant (both sensors 404 since
+  2026-11-16): frame dumps should match the goldens `inbox-gone` / `inbox-gone-mail` apart from the clock, and the launcher badges
+  should read 0. Somdoku "Stuur naar WhatsApp" up to Send: the toast "Not sent: no send script in Home Assistant" (nothing can be sent:
+  the integration is gone).
+- ~~Mark all read with `before`~~ and the real group message: dropped with the add-on route (D22).
 
 - **P7-6**: "Sleep now" ends in the sleep screen and a power-off (not run: only the side button restarts it). The swipe from the status bar works on the device (checked 2026-11-15).
-- **P6-4/P6-5**: nothing of the inbox has run on the device or against real feeds: the feed sensors do not exist yet (P6-3). Unverified
+- **P6-4/P6-5** (written before D22; the feeds are gone now): nothing of the inbox has run on the device or against real feeds. Unverified
   assumptions: the exact `imap.fetch` response shape (`service_response.text`), the optional `connected` attribute for the link-down
   notice, that a non-admin token may call `script.paperos_inbox_clear`, and the fetch with a real entry id and uid.
 - **P5-5**: one run with a non-admin token before Phase 5 counts as done; toggle timing on the device (tap to visible change under
@@ -284,13 +296,13 @@ connected** (2026-11-15: macOS lists only the built-in camera; the user will plu
 
 ## Open questions for the user
 
-1. ~~Where may WhatsApp data live? / add-on risk~~ **Closed 2026-11-15**: a hardened Home Assistant sensor (DECISIONS.md D20); the terms-of-service risk was
+1. ~~Where may WhatsApp data live? / add-on risk~~ (superseded by D22 on 2026-11-16: the add-on is removed) **Closed 2026-11-15**: a hardened Home Assistant sensor (DECISIONS.md D20); the terms-of-service risk was
    accepted at install; the add-on's unauthenticated endpoints (BACKEND.md "Add-on security") are an accepted risk, "Keep running". **Watch**: check each add-on
    update for auth on `/api/autoresponder/config` and `/api/dashboard`; the add-on's API token never goes on the SD card.
 2. **Wi-Fi**: add `WIFI_SSID=` and `WIFI_PASSWORD=` to `paperos_config` on the card? It lets
    the device go online from task P3-2, long before the on-screen keyboard exists.
-3. **Proton**: paid plan (needed for Bridge)? OK to run Bridge as a Home Assistant add-on?
-   (task P6-2)
+3. ~~**Proton**: paid plan (needed for Bridge)? OK to run Bridge as a Home Assistant add-on?~~ **Closed 2026-11-16**: Bridge is removed
+   (D22); mail comes from Proton Mail notifications on the phone.
 
 4. **P7-3 OTA update: how should it be protected?** Not built; pick one (or "no OTA").
    - **a. Pull only, signed** (recommended if OTA is wanted): Settings > "Check for update" downloads an image over HTTPS from one fixed
@@ -308,6 +320,13 @@ connected** (2026-11-15: macOS lists only the built-in camera; the user will plu
    - **b. Pull from Home Assistant**: the device lists and downloads books from a folder on Home Assistant with its token over HTTPS.
      No open port, works away from home; needs a place for books on the Home Assistant side that a non-admin token can read (not checked).
    - **c. Keep USB**: `tools/push.py` (works today, about 90 KB/s) or the card in the Mac. Nothing to protect.
+
+6. **Companion app (D22, asked 2026-11-16)**: the answers decide P6-8 to P6-11; nothing is built before them.
+   - a. **WhatsApp reply scope**: is replying only to chats that still have a notification on the phone enough? (No new message to a
+     chosen chat, so Somdoku's "Stuur naar WhatsApp" would become "Kopieer score" plus a reply, or go.)
+   - b. **Mail**: are sender and subject (maybe a short preview) enough, without the full mail text?
+   - c. **Phone**: which phone model and Android version will run the app (the Pixel used for adb pairing earlier)?
+   - d. **Always on**: is that phone always on and online at home (the inbox only fills while it is)?
 
 None of these block Phase 1, Phase 2, or the reader.
 
@@ -559,3 +578,7 @@ None of these block Phase 1, Phase 2, or the reader.
   in the package and `tests/ha/check-send-script.py`; config `inbox.whatsapp.favorites`; Reply / New message / compose / confirmation;
   `apps/inbox/compose.h`; device test aid `>set favorite`. Not installed in Home Assistant, nothing sent.
 - 2026-11-15: P7-7 camera tooling: `tools/cam.py` (devices, shot, video, calibrate, compare, around, selftest), `make cam-shot` / `cam-video` / `cam-compare`; per-run registration, per-image normalisation, no goldens (the set-up moves); camera-checkable items moved to "To verify with the camera". Waiting for the webcam to be plugged in.
+- 2026-11-16: D22. Home Assistant not trusted with message text: inbox through an end-to-end encrypted companion Android app (planned,
+  P6-8 to P6-11). WhatsApp Gateway (logged out first) and Proton Mail Bridge add-ons removed with the `whatsapp` integration and the
+  FaserF repository; package cut to `script.paperos_inbox_clear` + recorder exclusion (home-assistant `ebc133d`); a 404 feed shows
+  "Not set up yet" and drops the saved list and badge; `tests/ha/check-send-script.py` removed with the script.

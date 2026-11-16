@@ -16,7 +16,7 @@ happened. Each task is sized for one working session.
 6. If a card's assumption turns out false (API missing, measurement far off), stop, write what
    was found in `STATUS.md`, and propose a change; do not improvise a different architecture.
 
-Legend: `[x]` done, `[ ]` open, `[~]` partly done (see STATUS.md).
+Legend: `[x]` done, `[ ]` open, `[~]` partly done (see STATUS.md), `[-]` dropped (superseded by a decision).
 
 ---
 
@@ -307,44 +307,56 @@ simulator first; each task ends with screenshots.
 
 ## Phase 6: Inbox (WhatsApp, Mail)
 
-P6-4 to P6-6 (the device app) need only the feed contract and can be done first. P6-1 to P6-3
-change the user's Home Assistant: each needs the owner present, and each follows the
-home-assistant repo's own rules. Read BACKEND.md fully before any of them.
+**Changed on 2026-11-16 (DECISIONS.md D22):** Home Assistant is not trusted with message text. The inbox now comes from a
+companion Android app that encrypts each phone notification for the device; Home Assistant only relays ciphertext. The
+add-on route (P6-1 to P6-3, the send path of P6-7) is removed. The device app (P6-4 to P6-6) and the clipboard stay.
+**P6-8 to P6-11 wait for the owner's answers** to the companion-app questions in STATUS.md ("Open questions for the user").
+Read BACKEND.md "Companion app" and D22 before any of them. Order: P6-8 first; P6-9 and P6-10 can then run in parallel;
+P6-11 last (it needs the relay and a device that can pair).
 
-- [x] **P6-1 WhatsApp add-on in Home Assistant.** (done 2026-11-15: add-on installed, linked, integration set up, recorder exclusion verified, and a real incoming direct message reached the feed at 20:24:31; see STATUS.md "P6-1 progress". A real group message in the feed is still open, under P6-3.) Needs the owner (QR scan with the phone).
-  Before installing, repeat the terms-of-service warning from BACKEND.md and get a clear yes.
-  Do: add the add-on repository, install and start the WhatsApp add-on, link the account,
-  install the `whatsapp` integration. Checks: (1) phone still gets WhatsApp notifications
-  while the add-on is connected; (2) capture `whatsapp_message_received` for a direct and a
-  group message and `whatsapp_message_sent` for a reply (Developer tools > Events); save
-  redacted samples in `tests/fixtures/ha-events/`; (3) auto-responder, bot commands and
-  mark-as-read are off. Record what was installed in the home-assistant repo's HANDOVER.md.
-  Done when: the three checks are written down in STATUS.md with their results.
-- [ ] **P6-2 Proton Mail Bridge + IMAP integration.** Needs the owner (Proton login, 2FA).
-  Do: find how to run Bridge for Home Assistant (options a/b/c in BACKEND.md; say what will be
-  installed where before doing it), configure the IMAP integration, enable message text,
-  confirm an `imap_content` event for a test mail, try `imap.fetch` with `?return_response`
-  over REST with the device token and save a redacted fixture.
-  Done when: event and fetch samples are saved; setup recorded in HANDOVER.md.
-- [~] **P6-3 Install the inbox package.** (2026-11-15: WhatsApp half live in the Home Assistant repo, commit de1323d, tested with fake events; mail half waits for P6-2; verified for a real direct message (20:24:31) and the recorder exclusion; a real group message, the non-admin script call and the 48 h expiry are untested. See BACKEND.md.) Fix `ha/paperos_inbox.yaml` against the real samples
-  (group names, entity ids), test both templates in Developer tools > Template, install into
-  the home-assistant repo per its rules, verify: a new WhatsApp message and a new mail appear
-  in the sensors within seconds; answering the chat removes its items; reading all mail empties
-  the mail list; `script.paperos_inbox_clear` works with the device token.
+- [-] **P6-1 WhatsApp add-on in Home Assistant.** (done 2026-11-15, **removed 2026-11-16** by D22: session logged out, integration
+  and add-on removed. History in STATUS.md "P6-1 progress" and git.)
+- [-] **P6-2 Proton Mail Bridge + IMAP integration.** (parked 2026-11-16 with Bridge built but never logged in; **removed** by D22.)
+- [-] **P6-3 Install the inbox package.** (WhatsApp half was live; **cut down 2026-11-16** to `script.paperos_inbox_clear` and a
+  recorder exclusion, home-assistant commit `ebc133d`.)
 - [x] **P6-4 Inbox app.** (simulator, from the contract and fixtures; see apps/inbox.md "As built") Read: apps/inbox.md. List, grouping, chat detail, mail detail with
-  full-text fetch, cache, errors, link-down notice, both registrations. Goldens with fixtures.
+  full-text fetch, cache, errors, link-down notice, both registrations. Goldens with fixtures. Since D22 a missing feed (404)
+  shows "Not set up yet" and drops the saved list.
 - [x] **P6-5 Badges and mark-all-read.** (simulator: seen marker, badge file for the launcher, `script.paperos_inbox_clear`) Seen marker, launcher badge, clear via the script.
 - [x] **P6-6 Text clean-up.** (`core/text_clean`; the reader's XML tokenizer shares its entity decoder) `core/text_clean`: HTML to text, entities, emoji, long words,
   links shortened to the host name. Unit tests.
+- [~] **P6-7 Clipboard and WhatsApp sending** (D21). The clipboard, the text-field sheet, compose and the confirmation are built and
+  stay. **The send path is gone** (D22): `script.paperos_whatsapp_send` was removed from Home Assistant; a send now ends in the toast
+  "Not sent: no send script in Home Assistant". Sending comes back as a reply through the phone (P6-10, P6-11).
 
-- [~] **P6-7 Clipboard and WhatsApp sending** (DECISIONS.md D21). (2026-11-16: built in the simulator, commits
-  "Clipboard 1/5" to "5/5"; the compose screen and the text-field sheet ran on the device with a fake in-memory favourite; the script is not
-  installed and nothing has been sent.) `core/clipboard`; Paste / Copy all / Clear on every text field; `script.paperos_whatsapp_send` with
-  its guards in `ha/paperos_inbox.yaml`; Reply, New message (config favourites), compose, confirmation, send, toasts; `apps/inbox/compose.h`
-  for other apps (a game's score). Read: BACKEND.md "Sending a WhatsApp message", apps/inbox.md "Sending".
-  Done when: the script is installed in the Home Assistant repo (with the owner, by that repo's rules), one message the owner asked for is sent
-  from the device to a chat the user chooses and arrives, a second within 10 s is refused on the device with "Not sent: wait 10 seconds",
-  and the call works with the non-admin token.
+- [ ] **P6-8 Protocol and crypto.** Read: D22, BACKEND.md "Companion app". Write `docs/COMPANION.md`: the threat model (Home
+  Assistant reads, drops, delays and replays; never reads or forges), pairing (device X25519 key pair, private key in
+  `/sd/paperos_config` under the secrets rules; QR code with the public key; the phone's public key back through Home Assistant;
+  a short fingerprint on both screens that the user compares), the item envelope (version, sender key id, counter, nonce, ciphertext of
+  the feed item JSON, size limits), the command envelope device to phone (reply with text, mark read, unpair), replay rules in both
+  directions, key loss and re-pairing, what metadata Home Assistant still sees. Vendor Monocypher into `lib/` (platform-free, runs in the
+  simulator and the firmware); `core/companion_crypto` with unit tests against known-answer vectors that the Android side will share
+  (`tests/fixtures/companion/`). Done when: the document is reviewed with the owner, and seal/open round-trips, tampering, wrong keys
+  and replays are unit-tested on the host.
+- [ ] **P6-9 Home Assistant relay.** Read: P6-8 output, the Home Assistant repo's rules. In `packages/paperos_inbox.yaml`: a
+  webhook trigger (`local_only` false only if the phone must post from outside the home) into a trigger-based template sensor that keeps
+  the last N blobs per feed (sizes capped, newest first, recorder-excluded), the clear path (`script.paperos_inbox_clear` drops blobs
+  up to a counter), and the device-to-phone command queue the app reads. The webhook id is a secret: never committed, never logged. No
+  plaintext, no send rule here. Validate YAML, push by that repo's rules, mirror to `ha/paperos_inbox.yaml`. Done when: posted test
+  blobs appear in the sensor, the clear works with the device token (non-admin), nothing reaches the history database.
+- [ ] **P6-10 PaperOS decrypt side.** Read: P6-8, apps/inbox.md. Pairing screen in Settings (generate keys, show the QR code and the
+  fingerprint, store the phone's key), fetch the relay sensor, check sizes, decrypt, drop anything that fails authentication or
+  replays, map to the feed contract and keep the existing list, detail and badge code. Mail detail without the full-text fetch. Reply
+  in a chat becomes an encrypted command to the phone (no favourites target any more; Somdoku's "Stuur naar WhatsApp" moves to the
+  clipboard or a reply, decided with the owner). Goldens with encrypted fixtures. Done when: the simulator shows a fixture feed decrypted
+  end to end and rejects a tampered one; the same on the device against the live relay with test blobs.
+- [ ] **P6-11 Android companion app.** Read: P6-8, the owner's answers (phone, Android version). Kotlin, sideloaded, signed with a key
+  on the Mac (never in a repo). NotificationListenerService for WhatsApp and Proton Mail (MessagingStyle for WhatsApp), QR pairing,
+  encryption with libsodium (Lazysodium) using the shared vectors, posting to the webhook, `onNotificationRemoved` as "read", the
+  command queue (reply through the notification's RemoteInput action while it exists), **send guards on the phone** (length, 10 s gap,
+  20 per hour, one chat), foreground service and the battery-optimisation exemption. Installed with adb on the user's phone with the
+  user present. Done when: a real WhatsApp message and a real Proton Mail notification show on the device within seconds, Home
+  Assistant holds only ciphertext (checked in its state and `.storage/core.restore_state`), and one reply the owner asked for arrives.
 
 ## Phase 7: Polish
 
@@ -393,7 +405,7 @@ home-assistant repo's own rules. Read BACKEND.md fully before any of them.
 | Testable with and without device | SIMULATOR.md; P1-4, P1-5, P1-8 (device frame dump + injected touch), P7-2 |
 | E-books | P4; open books fetched by `tools/fetch-books.sh`, pushed to the card in P4-0 |
 | Easy to add apps | APPS.md; P2-4, P2-5 |
-| WhatsApp unread | P6 (Home Assistant WhatsApp add-on, D16) |
-| WhatsApp send, clipboard | P6-7 (D21) |
-| Recent mail | P6 (Proton via Bridge + IMAP integration, full text on demand, D17) |
+| WhatsApp unread | P6-8 to P6-11 (companion app, encrypted relay through Home Assistant, D22) |
+| WhatsApp send, clipboard | P6-7 clipboard (D21); replies through the phone, P6-10/P6-11 (D22) |
+| Recent mail | P6-8 to P6-11 (Proton Mail notifications: sender, subject, maybe a preview; D22) |
 | Home Assistant control | P5 |
