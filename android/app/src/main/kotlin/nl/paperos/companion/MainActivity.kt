@@ -51,11 +51,12 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        actionBar?.hide()  // the page has its own title; the bar only took room
         Link.load(this)
         val pad = (16 * resources.displayMetrics.density).toInt()
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad * 3, pad, pad * 2)
+            setPadding(pad, pad, pad, pad * 2)
         }
         fun <T : View> add(v: T) = v.also { col.addView(it, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)) }
         fun text(size: Float) = add(TextView(this).apply { textSize = size; setPadding(0, pad / 2, 0, pad / 2) })
@@ -116,7 +117,10 @@ class MainActivity : Activity() {
         relay = text(14f)
         button("Clear local counts") { Store.clear(this) }
 
-        setContentView(ScrollView(this).apply { addView(col) })
+        setContentView(ScrollView(this).apply {
+            addView(col)
+            padForSystemBars()  // edge to edge (SDK 36): keep the page below the status bar and above the navigation bar
+        })
         RelayService.kick(this)
     }
 

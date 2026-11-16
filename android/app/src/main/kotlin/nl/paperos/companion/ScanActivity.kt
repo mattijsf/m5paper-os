@@ -39,6 +39,7 @@ class ScanActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        actionBar?.hide()
         val pad = (16 * resources.displayMetrics.density).toInt()
         preview = PreviewView(this)
         hint = TextView(this).apply {
@@ -56,6 +57,7 @@ class ScanActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             addView(hint, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
             addView(cancel, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+            padForSystemBars()  // the preview fills the screen; the hint and Cancel stay above the navigation bar
         }
         setContentView(FrameLayout(this).apply {
             addView(preview, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
