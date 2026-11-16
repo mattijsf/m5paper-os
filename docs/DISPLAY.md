@@ -175,8 +175,8 @@ handed to the panel driver; the waveform follows (Fast ~0.13-0.17 s visible).
 | Tap | before | after | what changed |
 |---|---|---|---|
 | reader page turn | 516 ms | **199 ms** (176 ms when the next page was prefetched) | fast text, M5GFX patch 1, prefetch, `Hint::Page` |
-| open a screen (Settings row) | 807 ms (246 idle) | **408 ms** (280 idle) | fast text, M5GFX patches |
-| small control (stepper) | 52 ms | **7 ms** | config written 1 s later, not on the tap |
+| open a screen (Settings row) | 807 ms (246 idle) | **306 ms** (247 idle) | fast text, M5GFX patches, 64 KB data cache (D25) |
+| small control (stepper) | 52 ms | **6 ms** | config written 1 s later, not on the tap |
 
 On the panel (camera, page turn): first change 0.53 s -> **0.38 s** after the tap, turn finished 0.67 s -> **0.55 s** (both include
 the camera's own ~0.2 s delay; at the start of the day, with the settle sweep, the turn ended at 1.6 s).
@@ -198,9 +198,10 @@ Where the time went and what was done:
   sheet's unchanged gray text in Fast mode.
 - **Config writes**: Settings write `config.json` about a second after the last change (`Os::saveConfigSoon`; flushed before
   power-off); a flash write on the tap cost 25-50 ms before the redraw.
-- **What remains**: a second screen change within ~1.5 s of the previous one meets that screen's settle waveform still running,
-  and everything that touches PSRAM (diff, push) then runs about twice as slow (408 vs 280 ms). The next lever is ESP-IDF's cache
-  and PSRAM settings (D24 "Not done") and fewer full-screen settle passes.
+- **Data cache** (D25, the core built from source): 64 KB with 64-byte lines instead of 32 KB / 32 B. A screen change during
+  the previous one's settle waveform 408 -> 306 ms.
+- **What remains**: that collision still costs ~60 ms (306 vs 247 idle); next levers in D25 "Next candidates" and fewer
+  full-screen settle passes.
 
 ## Rules for UI code (enforced in review, see UI.md)
 

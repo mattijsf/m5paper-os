@@ -8,3 +8,9 @@ shot*.png
 # (tools/fetch-books.sh) and paperos_config with the Home Assistant token and Wi-Fi password; data/ holds wifi.json (passwords),
 # the inbox cache (private messages), power.csv, refresh.log, app state. Test data lives in tests/ui/data and tests/fixtures.
 sim-data/
+# pioarduino "hybrid compile" (platformio.ini custom_sdkconfig) writes these into the project root: generated from
+# platformio.ini and the ESP-IDF defaults, or downloaded (managed_components, ~600 MB).
+managed_components/
+.dummy/
+sdkconfig.defaults
+sdkconfig.papers3

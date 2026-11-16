@@ -293,6 +293,21 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   frame buffer write for a rotated panel. Patch 2: the update task skips rows whose waveform finished. `>set epd-selftest on`
   compares patch 1 with the stock code on the device (identical in Fast and Quality, 2026-11-16).
 - **Rejected**: vendoring M5GFX (150 MB, mostly fonts); a private-member hack (`#define private public`); our own panel driver (D2).
-- **Not done (needs the owner's go)**: ESP-IDF settings (64 KB data cache with 64-byte lines, 120 MHz octal PSRAM, experimental)
-  need pioarduino's `custom_sdkconfig`, which rebuilds the Arduino core from source.
+- **ESP-IDF settings**: see D25 (the core is now built from source).
+
+## D25. The Arduino core and ESP-IDF are built from source with our own settings
+
+- **How**: `custom_sdkconfig` in `platformio.ini` [env:papers3]. pioarduino then downloads ESP-IDF 5.5.5, builds the Arduino core's
+  ESP-IDF libraries with those settings (about 5 minutes after a change), copies them into the Arduino framework package and
+  compiles the firmware against them. Generated files in the project root are ignored (`.gitignore`).
+- **Settings now**: 64 KB data cache with 64-byte lines (was 32 KB / 32 B). Measured: a screen change during the previous one's
+  settle waveform 408 -> 306 ms (push call 169 -> 89 ms), the EPD self-test write 30 -> 28 ms, internal heap free 105 -> 118 KB.
+  `CONFIG_SPIRAM_BOOT_HW_INIT` / `CONFIG_SPIRAM_BOOT_INIT` are required: our `Os` (518 KB canvas and shadow) is a C++ global, and
+  without them PSRAM is not up before global constructors (the first rebuilt image boot-looped in `DisplayManager`'s constructor).
+- **Pitfalls hit**: (1) the second build phase runs under PlatformIO's own Python (`~/.platformio/penv`); its `6.2.0.post1` failed
+  the platform's `>=6.2.0` check (a post release reads as older) and the platform uninstalled itself. Fix: `uv pip install --python
+  ~/.platformio/penv/bin/python "platformio==6.2.0"`. (2) The rebuilt libraries replace the ones in the shared package
+  `~/.platformio/packages/framework-arduinoespressif32-libs` (other projects on this machine using it get them too).
+- **Next candidates** (each measured before it stays): 120 MHz octal PSRAM (experimental in ESP-IDF: ask the owner first), dropping
+  unused components (Bluetooth, ESP-SR, RainMaker are built today) for flash and RAM, FreeRTOS tick rate, `-O2` for ESP-IDF.
 
