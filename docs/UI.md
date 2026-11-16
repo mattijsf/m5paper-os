@@ -270,12 +270,12 @@ for black and white, bold filled shapes that survive 16 grays and small sizes. C
 Emoji ("These are ugly. Especially the grandma and grandpa"); the comparison of Noto, Fluent High Contrast, OpenMoji and
 gray-converted Fluent Flat and Twemoji is `tools/gen-emoji.py`'s history (colour sets turn yellow faces into pale gray, which
 the panel prints lighter still; OpenMoji's lines are too thin). The 36 single emoji Fluent lacks come from **Noto Emoji** (SIL
-OFL 1.1, `assets/fonts/NotoEmoji.ttf`, weight 600); **flags** from **Twemoji** (CC BY 4.0,
-`assets/fonts/Twemoji-LICENSE-GRAPHICS.txt`; Fluent has none), their colours as grays with a dark edge round the cloth so a
-white band does not melt into the paper. `tools/gen-emoji.py` (needs the Fluent and Twemoji SVGs fetched first, see its top)
-renders 1891 emoji as 4-bit alpha bitmaps: 1405 single code points, 224 sequences (ZWJ sequences like 👩‍💻 and ❤️‍🔥,
-keycaps) and 262 flags (🇳🇱, 🏴󠁧󠁢󠁥󠁮󠁧󠁿 England); one atlas per size: 18 (caption), 22 (body, bodyStrong), 24 (read-S), 28 (title,
-read-M and up, headline), `assets/emoji/emoji-<px>.bin`, 2.1 MB together. A Fluent emoji's 32 x 32
+OFL 1.1, `assets/fonts/NotoEmoji.ttf`, weight 600). **Flags are letters**: the country code in an outlined box like the
+keycaps (🇳🇱 -> `NL`, England, Scotland, Wales -> `ENG`, `SCO`, `WAL`: a gray flag is mostly stripes; Twemoji's flags in gray were tried first). `tools/gen-emoji.py` (needs the
+Fluent SVGs fetched first, see its top) renders 2308 emoji as 4-bit alpha bitmaps: 1405 single code points, 224 sequences
+(ZWJ sequences like 👩‍💻 and ❤️‍🔥, keycaps) and 679 flags (every pair of letters, used or not, and the three tag flags);
+one atlas per size: 18 (caption), 22 (body, bodyStrong), 24 (read-S), 28 (title, read-M and up, headline),
+`assets/emoji/emoji-<px>.bin`, 2.5 MB together. A Fluent emoji's 32 x 32
 box is the font size, 0.86 of it above the baseline, with px/8 (at least 2 px) on each side.
 
 - **On the card, not in the firmware**: one size alone is 260-600 KB, the firmware has about 250 KB left under its 3 MB

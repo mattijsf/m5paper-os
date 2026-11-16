@@ -10,15 +10,13 @@ Sources, in this order for each code point:
        git -C out/fluentui-emoji sparse-checkout set --no-cone '/assets/*/metadata.json' '/assets/*/High Contrast/*.svg' \
          '/assets/*/Default/High Contrast/*.svg' '/LICENSE'
   2. Noto Emoji (Google, SIL OFL 1.1, assets/fonts/NotoEmoji.ttf) for single code points Fluent does not have.
-  3. Flags from Twemoji (Twitter and contributors, CC BY 4.0, assets/fonts/Twemoji-LICENSE-GRAPHICS.txt): Fluent has none
-     and Noto shows two letters; Twemoji's colours become grays with a dark edge round the cloth (a white band would melt
-     into the paper). Fetch:
-       git clone --depth 1 --filter=blob:none --sparse https://github.com/jdecked/twemoji.git out/twemoji
-       git -C out/twemoji sparse-checkout set --no-cone '/assets/svg/1f1[e-f][0-9a-f]-1f1[e-f][0-9a-f].svg' \
-         '/assets/svg/1f3f4-e00*.svg' '/LICENSE-GRAPHICS'
+  3. Flags are drawn here as their letters in an outlined box ("NL", like the keycaps): on 16 grays a flag is mostly
+     stripes of gray. Every pair of regional
+     indicators A-Z (676; a code nobody uses still shows what was sent) and England, Scotland, Wales (ENG, SCO, WAL), in
+     Inter SemiBold (assets/fonts).
 
   DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib uv run -q --no-project --with pillow --with fonttools --with cairosvg \
-    python -I tools/gen-emoji.py [out/fluentui-emoji [out/twemoji]]                writes assets/emoji/emoji-<px>.bin
+    python -I tools/gen-emoji.py [out/fluentui-emoji]                writes assets/emoji/emoji-<px>.bin
   (cairosvg needs Homebrew's cairo: brew install cairo)
 
 Format (little endian), version 2:
@@ -50,7 +48,8 @@ WEIGHT = 600              # Noto's wght axis: 400 has hairlines that vanish on t
 ASCENT = 0.86             # a Fluent emoji's box (its 32 x 32 view box at px x px) sits this much of px above the baseline
 OVERSAMPLE = 4            # SVGs are rendered this many times larger, then reduced (sharper than rendering at px)
 SEQ_BASE = 0xF0000        # the ids of sequences (src/ui/emoji.cpp)
-FLAG_EDGE = 60            # the gray of a flag's edge (0 ink .. 255 paper)
+FLAG_FONT = os.path.join(ROOT, "assets/fonts/Inter-SemiBold.ttf")
+TAG_FLAGS = {"gbeng": "ENG", "gbsct": "SCO", "gbwls": "WAL"}  # subdivision flags: black flag + tag letters + cancel tag
 
 
 def skip(c):
@@ -75,13 +74,14 @@ def fluent_svgs(repo, sequences=False):
     return out
 
 
-def twemoji_flags(repo):
-    """{tuple of code points: path} for the flags of the Twemoji repo (regional indicator pairs, subdivision tag flags)."""
-    out = {}
-    for path in glob.glob(os.path.join(repo, "assets", "svg", "*.svg")):
-        seq = tuple(int(x, 16) for x in os.path.basename(path)[:-4].split("-"))
-        if len(seq) == 2 and all(0x1F1E6 <= c <= 0x1F1FF for c in seq) or len(seq) > 2 and seq[0] == 0x1F3F4:
-            out[seq] = path
+def flags():
+    """[(code points, letters)]: every regional indicator pair, and the three tag flags."""
+    out = []
+    for a in range(26):
+        for b in range(26):
+            out.append(((0x1F1E6 + a, 0x1F1E6 + b), chr(65 + a) + chr(65 + b)))
+    for tag, letters in TAG_FLAGS.items():
+        out.append(((0x1F3F4,) + tuple(0xE0000 + ord(c) for c in tag) + (0xE007F,), letters))
     return out
 
 
@@ -97,26 +97,43 @@ def render_noto(font, cp, px):
     return crop(im, pen, base, adv)
 
 
-def render_svg(path, px, flag=False):
+def render_svg(path, px):
     import cairosvg
-    from PIL import ImageChops, ImageFilter
 
     big = px * OVERSAMPLE
     png = cairosvg.svg2png(url=path, output_width=big, output_height=big)
     rgba = Image.open(io.BytesIO(png)).convert("RGBA")
     white = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
     white.alpha_composite(rgba)
-    gray = white.convert("L")
-    if flag:  # a dark edge round the cloth, about one panel pixel wide after the reduction
-        cloth = rgba.getchannel("A").point(lambda v: 255 if v > 128 else 0)
-        ring = ImageChops.subtract(cloth.filter(ImageFilter.MaxFilter(2 * OVERSAMPLE + 1)), cloth)
-        gray.paste(FLAG_EDGE, mask=ring)
-    ink = gray.point(lambda v: 255 - v).resize((px, px), Image.LANCZOS)  # ink amount, the box px x px
+    ink = white.convert("L").point(lambda v: 255 - v).resize((px, px), Image.LANCZOS)  # ink amount, the box px x px
     side = max(2, px // 8)  # room to the letters on both sides, like a glyph's side bearings
     im = Image.new("L", (px * 4, px * 4), 0)
     pen, base = px, px * 3
     im.paste(ink, (pen + side, base - int(round(ASCENT * px))))
     return crop(im, pen, base, px + 2 * side)
+
+
+def render_flag(letters, px):
+    """The letters in an outlined, rounded box: the box as high as the emoji's middle part, centred on it."""
+    o = OVERSAMPLE
+    box_h = round(px * 0.78) * o
+    line = max(1, round(px / 18)) * o  # 1 px up to 24, 2 at 28
+    font = ImageFont.truetype(FLAG_FONT, round(px * 0.64) * o)
+    tw = font.getlength(letters)
+    pad = round(px * 0.13) * o
+    box_w = int(tw) + 2 * pad
+    side = max(2, px // 8)
+    big = Image.new("L", (box_w, box_h), 0)
+    d = ImageDraw.Draw(big)
+    d.rounded_rectangle((line // 2, line // 2, box_w - 1 - line // 2, box_h - 1 - line // 2), radius=round(px * 0.14) * o,
+                        outline=255, width=line)
+    d.text((box_w / 2, box_h / 2), letters, font=font, fill=255, anchor="mm")
+    small = big.resize((max(1, round(box_w / o)), round(box_h / o)), Image.LANCZOS)
+    im = Image.new("L", (px * 6, px * 4), 0)
+    pen, base = px, px * 3
+    mid = base - round(px * 0.36)  # the middle of an emoji's box (ASCENT above, the rest below the baseline)
+    im.paste(small, (pen + side, mid - small.height // 2))
+    return crop(im, pen, base, small.width + 2 * side)
 
 
 def crop(im, pen, base, adv):
@@ -128,11 +145,11 @@ def crop(im, pen, base, adv):
 
 
 def build(px, cps, svgs, seqs):
-    """`seqs`: [(id, code points, path, is_flag)], ids from SEQ_BASE up in this order."""
+    """`seqs`: [(id, code points, SVG path or None, flag letters or None)], ids from SEQ_BASE up in this order."""
     font = ImageFont.truetype(FONT, px)
     font.set_variation_by_axes([WEIGHT])
     glyphs = [render_svg(svgs[cp], px) if cp in svgs else render_noto(font, cp, px) for cp in cps]
-    glyphs += [render_svg(path, px, flag) for _, _, path, flag in seqs]
+    glyphs += [render_svg(path, px) if path else render_flag(letters, px) for _, _, path, letters in seqs]
     cps = list(cps) + [sid for sid, _, _, _ in seqs]
     data_start = 16 + 16 * len(cps)
     index, data = bytearray(), bytearray()
@@ -155,17 +172,16 @@ def build(px, cps, svgs, seqs):
 
 def main():
     repo = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "out", "fluentui-emoji")
-    twemoji = sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, "out", "twemoji")
     svgs = fluent_svgs(repo)
-    flags = twemoji_flags(twemoji)
-    if not svgs or not flags:
-        sys.exit(f"no Fluent Emoji in {repo} or no Twemoji flags in {twemoji}: fetch them first (see the top of this file)")
+    if not svgs:
+        sys.exit(f"no Fluent Emoji in {repo}: fetch it first (see the top of this file)")
     cps = sorted(set(svgs) | set(noto_codepoints()))
     joined = fluent_svgs(repo, sequences=True)
-    seqs = [(seq, path, False) for seq, path in sorted(joined.items())] + [(seq, path, True) for seq, path in sorted(flags.items())]
-    seqs = [(SEQ_BASE + i, seq, path, flag) for i, (seq, path, flag) in enumerate(seqs)]
+    flag_list = flags()
+    seqs = [(seq, path, None) for seq, path in sorted(joined.items())] + [(seq, None, letters) for seq, letters in flag_list]
+    seqs = [(SEQ_BASE + i, seq, path, letters) for i, (seq, path, letters) in enumerate(seqs)]
     print(f"{len(cps)} emoji: {len(svgs)} from Fluent High Contrast, {len(cps) - len(svgs)} from Noto Emoji; "
-          f"{len(joined)} sequences from Fluent, {len(flags)} flags from Twemoji")
+          f"{len(joined)} sequences from Fluent, {len(flag_list)} flags as letters")
     out = os.path.join(ROOT, "assets/emoji")
     os.makedirs(out, exist_ok=True)
     for px in SIZES:

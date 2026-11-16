@@ -98,6 +98,10 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   hour grid with the now line; List), the next event under the launcher's date and on the sleep screen. Launcher page 2 now holds
   Woordle, Agenda and Weather. The APK is built (`android/app/build/outputs/apk/debug/app-debug.apk`), not installed.
 
+- **Flags as letters, 2026-11-16 night**: the country code in an
+  outlined box (`NL`), every letter pair plus ENG, SCO, WAL; Twemoji dropped. Atlases 2.5 MB, pushed in 19 s **while the
+  device showed the emoji test screen**: reopened, it was identical to the new golden without a reboot (the reload of a
+  replaced atlas, `fs::changes()`, now also checked on the device).
 - **Emoji sequences and flags, 2026-11-16 night**: 224 ZWJ sequences and keycaps from Fluent,
   262 flags from Twemoji in gray with an edge, 1891 emoji in all (2.1 MB on the card, pushed in 16 s); families show 👪.
   On the device the `emoji` test screen is **identical** to the simulator. Found on the way: atlases pushed while the device
