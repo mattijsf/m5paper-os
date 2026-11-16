@@ -4,6 +4,7 @@
 //     whatever brought it up (net onConnected), within 24 hours of the copy
 //   - pull: a text field's clipboard sheet and the reply screen's Paste read the relay first, so what the phone shared is there
 // Only while a phone is paired and Settings > Home Assistant > Phone shares the clipboard (config phone.clipboard).
+// The same Wi-Fi-up hook also pushes the pairing's `paired` envelope again while the phone may not have it (core/paired_owed.h).
 #pragma once
 
 #include "core/os.h"

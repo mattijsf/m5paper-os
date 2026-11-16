@@ -47,8 +47,10 @@ the Paper. Pairing again makes new keys and a new `pid` on both sides; old envel
    (section 3) as `123 456` plus the phone name. The user confirms on **both** devices that the codes match. Home Assistant
    relays `phone_pk`; a swapped key gives a different code, which is why the comparison is mandatory.
 4. **Paper**, on Confirm: stores the pairing, clears the pairing queue (`paperos_relay_ack` with queue `pairing`), and sends
-   `{"t":"paired"}` as its first envelope (counter 1) on `to_phone`. **Phone**: becomes active only after its own user
-   confirmation **and** a valid `paired` envelope. Until then it sends nothing but the hello.
+   `{"t":"paired"}` as its first envelope (counter 1) on `to_phone`. Until a push of it reaches Home Assistant, the Paper
+   pushes `paired` again (counter 1, fresh nonce) whenever its Wi-Fi comes up: for at most a day, and not once the phone has
+   written to `to_paper`. **Phone**: becomes active only after its own user confirmation **and** a valid `paired` envelope.
+   Until then it sends nothing but the hello.
 5. Either side can unpair: it sends `{"t":"unpair"}` (best effort) and forgets the keys. A side that receives `unpair` forgets
    the pairing too.
 

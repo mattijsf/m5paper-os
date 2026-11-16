@@ -33,7 +33,15 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   every copy on the Paper is pushed to the phone (joining Wi-Fi; a push that failed offline is resent when Wi-Fi is next up); the phone sends on the share sheet ("Send to Paper"), the Quick Settings tile
   ("Clipboard to Paper") or the app's button; the Paper's clipboard sheet and the reply screen's Paste read the relay first. Switches
   on both sides (Paper: Settings > Home Assistant > Phone, config `phone.clipboard`). **Installed on the phone (unpaired), not run
-  end to end**: no real pairing exists yet.
+  end to end** (the first real pairing exists since 2026-11-16, see below).
+- **First real pairing, 2026-11-16 ~15:50**: the Paper and the user's Pixel 9 Pro (companion app) paired through the live relay; the
+  phone's status file afterwards: relay service never restarted, 1 envelope accepted, 0 dropped, last push/read/ack 200. The phone
+  sat on "Waiting for the Paper to confirm..." for a long time after both confirms; the cause is unknown (both logs had rolled over:
+  the Paper keeps 50 lines, the phone's logcat started at 15:52). The phone reads `to_phone` every 3 s while pairing, so the delay
+  was on the Paper's single `paired` push. Since then the Paper logs `paired to the phone: <result>, <seconds>` and resends an owed
+  `paired` when Wi-Fi comes up (`core/paired_owed`, COMPANION.md 2 step 4). Known gap: if the first `paired` is lost and the Paper
+  sends something else (a clip, a reply) before the resend lands, the phone's receive counter passes 1 and it drops the resent
+  `paired`; it then needs a new pairing.
 
 - **P7-9 the word game, 2026-11-16: built, simulator only.** A daily five-letter word game (docs/apps/wordgame.md). The owner asked for
   "woordle" from a handover text of that web game; built is PaperOS's own game in that genre (D26): own name, own word lists
@@ -276,6 +284,9 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
 - **Word game renamed `vijfje` -> `wordgame` (2026-11-16, simulator only)**: the device still runs the firmware with the old id.
   After the next flash: open the game once, then the statistics screen must still say 1 played and 5616 fetched words
   (`adoptOldData`), and today's finished game must still be there. `tools/memory.py --only wordgame`.
+- **`paired` resend (2026-11-16, unit tests only, not flashed)**: after the next flash, on the next pairing the log shows
+  `paired to the phone: pushed, N s` and `/data/companion_paired_owed` is gone; with the relay unreachable at Confirm (Wi-Fi off
+  in the router or a wrong `HA_URL` for a moment) the phone activates once Wi-Fi is back (`paired to the phone, again: pushed`).
 - **Toast as a band over the status bar (2026-11-16, simulator only)**: on the device one Fast push of 540 x 56 and the status
   bar back after 3 s (frame dump); with the camera whether the band leaves a ghost in the status bar.
 - **The word game (P7-9), device run 2026-11-16 14:00** (firmware of main bb517a4, then the statistics line fix; injected taps, frame

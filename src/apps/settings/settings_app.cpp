@@ -8,6 +8,7 @@
 #include "core/companion.h"
 #include "core/fs.h"
 #include "core/os.h"
+#include "core/paired_owed.h"
 #include "core/version.h"
 #include "hal/system.h"
 #include "ui/qr.h"
@@ -499,16 +500,22 @@ class PhonePage : public Page {
       return;
     }
     companion::saveNotifs(companion::Notifs{});
+    // Owed until a push reaches the relay; the inbox pushes it again when Wi-Fi comes up (core/paired_owed.h).
+    companion::markPairedOwed(ctx().clock.now());
     ctx().log("paired with a phone");  // never the keys
     HaClient ha = ctx().ha();
+    const uint32_t t0 = ctx().clock.millis();
     ctx().async(
         [ha, paired]() mutable {
           HaResult r = ha.callService("script", "paperos_relay_push", paired);
           ha.callService("script", "paperos_relay_ack", companion::ackBody("pairing", 0));
           return r;
         },
-        [this](HaResult r) {
-          ctx().toast(r.ok() ? "Phone paired" : std::string("Paired; tell the phone later: ") + haErrorText(r.error));
+        [this, t0](HaResult r) {
+          const double sec = (ctx().clock.millis() - t0) / 1000.0;
+          POS_LOG("companion", "paired to the phone: %s, %.1f s", r.ok() ? "pushed" : haErrorText(r.error), sec);
+          if (r.ok()) companion::markPairedSent();
+          ctx().toast(r.ok() ? "Phone paired" : std::string("Paired; the phone gets it when Wi-Fi is up: ") + haErrorText(r.error));
           show();
         });
   }

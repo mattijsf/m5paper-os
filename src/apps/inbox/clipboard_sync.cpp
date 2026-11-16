@@ -7,6 +7,7 @@
 #include "core/companion.h"
 #include "core/ha.h"
 #include "core/log.h"
+#include "core/paired_owed.h"
 
 namespace pos::inbox {
 
@@ -38,6 +39,18 @@ void send(Os* o, const std::string& text, int64_t ts) {
                     });
 }
 
+// The `paired` envelope again while it is owed (counter 1; the relay ignores it if the first push landed).
+void resendPaired(Os* o) {
+  const std::string body = companion::pairedOwed(o->platform().clock.now());
+  if (body.empty()) return;
+  HaClient ha = HaClient::fromNet(o->net(), o->secrets());
+  o->worker().async([ha, body]() mutable { return ha.callService("script", "paperos_relay_push", body); },
+                    [](HaResult r) {
+                      POS_LOG("companion", "paired to the phone, again: %s", r.ok() ? "pushed" : haErrorText(r.error));
+                      if (r.ok()) companion::markPairedSent();
+                    });
+}
+
 }  // namespace
 
 void installClipboardSync(Os& os) {
@@ -59,8 +72,10 @@ void installClipboardSync(Os& os) {
                       });
   };
   clipboard::setSync(std::move(s));
-  // A copy that did not reach the relay goes when Wi-Fi is next up, whatever brought it up (DECISIONS.md D23).
+  // A copy that did not reach the relay goes when Wi-Fi is next up, whatever brought it up (DECISIONS.md D23). So does a
+  // `paired` the phone may not have (core/paired_owed.h): without it the phone never becomes active.
   os.net().onConnected = [o] {
+    resendPaired(o);
     std::string text;
     int64_t ts = 0;
     if (!clipboard::unsent(o->platform().clock.now(), companion::kClipMaxAge, text, ts)) return;
