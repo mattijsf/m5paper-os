@@ -6,43 +6,53 @@ import android.app.AlertDialog
 import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Intent
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
-import android.text.InputType
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.view.WindowInsetsController
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import nl.paperos.companion.Ink.Kind
+import nl.paperos.companion.Ink.Type
 
-/** One screen: access, Home Assistant token, pairing, replies, clipboard, status. Never shows message contents or the token. */
+/**
+ * One screen in the PaperOS "Ink" style ([Ink]): this phone's access, the Home Assistant token, the pairing with the Paper and its
+ * switches, activity counts. Never shows message contents or the token.
+ */
 class MainActivity : Activity() {
-    private lateinit var access: TextView
-    private lateinit var grant: Button
-    private lateinit var battery: Button
-    private lateinit var tokenState: TextView
+    private lateinit var accessRow: Ink.Row
+    private lateinit var restrictedRow: Ink.Row
+    private lateinit var batteryRow: Ink.Row
+    private lateinit var tokenRow: Ink.Row
+    private lateinit var tokenHint: TextView
     private lateinit var tokenInput: EditText
     private lateinit var tokenSave: Button
     private lateinit var tokenClear: Button
-    private lateinit var pairState: TextView
+    private lateinit var pairRow: Ink.Row
+    private lateinit var pairHint: TextView
     private lateinit var code: TextView
     private lateinit var pair: Button
     private lateinit var confirm: Button
     private lateinit var unpair: Button
-    private lateinit var replies: CheckBox
-    private lateinit var clipboard: CheckBox
-    private lateinit var sendClip: Button
-    private lateinit var counts: TextView
-    private lateinit var relay: TextView
+    private lateinit var repliesRow: Ink.Row
+    private lateinit var replies: Ink.Toggle
+    private lateinit var clipRow: Ink.Row
+    private lateinit var clipboard: Ink.Toggle
+    private lateinit var sendClipRow: Ink.Row
+    private lateinit var countsBox: LinearLayout
+    private val countRows = mutableMapOf<String, Ink.Row>()
+    private lateinit var relayRow: Ink.Row
     private val handler = Handler(Looper.getMainLooper())
     private val refresh: () -> Unit = { runOnUiThread { update() } }
     private val ticker = object : Runnable {
@@ -51,75 +61,90 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        actionBar?.hide()  // the page has its own title; the bar only took room
+        actionBar?.hide() // the page has its own title
+        Ink.load(this)
         Link.load(this)
-        val pad = (16 * resources.displayMetrics.density).toInt()
+        window.setBackgroundDrawable(ColorDrawable(Ink.paper))
+        val light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+        window.insetsController?.setSystemBarsAppearance(light, light) // dark icons on the paper
+
+        val m = Ink.dp(this, 24f) // the Paper's screen margin
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad * 2)
+            setPadding(m, Ink.dp(this@MainActivity, 20f), m, Ink.dp(this@MainActivity, 32f))
         }
-        fun <T : View> add(v: T) = v.also { col.addView(it, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)) }
-        fun text(size: Float) = add(TextView(this).apply { textSize = size; setPadding(0, pad / 2, 0, pad / 2) })
-        fun button(label: String, onClick: () -> Unit) = add(Button(this).apply { text = label; setOnClickListener { onClick() } })
-
-        text(24f).text = "PaperOS Companion"
-
-        access = text(16f)
-        grant = button("Open notification access") { openAccessSettings() }
-        button("App info (Allow restricted settings)") {
-            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+        fun <T : View> add(v: T, top: Float = 0f) = v.also {
+            col.addView(it, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = Ink.dp(this@MainActivity, top) })
         }
-        battery = button("Let it run in the background") {
+        fun section(title: String) = add(Ink.text(this, title, Type.CAPTION, Ink.secondary), 32f)
+        fun row(icon: Int?, title: String) = add(Ink.Row(this, icon, title))
+        fun chevron() = Ink.icon(this, Ink.ICON_CHEVRON, sp = 20f)
+
+        add(Ink.text(this, "PaperOS", Type.TITLE))
+        add(Ink.text(this, "Companion: this phone's notifications on your Paper, end-to-end encrypted", Type.BODY, Ink.secondary), 6f)
+
+        section("This phone")
+        accessRow = row(Ink.ICON_BELL, "Notification access").apply { clickable { openAccessSettings() } }
+        restrictedRow = row(Ink.ICON_SHIELD, "Allow restricted settings").apply {
+            sub("Android asks for this once, before access can be granted")
+            end = chevron()
+            clickable { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) }
+        }
+        batteryRow = row(Ink.ICON_BATTERY, "Run in the background").apply {
+            sub("Keeps the relay going while the screen is off")
+            end = chevron()
             @Suppress("BatteryLife")
-            startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
+            clickable { startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))) }
         }
 
-        text(18f).text = "Home Assistant"
-        tokenState = text(14f)
-        tokenInput = add(EditText(this).apply {
-            hint = "Paste the long-lived token of the PaperOS phone user"
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            isSingleLine = true
-        })
-        tokenSave = button("Save token") { saveToken() }
-        tokenClear = button("Remove token") { TokenStore.clear(this); update() }
+        section("Home Assistant")
+        tokenRow = row(Ink.ICON_KEY, "Token")
+        tokenHint = add(
+            Ink.text(this, "Create a non-admin user in Home Assistant, make a long-lived token for it and paste it here.", Type.BODY, Ink.secondary),
+            12f,
+        )
+        tokenInput = add(Ink.field(this, "Long-lived token", password = true), 12f)
+        tokenSave = add(Ink.button(this, "Save token") { saveToken() }, 12f)
+        tokenClear = add(Ink.button(this, "Remove token", Kind.SECONDARY) { TokenStore.clear(this); update() }, 16f)
 
-        text(18f).text = "Paper"
-        pairState = text(14f)
-        code = text(34f)
-        pair = button("Pair with Paper (scan QR)") {
+        section("Paper")
+        pairRow = row(Ink.ICON_SMARTPHONE, "Not paired")
+        pairHint = add(Ink.text(this, "", Type.BODY, Ink.secondary), 12f)
+        code = add(Ink.text(this, "", Type.HEADLINE).apply { letterSpacing = 0.08f; textAlignment = View.TEXT_ALIGNMENT_CENTER }, 16f)
+        pair = add(Ink.button(this, "Pair with Paper") {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 2)
             }
             @Suppress("DEPRECATION")
             startActivityForResult(Intent(this, ScanActivity::class.java), REQ_SCAN)
+        }, 16f)
+        confirm = add(Ink.button(this, "The codes match") { Link.confirmCode(this); update() }, 16f)
+        repliesRow = row(Ink.ICON_MESSAGE, "Replies from the Paper").apply { sub("Sent through the WhatsApp notification") }
+        replies = Ink.Toggle(this).apply { onChange = { on -> Link.setRepliesAllowed(this@MainActivity, on); update() } }
+        repliesRow.end = replies
+        clipRow = row(Ink.ICON_CLIPBOARD, "Share the clipboard").apply { sub("A copy on the Paper lands on this phone") }
+        clipboard = Ink.Toggle(this).apply { onChange = { on -> Link.setClipboardShared(this@MainActivity, on); update() } }
+        clipRow.end = clipboard
+        sendClipRow = row(Ink.ICON_SEND, "Send clipboard to the Paper").apply {
+            sub("Also from Share > Send to Paper, or the Quick Settings tile")
+            end = chevron()
+            clickable { ClipSync.sendCurrent(this@MainActivity) }
         }
-        confirm = button("The codes match") { Link.confirmCode(this); update() }
-        unpair = button("Unpair") {
+        unpair = add(Ink.button(this, "Unpair", Kind.SECONDARY) {
             AlertDialog.Builder(this).setMessage("Forget the pairing with the Paper?")
                 .setPositiveButton("Unpair") { _, _ -> Link.forget(this, notifyPaper = true); update() }
                 .setNegativeButton("Cancel", null).show()
-        }
-        replies = add(CheckBox(this).apply {
-            text = "Allow replies from the Paper (sent through the WhatsApp notification)"
-            setOnCheckedChangeListener { _, on -> if (on != Link.repliesAllowed) Link.setRepliesAllowed(this@MainActivity, on) }
-        })
+        }, 16f)
 
-        clipboard = add(CheckBox(this).apply {
-            text = "Share the clipboard with the Paper (a copy on the Paper lands here; send yours with the share sheet, the " +
-                "\"Clipboard to Paper\" tile or the button below)"
-            setOnCheckedChangeListener { _, on -> if (on != Link.clipboardShared) Link.setClipboardShared(this@MainActivity, on) }
-        })
-        sendClip = button("Send clipboard to the Paper") { ClipSync.sendCurrent(this) }
-
-        text(18f).text = "Status"
-        counts = text(14f)
-        relay = text(14f)
-        button("Clear local counts") { Store.clear(this) }
+        section("Activity")
+        countsBox = add(LinearLayout(this).apply { orientation = LinearLayout.VERTICAL })
+        relayRow = row(Ink.ICON_REFRESH, "Relay")
+        add(Ink.button(this, "Clear local counts", Kind.TEXT) { Store.clear(this) }, 8f)
 
         setContentView(ScrollView(this).apply {
+            setBackgroundColor(Ink.paper)
             addView(col)
-            padForSystemBars()  // edge to edge (SDK 36): keep the page below the status bar and above the navigation bar
+            padForSystemBars() // edge to edge (SDK 36): keep the page below the status bar and above the navigation bar
         })
         RelayService.kick(this)
     }
@@ -161,53 +186,76 @@ class MainActivity : Activity() {
     }
 
     private fun update() {
+        fun show(v: View, on: Boolean) { v.visibility = if (on) View.VISIBLE else View.GONE }
         val granted = getSystemService(NotificationManager::class.java)
             .isNotificationListenerAccessGranted(ComponentName(this, CaptureListener::class.java))
-        access.text = "Notification access: " + (if (granted) "granted" else "NOT granted") +
-            "\nListener: " + (if (Store.listenerConnected) "connected" else "not connected")
-        grant.text = if (granted) "Notification access settings" else "Grant notification access"
-        val unrestricted = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
-        battery.visibility = if (unrestricted) View.GONE else View.VISIBLE
+        accessRow.sub(
+            when {
+                !granted -> "Not granted: tap to open the setting"
+                Store.listenerConnected -> "Granted, listening"
+                else -> "Granted, the listener is not connected yet"
+            },
+        )
+        if (accessRow.end == null || accessRow.tag != granted) {
+            accessRow.end = Ink.icon(this, if (granted) Ink.ICON_CHECK else Ink.ICON_CHEVRON, sp = if (granted) 22f else 20f)
+            accessRow.tag = granted
+        }
+        show(restrictedRow, !granted)
+        show(batteryRow, !getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName))
 
         val hasToken = TokenStore.has(this)
-        tokenState.text = if (hasToken) "Token: saved (encrypted on this phone)" else "Token: not set. Create a non-admin user in Home Assistant, make a long-lived token for it and paste it here."
-        tokenInput.visibility = if (hasToken) View.GONE else View.VISIBLE
-        tokenSave.visibility = tokenInput.visibility
-        tokenClear.visibility = if (hasToken) View.VISIBLE else View.GONE
+        tokenRow.sub(if (hasToken) "Saved, encrypted on this phone" else "Not set")
+        if (tokenRow.tag != hasToken) {
+            tokenRow.end = if (hasToken) Ink.icon(this, Ink.ICON_CHECK, sp = 22f) else null
+            tokenRow.tag = hasToken
+        }
+        show(tokenHint, !hasToken)
+        show(tokenInput, !hasToken)
+        show(tokenSave, !hasToken)
+        show(tokenClear, hasToken)
 
         val stage = Link.stage
-        pairState.text = when {
-            stage == Link.Stage.NONE -> "Not paired. On the Paper: Settings > Home Assistant > Phone > Pair, then scan its code here."
-            stage == Link.Stage.ACTIVE -> "Paired (${Link.pidText()}). Notifications go to the Paper encrypted."
+        val active = stage == Link.Stage.ACTIVE
+        pairRow.title.text = when (stage) {
+            Link.Stage.NONE -> "Not paired"
+            Link.Stage.PENDING -> "Pairing"
+            Link.Stage.ACTIVE -> "Paired"
+        }
+        pairRow.sub(if (stage == Link.Stage.NONE) "" else "Pairing id ${Link.pidText()}")
+        pairHint.text = when {
+            stage == Link.Stage.NONE && !hasToken -> "Save the Home Assistant token first."
+            stage == Link.Stage.NONE -> "On the Paper: Settings > Home Assistant > Phone > Pair phone, then scan its code here."
+            active -> "Notifications go to the Paper end-to-end encrypted. Home Assistant only relays them."
             Link.pairingExpired() -> "Pairing timed out. Scan the code again."
-            !Link.userConfirmed -> "Check that the Paper shows the same code (pairing id ${Link.pidText()}):"
-            else -> "Waiting for the Paper to confirm…"
+            !Link.userConfirmed -> "Check that the Paper shows the same code:"
+            else -> "Waiting for the Paper to confirm..."
         }
         code.text = Link.code() ?: ""
-        code.visibility = if (stage == Link.Stage.PENDING) View.VISIBLE else View.GONE
-        pair.visibility = if (stage == Link.Stage.ACTIVE) View.GONE else View.VISIBLE
+        show(code, stage == Link.Stage.PENDING)
+        show(pair, !active)
         pair.isEnabled = hasToken
-        confirm.visibility = if (stage == Link.Stage.PENDING && !Link.userConfirmed) View.VISIBLE else View.GONE
-        unpair.visibility = if (stage == Link.Stage.NONE) View.GONE else View.VISIBLE
+        show(confirm, stage == Link.Stage.PENDING && !Link.userConfirmed)
+        show(unpair, stage != Link.Stage.NONE)
         unpair.text = if (stage == Link.Stage.PENDING) "Cancel pairing" else "Unpair"
-        replies.isChecked = Link.repliesAllowed
-        replies.visibility = if (stage == Link.Stage.ACTIVE) View.VISIBLE else View.GONE
-        clipboard.isChecked = Link.clipboardShared
-        clipboard.visibility = replies.visibility
-        sendClip.visibility = if (stage == Link.Stage.ACTIVE && Link.clipboardShared) View.VISIBLE else View.GONE
+        replies.on = Link.repliesAllowed
+        clipboard.on = Link.clipboardShared
+        show(repliesRow, active)
+        show(clipRow, active)
+        show(sendClipRow, active && Link.clipboardShared)
 
-        counts.text = buildString {
-            append("Notifications (posted / updated / removed / live):")
-            Store.counts(this@MainActivity).forEach { (app, c) ->
-                append("\n  ").append(Store.APPS[app]).append(": ${c.posted} / ${c.updated} / ${c.removed} / ${c.held}")
+        Store.counts(this).forEach { (app, c) ->
+            val r = countRows.getOrPut(app) {
+                Ink.Row(this, if (app.contains("proton")) Ink.ICON_MAIL else Ink.ICON_MESSAGE, Store.APPS[app] ?: app)
+                    .also { countsBox.addView(it, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)) }
             }
+            r.sub("${c.posted} posted, ${c.updated} updated, ${c.removed} removed, ${c.held} live")
         }
-        relay.text = "Relay: " + (RelayService.lastStatus?.let(::describe) ?: "not running")
+        relayRow.sub(RelayService.lastStatus?.let(::describe) ?: "Not running")
     }
 
     private fun describe(json: String): String = runCatching {
         val o = org.json.JSONObject(json)
-        "waiting ${o.optInt("outbox")}, sent ${o.optInt("pushed")}, received ${o.optInt("accepted")}" +
+        "${o.optInt("outbox")} waiting, ${o.optInt("pushed")} sent, ${o.optInt("accepted")} received" +
             ", last push ${o.optInt("last_push")}, last read ${o.optInt("last_poll")}" +
             (o.optString("error").takeIf { it.isNotEmpty() }?.let { ", error $it" } ?: "")
     }.getOrDefault("?")

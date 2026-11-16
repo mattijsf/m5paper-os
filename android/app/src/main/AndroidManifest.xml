@@ -20,7 +20,7 @@
         android:dataExtractionRules="@xml/no_backup"
         android:label="PaperOS Companion"
         android:usesCleartextTraffic="false"
-        android:theme="@android:style/Theme.DeviceDefault.DayNight">
+        android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
 
         <activity
             android:name=".MainActivity"
