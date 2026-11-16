@@ -209,6 +209,57 @@ TEST_CASE("ghost budget: the next Screen hint becomes Quality, which resets the 
   CHECK(f.display.pushes[2].mode == Refresh::Fast);  // back to Fast
 }
 
+TEST_CASE("Page: Fast without a settle pass; every Nth page is one full-screen Quality pass") {
+  DisplayParams p;
+  p.pageCleanEvery = 3;
+  Fixture f(p);
+  const Rect page{40, 54, 458, 883};  // the reader's text area
+  for (int i = 1; i <= 7; ++i) {
+    f.fill(page, i % 2 ? gray(4) : kWhite);  // grays: a Content change would get a settle pass
+    f.dm.invalidate(page, Hint::Page);
+    f.dm.commit();
+    const auto& last = f.display.pushes.back();
+    if (i % 3 == 0) {
+      CHECK(last.mode == Refresh::Quality);
+      CHECK(last.rect.w == kScreenW);
+      CHECK(last.rect.h == kScreenH);
+      CHECK(f.dm.ghostScore() == doctest::Approx(0.0f));
+      CHECK(f.dm.pagesSinceClean() == 0);
+    } else {
+      CHECK(last.mode == Refresh::Fast);
+      CHECK(f.dm.pagesSinceClean() == i % 3);
+    }
+    CHECK(f.dm.nextDeadlineMs() == kNoDeadline);  // never a settle pass after a page
+  }
+  f.dm.tick(f.clock.ms + 5000);
+  CHECK(f.count(Refresh::Text) == 0);
+  CHECK(f.count(Refresh::Quality) == 2);
+}
+
+TEST_CASE("Page: a page turn drops an older settle in its area; 0 switches the clean off; any full clean restarts the count") {
+  DisplayParams p;
+  p.pageCleanEvery = 2;
+  Fixture f(p);
+  f.fill(Rect{0, 900, kScreenW, 40}, gray(6));  // a footer with grays: Content, settles later
+  f.dm.invalidate(Rect{0, 900, kScreenW, 40}, Hint::Content);
+  f.fill(Rect{40, 54, 458, 800}, kBlack);
+  f.dm.invalidate(Rect{40, 54, 458, 800}, Hint::Page);
+  f.dm.commit();
+  CHECK(f.dm.nextDeadlineMs() != kNoDeadline);  // the footer's settle stays (outside the page)
+  CHECK(f.dm.pagesSinceClean() == 1);
+  f.dm.forceClean();
+  CHECK(f.dm.pagesSinceClean() == 0);
+
+  p.pageCleanEvery = 0;
+  f.dm.setParams(p);
+  for (int i = 0; i < 6; ++i) {
+    f.fill(kFull, i % 2 ? kBlack : kWhite);
+    f.dm.invalidateAll(Hint::Page);
+    f.dm.commit();
+  }
+  CHECK(f.count(Refresh::Quality) == 1);  // only the forceClean
+}
+
 TEST_CASE("a settle pass gives back half of the score its region added") {
   Fixture f;
   f.fill(kFull, gray(5));

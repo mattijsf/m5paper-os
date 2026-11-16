@@ -223,8 +223,8 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
 - **Ghosting, known page: done 2026-11-16**: Checker then White shows the checkerboard on the panel; the Clean removed 0.8-1.1 % of
   contrast in the checker area (0.3-0.6 % elsewhere); the Quality flash is visible for about 1.1 s (DISPLAY.md "First results").
 - **Reader (P4-6): measured 2026-11-16** (DISPLAY.md "Reader ghosting"): ghost 1.23 / 1.54 / 1.99 % after 1 / 10 / 30 turns at M,
-  1.36-1.71 % after 10 turns at S..XL; **no automatic clean in 30 turns**: the reader's Content pushes never reach the Screen-hint
-  clean and the idle clean needs score 16, about 120 turns (the old "every 8 to 10 pages" was wrong). Page turn on the panel: visible
+  1.36-1.71 % after 10 turns at S..XL; **no automatic clean in 30 turns** (fixed the same day: `Hint::Page`, a clean every 10th
+  page, no settle sweep; ghost after 9 pages 1.21 %). Page turn on the panel: visible
   about 0.5 s after the tap (incl. ~0.2 s camera latency), settled about 1.6 s after it. Open: whether 2 % of contrast is visible to
   the eye (one look by the user, batched), the cover thumbnail's grays.
 - **Fast then settle** in general (P1-3): `around tap` on a toggle and on a list row: the rect's visible span against the push times,
@@ -375,9 +375,9 @@ None of these block Phase 1, Phase 2, or the reader.
 
 ## Notes for later tasks
 
-- **Reader clean cadence (found by the camera, 2026-11-16)**: page turns never trigger the ghost-budget clean in practice (see
-  DISPLAY.md "Ghost budget"). Choosing a cadence (count turns, or let Content pushes over most of the screen clean at `ghostLimit`)
-  belongs to P7-1 tuning; measure the effect with `tools/cam.py` (ghost after 10 / 30 turns) before and after.
+- **Reader page turns (done 2026-11-16)**: `Hint::Page`: Fast without the settle sweep, a Quality clean every 10th page
+  (`display.pageCleanEvery`). Measured on the device (DISPLAY.md "Ghost budget"). Open for a person's eyes, batched: whether the
+  black/white text between cleans reads well at S and in italics (the camera cannot judge reading comfort).
 - **Serial port**: never hold a `tools/device.py` Link open and unread while doing something else (camera shots): on 2026-11-16 a
   `>shot` went unanswered for 60 s after the port sat unread for ~15 s. `request()` now resends only until the device has answered
   once on a Link, then fails after one 10 s try.
@@ -643,3 +643,4 @@ None of these block Phase 1, Phase 2, or the reader.
   Quick Settings tile, app button and switch. 229 unit tests, 172 goldens (new `textfield-phone-menu`, `textfield-phone-pasted`),
   35 JVM tests. Not on the phone or device yet.
 - 2026-11-16: P7-7 reader ghosting with the camera (1/10/30 turns at M, 10 turns at S/L/XL, one page turn timed); finding: no automatic clean while reading; `device.py` fails fast after the first answer.
+- 2026-11-16: reader page turns as `Hint::Page` (no settle sweep, Quality clean every 10th page, `display.pageCleanEvery`); Page commits before Content; 23 reader goldens now show the black/white page; waits lengthened in `library` and `reader-menu` scripts (footer settle); flashed and measured with the camera.

@@ -10,6 +10,7 @@ struct DisplayConfig {
   float ghostLimit = 8.0f;   // 4..16
   int settleMs = 600;        // 100..3000
   int idleCleanMs = 2000;    // 500..30000
+  int pageCleanEvery = 10;   // 0..100, 0 = off: a Quality pass every N full-page changes (page turns)
 };
 struct PowerConfig {
   int autoOffMin = 15;        // 0 = never (on USB)

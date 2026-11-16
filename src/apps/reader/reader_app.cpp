@@ -198,6 +198,7 @@ class PageScreen : public Screen {
     setTitle(file_);
     ctx().store.set("open", file_);
     view_ = root.add<PageView>();
+    view_->pageHint = Hint::Page;  // page turns: Fast, no settle sweep, a Quality clean every pageCleanEvery pages
     view_->flex = 1;
     view_->setInsets(kMarginX, kMarginTop, kMarginX, 0);
     view_->setStyle(pageStyle(font_));

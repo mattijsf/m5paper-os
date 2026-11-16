@@ -47,7 +47,8 @@ Widgets do not pick panel modes. They invalidate with a **hint** that states int
 ```cpp
 enum class Hint : uint8_t {
   Feedback,   // immediate response to a touch: pressed state, toggle, cursor
-  Content,    // new content in place: list rows, values, a page of text
+  Content,    // new content in place: list rows, values
+  Page,       // a new page of text (reader): Fast, no settle; every Nth page a Quality clean
   Screen,     // whole screen changed: navigation, app switch
   Image,      // grayscale picture: book cover, photo
 };
@@ -60,6 +61,7 @@ The DisplayManager maps hints to panel modes:
 |---|---|---|---|
 | Feedback | Fast, immediately (a pressed look: after 120 ms of holding, see "Navigation speed") | none if the *changed pixels* are pure black/white, else Text | the result of a tap must reach the panel within 100 ms of the Up |
 | Content | Fast | Text after 600 ms without further changes in the region | "fast then settle" |
+| Page | Fast | **none** (drops older settles inside the page) | the reader's page turns. Every `pageCleanEvery`-th (10) is one full-screen **Quality** pass instead, which also brings the 16 grays back. Decided: the Text settle is a dark sweep over the whole text area 0.6 s after every turn (camera: the paper at ~60 % brightness for ~0.3 s); black/white text between cleans is preferred |
 | Screen | Fast full screen | Text after 600 ms; **Quality instead** if the ghost budget is spent | navigation is the natural place to hide a clean |
 | Image | Quality on the image rect | none | only place a flash is expected |
 
@@ -84,10 +86,15 @@ keeps a score:
 When the score reaches **`ghostLimit` (default 8.0)**, the next `Hint::Screen` commit uses
 Quality for the whole screen (one flash, during navigation where it is least noticed). If no
 navigation happens and the score reaches `2 x ghostLimit`, the manager cleans on the next idle
-moment (2 s without input). **Measured 2026-11-16 (camera, reader at M)**: a page turn is a `Content` push of about 0.26
-of the screen (`changed=135994`), its settle pass takes half back, so the score rises about 0.13 per turn; the reader never
-commits `Screen`, so only the idle clean at 2 x `ghostLimit` = 16 remains, after roughly 120 turns. 30 turns gave **no**
-automatic clean. (This paragraph used to say "one clean every 8 to 10 pages": that is not what the code does.)
+moment (2 s without input).
+
+**Page turns have their own cadence (`Hint::Page`, 2026-11-16)**: every `pageCleanEvery`-th page (default 10, `config.json`
+`display.pageCleanEvery`, 0 = off) is one full-screen Quality pass; the others are Fast without a settle pass. Why: measured with the
+camera, a page turn as `Content` added about 0.13 net to the score (a Fast of ~0.26 of the screen, the settle took half back), the
+reader never commits `Screen`, so only the idle clean at 2 x `ghostLimit` = 16 was left, after roughly 120 turns: 30 turns gave no
+clean, and the ghost grew to 2 % of contrast. On the device after the change: nine `why=page` Fast pushes, then `why=page-clean`
+Quality; ghost after 1 page 1.57 %, after 9 pages 1.21 % (within the noise of the old 1.23 % / 1.54 %), the turn finished on the panel
+about 0.67 s after the tap instead of 1.6 s, and no dark sweep.
 
 `ghostLimit`, the settle delay and the idle delay live in `config.json` under `display` so they
 can be tuned on the device without rebuilding (task P7-1).
@@ -96,9 +103,10 @@ can be tuned on the device without rebuilding (task P7-1).
 
 - API: `invalidate(Rect, Hint)`, `commit()`, `tick(nowMs)`, `nextDeadlineMs()`, `forceClean()`,
   `ghostScore()`, `refreshLogTail()`, `shadowPacked()`. Parameters in `DisplayParams`
-  (`ghostLimit` 8, `settleMs` 600, `idleCleanMs` 2000). Unit tests: `tests/unit/display_manager_test.cpp`.
+  (`ghostLimit` 8, `settleMs` 600, `idleCleanMs` 2000, `pageCleanEvery` 10). Unit tests: `tests/unit/display_manager_test.cpp`.
 - One pending rect per hint (invalidations of the same hint are united). `commit()` handles
-  Feedback, Content, Screen, Image in that order; later rects diff against the shadow the
+  Feedback, Page, Content, Screen, Image in that order (Page before Content: the footer of a page turn is Content and must not make
+  the page wait for its push: measured, the page's push call took 322 ms behind the footer, 82 ms in front of it); later rects diff against the shadow the
   earlier ones updated.
 - The shadow is the quantised canvas of everything pushed (not the thresholded Fast image).
   `forceClean()` at boot makes it valid; before that every pixel counts as changed.
@@ -292,7 +300,7 @@ the same page after the menu's Clean)**: M after 1 turn 1.23 %, after 10 turns 1
 7.2 %); after 10 turns S 1.36 %, L 1.54 %, XL 1.71 %. No automatic Quality clean in any block (see "Ghost budget"). At 30 turns
 the ghost sits mostly in a rectangle over the upper half of the text (2.2-3.2 % per region), the lower middle stays at 0.2-0.8 %
 (`out/rg/M-30-diff.png`). One page turn at 30 fps (`around tap 400 500`): first visible change about 0.5 s after the tap, the Fast
-pass visible for about 0.17 s, the settle pass done on the panel about 1.6 s after the tap. Start times include the camera's own
+pass visible for about 0.17 s, the settle pass done on the panel about 1.6 s after the tap (before `Hint::Page`: see "Ghost budget"). Start times include the camera's own
 latency (about 0.2-0.25 s, the same offset appeared on the Clean); durations do not.
 
 `--source FILE` replays a video in real time instead of a camera (tests of the pipeline without a camera). The panel can show private

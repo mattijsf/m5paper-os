@@ -54,6 +54,7 @@ bool Config::load() {
   readFloat(d["ghostLimit"], display.ghostLimit, 4.0f, 16.0f);
   readInt(d["settleMs"], display.settleMs, 100, 3000);
   readInt(d["idleCleanMs"], display.idleCleanMs, 500, 30000);
+  readInt(d["pageCleanEvery"], display.pageCleanEvery, 0, 100);
 
   JsonVariantConst p = doc["power"];
   readInt(p["autoOffMin"], power.autoOffMin, 0, 240);
@@ -83,6 +84,7 @@ bool Config::save() const {
   doc["display"]["ghostLimit"] = display.ghostLimit;
   doc["display"]["settleMs"] = display.settleMs;
   doc["display"]["idleCleanMs"] = display.idleCleanMs;
+  doc["display"]["pageCleanEvery"] = display.pageCleanEvery;
   doc["power"]["autoOffMin"] = power.autoOffMin;
   doc["power"]["autoOffMinReader"] = power.autoOffMinReader;
   doc["power"]["stayAwakeOnUsb"] = power.stayAwakeOnUsb;

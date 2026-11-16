@@ -184,6 +184,28 @@ void DisplayManager::pushPass(Rect r, Hint hint) {
       updateShadow(box);
       if (!bw) addSettle(box, added, now);
       break;
+    case Hint::Page:
+      if (params_.pageCleanEvery > 0 && ++pages_ >= params_.pageCleanEvery) {
+        // A new page is the moment the reader expects change anyway: it hides the one flash.
+        Rect full{0, 0, kScreenW, kScreenH};
+        push(full, Refresh::Quality, changed, "page-clean", dms);
+        updateShadow(full);
+        shadowValid_ = true;
+        score_ = 0;
+        pages_ = 0;
+        settles_.clear();
+      } else {
+        // No settle pass: on the panel it is a dark sweep over the whole text area 0.6 s after every turn (camera,
+        // 2026-11-16); the user chose black/white text between cleans over that sweep.
+        push(box, Refresh::Fast, changed, "page", dms);
+        score_ += added;
+        updateShadow(box);
+        for (size_t i = 0; i < settles_.size();) {  // an older settle inside the page would bring the sweep back
+          if (touches(settles_[i].rect, box)) settles_.erase(settles_.begin() + i);
+          else ++i;
+        }
+      }
+      break;
     case Hint::Content:
       push(box, Refresh::Fast, changed, "content", dms);
       score_ += added;
@@ -198,6 +220,7 @@ void DisplayManager::pushPass(Rect r, Hint hint) {
         updateShadow(full);
         shadowValid_ = true;
         score_ = 0;
+        pages_ = 0;
         settles_.clear();
       } else {
         push(box, Refresh::Fast, changed, "screen", dms);
@@ -223,7 +246,8 @@ void DisplayManager::commit() {
   const bool busy = display_.busy();
   // Priority order. Later rects diff against the shadow updated by earlier ones. There is at most
   // one pending rect per hint (invalidate() merges them).
-  static const Hint order[] = {Hint::Feedback, Hint::Content, Hint::Screen, Hint::Image};
+  // Page before Content: a page turn also changes the footer (Content); the page must not wait for the footer's push.
+  static const Hint order[] = {Hint::Feedback, Hint::Page, Hint::Content, Hint::Screen, Hint::Image};
   for (Hint h : order) {
     if (busy && h != Hint::Feedback) continue;  // coalesce: wait for the panel
     for (size_t i = 0; i < pending_.size(); ++i) {
@@ -242,6 +266,7 @@ void DisplayManager::forceClean() {
   updateShadow(full);
   shadowValid_ = true;
   score_ = 0;
+  pages_ = 0;
   settles_.clear();
   pending_.clear();
 }

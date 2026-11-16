@@ -364,14 +364,14 @@ void TextBlock::setChapter(std::vector<Paragraph> paras, std::vector<TextPos> st
   startsValid_ = true;
   pos_ = starts_[pageIndexOf(starts_, pos)];
   pageValid_ = false;
-  invalidate(Hint::Content);
+  invalidate(pageHint);
 }
 
 void TextBlock::goTo(TextPos pos) {
   const auto& s = pageStarts();
   pos_ = s[pageIndexOf(s, pos)];
   pageValid_ = false;
-  invalidate(Hint::Content);
+  invalidate(pageHint);
 }
 
 const Page& TextBlock::page() {
@@ -396,7 +396,7 @@ bool TextBlock::nextPage() {
   if (i + 1 >= static_cast<int>(s.size())) return false;
   pos_ = s[i + 1];
   pageValid_ = false;
-  invalidate(Hint::Content);
+  invalidate(pageHint);
   return true;
 }
 
@@ -406,7 +406,7 @@ bool TextBlock::prevPage() {
   if (i <= 0) return false;
   pos_ = s[i - 1];
   pageValid_ = false;
-  invalidate(Hint::Content);
+  invalidate(pageHint);
   return true;
 }
 

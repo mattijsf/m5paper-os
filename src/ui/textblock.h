@@ -126,6 +126,7 @@ class TextBlock : public Widget {
 
   std::function<void()> onLayout;           // after the frame (so the page size) is known: update "Page 1 of N" here
   std::function<void(int)> onPageChange;  // called with the new page index after a turn by touch
+  Hint pageHint = Hint::Content;           // how a new page is drawn; the reader uses Hint::Page (no settle pass)
   bool onTouch(const Gesture& g) override;  // tap on the left third = back, elsewhere = forward; horizontal swipes
   Size measure(int availW) override { return {availW, 0}; }
   void layout() override;

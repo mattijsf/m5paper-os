@@ -50,7 +50,7 @@ the token and the Authorization header are never shown or logged. Developer > "H
 
 ```json
 {
-  "display":  { "ghostLimit": 8.0, "settleMs": 600, "idleCleanMs": 2000 },
+  "display":  { "ghostLimit": 8.0, "settleMs": 600, "idleCleanMs": 2000, "pageCleanEvery": 10 },
   "power":    { "autoOffMin": 15, "autoOffMinReader": 30 },
   "net":      { "lingerSec": 20, "timezone": "CET-1CEST,M3.5.0,M10.5.0/3" },
   "reader":   { "fontSize": "M", "margins": "normal", "lineSpacing": 1.35 },

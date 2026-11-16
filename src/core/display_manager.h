@@ -19,6 +19,7 @@ namespace pos {
 enum class Hint : uint8_t {
   Feedback,  // immediate response to a touch
   Content,   // new content in place
+  Page,      // a new page of text (reader): Fast without a settle pass; every Nth is a Quality clean
   Screen,    // whole screen changed
   Image,     // grayscale picture
 };
@@ -27,6 +28,10 @@ struct DisplayParams {
   float ghostLimit = 8.0f;       // score at which the next Screen commit becomes a Quality flash
   uint32_t settleMs = 600;       // quiet time before a Fast region is redrawn in 16 grays
   uint32_t idleCleanMs = 2000;   // idle time before a forced clean when the score reached 2 x limit
+  // Every this many Page commits (page turns) the new page goes out as one full-screen Quality pass instead of Fast.
+  // 0 = off. The ghost score alone never got there while reading (a turn added about 0.13 net; camera, 2026-11-16,
+  // DISPLAY.md "Ghost budget").
+  int pageCleanEvery = 10;
 };
 
 struct RefreshEntry {
@@ -62,6 +67,7 @@ class DisplayManager {
   void forceClean();
 
   float ghostScore() const { return score_; }
+  int pagesSinceClean() const { return pages_; }
   const DisplayParams& params() const { return params_; }
   void setParams(const DisplayParams& p) { params_ = p; }
   // Pushes since boot per mode (Settings > Developer).
@@ -105,6 +111,7 @@ class DisplayManager {
   std::vector<RefreshEntry> log_;
   Counts counts_;
   float score_ = 0;
+  int pages_ = 0;  // Page commits since the last full-screen Quality pass
   uint32_t lastActivityMs_ = 0;
   bool wasBusy_ = false;
 };

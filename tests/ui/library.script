@@ -3,7 +3,7 @@
 wait 600
 shot library-fresh
 tap 270 150
-wait 1500
+wait 2500                # the footer's page number settles after the page (Page goes first)
 shot library-opened-book
 tap 400 500
 wait 900
@@ -22,6 +22,6 @@ tap 60 925              # previous page (the card is back)
 wait 900
 expect-state books=9|A Baker's Morning|Bram Stone|33
 tap 400 320             # Continue: the book opens on the page it was left on
-wait 1200
+wait 2500
 expect-state page=3/7
 shot library-continued

@@ -50,6 +50,7 @@ void Os::applyDisplayConfig() {
   p.ghostLimit = config_.display.ghostLimit;
   p.settleMs = static_cast<uint32_t>(config_.display.settleMs);
   p.idleCleanMs = static_cast<uint32_t>(config_.display.idleCleanMs);
+  p.pageCleanEvery = config_.display.pageCleanEvery;
   dm_.setParams(p);
 }
 
