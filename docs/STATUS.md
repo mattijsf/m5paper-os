@@ -35,10 +35,10 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   on both sides (Paper: Settings > Home Assistant > Phone, config `phone.clipboard`). **Installed on the phone (unpaired), not run
   end to end**: no real pairing exists yet.
 
-- **P7-9 Vijfje, 2026-11-16: built, simulator only.** A daily five-letter word game (docs/apps/vijfje.md). The owner asked for
+- **P7-9 the word game, 2026-11-16: built, simulator only.** A daily five-letter word game (docs/apps/wordgame.md). The owner asked for
   "woordle" from a handover text of that web game; built is PaperOS's own game in that genre (D26): own name, own word lists
-  (688 answers, 2254 accepted words, `assets/vijfje/`), own first day and order, so **not the web game's word of the day** and a
-  shared score is named "Vijfje". Seventh app: the launcher now has a second page. The firmware builds with it; not flashed (Pending
+  (688 answers, 2254 accepted words, `assets/wordgame/`), own first day and order, so **not the web game's word of the day** and a
+  shared score had its own name (the user set it to "Woordle" later). Seventh app: the launcher now has a second page. The firmware builds with it; not flashed (Pending
   device checks). Open question 7.
 
 - **D22, 2026-11-16: the inbox moves to an end-to-end encrypted companion app; Home Assistant is not trusted with message text.**
@@ -265,21 +265,24 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   "Stuur naar WhatsApp" removed;
   the done screen keeps "Kopieer score" only, the score is pasted into an inbox reply. `whatsapp::sendToFavorite` stays in the
   inbox API, now without a caller.
-- **Clock lost (2026-11-16)**: Somdoku and Vijfje show "Klok zetten" when the clock was never set (`ctx.syncClock`: one Wi-Fi
+- **Clock lost (2026-11-16)**: Somdoku and the word game show "Klok zetten" when the clock was never set (`ctx.syncClock`: one Wi-Fi
   join, wait for the SNTP sync). The simulator's `Clock::set` now ends `--no-rtc`, so the flow runs headless
-  (`somdoku-clock`, `vijfje-clock`). Pending on the device: a real flat-battery start (clock lost) and the button.
+  (`somdoku-clock`, `wordgame-clock`). Pending on the device: a real flat-battery start (clock lost) and the button.
 - **Flaky unit test**: `wifi_test.cpp:396` ("Wi-Fi goes off after the linger time") failed once in four runs on 2026-11-16
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Word game renamed `vijfje` -> `wordgame` (2026-11-16, simulator only)**: the device still runs the firmware with the old id.
+  After the next flash: open the game once, then the statistics screen must still say 1 played and 5616 fetched words
+  (`adoptOldData`), and today's finished game must still be there. `tools/memory.py --only wordgame`.
 - **Toast as a band over the status bar (2026-11-16, simulator only)**: on the device one Fast push of 540 x 56 and the status
   bar back after 3 s (frame dump); with the camera whether the band leaves a ghost in the status bar.
-- **Vijfje (P7-9), device run 2026-11-16 14:00** (firmware of main bb517a4, then the statistics line fix; injected taps, frame
-  dumps in `out/dev-vijfje/`): the game screen is **identical to the simulator golden** below the title bar (`1-open.png`);
+- **The word game (P7-9), device run 2026-11-16 14:00** (firmware of main bb517a4, then the statistics line fix; injected taps, frame
+  dumps in `out/dev-wordgame/`): the game screen is **identical to the simulator golden** below the title bar (`1-open.png`);
   a typed letter is a Fast push of its tile (70 x 70, push call 2-30 ms) and a settle 0.6 s later; "Onbekend woord" and "Te
   weinig letters" toasts, the row is not used; **a backspace is one Fast push, no settle** (five in a row, refresh log), the
   board afterwards identical to the opening frame; Statistieken; "Woordenlijst bijwerken": Wi-Fi join 1.36 s, HTTPS 2.87 s
-  (TLS 1.40 s), `[vijfje] word list: 5616 words`, heap 101 KB during TLS, 144 KB again after leaving, Wi-Fi off. **Found and
+  (TLS 1.40 s), `[wordgame] word list: 5616 words`, heap 101 KB during TLS, 144 KB again after leaving, Wi-Fi off. **Found and
   fixed**: the statistics line was cut off with the real numbers ("... opgehaald op 16-11-2..."): now day and month only, two
   lines allowed; flashed and seen on the device (`9-stats-fixed.png`). One camera still (`cam-typed.png`, dark: exposure not
   set for this session): board, typed tiles, keys and legend are on the panel; the gray(9) box of "zit er niet in" in the
@@ -290,37 +293,37 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (the saved game); guess 2 was a word that is **only in the fetched list** and was accepted (the cached list is loaded on
   the device), with a double letter marked once; guess 3 solved it: "Geraden in 3 beurten", "Reeks: 1 dag", the result
   screen as one Fast push + settle; "Kopieer score" toast "Score gekopieerd" (the clipboard file was not read back:
-  `>cat` does not reach `/data`); Statistieken 1 / 100 / 1 / 1 with the solid bar at 3. Dumps `out/dev-vijfje/11` to `16`.
+  `>cat` does not reach `/data`); Statistieken 1 / 100 / 1 / 1 with the solid bar at 3. Dumps `out/dev-wordgame/11` to `16`.
   **Camera** (`cam-guess1.png`, crop `cam-guess1-keys.png`, `cam-won.png`; exposure locked, the room is dim): hatched tiles
   and keys read as a gray ring around the letter, clearly apart from solid and plain; absent tiles: letter readable, frame
   faint; **used-up keys (gray(10)): letter faint but readable, outline almost gone**. Open: the lost screen on the device
   (simulator only), a real finger on the 45 px keys, whether the used-up keys are too faint for a person's eyes.
-- **Vijfje (P7-9), older note**: (the firmware builds, see below): on 2026-11-16 the device and the
-  `papers3` build were in use by other work (sdkconfig experiments; its builds exclude `apps/vijfje/`), the owner said
-  "test in simulator". Done instead: simulator, unit tests, and `vijfje.cpp` + `words_data.cpp` compiled alone with the
+- **The word game (P7-9), older note**: (the firmware builds, see below): on 2026-11-16 the device and the
+  `papers3` build were in use by other work (sdkconfig experiments; its builds exclude `apps/wordgame/`), the owner said
+  "test in simulator". Done instead: simulator, unit tests, and `wordgame.cpp` + `words_data.cpp` compiled alone with the
   ESP32-S3 compiler (no warnings, 15 KB). To do: `make fw` with the app (size), flash, open it from launcher page 2, type a
   guess with injected taps (key positions from `debugState`), frame dump against the goldens; with the camera: how the
   hatched ring, the gray(5) letters of absent tiles and the gray(10) letters and outlines of used-up keys show on the panel
   (the panel prints mid-grays lighter than the simulator: a used-up key may nearly vanish there), and typing speed (a Fast push per
   letter plus its settle). For a person's fingers, batched: whether 45 px wide keys are comfortable.
-  **Device compile, found by the tap-latency pass 2026-11-16**: `make fw` failed on `vijfje_app.cpp`
+  **Device compile, found by the tap-latency pass 2026-11-16**: `make fw` failed on `wordgame_app.cpp`
   (`Store::get("day", INT32_MIN)`: `int32_t` is `long` on the ESP32 and `Store` has no overload for it; the simulator
-  build does not see this). Fixed with `vijfje::kNoDay` (an `int`); the three call shapes were checked alone with the
+  build does not see this). Fixed with `wordgame::kNoDay` (an `int`); the three call shapes were checked alone with the
   ESP32-S3 compiler. **Firmware build with the app: done 2026-11-16 12:00** by the tap-latency pass (`make fw` at
   f859131 with its uncommitted core settings in `platformio.ini`): compiles and links; checked here: `firmware.elf` holds
-  the `pos::vijfje` symbols, `firmware.bin` is 2,897,584 bytes (2.76 MB, 55.3% of the 5 MB slot; the 3 MB budget has
+  the `pos::wordgame` symbols, `firmware.bin` is 2,897,584 bytes (2.76 MB, 55.3% of the 5 MB slot; the 3 MB budget has
   248 KB left). Not flashed (a PSRAM soak was running on the device).
   **Memory on the device (memory pass, 2026-11-16)**: first reading, old configuration: 18 KB internal heap free after
   opening the app (108 KB idle), still 19 KB back in the launcher. With D27 (45d5d23: ordinary allocations and mbedTLS in
   PSRAM) and no fetch in that run: **141 KB free while the app is open (the idle level), 144 KB 30 s after leaving, PSRAM back
   to idle after closing**: the app keeps nothing, its 28 KB word list is freed with the screen. The low first reading was most
   likely the first list fetch (Wi-Fi + a new TLS connection) under the old configuration: fits, **not measured**; Home's TLS
-  fetch now bottoms out at 69 KB (was 18 KB). To measure the fetch: Statistieken > "Woordenlijst bijwerken" (apps/vijfje.md).
+  fetch now bottoms out at 69 KB (was 18 KB). To measure the fetch: Statistieken > "Woordenlijst bijwerken" (apps/wordgame.md).
   **The word list fetch on the device: done 2026-11-16** (memory pass, "Woordenlijst bijwerken", D27 firmware). The first
   tries **rebooted the board**: task watchdog on IDLE0, because Arduino's HTTPClient body loop spins around a TLS read that
   returns 0 at once, so the worker on core 0 never let the idle task run for 5 s. Not in the app: any HTTPS download on the
   worker could hit it; fixed in `platform/device/net.cpp` (54ad248: the clients sleep 1 ms on an empty read). After the fix:
-  `[vijfje] word list: 5616 words`; dns 28 ms, TLS + TCP 1493 ms, request + headers 1402 ms, body 98 ms; internal heap lowest
+  `[wordgame] word list: 5616 words`; dns 28 ms, TLS + TCP 1493 ms, request + headers 1402 ms, body 98 ms; internal heap lowest
   70 KB during the fetch (largest block 63 KB), PSRAM lowest 5.64 MB; Wi-Fi off 20 s later. Still open: flash + play-through
   with injected taps, the camera on the hatched tiles and the gray(10) keys, the fetch on the app's first open (the same code).
 - **Screen passes with gray areas as one Text push** (`why=screen-gray`, 2026-11-16, simulator only: the device was reserved for other
@@ -438,8 +441,8 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
    the notification shows; read-only. (d) The phone is mostly on and online at home; both sides queue and survive the phone being
    away for hours. Protocol: docs/COMPANION.md.
 
-7. **Vijfje (P7-9, D26)**: (a) ~~the word list is small: download OpenTaal?~~ **Closed 2026-11-16**: "Not now"; instead the
-   app fetches the accepted guesses of woordscore.nl weekly (apps/vijfje.md "Fetched words"). (b) Vijfje is alone on launcher page 2: fine, or should
+7. **The word game (P7-9, D26)**: (a) ~~the word list is small: download OpenTaal?~~ **Closed 2026-11-16**: "Not now"; instead the
+   app fetches the accepted guesses of woordscore.nl weekly (apps/wordgame.md "Fetched words"). (b) the word game is alone on launcher page 2: fine, or should
    the two games share a place (a 2 x 4 grid, a Games folder)? (c) the handover's `woordscore.nl/woordlijst.txt` answers
    10 + 30 words at first; **since 2026-11-16 about 11:50 the full list (844 + 5616)**. The app fetches its second part
    (accepted guesses) weekly; its first part (the web game's daily answers in order) stays out (D26). **Still the user's
@@ -730,19 +733,20 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-16: going home drew the icon wells in a second pass (Fast thresholded gray(13) to white, the settle 0.6 s later brought them in). A Screen pass with flat gray areas is now one Text push (`why=screen-gray`, DISPLAY.md "As implemented"); 2 unit tests, golden `launcher-back-first` (wells in the first push), `lab-*` goldens: push counters only. Simulator only; device check pending.
 - 2026-11-16: tap latency (DISPLAY.md "Tap latency", D24): `[lat]` trace + `tools/latency.py`; fast text path (byte-identical to LovyanGFX); M5GFX patched at build time (`tools/patch_m5gfx.py`: tiled table-driven frame buffer write, finished rows skipped; `>set epd-selftest on`); reader prefetches the next page; Settings write the config a second later. Page turn 516 -> 199 ms, screen 807 -> 408 ms, small tap 52 -> 7 ms (finger up to the driver).
 - 2026-11-16: D25: the Arduino core / ESP-IDF 5.5.5 built from source (`custom_sdkconfig`): 64 KB data cache, 64-byte lines, PSRAM initialised before global constructors. Screen change during a settle 408 -> 306 ms. Pitfalls (penv PlatformIO 6.2.0, SPIRAM_BOOT_INIT) in D25.
-- 2026-11-16: P7-9 Vijfje (D26): `apps/vijfje` (game logic, word lists + `tools/gen-vijfje-words.py`, game and statistics screens, score to the clipboard); 8 unit test cases, 13 new goldens, 9 launcher goldens with the pager bar. Simulator only.
-- 2026-11-16: P7-9 Vijfje fetches more accepted guesses weekly from woordscore.nl (second part of the list only), cached for offline use; 3 unit test cases, `vijfje-list.script` with a fixture, live fetch checked in the simulator (5616 words).
-- 2026-11-16: simulator: the Fast pass is the panel driver's ordered dither instead of a 50 % threshold (grays show as dots at once, as the driver writes them); 55 goldens that show a Fast image changed. Vijfje: backspace one push (ink frame for empty tiles), used-up keys gray(10).
-- 2026-11-16: Vijfje: `kName` set to "Woordle" by the user (own edit); the share text unit test follows the constant, 15 goldens with the title or the tile regenerated; launcher tile label from `kName`.
+- 2026-11-16: P7-9 the word game (D26): `apps/wordgame` (game logic, word lists + `tools/gen-wordgame-words.py`, game and statistics screens, score to the clipboard); 8 unit test cases, 13 new goldens, 9 launcher goldens with the pager bar. Simulator only.
+- 2026-11-16: P7-9 the word game fetches more accepted guesses weekly from woordscore.nl (second part of the list only), cached for offline use; 3 unit test cases, `wordgame-list.script` with a fixture, live fetch checked in the simulator (5616 words).
+- 2026-11-16: simulator: the Fast pass is the panel driver's ordered dither instead of a 50 % threshold (grays show as dots at once, as the driver writes them); 55 goldens that show a Fast image changed. The word game: backspace one push (ink frame for empty tiles), used-up keys gray(10).
+- 2026-11-16: The word game: `kName` set to "Woordle" by the user (own edit); the share text unit test follows the constant, 15 goldens with the title or the tile regenerated; launcher tile label from `kName`.
 - 2026-11-16: D25 120 MHz flash + PSRAM: soak 20 min + 10 min with page turns clean (29.4 -> 34.4 C), temperature in boot log and heartbeat, restart guard at 12 C drift; page turn 140 ms, screen change 190 ms, small tap 5 ms (finger up to the driver). Full flash backed up before (`backup/before-120m-2026-11-16.bin`).
 - 2026-11-16: Display lab: fifth pattern "Fast" (the gray ramp left in its Fast state, `Hint::Page`) to check the driver's Fast dither with the camera; golden `lab-fast-ramp`, the five lab goldens with the wider control.
 - 2026-11-16: Fast pass dither confirmed on the panel with the camera (Display lab "Fast"); the Fast ramp is upside down so it is pushed also after Ramp; golden `lab-fast-after-ramp`.
 - 2026-11-16: P6-12: a copy whose `clip` push failed offline (or timed out, or a server error) is resent when Wi-Fi next comes up (`NetService::onConnected`, `clipboard::markUnsent` / `unsent`, `/data/clipboard_unsent` holds only the copy time); checked in the simulator with `wifi off` / `wifi on`. Not on the device.
 - 2026-11-16: tap latency round 3: M5GFX patch 3 (frame buffer write on both cores), the diff updates the shadow in the same pass, the reader saves its position a second after the turn. Page turn 140 -> 112 ms, screen change 190 -> 150 ms. Noted: with a book open, internal heap free drops ~111 -> ~78 KB (chapter text and layouts as small strings), back to ~101 KB after leaving.
 - 2026-11-16: D27 memory: allocations to PSRAM (`SPIRAM_MALLOC_ALWAYSINTERNAL=0`, 32 KB internal reserve), mbedTLS in PSRAM, core dumps off, log ring and serial buffer on the heap; `>set memreport` and `tools/memory.py`. Internal free idle 108 -> 141K, Home's lowest during TLS 18 -> 69K, Woordle 18 -> 126K; latency unchanged.
-- 2026-11-16: Vijfje: "Woordenlijst bijwerken" on the statistics screen (the list fetch by hand; shared `fetchList`), goldens `vijfje-list-updated`, `vijfje-list-failed`; device memory numbers of the app recorded.
+- 2026-11-16: The word game: "Woordenlijst bijwerken" on the statistics screen (the list fetch by hand; shared `fetchList`), goldens `wordgame-list-updated`, `wordgame-list-failed`; device memory numbers of the app recorded.
 - 2026-11-16: fixed a reboot during HTTPS downloads (task watchdog: HTTPClient's read loop spun on core 0 while the TLS client had no data; `YieldingClient` in `platform/device/net.cpp`). Woordle's list fetch on the device: 5616 words, internal free lowest 70K; Home unchanged (lowest 69K).
-- 2026-11-16: Vijfje's list fetch ran on the device (5616 words, heap lowest 70 KB); it exposed a watchdog reboot in HTTPS downloads on the worker, fixed by the memory pass (54ad248).
-- 2026-11-16: Vijfje on the device (taps, frame dumps, list update, one camera still); statistics line shortened after it was cut off there. A played guess not run (today's puzzle).
-- 2026-11-16: Vijfje: today's puzzle played on the device with injected taps (marks, resume, a fetched-only word, won screen, copy, statistics); camera stills of the marks on the panel.
+- 2026-11-16: The word game's list fetch ran on the device (5616 words, heap lowest 70 KB); it exposed a watchdog reboot in HTTPS downloads on the worker, fixed by the memory pass (54ad248).
+- 2026-11-16: The word game on the device (taps, frame dumps, list update, one camera still); statistics line shortened after it was cut off there. A played guess not run (today's puzzle).
+- 2026-11-16: The word game: today's puzzle played on the device with injected taps (marks, resume, a fetched-only word, won screen, copy, statistics); camera stills of the marks on the panel.
 - 2026-11-16: the toast is an ink band over the status bar instead of a button-like pill at the bottom; 22 goldens; unit test taps through it at the top.
+- 2026-11-16: names in English: the word game is `wordgame` (directory, namespace, app id, tests, goldens, tools, docs); old saved data adopted on first open.

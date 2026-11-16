@@ -64,4 +64,4 @@ real characters (clipboard, a pasted reply). `ui::Label::keepLineBreaks` keeps a
 ## Not built
 
 The web game's long-press-and-slide value picker, haptics, the coloured solved grid, the rules page. Woordle (woordle.nl) is
-not the user's game and is not rebuilt; PaperOS has its own word game, Vijfje (apps/vijfje.md, D26).
+not the user's game and is not rebuilt; PaperOS has its own word game (apps/wordgame.md, D26).

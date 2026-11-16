@@ -1,7 +1,0 @@
-# Test data for tests/ui/vijfje-clock.script (copy of data/wifi): fake values only.
-HA_TOKEN=test-token-not-a-secret
-HA_URL=https://ha.example.test
-WIFI_SSID=HomeNet
-WIFI_PASSWORD=home-password
-WIFI_SSID_2=Office/Guest 2.4
-WIFI_PASSWORD_2=office

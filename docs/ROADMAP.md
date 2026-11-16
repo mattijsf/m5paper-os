@@ -400,7 +400,7 @@ P6-11 last (it needs the relay and a device that can pair).
   views, score to the clipboard (no direct WhatsApp send). (2026-11-16: built and tested in the simulator;
   device run pending.)
 
-- [~] **P7-9 Vijfje** (daily five-letter word game, "woordle"). Read: apps/vijfje.md, D26. An own
+- [~] **P7-9 Word game** (daily five-letter word game, "woordle"). Read: apps/wordgame.md, D26. An own
   game in the genre, not a copy of woordle.nl: own name, own words and day order. Game logic with unit tests, game and
   statistics screens, score to the clipboard. (2026-11-16: built and tested in the simulator; device run pending.)
 

@@ -1,0 +1,13 @@
+# app: wordgame
+# time: 2028-01-20T09:00:00
+# The app's id was "vijfje" until 2026-11-16. A device with data under the old names (tests/ui/data/wordgame-adopt: a
+# game with one guess, statistics, four fetched words) keeps it: the first open moves the files to the new names.
+wait 1500
+expect-state tries=1
+expect-state guesses=blaft;
+expect-state list=4;
+shot wordgame-adopted
+tap 504 92              # the info button: the old statistics
+wait 900
+shot wordgame-adopted-stats
+expect-state view=stats list=4;

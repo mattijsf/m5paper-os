@@ -330,23 +330,23 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
 - **Next candidates** (each measured before it stays): dropping
   unused components (Bluetooth, ESP-SR, RainMaker are built today) for flash and RAM, FreeRTOS tick rate, `-O2` for ESP-IDF.
 
-## D26. The word game is PaperOS's own (Vijfje), not a copy of woordle.nl (2026-11-16)
+## D26. The word game is PaperOS's own, not a copy of woordle.nl (2026-11-16)
 
 - **Asked**: "Create woordle game" with a handover text of that web game: its word list address, its day formula (start
   7 January 2022, number = days + 202), its texts, colours and share message; the user dropped colours and high contrast and
   wanted the clipboard text to stay the same.
 - **Decision**: build the genre (five letters, six tries, three marks, one word a day, statistics, a score to share), not
-  that game. Left out: its name, its list of daily words and their order (its puzzle and number of the day), its texts. Vijfje
-  has its own name, its own word lists (`assets/vijfje/`), its own first day (2026-11-16 = puzzle 1) and order.
+  that game. Left out: its name, its list of daily words and their order (its puzzle and number of the day), its texts. The word game
+  has its own name ("Vijfje" as built), its own word lists (`assets/wordgame/`), its own first day (2026-11-16 = puzzle 1) and order.
 - **Why**: the assistant building it does not recreate a specific existing game (name, levels, look); woordle.nl is not the
   user's game (apps/somdoku.md said so already). A word game with the same rules is fine, the other game's daily puzzle
   under its name is not.
 - **Cost**: the word of the day differs from the web game's, so scores cannot be compared with people who play that, and
-  woordscore.nl does not read a "Vijfje" score as the web game's. The share text keeps the genre's shape (apps/vijfje.md).
+  woordscore.nl does not read a score under its own name as the web game's. The share text keeps the genre's shape (apps/wordgame.md).
 - **Also found**: the handover's word list address answered 10 + 30 words on 2026-11-16, not 844 + 5616 (filled later that day).
 - **Name, later the same day**: the user changed `kName` to "Woordle" by hand (their decision, against "own name" above; the
   assistant declined to make the rename). Title, launcher tile and shared score follow the constant. Words, order and
-  numbering stay Vijfje's own.
+  numbering stay the word game's own.
 - **Later the same day**: the app fetches that file and uses its second
   part only, the words accepted as a guess (a dictionary); the first part, the web game's words of the day in order, is
   skipped by the parser and never stored. The line of this decision stays where it was.
@@ -374,4 +374,5 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   rejects it and would drop the whole config, core and stack included.)
 - **Left**: Bluetooth is linked but never started (small gain, risk to the core build); Wi-Fi buffer counts; the reader's
   prefetch canvas costs 486 KB of PSRAM (of ~5.5 MB free).
-
+- **Names in code**: the app is `wordgame`
+  everywhere (directory, namespace, id, tests, docs); data saved under the old id is adopted once (apps/wordgame.md "Names").

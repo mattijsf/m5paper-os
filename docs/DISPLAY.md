@@ -75,7 +75,7 @@ the panel driver, in the simulator by the emulation. **It is an ordered dither, 
 driver source, M5GFX `Panel_EPD`, `epd_fast`): a pixel is black if `value + Bayer4x4 * 16 < 248`. So grays are in the Fast
 pass as dots: a gray(9) divider has 6 of 16 pixels black, gray(13) 2 of 16, gray(3) 13 of 16; anti-aliased edges are speckled.
 The settle pass then turns the dots into the even gray. The simulator used a threshold at 50 % until then, which showed
-gray(8) and lighter **not at all** until the settle pass (dividers, gray icon wells, Vijfje's gray frames: "first the text,
+gray(8) and lighter **not at all** until the settle pass (dividers, gray icon wells, the word game's gray frames: "first the text,
 then the lines", user in the simulator window); it now uses the driver's formula (`platform/sim/display.cpp`; the pattern
 is indexed by logical x, y, the driver indexes it in panel coordinates). **Confirmed on the panel 2026-11-16** (camera session, Display lab "Fast" after a logged `mode=F ... why=page` push, `cam.py compare`): lightness per band, 0 = ink, 1 = white: g0 .01, g1 .03, g2 .13, g3 .23, g4 .27, g5 .30, g6 .38, g7 .44, g8 .54, g9 .57, g10 .61, g11 .64, g12 .71, g13 .81, g14 .94, g15 1.04: a steady rise that follows the predicted white share (g3 .19, g7 .44, g9 .62, g13 .88); a threshold would give two flat groups, and the real-gray ramp bunches at both ends instead. A reader page was tried first and showed nothing: at 1.3 camera pixels per panel pixel the 4 x 4 pattern on text edges blurs away. Text and Quality modes also dither between neighbouring levels in the driver (`(value + Bayer - 8) >> 4`); the
 simulator still shows the exact level there.

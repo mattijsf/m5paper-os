@@ -26,8 +26,8 @@ come from the registry, a tap calls `Shell::requestOpen`. Badges are read from
 Mail, Settings) show an `EmptyState` "Coming soon" until the real apps replace them. UI test:
 `tests/ui/launcher.script` (open an app, back, long press on the back arrow).
 
-Since Vijfje (2026-11-16) there are seven apps: the pager bar shows ("1 / 2") and Vijfje is alone on page 2 (golden
-`vijfje-launcher-page2`).
+Since the word game (2026-11-16) there are seven apps: the pager bar shows ("1 / 2") and the word game is alone on page 2 (golden
+`wordgame-launcher-page2`).
 
 ## Behaviour
 
