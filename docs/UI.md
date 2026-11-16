@@ -84,7 +84,7 @@ droplets, fan, wind, message-circle, mail, mail-open, settings, wifi, wifi-off, 
 battery-low, battery-charging, refresh-cw, moon, power, sun, check, x, plus, minus, clock,
 folder, file-text, type, info, triangle-alert, door-open, air-vent.
 Weather conditions (P7-11, apps/weather.md): sun, moon, cloud, cloud-sun, cloud-moon, cloud-rain, cloud-rain-wind, cloud-snow,
-cloud-lightning, cloud-fog, cloud-hail, wind, umbrella, droplets.
+cloud-lightning, cloud-fog, cloud-hail, wind, umbrella, droplets, sunrise, sunset.
 The Home app reuses the names of the icons in the user's Home Assistant dashboard so rooms look familiar.
 
 ## Screen anatomy

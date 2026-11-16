@@ -1,0 +1,6 @@
+# app: weather
+# P7-11: Home Assistant answers 401 (ha-denied.example.test: the token is wrong or revoked) and nothing is saved: the screen
+# says so and names the key to check.
+wait 1500
+shot weather-denied
+expect-state weather=none||error=Token rejected

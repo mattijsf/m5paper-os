@@ -413,13 +413,13 @@ P6-11 last (it needs the relay and a device that can pair).
   Done when: a real calendar event made on the phone shows on the Paper within two minutes of a relay read, and an edit and a
   delete follow.
 
-- [~] **P7-11 Weather**. Read:
+- [x] **P7-11 Weather**. Read:
   apps/weather.md, BACKEND.md "API calls used". App `weather`: `weather.thuis` state for now (condition, temperature, feels like,
-  wind, humidity, rain chance), `weather.get_forecasts` (`?return_response`, daily and hourly) for the next hours and days, the rain graph from
-  `sensor.google_neerslag_minuten` (as the house dashboard's rain card); saved
-  copy first, then a read; not set up / unreachable / stale handled visibly. Condition icons from Lucide. Fixtures, UI scripts
-  `weather*`, unit tests. Done when: goldens accepted, `make check` green, the live entity read on the device. (2026-11-16: built
-  and tested in the simulator; the live read on the device is pending.)
+  wind, humidity, rain chance), `weather.get_forecasts` (`?return_response`, daily and hourly) for the next hours and days,
+  `sun.sun` for sunrise and sunset; three pages (now, today and tomorrow in blocks of three hours, ten days; D29); saved copy
+  first, then a read; not set up / token refused / entity missing / unreachable / stale handled visibly. Condition icons from Lucide. Fixtures, UI scripts
+  `weather*`, unit tests. Done when: goldens accepted, `make check` green, the live entity read on the device. (2026-11-16: done;
+  live read on the device: 10 days, 24 hours, STATUS.md.)
 
 ## Phase 8: Optional, ask the owner first
 

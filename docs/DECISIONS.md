@@ -392,3 +392,36 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
 - **On the Paper**: the Agenda app (Day: blocks on an hour grid; List: every event, paged), one line on the launcher and on
   the sleep screen with what is on now or next. The sleep screen's line is drawn at power-off (and by a scheduled refresh), so
   it can be hours old: it names the event, not "in 5 minutes".
+
+## D29. Weather comes from Home Assistant's Google Weather entity, not from a weather service
+
+- **Source**: the house already runs Home Assistant's Google Weather integration; its entity is `weather.thuis`
+  (home-assistant `packages/google_neerslag.yaml`). The Paper reads that entity with the token it already has (D10): no Google
+  API key on the card, no second host, no second TLS session, and the quota stays Home Assistant's. A weather service called
+  straight from the Paper was not considered further.
+- **Calls** (non-admin subset, D18; no `/api/template`): `GET /api/states/<entity>` for now, `POST
+  /api/services/weather/get_forecasts?return_response` twice (`"type":"daily"`, `"type":"hourly"`) for the forecasts (the
+  `forecast` attribute is gone since Home Assistant 2024.3), `GET /api/states/sun.sun` for the sun's next rise and set. Four
+  requests per read over one kept-alive connection. Read only: the app never changes Home Assistant.
+- **Entity id** is a default in code with an override in `/data/apps/weather.json` (`entity`), like the Home app's rooms: no
+  Settings row until somebody needs one.
+- **Places**: a place is a weather entity,
+  because the Google Weather integration makes one entity per location; the Paper sends no coordinates and no address
+  anywhere. Up to four (`entity`..`entity4`, `name`..`name4`), default Thuis (`weather.thuis`) and Office
+  (`weather.office`); a `Segmented` switcher above the pages, a saved copy per place, a read only for the place shown.
+  The location itself is added in Home Assistant's UI (it is a config entry, not YAML, so it is not in the config repo);
+  Office was added there on 2026-11-16 (it costs the Google Weather quota of one more location).
+- **What is saved** is the parsed model (`/data/cache/weather/<entity>.json`, about 4 KB), not the raw answers (the hourly answer
+  is about 10 KB). The saved copy shows first; a "now" older than 90 minutes gives way to the forecast for the current hour.
+- **Reads** happen when the app opens (if the last one is 15 minutes old) and every 15 minutes while it stays open, plus the
+  refresh button. Nothing is read in the background or from the launcher: weather on the launcher or the sleep screen would
+  need a scheduled wake (POWER.md) and is left for a later task.
+- **Three pages, no scrolling** (`ui::Pager`): now with the next 16 hours and 4 days (5 without the place switcher); today and tomorrow as blocks of three
+  hours (the "day block" view the owner asked for); all ten days. A block is clock-aligned (00, 03, ... local), so a column
+  always means the same time of day; its icon is the condition most of its hours have, its temperature their mean, its rain
+  chance the highest, its amount the sum (`dayBlocks`, unit tested).
+- **Rain graph**: the next two hours from the house's own minute forecast sensor
+  (`sensor.google_neerslag_minuten`, the house dashboard's rain graph data), as bars on the first page; a forecast older than
+  40 minutes is not shown. Home only: the sensor is a REST call for the home zone, the office would need a second one in the
+  Home Assistant config.
+- **Not used**: UV, pressure, visibility, gusts, dew point, weather alerts.

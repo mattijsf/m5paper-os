@@ -1,0 +1,9 @@
+# app: weather
+# P7-11: the second place's entity (weather.nowhere in /data/apps/weather.json) does not exist in Home Assistant (404): Thuis
+# shows, Office says what is missing.
+wait 1500
+expect-state weather=partlycloudy|Updated 13:34|page=1|place=Thuis
+tap 390 166
+wait 1500
+shot weather-missing
+expect-state weather=none||not found|page=1|place=Office

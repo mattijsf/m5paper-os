@@ -1,0 +1,6 @@
+# app: weather
+# P7-11: one place (entity2 is empty in /data/apps/weather.json: no switcher) and a minute forecast without rain
+# (sensor.rain_dry): one line instead of the graph, three days below.
+wait 1500
+shot weather-dry
+expect-state weather=partlycloudy|Updated 13:34|page=1|place=Thuis

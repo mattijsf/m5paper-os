@@ -72,6 +72,8 @@ enum class Icon : uint8_t {
   CloudHail,
   Umbrella,
   List,
+  Sunrise,
+  Sunset,
   Count
 };
 
@@ -143,6 +145,8 @@ constexpr uint32_t kIconCodepoint[] = {
   0xE08B,  // cloud-hail
   0xE199,  // umbrella
   0xE106,  // list
+  0xE179,  // sunrise
+  0xE17A,  // sunset
 };
 
 }  // namespace pos::gen

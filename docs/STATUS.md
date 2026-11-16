@@ -49,14 +49,26 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   shared score had its own name (the user set it to "Woordle" later). Seventh app: the launcher now has a second page. The firmware builds with it; not flashed (Pending
   device checks). Open question 7.
 
-- **P7-11 weather, 2026-11-16: built, simulator only.** App `weather` (docs/apps/weather.md): Home Assistant's Google Weather
-  entity `weather.thuis` for now, `weather.get_forecasts` (`?return_response`, daily and hourly) for the next 16 hours and 6 days;
-  saved copy first; not set up / unreachable / stale (the hour's forecast replaces an old "now") shown. 11 Lucide weather icons.
-  Goldens `weather`, `weather-offline`, `weather-stale`, `weather-unset`; `fonts-sheet` (icon grid now 12 per row) and
-  `wordgame-launcher-page2` (the new tile) re-accepted. The answer shapes come from Home Assistant's weather model, not from the
-  live instance: the live read is a pending device check. **Rain graph** added the same day: `sensor.google_neerslag_minuten` drawn like the Thuis rain card (log scale, light/moderate/heavy, a tap
-  switches 2 h / 6 h); days went from 6 to 5 rows to make room; golden `weather-rain-6h`. Firmware builds (2.87 MB, 54.7 %); not flashed (the port was held by a
-  running `tools/view.py --lan`).
+- **P7-11 weather, 2026-11-16: done, live read checked on the device.** App `weather` (docs/apps/weather.md): Home Assistant's Google Weather
+  entity `weather.thuis` for now, `weather.get_forecasts` (`?return_response`, daily and hourly) and `sun.sun`; three pages
+  (D29): now with the next 16 hours and 4 days, today and tomorrow in blocks of three hours with sunrise and sunset, all ten
+  days. **Rain graph**: the next two hours of Google's minute forecast (`sensor.google_neerslag_minuten`)
+  on the first page for Thuis, bars with a headline ("Rain from 14:00"), one line when it stays dry. **Two places**: Thuis (`weather.thuis`) and Office (`weather.office`), a switcher above the pages, a
+  saved copy per place (apps/weather.md "Places"). On the device both read (18:01: Office 7°, W 18 km/h, 10 days, 24 hours).
+  The Office location was added in Home Assistant's Google Weather integration through its UI on 2026-11-16 (name "Office",
+  entity `weather.office`); before that the Office tab showed the
+  missing-entity screen (404). Saved copy first; not set up / token refused (401) / entity missing (404) / unreachable / stale (the hour's forecast
+  replaces an old "now") shown. 13 Lucide weather icons.
+  Goldens `weather`, `weather-office`, `weather-office-hours`, `weather-hours`, `weather-days`, `weather-offline`, `weather-stale`, `weather-stale-hours`, `weather-unset`,
+  `weather-denied`, `weather-missing`; `fonts-sheet` (icon grid now 12 per row) and `wordgame-launcher-page2` (the new tile)
+  re-accepted. **Merged into `main` on 2026-11-16** with the agenda and the emoji (icon lists joined, `src/gen` rebuilt; main's
+  first rain graph, 466153b, gave way to the branch's). **On the device** (branch firmware flashed 2026-11-16 17:45, 2.85 MB, 54.3 %, without
+  the agenda): log `[weather] read: partlycloudy, 10 days, 24 hours`; the live answers parse as the fixtures do (`templow`,
+  `precipitation_probability`, `is_daytime` present, sunrise and sunset from `sun.sun`); frame dumps of the three pages show
+  real values. Four requests over one TLS connection: 3.0 s (handshake) + 0.8 + 0.3 + 0.04 s after a 1.4 s Wi-Fi join.
+  Memory (`tools/memory.py --only weather`): internal free 102K, lowest 69K, 102K after leaving (like Home, D27). Not
+  checked on the device: the error screens (token refused, entity missing, unreachable: simulator only) and the panel itself
+  (camera: gray of the block borders and range bars).
 
 - **D22, 2026-11-16: the inbox moves to an end-to-end encrypted companion app; Home Assistant is not trusted with message text.**
   Done: both add-ons removed from Home Assistant (WhatsApp Gateway logged out first, then its integration, the add-on with its data and
@@ -309,12 +321,6 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   Paper); an edit and a delete on the phone reach the Paper after a relay read; switching off empties the Paper. On the device:
   the day view's gray(12) blocks and ink bars with the camera (gray(12) is near white on the panel: the bar must carry them),
   the sleep screen line, `tools/memory.py --only agenda`.
-- **Weather (P7-11, 2026-11-16, simulator only)**: after the next flash open Weather on page 2 of the launcher: the log line
-  `[weather] read: <condition>, N days, M hours, K rain blocks` (expect about 10 days, 24 or more hours, rain blocks > 0;
-  -1 = the rain sensor did not answer), a frame dump with real values, the
-  status "Updated HH:MM". If the live answer differs from the fixtures (field names, `datetime` format, `is_daytime`), fix the
-  parser and `tests/fixtures/make-weather-fixtures.py`. Time for the three requests over TLS (log), heap during the read
-  (`tools/memory.py --only weather`).
 - **Word game renamed `vijfje` -> `wordgame` (2026-11-16, simulator only)**: the device still runs the firmware with the old id.
   After the next flash: open the game once, then the statistics screen must still say 1 played and 5616 fetched words
   (`adoptOldData`), and today's finished game must still be there. `tools/memory.py --only wordgame`.
@@ -494,12 +500,21 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
    (accepted guesses) weekly; its first part (the web game's daily answers in order) stays out (D26). **Still the user's
    wish as far as understood: the web game's word of the day; that part is not built.**
 
+8. ~~**Weather, Office (P7-11, asked 2026-11-16)**: Home Assistant has no weather entity for the office yet.~~ **Closed
+   2026-11-16**: the location "Office" was added in the Google Weather integration (the owner pointed to the signed-in Home
+   Assistant in the browser pane); `weather.office` reads on the device. The pin is approximate: move it
+   in Home Assistant if it matters.
+
 None of these block Phase 1, Phase 2, or the reader.
 
 ## Notes for later tasks
 
 - **Flaky unit test seen once (2026-11-16, weather work)**: `wifi_test.cpp:396` (the linger switches Wi-Fi off after
   `lingerSec`) failed once in `make test` and passed in three reruns of the same binary. Not investigated.
+- **Weather on the launcher or the sleep screen** (P7-11, 2026-11-16): the weather app wants neither yet. A line like
+  "6° Partly cloudy, rain 70 % at 17:00" can come from the saved copy (`/data/cache/weather/weather.thuis.json`, `weather_model`
+  `fromJson` + `nextHours`) without a read; keeping it fresh needs a scheduled wake (POWER.md). Left out because the agenda
+  work was changing the launcher's summary line and the sleep screen at the same time.
 
 - **`Store::get` / `set` with fixed-width integers**: pass `int`, `bool`, `double` or a string. `int32_t`, `INT32_MIN`,
   `int64_t`, `size_t` compile in the simulator and are ambiguous on the ESP32 (`int32_t` = `long`). Cast first.
@@ -822,3 +837,17 @@ None of these block Phase 1, Phase 2, or the reader.
   serial log while a reply leaves (`RemoteHost::replyLeaving`, unit test; 80 dumps in a row whole). Not measured: a 1 MB EPUB.
 - 2026-11-16: P7-11 weather app (simulator): `src/apps/weather/`, Google Weather through `weather.thuis` and `weather.get_forecasts`;
   POST fixtures may carry a body hash (SIMULATOR.md); 4 new goldens. Device check pending.
+- 2026-11-16: P7-11 weather, second pass: three pages in a Pager (now / today and tomorrow in three-hour blocks / ten days),
+  sunrise and sunset from `sun.sun` (Lucide `sunrise`, `sunset`), own screen for a refused token, UI scripts for 401 and a
+  missing entity, D29. 9 weather goldens.
+- 2026-11-16: P7-11 on the device: the branch's firmware flashed, live `weather.thuis` read (10 days, 24 hours), three pages
+  dumped, memory measured (`tools/memory.py` has a `weather` scenario now). The device runs the weather branch: no agenda.
+- 2026-11-16: P7-11 two places (Thuis, Office): switcher, settings keys, a saved copy per place, fixtures for
+  `weather.office`, goldens `weather-office`, `weather-office-hours`. Flashed: Thuis reads, the Office tab shows the missing
+  entity screen (404 from the live instance: the missing-entity screen is thereby checked on the device too).
+- 2026-11-16: P7-11 Office added in Home Assistant (Google Weather, a second location; nothing in the config repo): the
+  Office tab reads on the device. An amount under 0.05 mm is no longer shown as "0.0 mm".
+- 2026-11-16: P7-11 rain graph: the minute forecast sensor read with the place, two-hour bar graph on the first page,
+  golden `weather-dry` (also the one-place layout). On the device: `read: partlycloudy, 10 days, 24 hours, 23 rain blocks`,
+  the live sensor parses, the page says "Dry for the next 2 hours" (18:47). The graph itself with live rain was not seen on
+  the device yet (no rain in the forecast): simulator only.

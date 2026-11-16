@@ -1,6 +1,7 @@
-// Weather: the Google Weather integration's entity in Home Assistant (docs/apps/weather.md). One screen: now (condition,
-// temperature, feels like, wind, humidity, rain), the next hours and the next days. The saved copy shows first, then the
-// entity and its two forecasts (weather.get_forecasts, daily and hourly) are read on the worker. Read only.
+// Weather: the Google Weather integration's entity in Home Assistant (docs/apps/weather.md). Three pages: now (condition,
+// temperature, feels like, wind, humidity, rain) with the next hours and days, today and tomorrow in blocks of three hours,
+// all days. The saved copy shows first, then the entity, its two forecasts (weather.get_forecasts, daily and hourly) and
+// sun.sun are read on the worker. Read only.
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -10,6 +11,7 @@
 #include "core/app.h"
 #include "core/fs.h"
 #include "core/timefmt.h"
+#include "ui/inputs.h"
 #include "ui/root.h"
 #include "ui/text.h"
 #include "ui/widgets.h"
@@ -21,20 +23,15 @@ namespace {
 using ui::Anchor;
 using ui::Type;
 
-constexpr const char* kCacheFile = "/data/cache/weather/weather.json";
-constexpr const char* kDefaultEntity = "weather.thuis";  // Google Weather, home zone (home-assistant packages/google_neerslag.yaml)
-constexpr const char* kDefaultRain = "sensor.google_neerslag_minuten";  // Google's minute rain forecast (same package)
-constexpr uint32_t kRefreshMs = 15 * 60 * 1000;          // read again while the screen stays open, and on return after this long
+constexpr const char* kOldCacheFile = "/data/cache/weather/weather.json";  // before there were places: removed when seen
+constexpr uint32_t kRefreshMs = 15 * 60 * 1000;          // read again while the screen stays open
+constexpr int64_t kRefreshSec = 15 * 60;                 // a place is read again when its last read is this old
 constexpr int kHours = 8, kHourStride = 2;               // 8 columns, two hours apart: the next 16 hours
-constexpr int kDays = 5;
+constexpr int kDays = 5;                                 // on the first page
+constexpr int kAllDays = 10;                             // on the Days page
+constexpr int kBlockHours = 3, kBlockDays = 2;           // the Hours page: today and tomorrow in blocks of three hours
+constexpr int kPages = 3;                                // now, hours, days
 constexpr int64_t kOldNowSec = 90 * 60;                  // a saved "now" older than this gives way to the hour's forecast
-
-bool isNight(const Step& s) {
-  if (s.daytime >= 0) return s.daytime == 0;
-  struct tm tmv;
-  if (!localTime(s.time, tmv)) return false;
-  return tmv.tm_hour < 7 || tmv.tm_hour >= 19;
-}
 
 std::string hourText(int64_t t) {
   struct tm tmv;
@@ -63,45 +60,43 @@ std::string whenText(int64_t t, int64_t now) {
   return dayText(t, 0) + " " + hourText(t);
 }
 
-// The whole forecast drawn in one widget: four bands one above the other (docs/apps/weather.md "Screen").
+// The forecast drawn in one widget, one page at a time (docs/apps/weather.md "Screen"): 0 now with the next hours and
+// days, 1 today and tomorrow in blocks of three hours, 2 all days.
 class WeatherView : public ui::Widget {
  public:
-  // Band tops inside the frame.
-  static constexpr int kRainTop = 168, kHoursTop = 368, kDaysTop = 516;
   void set(const Weather& w, int64_t now) {
     w_ = w;
     now_ = now;
     hours_ = nextHours(w.hourly, now, kHours, kHourStride);
-    days_ = nextDays(w.daily, now, kDays);
+    days_ = nextDays(w.daily, now, kAllDays);
+    blocks_ = dayBlocks(w.hourly, now, kBlockHours, kBlockDays);
     invalidate();
   }
-  ui::Size measure(int availW) override { return {availW, 760}; }
+  void setPage(int page) {
+    page_ = page;
+    invalidate();
+  }
+  ui::Size measure(int availW) override { return {availW, 700}; }
 
   void draw(Canvas& c) override {
-    const int x = frame.x, y = frame.y, w = frame.w;
+    const int x = frame.x, y = frame.y, w = frame.w, bottom = frame.y + frame.h;
+    if (page_ == 1) return drawBlocks(c, x, y + 8, w, bottom);
+    if (page_ == 2) return drawDays(c, x, y + 8, w, bottom, kAllDays, std::max(56, std::min(64, (bottom - y - 36) / kAllDays)));
     drawNow(c, x, y + 8, w);
-    c.drawFastHLine(x, y + kRainTop - 8, w, ui::divider);
-    drawRain(c, x, y + kRainTop, w);
-    c.drawFastHLine(x, y + kHoursTop - 12, w, ui::divider);
-    drawHours(c, x, y + kHoursTop, w);
-    c.drawFastHLine(x, y + kDaysTop - 12, w, ui::divider);
-    drawDays(c, x, y + kDaysTop, w, frame.y + frame.h);
-  }
-
-  // A tap on the rain graph switches between the next 2 and the next 6 hours.
-  bool onTouch(const Gesture& g) override {
-    const bool inRain = g.y >= frame.y + kRainTop - 8 && g.y < frame.y + kHoursTop - 12;
-    if (!inRain) return false;
-    if (g.type == Gesture::Tap) {
-      rainHours_ = rainHours_ == 2 ? 6 : 2;
-      invalidateRect(Rect{static_cast<int16_t>(frame.x), static_cast<int16_t>(frame.y + kRainTop - 6),
-                          static_cast<int16_t>(frame.w), static_cast<int16_t>(kHoursTop - kRainTop - 8)},
-                     Hint::Content);
+    int top = y + 168;
+    c.drawFastHLine(x, top, w, ui::divider);
+    // The minute forecast, if the place has one and it is fresh: a graph when rain is coming, one line when it is dry.
+    RainSummary rain;
+    if (now_ > 0 && w_.fetched > 0 && now_ >= w_.fetched && now_ - w_.fetched <= kRainStaleSec) rain = rainSummary(w_.rain, now_);
+    if (rain.known) {
+      top += drawRain(c, x, top + 8, w, rain) + 16;
+      c.drawFastHLine(x, top, w, ui::divider);
     }
-    return g.type == Gesture::Down || g.type == Gesture::Tap;
+    drawHours(c, x, top + 12, w);
+    top += 184;
+    c.drawFastHLine(x, top, w, ui::divider);
+    drawDays(c, x, top + 12, w, bottom, kDays, 60);
   }
-  int rainHours() const { return rainHours_; }
-  void setRainHours(int h) { rainHours_ = h; }
 
  private:
   void drawNow(Canvas& c, int x, int y, int w) {
@@ -114,11 +109,11 @@ class WeatherView : public ui::Widget {
     const bool night = condition == "clear-night" || (hour && isNight(*hour));
     ui::drawIcon(c, conditionIcon(condition, night), x + 32, y + 52, 64, ui::ink);
     ui::drawText(c, temp == kNone ? "--" : tempText(temp), x + 84, y + 8, Type::Headline, ui::ink);
-    ui::drawText(c, ui::ellipsize(c, conditionText(condition), Type::BodyStrong, 296 - 84), x + 84, y + 66, Type::BodyStrong, ui::ink);
+    ui::drawText(c, ui::ellipsize(c, conditionText(condition), Type::BodyStrong, 276 - 84), x + 84, y + 66, Type::BodyStrong, ui::ink);
     if (old) ui::drawText(c, "Forecast for " + hourText(hour->time), x + 84, y + 100, Type::Body, ui::secondary);
     else if (n.apparent != kNone) ui::drawText(c, "Feels like " + tempText(n.apparent), x + 84, y + 100, Type::Body, ui::ink);
     // Right column: wind, humidity (left out when they are old), rain in the coming hour.
-    const int rx = x + 300;
+    const int rx = x + 280;  // 168 px of text: "100%  9.9 mm" fits
     int row = 0;
     auto line = [&](Icon icon, const std::string& text) {
       const int cy = y + 20 + row++ * 48;
@@ -138,100 +133,132 @@ class WeatherView : public ui::Widget {
     std::string rain = "--";
     if (hour && hour->precipProbability != kNone) {
       rain = percent(hour->precipProbability);
-      if (hour->precipitation > 0) rain += "  " + amount(hour->precipitation, n.precipUnit);
+      if (hour->precipitation >= 0.05) rain += "  " + amount(hour->precipitation, n.precipUnit);  // not "0.0 mm"
     }
     line(Icon::Umbrella, rain);
   }
 
-  // Google's minute forecast like the house dashboard's rain card: headline, rate now and peak, the rain area on a log scale
-  // with the light / moderate / heavy lines, "Now" at the left edge.
-  void drawRain(Canvas& c, int x, int y, int w) {
-    const bool fresh = rainFresh(w_.rain, w_.rainUpdated, now_);
-    ui::drawIcon(c, Icon::Umbrella, x + 16, y + 14, 32, ui::ink);
-    ui::drawText(c, fresh ? rainHeadline(w_.rain, now_, rainHours_) : "No current rain forecast", x + 44, y + 14, Type::BodyStrong,
-                 ui::ink, Anchor::MiddleLeft);
-    if (fresh) {
-      const double nowRate = rainNow(w_.rain, now_), peak = rainPeak(w_.rain, now_, rainHours_);
-      std::string facts = "Now " + rateText(nowRate);
-      if (peak > nowRate) facts += ", max " + rateText(peak);
-      ui::drawText(c, facts, x + w, y + 14, Type::Caption, ui::ink, Anchor::MiddleRight);
+  // The next two hours of the minute forecast. Returns the height used.
+  int drawRain(Canvas& c, int x, int y, int w, const RainSummary& rain) {
+    if (!rain.wet) {
+      ui::drawText(c, rain.headline, x, y + 2, Type::Body, ui::ink);
+      return 28;
     }
-    const int plotW = w - 92, top = y + 64, base = y + 176;
-    const int64_t from = now_, to = now_ + rainHours_ * 3600;
-    auto px = [&](int64_t t) { return x + static_cast<int>((t - from) * plotW / (to - from)); };
-    auto py = [&](double h) { return base - static_cast<int>(std::lround(h * (base - top))); };
-    // Time ticks above the plot: every half hour (2 h) or hour (6 h).
-    ui::drawText(c, "Now", x, y + 36, Type::Caption, ui::secondary);
-    const int64_t step = rainHours_ == 2 ? 1800 : 3600;
-    if (now_ > 0)
-      for (int64_t t = (from / step + 1) * step; t < to; t += step) {
-        const int tx = px(t);
-        if (tx < x + 56 || tx > x + plotW - 24) continue;
-        ui::drawText(c, clockText(t), tx, y + 36, Type::Caption, ui::secondary, Anchor::TopCenter);
-        c.drawFastVLine(tx, top - 4, 6, ui::ink);
-      }
-    if (fresh) {
-      const std::vector<float> curve = rainCurve(w_.rain, from, to, plotW);
-      for (int i = 0; i < plotW; ++i) {
-        if (curve[i] <= 0) continue;
-        const int yy = py(curve[i]);
-        if (yy >= base) continue;
-        c.drawFastVLine(x + i, yy, base - yy, gray(6));
-        c.fillRect(x + i, yy, 1, 2, ui::ink);  // the outline
-      }
+    ui::drawText(c, rain.headline, x, y, Type::BodyStrong, ui::ink);
+    ui::drawText(c, "max " + rateText(rain.peak), x + w, y + 4, Type::Caption, ui::secondary, Anchor::TopRight);
+    constexpr int kPlotH = 44;
+    const int base = y + 80;
+    const int64_t from = now_, to = now_ + kRainWindowSec;
+    auto xAt = [&](int64_t t) { return x + static_cast<int>((std::max(from, std::min(t, to)) - from) * w / (to - from)); };
+    for (const RainBlock& b : w_.rain) {
+      if (b.end <= from || b.start >= to || b.rate < kWetRate) continue;
+      const int x0 = xAt(b.start), x1 = xAt(b.end);
+      const int h = std::max(3, static_cast<int>(std::lround(rainHeight(b.rate) * kPlotH)));
+      c.fillRect(x0 + 1, base - h, std::max(1, x1 - x0 - 2), h, ui::ink);
     }
-    // Light, moderate, heavy: dotted lines over the area, the names right of the plot.
-    static const struct {
-      double rate;
-      const char* name;
-    } kLevels[] = {{0.5, "light"}, {2.5, "moderate"}, {10, "heavy"}};
-    for (const auto& l : kLevels) {
-      const int ly = py(rainHeight(l.rate));
-      for (int i = 0; i < plotW; i += 6) c.drawFastHLine(x + i, ly, 3, ui::divider);
-      ui::drawText(c, l.name, x + plotW + 8, ly, Type::Caption, ui::secondary, Anchor::MiddleLeft);
+    c.drawFastHLine(x, base, w, ui::divider);
+    // A tick and the time at every half hour.
+    for (int64_t t = (from / 1800 + 1) * 1800; t <= to; t += 1800) {
+      const int tx = xAt(t);
+      c.drawFastVLine(tx, base, 5, ui::divider);
+      const std::string text = hourText(t);
+      const int half = ui::measureText(c, text, Type::Caption) / 2;
+      ui::drawText(c, text, std::max(x + half, std::min(tx, x + w - half)), base + 6, Type::Caption, ui::secondary, Anchor::TopCenter);
     }
-    c.fillRect(x, base, plotW, 2, ui::ink);
-    c.fillRect(x, top - 4, 2, base - top + 4, ui::ink);  // now
+    return 108;
   }
 
   void drawHours(Canvas& c, int x, int y, int w) {
+    ui::drawText(c, "Next hours", x, y, Type::Caption, ui::secondary);
     if (hours_.empty()) {
-      ui::drawText(c, "No hourly forecast", x, y + 40, Type::Body, ui::ink);
+      ui::drawText(c, "No hourly forecast", x, y + 64, Type::Body, ui::ink);
       return;
     }
     const int n = kHours;
     for (int i = 0; i < static_cast<int>(hours_.size()); ++i) {
       const Step& s = hours_[i];
       const int cx = x + (2 * i + 1) * w / (2 * n);
-      ui::drawText(c, i == 0 ? "Now" : hourText(s.time), cx, y, Type::Caption, ui::secondary, Anchor::TopCenter);
-      ui::drawIcon(c, conditionIcon(s.condition, isNight(s)), cx, y + 50, 32, ui::ink);
-      ui::drawText(c, tempText(s.temperature), cx, y + 72, Type::Body, ui::ink, Anchor::TopCenter);
-      if (s.precipProbability >= 1) ui::drawText(c, percent(s.precipProbability), cx, y + 102, Type::Caption, ui::ink, Anchor::TopCenter);
+      ui::drawText(c, i == 0 ? "Now" : hourText(s.time), cx, y + 36, Type::Caption, ui::secondary, Anchor::TopCenter);
+      ui::drawIcon(c, conditionIcon(s.condition, isNight(s)), cx, y + 88, 32, ui::ink);
+      ui::drawText(c, tempText(s.temperature), cx, y + 112, Type::Body, ui::ink, Anchor::TopCenter);
+      if (s.precipProbability >= 1) ui::drawText(c, percent(s.precipProbability), cx, y + 144, Type::Caption, ui::ink, Anchor::TopCenter);
     }
   }
 
-  void drawDays(Canvas& c, int x, int y, int w, int bottom) {
-    if (days_.empty()) {
-      ui::drawText(c, "No daily forecast", x, y + 20, Type::Body, ui::ink);
+  // Today and tomorrow, each a row or two of blocks: a block is three hours, its place in the row is its time of day
+  // (00, 03, 06, 09 in the first row, 12, 15, 18, 21 in the second), so a row that is past is left out.
+  void drawBlocks(Canvas& c, int x, int y, int w, int bottom) {
+    if (blocks_.empty()) {
+      ui::drawText(c, "No hourly forecast", x, y + 8, Type::Body, ui::ink);
       return;
     }
-    constexpr int kRow = 54;
-    double lo = 1e9, hi = -1e9;
-    for (const Step& d : days_) {
-      if (d.templow != kNone) lo = std::min(lo, d.templow);
-      if (d.temperature != kNone) hi = std::max(hi, d.temperature);
-      if (d.templow != kNone) hi = std::max(hi, d.templow);
-      if (d.temperature != kNone) lo = std::min(lo, d.temperature);
+    constexpr int kCols = 4, kGap = 8, kHeader = 44, kCellH = 146;
+    const int cellW = (w - (kCols - 1) * kGap) / kCols;
+    int top = y;
+    for (const DayBlocks& day : blocks_) {
+      const int firstRow = day.blocks.front().slot / kCols;
+      // As many rows of the day as fit (a second day's afternoon can fall off below the place switcher).
+      const int rows = std::min(day.blocks.back().slot / kCols - firstRow + 1, (bottom - top - kHeader + kGap) / (kCellH + kGap));
+      if (rows <= 0) break;
+      ui::drawText(c, dayText(day.time, now_), x, top + kHeader / 2 - 2, Type::BodyStrong, ui::ink, Anchor::MiddleLeft);
+      // The sun's next rise and set, on the day they fall on.
+      int right = x + w;
+      const int today = localDay(day.time);
+      auto sun = [&](Icon icon, int64_t t) {
+        if (t <= 0 || localDay(t) != today) return;
+        const std::string text = hourText(t);
+        const int tw = ui::measureText(c, text, Type::Body);
+        ui::drawText(c, text, right, top + kHeader / 2 - 2, Type::Body, ui::ink, Anchor::MiddleRight);
+        ui::drawIcon(c, icon, right - tw - 24, top + kHeader / 2 - 2, 32, ui::ink);
+        right -= tw + 24 + 16 + 20;
+      };
+      sun(Icon::Sunset, w_.sunset);
+      sun(Icon::Sunrise, w_.sunrise);
+      top += kHeader;
+      for (const Block& b : day.blocks) {
+        const int col = b.slot % kCols, row = b.slot / kCols - firstRow;
+        if (row >= rows) break;
+        const int bx = x + col * (cellW + kGap), by = top + row * (kCellH + kGap), cx = bx + cellW / 2;
+        c.drawRoundRect(bx, by, cellW, kCellH, 8, ui::divider);
+        char range[16];
+        std::snprintf(range, sizeof range, "%02d\xE2\x80\x93%02d", b.fromHour, b.toHour);
+        ui::drawText(c, range, cx, by + 8, Type::Caption, ui::secondary, Anchor::TopCenter);
+        ui::drawIcon(c, conditionIcon(b.condition, b.night), cx, by + 50, 32, ui::ink);
+        ui::drawText(c, tempText(b.temperature), cx, by + 68, Type::BodyStrong, ui::ink, Anchor::TopCenter);
+        if (b.precipProbability >= 1) {
+          ui::drawText(c, percent(b.precipProbability), cx, by + 97, Type::Caption, ui::ink, Anchor::TopCenter);
+          if (b.precipitation >= 0.05)
+            ui::drawText(c, amount(b.precipitation, w_.now.precipUnit), cx, by + 119, Type::Caption, ui::ink, Anchor::TopCenter);
+        }
+      }
+      top += rows * (kCellH + kGap);
+    }
+  }
+
+  void drawDays(Canvas& c, int x, int y, int w, int bottom, int count, int rowH) {
+    ui::drawText(c, "Next days", x, y, Type::Caption, ui::secondary);
+    if (days_.empty()) {
+      ui::drawText(c, "No daily forecast", x, y + 64, Type::Body, ui::ink);
+      return;
+    }
+    const size_t n = std::min(days_.size(), static_cast<size_t>(std::max(0, std::min(count, (bottom - y - 28) / rowH))));
+    double lo = 1e9, hi = -1e9;  // the scale of the range bars: the rows shown
+    for (size_t i = 0; i < n; ++i) {
+      for (double v : {days_[i].templow, days_[i].temperature}) {
+        if (v == kNone) continue;
+        lo = std::min(lo, v);
+        hi = std::max(hi, v);
+      }
     }
     const int barX = x + 328, barW = 112;
-    int top = y - 4;
-    for (size_t i = 0; i < days_.size() && top + kRow <= bottom; ++i, top += kRow) {
+    int top = y + 28;
+    for (size_t i = 0; i < n; ++i, top += rowH) {
       const Step& d = days_[i];
-      const int cy = top + kRow / 2;
+      const int cy = top + rowH / 2;
       ui::drawText(c, dayText(d.time, now_), x, cy, Type::BodyStrong, ui::ink, Anchor::MiddleLeft);
       ui::drawIcon(c, conditionIcon(d.condition), x + 148, cy, 32, ui::ink);
       if (d.precipProbability >= 1) {
-        const bool mm = d.precipitation > 0;
+        const bool mm = d.precipitation >= 0.05;
         ui::drawText(c, percent(d.precipProbability), x + 180, mm ? cy - 11 : cy, Type::Caption, ui::ink, Anchor::MiddleLeft);
         if (mm) ui::drawText(c, amount(d.precipitation, w_.now.precipUnit), x + 180, cy + 11, Type::Caption, ui::ink, Anchor::MiddleLeft);
       }
@@ -244,19 +271,21 @@ class WeatherView : public ui::Widget {
         const int b = barX + 8 + static_cast<int>(std::lround((d.temperature - lo) / (hi - lo) * (barW - 8)));
         c.fillRoundRect(a, cy - 4, std::max(8, b - a), 8, 4, ui::ink);
       }
-      if (i + 1 < days_.size() && top + 2 * kRow <= bottom) c.drawFastHLine(x, top + kRow, w, ui::divider);
+      if (i + 1 < n) c.drawFastHLine(x, top + rowH, w, ui::divider);
     }
   }
 
   Weather w_;
   int64_t now_ = 0;
-  int rainHours_ = 2;
+  int page_ = 0;
   std::vector<Step> hours_, days_;
+  std::vector<DayBlocks> blocks_;
 };
 
 struct Fetched {
+  int place = 0;
   HaError error = HaError::None;  // of the entity's state; forecasts that fail keep the saved ones
-  bool parsed = false, daily = false, hourly = false, rain = false;
+  bool parsed = false, daily = false, hourly = false;
   Weather weather;
 };
 
@@ -265,10 +294,21 @@ class WeatherScreen : public Screen {
   void build(ui::Column& root) override {
     setTitle("Weather");
     setAction(Icon::RefreshCw, [this] { refresh(); });
-    entity_ = ctx().store.get("entity", kDefaultEntity);
-    rainEntity_ = ctx().store.get("rainEntity", kDefaultRain);
-    std::string cached;
-    if (fs::readFile(kCacheFile, cached)) fromJson(cached, weather_);
+    places_ = placesFrom([this](const std::string& key, const std::string& def) {
+      if (key == "sun") return std::to_string(ctx().store.get("sun", 1));
+      return ctx().store.get(key, def.c_str());
+    });
+    if (places_.empty()) places_.push_back(Place{"Thuis", "weather.thuis", "", true});
+    place_ = std::max(0, std::min(ctx().store.get("place", 0), static_cast<int>(places_.size()) - 1));
+    if (fs::exists(kOldCacheFile)) fs::removeAll(kOldCacheFile);
+    if (places_.size() > 1) {
+      std::vector<std::string> names;
+      for (const Place& p : places_) names.push_back(p.name);
+      auto* switcher = root.add<ui::Segmented>(names, place_);
+      switcher->onChange = [this](int i) { showPlace(i); };
+      root.add<ui::Spacer>(ui::s1);
+    }
+    loadSaved();
     holder_ = root.add<ui::Column>(0);
     holder_->flex = 1;
     status_ = root.add<ui::Label>("", Type::Caption, ui::secondary);
@@ -279,30 +319,65 @@ class WeatherScreen : public Screen {
   }
 
   void onShow() override {
-    if (!fetchedOnce_ || ctx().clock.millis() - lastFetchMs_ >= kRefreshMs) refresh();
+    if (!tried_ || !fresh()) refresh();
   }
 
   std::string debugState() const override {
     return std::string(weather_.valid() ? "weather=" + weather_.now.condition : "weather=none") + "|" + status_->text() +
-           (error_ != HaError::None ? std::string("|error=") + haErrorText(error_) : "") +
-           (view_ ? "|rain=" + std::to_string(view_->rainHours()) + "h" : "");
+           (error_ != HaError::None ? std::string("|error=") + haErrorText(error_) : "") + (notFound_ ? "|not found" : "") +
+           "|page=" + std::to_string(page_ + 1) + "|place=" + place().name;
   }
 
  private:
+  const Place& place() const { return places_[static_cast<size_t>(place_)]; }
+
+  void loadSaved() {
+    weather_ = Weather{};
+    std::string cached;
+    if (fs::readFile(cacheFile(place().entity), cached)) fromJson(cached, weather_);
+  }
+
+  // The other place: its saved copy at once, then a read if that copy is old.
+  void showPlace(int i) {
+    if (i == place_ || i < 0 || i >= static_cast<int>(places_.size())) return;
+    place_ = i;
+    ctx().store.set("place", i);
+    ctx().store.save();
+    error_ = HaError::None;
+    notFound_ = false;
+    loadSaved();
+    showStatus();
+    rebuild();
+    if (!fresh()) refresh();
+  }
+
+  // The copy of the place shown was read less than 15 minutes ago.
+  bool fresh() const {
+    const int64_t now = ctx().clock.now();
+    return weather_.valid() && now > 0 && weather_.fetched > 0 && now >= weather_.fetched && now - weather_.fetched < kRefreshSec;
+  }
+
   void rebuild() {
-    const int rainHours = view_ ? view_->rainHours() : 2;  // a read keeps the chosen window
     while (!holder_->children().empty()) holder_->remove(holder_->children().back().get());
     view_ = nullptr;
     if (weather_.valid()) {
-      view_ = holder_->add<WeatherView>();
-      view_->flex = 1;
-      view_->setRainHours(rainHours);
+      auto* pager = holder_->add<ui::Pager>(kPages, page_);
+      pager->flex = 1;
+      view_ = pager->add<WeatherView>();
       view_->set(weather_, ctx().clock.now());
+      view_->setPage(page_);
+      pager->onPage = [this](int p) {
+        page_ = p;
+        view_->setPage(p);
+      };
     } else if (error_ == HaError::NoToken || error_ == HaError::NoUrl) {
       holder_->add<ui::EmptyState>(Icon::Cloud, "Not set up yet", "Put HA_URL and HA_TOKEN in paperos_config on the SD card.")->flex = 1;
     } else if (notFound_) {
-      holder_->add<ui::EmptyState>(Icon::Cloud, "No weather in Home Assistant", entity_ + " was not found or has no data.", "Retry",
+      holder_->add<ui::EmptyState>(Icon::Cloud, "No weather in Home Assistant", place().entity + " was not found or has no data.", "Retry",
                                    [this] { refresh(); })->flex = 1;
+    } else if (error_ == HaError::Unauthorized) {
+      holder_->add<ui::EmptyState>(Icon::TriangleAlert, "Home Assistant refused the token", "Check HA_TOKEN in paperos_config on the SD card.",
+                                   "Retry", [this] { refresh(); })->flex = 1;
     } else if (error_ != HaError::None) {
       const std::string hint = error_ == HaError::Other ? std::string("Check Wi-Fi and the address, then try again.")
                                                         : haErrorText(error_) + std::string(". Try again later.");
@@ -341,12 +416,15 @@ class WeatherScreen : public Screen {
     busy_ = true;
     showStatus();
     HaClient ha = ctx().ha();
-    const std::string entity = entity_, rainEntity = rainEntity_;
+    const std::string entity = place().entity, rainEntity = place().rain;
+    const bool withSun = place().sun;
+    const int index = place_;
     const Weather old = weather_;
     const int64_t now = ctx().clock.now();
     ctx().async(
-        [ha, entity, rainEntity, old, now]() mutable {
+        [ha, entity, rainEntity, withSun, index, old, now]() mutable {
           Fetched f;
+          f.place = index;
           HaResult st = ha.get("/api/states/" + entity);
           f.error = st.error;
           if (!st.ok()) return f;
@@ -369,29 +447,41 @@ class WeatherScreen : public Screen {
             f.weather.hourly = steps;
             f.hourly = true;
           }
-          // The minute rain forecast is a sensor of the house's own (it may be missing: then the graph says so).
-          std::vector<RainBlock> blocks;
-          int64_t rainUpdated = 0;
-          HaResult rain = ha.get("/api/states/" + rainEntity);
-          if (rain.ok() && parseRain(rain.body, blocks, rainUpdated)) {
-            f.weather.rain = blocks;
-            f.weather.rainUpdated = rainUpdated;
-            f.rain = true;
+          // The sun's next rise and set (sun.sun: Home Assistant's own location, so only for the place that is there);
+          // without an answer the saved times stay.
+          if (withSun) {
+            HaResult sun = ha.get("/api/states/sun.sun");
+            if (sun.ok()) parseSun(sun.body, f.weather.sunrise, f.weather.sunset);
+          } else {
+            f.weather.sunrise = f.weather.sunset = 0;
           }
-          if (f.parsed) fs::writeFile(kCacheFile, toJson(f.weather));
+          // The minute forecast of the place, if it has one: only a fresh one is kept, and only what is still ahead.
+          f.weather.rain.clear();
+          if (!rainEntity.empty()) {
+            HaResult rain = ha.get("/api/states/" + rainEntity);
+            std::vector<RainBlock> blocks;
+            int64_t reported = 0;
+            if (rain.ok() && parseRain(rain.body, blocks, reported) && (reported <= 0 || now <= 0 || now - reported <= kRainStaleSec)) {
+              for (const RainBlock& b : blocks)
+                if (b.end > now && b.start < now + 6 * 3600 && f.weather.rain.size() < 96) f.weather.rain.push_back(b);
+            }
+          }
+          fs::writeFile(cacheFile(entity), toJson(f.weather));
           return f;
         },
         [this](Fetched f) {
           busy_ = false;
-          fetchedOnce_ = true;
-          lastFetchMs_ = ctx().clock.millis();
+          if (f.place != place_) {  // the place was changed while this read ran: its copy is saved, the new place is read now
+            if (!fresh()) refresh();
+            return;
+          }
+          tried_ = true;
           notFound_ = f.error == HaError::NotFound;
           error_ = notFound_ ? HaError::None : f.error;
           if (f.parsed) {
             weather_ = f.weather;
-            ctx().log("read: %s, %d days, %d hours, %d rain blocks", weather_.now.condition.c_str(),
-                      static_cast<int>(weather_.daily.size()), static_cast<int>(weather_.hourly.size()),
-                      f.rain ? static_cast<int>(weather_.rain.size()) : -1);
+            ctx().log("read: %s, %d days, %d hours, %d rain blocks", weather_.now.condition.c_str(), static_cast<int>(weather_.daily.size()),
+                      static_cast<int>(weather_.hourly.size()), static_cast<int>(weather_.rain.size()));
             if (!f.daily || !f.hourly) ctx().toast("Forecast not available");
           }
           showStatus();
@@ -400,11 +490,13 @@ class WeatherScreen : public Screen {
         });
   }
 
-  std::string entity_, rainEntity_;
-  Weather weather_;
+  std::vector<Place> places_;
+  int place_ = 0;
+  Weather weather_;  // of the place shown
   HaError error_ = HaError::None;
-  bool notFound_ = false, busy_ = false, fetchedOnce_ = false, timerArmed_ = false;
-  uint32_t lastFetchMs_ = 0;
+  bool notFound_ = false, busy_ = false, timerArmed_ = false;
+  bool tried_ = false;  // a read ended since the app was opened
+  int page_ = 0;  // kept across a read: the view is built again
   ui::Column* holder_ = nullptr;
   ui::Label* status_ = nullptr;
   WeatherView* view_ = nullptr;

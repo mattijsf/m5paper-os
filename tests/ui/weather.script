@@ -1,11 +1,25 @@
 # app: weather
-# P7-11: the weather (docs/apps/weather.md). Google Weather's entity weather.thuis, its daily and hourly forecasts and the house's
-# minute rain sensor from the fixtures (tests/fixtures/make-weather-fixtures.py); today is Thursday 15 January 2026, 13:34.
+# P7-11: the weather (docs/apps/weather.md). Two places, Thuis (weather.thuis) and Office (weather.office): Google Weather's
+# entities, their daily and hourly forecasts and sun.sun from the fixtures (tests/fixtures/make-weather-fixtures.py); today is
+# Thursday 15 January 2026, 13:34. Three pages per place: now, today and tomorrow in blocks of three hours, all ten days.
 wait 1500
 shot weather
-expect-state weather=partlycloudy|Updated 13:34|rain=2h
-tap 200 400             # the rain graph: the next 6 hours
-wait 900
-shot weather-rain-6h
-expect-state rain=6h
-expect-max-pushed 100000
+expect-state weather=partlycloudy|Updated 13:34|page=1|place=Thuis
+# The other place: nothing saved yet, so it is read; the page stays.
+tap 390 166
+wait 1500
+shot weather-office
+expect-state weather=cloudy|Updated 13:34|page=1|place=Office
+swipe 400 500 100 500
+wait 1500
+shot weather-office-hours
+expect-state page=2|place=Office
+# Back to Thuis: its copy is a minute old, no read; still page 2, with the sun's times (sun.sun is the home's sun).
+tap 140 166
+wait 1500
+shot weather-hours
+expect-state weather=partlycloudy|Updated 13:34|page=2|place=Thuis
+swipe 400 500 100 500
+wait 1500
+shot weather-days
+expect-state page=3

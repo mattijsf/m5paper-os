@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Writes the weather HTTP fixtures of the UI tests (docs/apps/weather.md): Home Assistant's Google Weather entity
-(weather.thuis) and its two forecasts (weather.get_forecasts, daily and hourly), in the shape Home Assistant 2026.x answers
+(weather.thuis), its two forecasts (weather.get_forecasts, daily and hourly) and sun.sun, in the shape Home Assistant 2026.x answers
 over REST. Values are made up, January weather in the Netherlands; times relative to the simulator's test clock
-(2026-01-15T12:34:00Z = 13:34 in Amsterdam). Also Google's minute rain forecast as the house's REST sensor
-sensor.google_neerslag_minuten (home-assistant packages/google_neerslag.yaml; segment shape as the the dashboard
-mock: timeFrame, type, probability, qpf, intensity) and the saved copy the stale script starts from.
+(2026-01-15T12:34:00Z = 13:34 in Amsterdam). Also writes the saved copy the stale script starts from, the 404 of an
+entity that does not exist (weather.nowhere, the missing script) and the 401 of a host that refuses the token
+(ha-denied.example.test, the denied script).
 
 Host ha.example.test (the Home app's test host; the weather entity is the only one of this domain there).
 
@@ -25,8 +25,8 @@ def fnv(text):
     return "%08x" % h
 
 
-def name(method, path, query="", body=""):  # src/core/http_fixture.cpp
-    n = f"{method}_{HOST}{path.replace('/', '_')}"
+def name(method, path, query="", body="", host=HOST):  # src/core/http_fixture.cpp
+    n = f"{method}_{host}{path.replace('/', '_')}"
     if query:
         n += "_" + fnv(query)
     if body:
@@ -51,6 +51,50 @@ STATE = {
     "last_changed": iso(NOW - 40 * 60), "last_reported": iso(NOW - 4 * 60), "last_updated": iso(NOW - 4 * 60),
     "context": {"id": "01KF0000000000000000000000", "parent_id": None, "user_id": None},
 }
+
+# The sun: sets this afternoon (16:58 local), rises tomorrow (08:41 local).
+SUN = {
+    "entity_id": "sun.sun",
+    "state": "above_horizon",
+    "attributes": {
+        "next_dawn": "2026-01-16T07:03:12.000000+00:00", "next_dusk": "2026-01-15T16:36:40.000000+00:00",
+        "next_midnight": "2026-01-15T23:50:11.000000+00:00", "next_noon": "2026-01-16T11:50:23.000000+00:00",
+        "next_rising": "2026-01-16T07:41:27.000000+00:00", "next_setting": "2026-01-15T15:58:31.000000+00:00",
+        "elevation": 14.2, "azimuth": 192.6, "rising": False, "friendly_name": "Sun",
+    },
+    "last_changed": iso(NOW - 5 * HOUR), "last_reported": iso(NOW - 2 * 60), "last_updated": iso(NOW - 2 * 60),
+    "context": {"id": "01KF0000000000000000000001", "parent_id": None, "user_id": None},
+}
+
+# The minute forecast (sensor.google_neerslag_minuten, home-assistant packages/google_neerslag.yaml): Google's
+# forecast/minutes:lookup answer kept as attributes. 24 segments of 15 minutes from the last quarter hour (13:30 local).
+RAIN = "sensor.google_neerslag_minuten"
+QUARTER = 15 * 60
+
+
+def rain_state(entity, mm):  # mm per segment
+    first = NOW - NOW % QUARTER
+    segments = []
+    for i in range(24):
+        q = mm[i] if i < len(mm) else 0
+        segments.append({
+            "timeFrame": {"startTime": iso(first + i * QUARTER), "endTime": iso(first + (i + 1) * QUARTER)},
+            "type": "RAIN" if q > 0 else "NONE", "probability": 60 if q > 0 else 0,
+            "qpf": {"unit": "MILLIMETERS", "quantity": q}, "intensity": "LIGHT" if q > 0 else "NO_INTENSITY",
+        })
+    return {
+        "entity_id": entity, "state": "24",
+        "attributes": {
+            "overallPredictionTimeframe": {"startTime": iso(first), "endTime": iso(first + 6 * HOUR)},
+            "segments": segments, "icon": "mdi:weather-pouring", "friendly_name": "Google neerslag minuten",
+        },
+        "last_changed": iso(NOW - 3 * HOUR), "last_reported": iso(NOW - 4 * 60), "last_updated": iso(NOW - 3 * HOUR),
+        "context": {"id": "01KF0000000000000000000002", "parent_id": None, "user_id": None},
+    }
+
+
+# Dry now, a shower from 14:00 that peaks at 14:30 (4.8 mm/h) and is over at 15:15, drizzle again at 15:45.
+RAIN_MM = [0, 0, 0.1, 0.4, 1.2, 0.6, 0.1, 0, 0, 0.05, 0.2]
 
 # Hourly from the current hour (12:00Z = 13:00 local): clouds, rain from late afternoon into the night, dry by morning.
 HOURLY_PLAN = [  # condition, temp, apparent, precip %, mm
@@ -91,51 +135,63 @@ for i, (cond, hi, lo, pct, mm) in enumerate(DAILY_PLAN):
     })
 
 
-# 24 blocks of 15 minutes from 13:30 local: a shower 14:30-15:15, dry, rain from 16:30 building to ~3 mm/h.
-RAIN_MM = [0, 0, 0, 0, 0.05, 0.3, 0.1, 0, 0, 0, 0, 0, 0.02, 0.1, 0.2, 0.4, 0.6, 0.7, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15]
-rain0 = NOW - NOW % (15 * 60)
+def forecast_body(kind, entity=ENTITY):  # what the app sends (weather_app.cpp)
+    return '{"entity_id":"%s","type":"%s"}' % (entity, kind)
 
 
-def rain_segment(start, mm):
-    return {
-        "timeFrame": {"startTime": iso(start), "endTime": iso(start + 15 * 60)},
-        "type": "RAIN" if mm > 0 else "NONE", "probability": 70 if mm > 0 else 0,
-        "qpf": {"unit": "MILLIMETERS", "quantity": mm},
-        "intensity": ("MODERATE" if mm >= 0.6 else "LIGHT") if mm > 0 else "NO_INTENSITY",
-    }
+def response(forecast, entity=ENTITY):
+    return {"changed_states": [], "service_response": {entity: {"forecast": forecast}}}
 
 
-RAIN = {
-    "entity_id": "sensor.google_neerslag_minuten",
-    "state": str(len(RAIN_MM)),
-    "attributes": {
-        "overallPredictionTimeframe": {"startTime": iso(rain0), "endTime": iso(rain0 + 6 * HOUR)},
-        "segments": [rain_segment(rain0 + i * 15 * 60, mm) for i, mm in enumerate(RAIN_MM)],
-        "icon": "mdi:weather-pouring", "friendly_name": "Google neerslag minuten",
-    },
-    "last_changed": iso(rain0), "last_reported": iso(NOW - 4 * 60), "last_updated": iso(rain0),
-    "context": {"id": "01KF0000000000000000000001", "parent_id": None, "user_id": None},
-}
+# The second place (weather.office): the same shapes, a little milder, wetter and windier, rain an hour earlier.
+OFFICE = "weather.office"
 
 
-def forecast_body(kind):  # what the app sends (weather_app.cpp)
-    return '{"entity_id":"%s","type":"%s"}' % (ENTITY, kind)
+def office_step(step, i):
+    s = dict(step)
+    for key, delta in (("temperature", 1.3), ("templow", 0.9), ("apparent_temperature", 0.8), ("wind_speed", 6.0)):
+        if key in s:
+            s[key] = round(s[key] + delta, 1)
+    if "precipitation_probability" in s:
+        s["precipitation_probability"] = min(100, s["precipitation_probability"] + 10)
+    return s
 
 
-def response(forecast):
-    return {"changed_states": [], "service_response": {ENTITY: {"forecast": forecast}}}
+OFFICE_STATE = json.loads(json.dumps(STATE))
+OFFICE_STATE["entity_id"] = OFFICE
+OFFICE_STATE["state"] = "cloudy"
+OFFICE_STATE["attributes"].update({"temperature": 7.7, "apparent_temperature": 3.7, "humidity": 88, "wind_speed": 28.0,
+                                   "wind_bearing": 250, "friendly_name": "Office"})
+OFFICE_HOURLY = [office_step(dict(HOURLY[min(i + 1, len(HOURLY) - 1)], datetime=HOURLY[i]["datetime"],
+                                  is_daytime=HOURLY[i]["is_daytime"]), i) for i in range(len(HOURLY))]
+OFFICE_DAILY = [office_step(d, i) for i, d in enumerate(DAILY)]
 
 
-def write(path, obj):
+def write(path, obj, status=0):
     with open(path, "w") as f:
-        json.dump(obj, f, indent=1, ensure_ascii=False)
-        f.write("\n")
+        if isinstance(obj, str):
+            f.write(obj)
+        else:
+            json.dump(obj, f, indent=1, ensure_ascii=False)
+            f.write("\n")
+    if status:  # a `.status` file next to the fixture holds the status code (docs/SIMULATOR.md "HTTP fixtures")
+        with open(path[:-5] + ".status", "w") as f:
+            f.write("%d\n" % status)
 
 
 def main():
     http, data = sys.argv[1], sys.argv[2]
     write(os.path.join(http, name("GET", "/api/states/" + ENTITY)), STATE)
-    write(os.path.join(http, name("GET", "/api/states/sensor.google_neerslag_minuten")), RAIN)
+    write(os.path.join(http, name("GET", "/api/states/sun.sun")), SUN)
+    write(os.path.join(http, name("GET", "/api/states/" + RAIN)), rain_state(RAIN, RAIN_MM))
+    write(os.path.join(http, name("GET", "/api/states/sensor.rain_dry")), rain_state("sensor.rain_dry", []))  # the dry script
+    write(os.path.join(http, name("GET", "/api/states/" + OFFICE)), OFFICE_STATE)
+    for kind, fc in (("daily", OFFICE_DAILY), ("hourly", OFFICE_HOURLY)):
+        write(os.path.join(http, name("POST", "/api/services/weather/get_forecasts", "return_response", forecast_body(kind, OFFICE))),
+              response(fc, OFFICE))
+    # What Home Assistant answers for an entity it does not have, and for a token it does not accept.
+    write(os.path.join(http, name("GET", "/api/states/weather.nowhere")), {"message": "Entity not found."}, 404)
+    write(os.path.join(http, name("GET", "/api/states/" + ENTITY, host="ha-denied.example.test")), "401: Unauthorized", 401)
     for kind, fc in (("daily", DAILY), ("hourly", HOURLY)):
         write(os.path.join(http, name("POST", "/api/services/weather/get_forecasts", "return_response", forecast_body(kind))),
               response(fc))
@@ -144,19 +200,17 @@ def main():
     first = saved_at - saved_at % HOUR
     stale = {
         "fetched": saved_at,
+        "sunrise": calendar.timegm((2026, 1, 15, 7, 42, 20)), "sunset": calendar.timegm((2026, 1, 15, 15, 58, 31)),
         "now": {"condition": "fog", "temperature": 1.8, "apparent": -1.4, "humidity": 97, "wind": 9.0, "gust": 17.0, "bearing": 160,
                 "tempUnit": "°C", "windUnit": "km/h", "precipUnit": "mm"},
         "hourly": [{"t": first + i * HOUR, "c": c, "temp": tp, "mm": mm, "pct": p}
                    for i, (c, tp, _, p, mm) in enumerate([("fog", 1.8, 0, 0, 0.0)] * 6 + HOURLY_PLAN[:18])],
         "daily": [{"t": day0 + i * DAY, "c": c, "temp": hi, "low": lo, "mm": mm, "pct": p}
                   for i, (c, hi, lo, p, mm) in enumerate(DAILY_PLAN)],
-        "rainUpdated": saved_at - saved_at % (15 * 60),
-        "rain": [[saved_at - saved_at % (15 * 60) + i * 900, saved_at - saved_at % (15 * 60) + (i + 1) * 900, mm * 4, 70 if mm else 0]
-                 for i, mm in enumerate(RAIN_MM)],
     }
     d = os.path.join(data, "weather-stale", "data", "cache", "weather")
     os.makedirs(d, exist_ok=True)
-    with open(os.path.join(d, "weather.json"), "w") as f:
+    with open(os.path.join(d, ENTITY + ".json"), "w") as f:
         json.dump(stale, f, separators=(",", ":"))
 
 

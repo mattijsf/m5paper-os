@@ -66,3 +66,5 @@ cloud-fog
 cloud-hail
 umbrella
 list
+sunrise
+sunset
