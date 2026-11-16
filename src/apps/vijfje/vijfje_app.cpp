@@ -211,6 +211,7 @@ class Legend : public ui::Widget {
 };
 
 // The letter keys in three rows, with Enter and Backspace in the last. A key shows the best mark its letter got.
+constexpr Color kSpentKey = gray(10);  // outline and letter of a key whose letter is not in the word
 class KeyPad : public ui::Widget {
  public:
   static constexpr int kKeyW = 45;
@@ -284,8 +285,9 @@ class KeyPad : public ui::Widget {
         c.fillRect(r.x + 7, r.y + 10, r.w - 14, r.h - 20, ui::paper);
         c.drawRect(r.x + 6, r.y + 9, r.w - 12, r.h - 18, ui::ink);
       } else if (mark == game::kAbsent) {
-        ui::strokeRound(c, r, ui::kRadiusSmall, 1, ui::divider);
-        fg = ui::disabled;
+        // Used up: faded well below the other keys.
+        ui::strokeRound(c, r, ui::kRadiusSmall, 1, kSpentKey);
+        fg = kSpentKey;
       } else {
         ui::strokeRound(c, r, ui::kRadiusSmall, 2, ui::ink);
       }

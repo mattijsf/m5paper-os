@@ -272,7 +272,8 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   "test in simulator". Done instead: simulator, unit tests, and `vijfje.cpp` + `words_data.cpp` compiled alone with the
   ESP32-S3 compiler (no warnings, 15 KB). To do: `make fw` with the app (size), flash, open it from launcher page 2, type a
   guess with injected taps (key positions from `debugState`), frame dump against the goldens; with the camera: how the
-  hatched ring and the gray(5) letters of absent tiles and keys show on the panel, and typing speed (a Fast push per
+  hatched ring, the gray(5) letters of absent tiles and the gray(10) letters and outlines of used-up keys show on the panel
+  (the panel prints mid-grays lighter than the simulator: a used-up key may nearly vanish there), and typing speed (a Fast push per
   letter plus its settle). For a person's fingers, batched: whether 45 px wide keys are comfortable.
   **Device compile, found by the tap-latency pass 2026-11-16**: `make fw` failed on `vijfje_app.cpp`
   (`Store::get("day", INT32_MIN)`: `int32_t` is `long` on the ESP32 and `Store` has no overload for it; the simulator

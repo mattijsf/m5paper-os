@@ -32,9 +32,12 @@ number), its texts, its colours. Consequences the user should know:
 |---|---|---|
 | right place | solid ink, paper letter | solid ink, paper letter |
 | another place | hatched ring around a paper middle, ink letter | the same, smaller |
-| not in the word | gray(9) frame, gray(5) letter | 1 px gray(9) outline, gray(5) letter |
+| not in the word | gray(9) frame, gray(5) letter | 1 px gray(10) outline, gray(10) letter |
 | typed, not played | 2 px ink frame, ink letter | |
 | empty / not tried | gray(9) frame | 2 px ink outline |
+
+A used-up key is meant to fade: gray(5) was "still too easy to read", so its letter and
+outline are gray(10) (`kSpentKey`). The tiles keep gray(5): a played guess stays readable.
 
 Solid = 🟩, hatched = 🟨, outline = ⬛: the same three looks `ui::drawText` uses for score squares in text. All three are ink
 and paper only, so the Fast pass shows the final look. A legend line under the board says what they mean (it never
