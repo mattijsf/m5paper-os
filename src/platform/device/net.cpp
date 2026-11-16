@@ -9,6 +9,10 @@
 #include "core/log.h"
 #include "platform/device/device.h"
 
+// ESP-IDF is built without SoftAP support (platformio.ini, D31), which also drops this function; Arduino's WiFi library still
+// asks for the access point's network interface when Wi-Fi starts and copes with "none" (it checks for NULL before every use).
+extern "C" esp_netif_t* esp_netif_create_default_wifi_ap(void) { return nullptr; }
+
 namespace pos::device {
 
 namespace {

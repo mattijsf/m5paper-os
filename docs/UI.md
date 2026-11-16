@@ -278,8 +278,8 @@ one atlas per size: 18 (caption), 22 (body, bodyStrong), 24 (read-S), 28 (title,
 `assets/emoji/emoji-<px>.bin`, 2.5 MB together. A Fluent emoji's 32 x 32
 box is the font size, 0.86 of it above the baseline, with px/8 (at least 2 px) on each side.
 
-- **On the card, not in the firmware**: one size alone is 260-600 KB, the firmware has about 250 KB left under its 3 MB
-  budget. The atlases live in `/sd/paperos/emoji/` (`make emoji` copies them into `sim-data/` and pushes them to the
+- **On the card, not in the firmware**: one size alone is 260-600 KB, more than the firmware's 3 MB budget had left when they
+  were added (about 250 KB; about 720 KB since D31). The atlases live in `/sd/paperos/emoji/` (`make emoji` copies them into `sim-data/` and pushes them to the
   device; `tools/ui-test.sh` links them into every test card). `ui/emoji` keeps only each atlas's index (16 bytes per
   emoji) and reads a bitmap the first time a text needs it.
 - **Fast**: a read bitmap goes into the same glyph cache as the letters (`ui/text`), so after the first use an emoji line

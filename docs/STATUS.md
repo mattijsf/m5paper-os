@@ -121,6 +121,17 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   light gone; `home.json` version 2 replaces the device's old internal copy by itself. On the device against the live Home
   Assistant (read only, nothing switched): all 17 lights read, both pages show real states (`out/dev-home/`).
 
+- **Firmware size pass (D31), 2026-11-16 night**: 2,988,576 ->
+  2,424,592 bytes (-564 KB, -19 %), nothing visible changed. `<sstream>` out of `core/remote.cpp` (it linked 162 KB of locale
+  code), no C++ exceptions (ESP-IDF and our build), 44 common root certificates instead of 150, TLS client only, no SoftAP, no
+  WPA Enterprise, Arduino logs errors only, no mbedTLS error texts, silent assertions. New build rules: no `try`/`throw`,
+  no iostreams in firmware code. **On the device** (flashed 22:37): boots, card and LittleFS mount, the launcher's frame dump
+  is right (`out/size-device-launcher.png`), Home reads 17 entities over HTTPS with certificate verification
+  (`out/size-device-home.png`), `tools/latency.py`: page turn 112 ms, screen change 152 ms, small tap 5 ms (as before). The
+  flashed image also holds other uncommitted work of that moment (`reader/book.cpp`, `core/file_server.cpp`).
+  One run of `make check` failed in `wifi_test.cpp:396` ("Wi-Fi goes off after the linger time"), code this pass did not
+  touch; two runs before and two after passed (286 tests, 231 screenshots): not explained, watch for it. What is left to
+  take: D31 "Not done" (fonts 473 KB first).
 - **Files over Wi-Fi (P7-4, D30), 2026-11-16 night**: Settings > Storage > Files over Wi-Fi serves the books folder as WebDAV
   and an upload page while the page is open, behind a one-time code. **On the device** (192.168.1.69, port 80), tested from
   the Mac: OPTIONS, PROPFIND, PUT with a length and chunked, GET, MOVE, COPY, MKCOL, DELETE, Digest and Basic sign-in, a wrong code
@@ -138,7 +149,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Simulator build | `make sim` | OK (first build ~3 min, then seconds) |
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
-| Firmware build | `make fw` | OK, 2.74 MB (52.2% of the 5 MB slot, 2026-11-16; libsodium added ~130 KB) |
+| Firmware build | `make fw` | OK, 2,424,592 bytes = 2.31 MB (46.2% of the 5 MB slot; 721 KB under the 3 MB budget) after the size pass of D31, 2026-11-16 night (2.85 MB before it) |
 | Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 258 tests; 206 goldens (2026-11-16, P7-11; the agenda work adds its own); `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
@@ -341,6 +352,10 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Size pass (D31)**: with the trimmed firmware, not run yet: the word list fetch from woordscore.nl (its roots are in the
+  44-certificate list, but the fetch runs at most once a day), Files over Wi-Fi (the server's sockets are unchanged; TLS server
+  and SoftAP code are gone), a Wi-Fi reconnect after sleep, a night of normal use (silent assertions: a crash shows an address
+  only).
 - **Files over Wi-Fi (D30)**: Finder > Go > Connect to Server with the address and the code (copy a book in, rename, delete); an
   Android file manager (WebDAV) and Chrome on the phone (the upload page); a long upload (20 MB) for the retry rate.
 - **Emoji, rest of the device check**: with the camera (the C922 was not plugged in on 2026-11-16 evening), whether the Fluent
@@ -876,3 +891,7 @@ None of these block Phase 1, Phase 2, or the reader.
   golden `weather-dry` (also the one-place layout). On the device: `read: partlycloudy, 10 days, 24 hours, 23 rain blocks`,
   the live sensor parses, the page says "Dry for the next 2 hours" (18:47). The graph itself with live rain was not seen on
   the device yet (no rain in the forecast): simulator only.
+- 2026-11-16: D31 firmware size pass: 2.85 -> 2.31 MB (-564 KB). `<sstream>` replaced in `core/remote.cpp`, exceptions off
+  (ESP-IDF and `-fno-exceptions`), common certificate bundle, TLS client only, no SoftAP (stub for Arduino's WiFi library), no
+  WPA Enterprise, `CORE_DEBUG_LEVEL=1`, no mbedTLS error texts, silent assertions; `CONFIG_LWIP_IPV6=n` does not compile; our
+  `-O2` never had an effect (the build script's `-Os` wins). Flashed: boot, HTTPS to Home Assistant, latency unchanged.

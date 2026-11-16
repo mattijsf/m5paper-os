@@ -215,8 +215,10 @@ missing file or key never crashes. Schema: `docs/apps/settings.md`.
 | storage (LittleFS) | 5.9 MB | `/data` |
 | coredump | 64 KB | crash dumps |
 
-Firmware size budget: **under 3 MB** (code ~1.3 MB, fonts and icons ~1.2 MB). `make fw` prints
-the size; if a task pushes it past 3 MB, stop and trim font ranges before continuing.
+Firmware size budget: **under 3 MB** of the 5 MB slot. 2026-11-16: 2.31 MB (code 1.6 MB, fonts and icons 0.47 MB, other
+data 0.26 MB) after the size pass of DECISIONS.md D31, which also says what keeps it small: no C++ exceptions, no iostreams,
+a trimmed ESP-IDF. `make fw` prints the size; if a task pushes it past 3 MB, stop and look at the linker map
+(`.pio/build/papers3/firmware.map`) before continuing: one include can cost 150 KB.
 
 ## Memory budget
 

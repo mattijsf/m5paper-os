@@ -5,18 +5,86 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <sstream>
 
 #include "core/log.h"
 
 namespace pos {
+
+namespace {
+
+// The few std::istringstream operations the parser needs, on a string. <sstream> pulled libstdc++'s locale and wide-character
+// code into the firmware (about 150 KB of flash).
+class Words {
+ public:
+  explicit Words(const std::string& s) : s_(s) {}
+
+  explicit operator bool() const { return !fail_; }
+  bool operator!() const { return fail_; }
+  bool eof() const { return eof_; }
+
+  Words& operator>>(std::string& word) {
+    word.clear();
+    if (!skipSpace()) return *this;
+    const size_t start = pos_;
+    while (pos_ < s_.size() && !isSpace(s_[pos_])) ++pos_;
+    if (pos_ >= s_.size()) eof_ = true;
+    word.assign(s_, start, pos_ - start);
+    return *this;
+  }
+
+  Words& operator>>(int& value) {
+    if (!skipSpace()) return *this;
+    const char* begin = s_.c_str() + pos_;
+    char* end = nullptr;
+    const long v = std::strtol(begin, &end, 10);
+    if (end == begin || isSpace(*begin) || v < INT32_MIN || v > INT32_MAX) {
+      fail_ = true;
+      return *this;
+    }
+    pos_ += static_cast<size_t>(end - begin);
+    if (pos_ >= s_.size()) eof_ = true;
+    value = static_cast<int>(v);
+    return *this;
+  }
+
+  // Everything after the white space at the current position, to the end of the line.
+  void rest(std::string& out) {
+    out.clear();
+    if (!skipSpace()) return;
+    out.assign(s_, pos_, std::string::npos);
+    pos_ = s_.size();
+    eof_ = true;
+  }
+
+ private:
+  static bool isSpace(char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f'; }
+
+  // False (and the stream fails) when nothing but white space is left or an earlier read failed.
+  bool skipSpace() {
+    if (fail_) return false;
+    while (pos_ < s_.size() && isSpace(s_[pos_])) ++pos_;
+    if (pos_ >= s_.size()) {
+      eof_ = true;
+      fail_ = true;
+      return false;
+    }
+    return true;
+  }
+
+  const std::string& s_;
+  size_t pos_ = 0;
+  bool fail_ = false;
+  bool eof_ = false;
+};
+
+}  // namespace
 
 RemoteCommand parseRemoteCommand(const std::string& raw) {
   RemoteCommand c;
   std::string line = raw;
   while (!line.empty() && (line.back() == '\r' || line.back() == '\n' || line.back() == ' ')) line.pop_back();
   if (!line.empty() && line[0] == '>') line.erase(0, 1);
-  std::istringstream in(line);
+  Words in(line);
   std::string word;
   in >> word;
   int n[4];
@@ -64,7 +132,7 @@ RemoteCommand parseRemoteCommand(const std::string& raw) {
   } else if (word == "put") {
     // path may contain spaces: everything before the last two tokens
     std::string rest;
-    std::getline(in >> std::ws, rest);
+    in.rest(rest);
     size_t sp2 = rest.rfind(' ');
     size_t sp1 = sp2 == std::string::npos ? std::string::npos : rest.rfind(' ', sp2 - 1);
     if (sp1 == std::string::npos || sp1 == 0) return bad("usage: put <path> <size> <crc32 hex>");
@@ -77,13 +145,13 @@ RemoteCommand parseRemoteCommand(const std::string& raw) {
     c.kind = RemoteCommand::Put;
   } else if (word == "cat") {
     std::string rest;
-    std::getline(in >> std::ws, rest);
+    in.rest(rest);
     if (rest.empty()) return bad("usage: cat <path>");
     c.kind = RemoteCommand::Cat;
     c.path = rest;
   } else if (word == "ls" || word == "rm") {
     std::string rest;
-    std::getline(in >> std::ws, rest);
+    in.rest(rest);
     if (rest.empty()) return bad("usage: ls|rm <path>");
     c.path = rest;
     c.kind = word == "ls" ? RemoteCommand::Ls : RemoteCommand::Rm;

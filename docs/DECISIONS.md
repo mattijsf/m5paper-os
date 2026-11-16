@@ -449,3 +449,48 @@ Answers STATUS.md open question 5 with its option a, widened from "upload" to ma
   `fs::Writer` now reopens the file and writes the piece again at its place (up to three tries). Afterwards 9 of 9 arrived
   byte-identical, a few needing a retry. Speed: about 70-100 KB/s (the card's write speed).
 - **Cost**: firmware +57 KB (2.97 MB of the 3 MB budget).
+
+## D31. Firmware size: no C++ exceptions, no iostreams, a trimmed ESP-IDF
+
+The image went from 2,988,576 to 2,424,592 bytes (2.85 -> 2.31 MB, -564 KB, -19 %); the 3 MB budget has 721 KB left. The slot
+itself is 5 MB (`app0`), so the budget, not the flash, was the limit. Nothing the user sees changed; tap latency is the same
+(page turn 112 ms, screen change 152 ms, small tap 5 ms, `tools/latency.py` on the device).
+
+| Step | Image after | Saved |
+|---|---|---|
+| `core/remote.cpp` parsed commands with `std::istringstream`: that one include linked libstdc++'s locale, wide-character and stream code (162 KB). A 60-line word reader replaces it. | 2,900,960 | 88 KB |
+| ESP-IDF: no C++ exceptions (no unwind tables, no unwinder), the 44 common root certificates instead of 150, TLS client only, no SoftAP, no WPA Enterprise, no table of error names | 2,693,392 | 208 KB |
+| Our code and the libraries compiled with `-fno-exceptions` (the Arduino build script still passed `-fexceptions`: every function carried clean-up code for unwinding) | 2,526,512 | 167 KB |
+| `CORE_DEBUG_LEVEL` 3 -> 1: the Arduino core and its libraries log errors only | 2,506,144 | 20 KB |
+| ESP-IDF: no mbedTLS error texts, silent assertions | 2,424,592 | 82 KB |
+
+(The image grows in steps: its two flash segments are aligned to 64 KB, so a step's saving can show partly in the next one.)
+
+What this costs, and the rules that follow:
+
+- **No exceptions in firmware code.** `try`, `catch` and `throw` do not compile for the device. Nothing used them; a `throw`
+  from the standard library (`std::stoi` on bad input, `at()` out of range, a failed allocation) ended in `abort` before and
+  still does. Parse with `strtol`/`from_chars` and check sizes.
+- **No `<sstream>`, `<iostream>`, `<fstream>`, `<regex>`, `<locale>` in shared code** (the simulator would accept them): each
+  links 100-160 KB. `std::to_string`, `std::string`, containers and `<algorithm>` are fine.
+- **TLS trusts 44 roots** (ESP-IDF's "common" list: Let's Encrypt, Google Trust Services, DigiCert, Amazon, Sectigo/Comodo,
+  GoDaddy/Starfield, GlobalSign). A server under another root fails verification; to add one, go back to the full bundle
+  (`CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL`, +47 KB). Home Assistant over HTTPS read on the device; woordscore.nl chains to
+  GTS Root R4 / GlobalSign Root CA, both in the list.
+- **No access point mode.** ESP-IDF's SoftAP support is gone; Arduino's WiFi library still asks for the access point's network
+  interface at start, so `platform/device/net.cpp` supplies `esp_netif_create_default_wifi_ap` returning none. A set-up
+  hotspot would need `CONFIG_ESP_WIFI_SOFTAP_SUPPORT` back.
+- **Crash output is shorter.** A failed assert prints its program address only; a TLS failure its number only. Decode an
+  address with `xtensa-esp32s3-elf-addr2line -pfiaC -e .pio/build/papers3/firmware.elf 0x42...` (`make monitor` does it by itself).
+- **Tried and dropped**: `CONFIG_LWIP_IPV6=n` (ESP-IDF's lwIP port and the esp-modbus component do not compile without it).
+  `-Os` for our code: it already was (the build script's `-Os` came after our `-O2`, which never had an effect).
+
+Not done, each needs a choice (sizes from the linker map):
+
+- **Fonts and icons, 473 KB** (11 text fonts at 4 bits per pixel, two icon sizes): the largest block left. On the card like the
+  emoji atlases (the firmware then needs the card to show text), 2 bits per pixel (about half, coarser edges), or without
+  Latin Extended-A (about a quarter less; ő, š, ł, œ become `?`).
+- M5GFX and M5Unified carry the drivers and detection for every M5Stack board (about 50 KB a patch could remove).
+- newlib's small printf (about 30 KB; loses `%llu` and friends, which the code uses).
+- WPA3 (about 15 KB; WPA3-only networks would stop working).
+
