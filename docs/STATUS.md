@@ -26,6 +26,11 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   headings, long words, tiny pages, parser). **P2-6**: config service, secrets reader, time zone, Settings (all sections). The device shows the real
   Settings. **Phase 3 continues** (P3-1 device power HAL, P3-4 idle policy; Wi-Fi tasks wait for credentials).
 - The factory firmware is saved in `backup/factory-16MB.bin` (restore command in HARDWARE.md).
+- **P6-7 clipboard and WhatsApp sending (D21), 2026-11-16: built in the simulator, not live.** `core/clipboard`; Paste / Copy all / Clear on
+  a long press in every text field; `script.paperos_whatsapp_send` in `ha/paperos_inbox.yaml` (guards, rate limit: BACKEND.md "Sending a
+  WhatsApp message"); WhatsApp Reply, New message (config `inbox.whatsapp.favorites`), compose, confirmation, toasts; `apps/inbox/compose.h`
+  for other apps. **The script is not installed in Home Assistant and nothing has been sent** (the repo copy of the package is now ahead of
+  the live one). The send path is verified only against fixtures and a Jinja harness.
 
 ## What works today
 
@@ -34,8 +39,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Simulator build | `make sim` | OK (first build ~3 min, then seconds) |
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
-| Firmware build | `make fw` | OK, 1.45 MB (27.7% of the 5 MB slot) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 93 tests; 55 goldens; `out/gallery.html` |
+| Firmware build | `make fw` | OK, 2.57 MB (49.0% of the 5 MB slot, 2026-11-16) |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 210 tests; 160 goldens (2026-11-16); `out/gallery.html` |
+| Send script templates | `uv run -q --no-project --with jinja2 --with pyyaml python -I tests/ha/check-send-script.py ha/paperos_inbox.yaml` | 24 cases (Jinja stand-ins for Home Assistant, not Home Assistant itself) |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Camera on the panel | `make cam-shot` / `cam-video` / `cam-compare`, `tools/cam.py around tap X Y` | built and self-tested (synthetic images; `around` against the device with a replayed video); webcam not connected yet |
@@ -93,6 +99,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 - WhatsApp add-on: installed, **not linked yet**; event fields for groups and the effect on phone
   notifications are unknown (task P6-1, see "P6-1 progress"). `ha/paperos_inbox.yaml` is a copy of the live WhatsApp package (tested with fake events only; see P6-3).
 - Proton Mail Bridge on Home Assistant OS: no confirmed add-on that exposes IMAP (task P6-2).
+- **WhatsApp sending (P6-7)**: `script.paperos_whatsapp_send` has never run in Home Assistant (not installed); unknown: the REST answer of a
+  script with `?return_response` as the device parses it, what `mode: single` answers to a second call, the call with a non-admin token,
+  whether a send through the integration fires `whatsapp_message_sent` (and drops that chat from the feed), a real message arriving.
 
 ## P6-1 progress (2026-11-15, done with the owner in Home Assistant)
 
@@ -202,6 +211,15 @@ connected** (2026-11-15: macOS lists only the built-in camera; the user will plu
 
 ## Pending device checks
 
+- **P6-7 (2026-11-16, firmware of this commit, flashed)**: run on the device: the text-field sheet on `widgets6` (frame dump identical to the
+  golden `textfield-menu-empty`), Clear on the three-line field, and the WhatsApp compose screen with a fake favourite added in memory
+  (`>set favorite Test=31600000000@s.whatsapp.net`, removed afterwards with `>set favorite clear`): compose, typing "hi" with injected key
+  taps, the confirmation sheet, Cancel (frame back to the compose screen, no send in the log). Dumps: `out/dev-textfield-menu.png`,
+  `out/dev-compose.png`, `out/dev-compose-typed.png`, `out/dev-confirm.png`, `out/dev-note-menu.png`, `out/dev-note-cleared.png`.
+  **Not run**: Send in the sheet (never, until the script is installed and the user chooses a chat), Paste with a real clipboard on the
+  device, the Reply button on a real conversation (it would show the user's chats in the dumps). One injected long press sent right after
+  the tap that closed a sheet (no wait) did not open the sheet and the following tap typed a space; with the sheet closed first it works.
+  A real finger is untested.
 - **P7-2**: the hang of `launcher.script` on the host was not reproduced after the fix (write timeout + run limit), only bounded; `launcher` and `display-lab` need a device-side way to be comparable
   (fixed clock and no stored book) or stay "data".
 
@@ -517,4 +535,8 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-15: P6-3 (WhatsApp half, done in parallel): `ha/paperos_inbox.yaml` synced from the Home Assistant repo; BACKEND.md event fields and feed mapping corrected; D20; add-on security facts.
 - 2026-11-15: P3-5 preparation: `core/power_log` (`/data/power.csv`, every 10 min), Developer screen shows battery, time since boot and the power log switch, `>cat` / `tools/device.py cat`.
 - 2026-11-15: P7-1 Display lab screen (ramp, checker / white ghost test, text samples, counters); Developer screen: Display lab row, memory in one row.
+- 2026-11-16: P6-7 clipboard and WhatsApp sending (D21), steps 2-5: TextField sheet, multi-line fields and a character limit; disabled primary
+  buttons are drawn as an outline (gray text on a gray fill was unreadable); `script.paperos_whatsapp_send` + `sensor.paperos_whatsapp_sends`
+  in the package and `tests/ha/check-send-script.py`; config `inbox.whatsapp.favorites`; Reply / New message / compose / confirmation;
+  `apps/inbox/compose.h`; device test aid `>set favorite`. Not installed in Home Assistant, nothing sent.
 - 2026-11-15: P7-7 camera tooling: `tools/cam.py` (devices, shot, video, calibrate, compare, around, selftest), `make cam-shot` / `cam-video` / `cam-compare`; per-run registration, per-image normalisation, no goldens (the set-up moves); camera-checkable items moved to "To verify with the camera". Waiting for the webcam to be plugged in.

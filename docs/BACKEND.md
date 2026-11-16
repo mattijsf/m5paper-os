@@ -9,7 +9,8 @@ and HACS). Home Assistant does the heavy work; the device only reads small JSON 
 3. **Mail inbox**: Proton Mail Bridge exposes the mailbox over IMAP; Home Assistant's IMAP
    integration fires an event per new mail; a template sensor keeps the recent ones.
 
-The device never speaks WhatsApp or IMAP. It reads two sensors. The reasons and the rejected
+The device never speaks WhatsApp or IMAP. It reads two sensors, and sends a WhatsApp message only through one Home Assistant
+script with guards (`script.paperos_whatsapp_send`, DECISIONS.md D21, "Sending a WhatsApp message" below). The reasons and the rejected
 alternatives are in `DECISIONS.md` D16 and D17.
 
 ```
@@ -144,8 +145,8 @@ Risks and checks (task P6-1). **These need the owner's attention before installi
 1. **Terms of service.** The add-on is an unofficial client. Its own docs warn that automated
    use "may violate their Terms of Service and lead to a permanent account ban" and recommend
    a second number. Reading the user's personal messages requires linking the *personal*
-   account. PaperOS only reads and never sends through it, which is the lowest-risk use, but
-   the risk is not zero and it is the user's account. The owner chose this route on 2026-11-15
+   account. PaperOS mostly reads; since D21 (2026-11-15) it can also send a message the user typed and confirmed on the device, through
+   a rate-limited script (below). The risk is not zero and it is the user's account. The owner chose this route on 2026-11-15
    after the risk-free alternative (phone notification sensors, `DECISIONS.md` D8) was offered;
    repeat this warning once at install time.
 2. **Phone notifications.** A linked device that reports itself "online" can stop WhatsApp
@@ -232,6 +233,43 @@ a device "Mark all read" with the new firmware against a feed that holds a newer
 `event_data.before` is rendered with `| int(0)`. The device calls
 `POST /api/services/script/paperos_inbox_clear` with `{"feed":"whatsapp","before":<ts>}` (a service call works for a non-admin user;
 firing events directly does not).
+
+### Sending a WhatsApp message (DECISIONS.md D21)
+
+The device calls `POST /api/services/script/paperos_whatsapp_send?return_response` with `{"chat":"<JID>","text":"<message>"}` (a service
+call: works for a non-admin user like `paperos_inbox_clear`). It never calls `whatsapp.send_message` or the add-on itself. The script
+(`ha/paperos_inbox.yaml`) answers `service_response` = `{"ok": true|false, "reason": "...", "message_id": "..."}`.
+
+| Guard (inside the script) | Refusal `reason` |
+|---|---|
+| text trimmed, 1..1000 characters | `empty`, `too_long` |
+| chat is `<digits>@s.whatsapp.net` or `<digits>@g.us` (`<digits>-<digits>@g.us` for old groups): one target, no lists (the integration splits `target` on commas) | `bad_chat` |
+| at least 10 s since the last attempt | `too_soon` |
+| at most 20 attempts in the last hour | `hourly_limit` |
+| `mode: single` (`max_exceeded: silent`): one run at a time | (a second call while one runs gets no response) |
+| the integration did not answer `success: true` | `send_failed` |
+
+- **Rate limit, how**: before it sends, the script fires `paperos_whatsapp_send_log`; the trigger-based template sensor
+  `sensor.paperos_whatsapp_sends` keeps the times of the last hour in its attribute `times` (no text, no chat; restored after a restart;
+  excluded from the recorder). `mode: single` makes "read the list, then add to it" race-free. Every attempt that passes the guards counts,
+  a failed one too, so a fault cannot turn into a burst. Chosen because it needs no helper entities and survives restarts; the script's own
+  `last_triggered` cannot work (it is set when the current run starts), and a non-admin token cannot fire the event to fake or flush it.
+- **Integration fields** (FaserF/ha-whatsapp v2.1.10, `services.yaml` and `__init__.py`): `whatsapp.send_message` takes `target` (a JID or
+  number, or a comma list) and `message`, optional `account`, `quote`, `expiration`; it supports a response, `{"success": true,
+  "message_id": ...}`, and raises on failure (the script's `continue_on_error` turns that into `send_failed`). The integration also has a
+  recipient whitelist option (not set): it could be a second fence.
+- **Home Assistant pitfall**: a rendered template that reads as a Python literal becomes that type. The script therefore never keeps the
+  text in a variable; the checks re-read the field in one template. A message that is only a number in another spelling ("4.50", "+5")
+  goes out as Home Assistant renders it ("4.5", "5"); one that reads as a list or `None` is refused by the integration (`send_failed`).
+- **The device** (apps/inbox.md "Sending"): confirmation sheet first, always; it maps the answer to a toast: `Sent to <name>`, the
+  refusal reason ("Not sent: wait 10 seconds"), `400`/`404` = "Not sent: no send script in Home Assistant", a timeout = "No answer: check
+  WhatsApp first" (it may have gone out). The text stays in the field unless it was sent. The text is never logged on either side.
+- Whether the integration fires `whatsapp_message_sent` for a message sent through it (which would drop that chat from the feed, like a
+  reply from the phone) is not known.
+- **Checked**: the templates against 24 cases in a Jinja harness with stand-ins for Home Assistant's extensions
+  (`tests/ha/check-send-script.py`: guards, rate limit, hourly window, native types). **Not checked**: the script in Home Assistant itself
+  (not installed: it is installed together with the owner, in the Home Assistant repo, by its rules), the response over REST with a
+  non-admin token, what `mode: single` answers to a second call, a real send.
 
 ### Installing the package
 

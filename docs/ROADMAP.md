@@ -337,6 +337,15 @@ home-assistant repo's own rules. Read BACKEND.md fully before any of them.
 - [x] **P6-6 Text clean-up.** (`core/text_clean`; the reader's XML tokenizer shares its entity decoder) `core/text_clean`: HTML to text, entities, emoji, long words,
   links shortened to the host name. Unit tests.
 
+- [~] **P6-7 Clipboard and WhatsApp sending** (DECISIONS.md D21). (2026-11-16: built in the simulator, commits
+  "Clipboard 1/5" to "5/5"; the compose screen and the text-field sheet ran on the device with a fake in-memory favourite; the script is not
+  installed and nothing has been sent.) `core/clipboard`; Paste / Copy all / Clear on every text field; `script.paperos_whatsapp_send` with
+  its guards in `ha/paperos_inbox.yaml`; Reply, New message (config favourites), compose, confirmation, send, toasts; `apps/inbox/compose.h`
+  for other apps (a game's score). Read: BACKEND.md "Sending a WhatsApp message", apps/inbox.md "Sending".
+  Done when: the script is installed in the Home Assistant repo (with the owner, by that repo's rules), one message the owner asked for is sent
+  from the device to a chat the user chooses and arrives, a second within 10 s is refused on the device with "Not sent: wait 10 seconds",
+  and the call works with the non-admin token.
+
 ## Phase 7: Polish
 
 - [~] **P7-1 Display lab and tuning.** (2026-11-15: the Display lab screen is built and runs on the device; tuning, the sub-rectangle push optimisation and a custom waveform are open and need a person's eyes) Developer > Display lab; tune defaults on the device;
@@ -381,5 +390,6 @@ home-assistant repo's own rules. Read BACKEND.md fully before any of them.
 | E-books | P4; open books fetched by `tools/fetch-books.sh`, pushed to the card in P4-0 |
 | Easy to add apps | APPS.md; P2-4, P2-5 |
 | WhatsApp unread | P6 (Home Assistant WhatsApp add-on, D16) |
+| WhatsApp send, clipboard | P6-7 (D21) |
 | Recent mail | P6 (Proton via Bridge + IMAP integration, full text on demand, D17) |
 | Home Assistant control | P5 |

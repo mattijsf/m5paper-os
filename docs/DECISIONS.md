@@ -212,6 +212,8 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   guards (length, target form, rate limit). A send always asks for confirmation on the device first.
 - **Risk**: sending through the unofficial add-on raises the ban risk the user accepted for reading (D16). Keep the volume
   human-like: the rate limit in the script is part of the decision, not a detail.
-- **Status**: `core/clipboard` is built (unit tests). The text-field sheet, the script and the compose screen are not built yet;
-  nothing is installed in Home Assistant and nothing has been sent.
+- **Status (2026-11-16)**: built in the simulator: `core/clipboard`, the text-field sheet (UI.md), `script.paperos_whatsapp_send` in
+  `ha/paperos_inbox.yaml` (guards in BACKEND.md "Sending a WhatsApp message"), Reply / New message / compose / confirmation in the WhatsApp
+  app and `apps/inbox/compose.h` for other apps (apps/inbox.md "Sending"). The compose screen and the sheet ran on the device (frame dumps).
+  **Nothing is installed in Home Assistant and nothing has been sent.**
 - Mail stays read-only.

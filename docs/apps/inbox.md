@@ -1,9 +1,10 @@
 # WhatsApp and Mail (inbox apps)
 
-Two launcher tiles, one implementation (`src/apps/inbox/`): a read-only list of recent
-messages. No replying. Home Assistant collects the messages (WhatsApp add-on, Proton Mail
-through Bridge + IMAP) and keeps them in two sensors; the device only reads those. How the
-sensors are filled, and the risks, are in `BACKEND.md` ("Inbox feeds").
+Two launcher tiles, one implementation (`src/apps/inbox/`): a list of recent messages. Home Assistant collects the messages
+(WhatsApp add-on, Proton Mail through Bridge + IMAP) and keeps them in two sensors; the device reads those. WhatsApp can also
+**send** (DECISIONS.md D21, "Sending" below): a reply in a conversation, or a new message to a favourite chat, through one guarded
+Home Assistant script. Mail stays read-only. How the sensors are filled, the send path and the risks are in `BACKEND.md`
+("Inbox feeds", "Sending a WhatsApp message").
 
 | Tile | Feed entity | Icon |
 |---|---|---|
@@ -48,7 +49,7 @@ Both are instances of `InboxApp` parameterised by `{id, name, icon, entity, kind
 - Rows are one `ListItem` (96 px): name (with a bullet when new, and "(3)" for a chat of three messages), one line of text, time at the
   right; the spec's two text lines are not built. 6 rows per page. `Screen::setAction` puts the refresh icon in the title bar.
 - Chat detail: the conversation oldest first as text pages (sender and time in bold, then the text), tap right = next page, left third =
-  back. Mail detail: sender, subject, time, then the excerpt; the full text arrives from `imap.fetch` (`service_response.text`, or one level
+  back; a "Reply" button below (see "Sending"). Mail detail: sender, subject, time, then the excerpt; the full text arrives from `imap.fetch` (`service_response.text`, or one level
   down per entry) and replaces it from page 1; no Wi-Fi or an error leaves the excerpt and says "Showing the beginning only".
 - Seen marker: `ctx.store` key `seen` = newest `ts` shown; dots use the marker as it was when the app started, so a list opened a
   second time has none. Badge: `/data/cache/<id>/badge` (the launcher reads it) = items newer than the marker, written after each fetch; right after
@@ -58,6 +59,27 @@ Both are instances of `InboxApp` parameterised by `{id, name, icon, entity, kind
 - Fixtures: `tests/fixtures/make-inbox-fixtures.py` (hosts `ha`, `ha-down`, `ha-empty` .example.test; the three presets under
   `tests/ui/data/inbox*`). Scripts: `inbox`, `inbox-mail`, `inbox-link`, `inbox-empty`, `inbox-error`. The inbox uses the fixed UI fonts, not
   the reader's four text sizes; the chat and mail text pages use the reader's S face (24 px).
+
+## Sending (WhatsApp, D21; simulator 2026-11-16)
+
+- **Reply**: a secondary button at the bottom of a conversation, when its `key` is a chat JID the script accepts (`whatsapp::validChat`).
+  The target is the sender (direct chat) or "Group with Anna" (a group: its name is not known, BACKEND.md).
+- **New message**: a button next to "Mark all read" on the WhatsApp list when the config has favourites (`inbox.whatsapp.favorites`,
+  apps/settings.md "Config schema", at most 8). One favourite opens compose at once, more show a "Send to" list (name, Group / Person).
+  Without favourites the list looks as before.
+- **Compose** (`apps/inbox/compose.cpp`, title "Message"): "To <name>", a six-line text field (1000 characters, line feeds kept, Enter types
+  one), a counter, "Paste" (disabled while the clipboard is empty) and "Send" (disabled while the text is empty or a send runs); the keyboard
+  is an overlay. A long press on the field gives Paste / Copy all / Clear (UI.md).
+- **Send** always opens a confirmation sheet: "Send to <name>?", the text (six lines at most), "From your own WhatsApp account", Send /
+  Cancel. Then `script.paperos_whatsapp_send` (`whatsapp_send.h`: body, answer). Sent: toast "Sent to <name>" and the compose screen closes.
+  Refused or failed: a toast with the reason and the text stays. The log says "send: sent" / "not sent (reason)", never the text.
+- **API for other apps** (`apps/inbox/compose.h`): `whatsapp::openCompose(ctx, {name, chat}, text)`, `whatsapp::openNewMessage(ctx, text)`,
+  `whatsapp::sendToFavorite(ctx, "Family", "Somdoku 12:34")` (a game's "Send score": the favourite by name, else the list). The compose screen
+  is pushed onto the calling app's stack; back returns there. Prefilled text is cleaned like the clipboard and cut to 1000 characters.
+- Tests: `whatsapp_send_test.cpp` (JIDs, body, favourites, answers), `config_test.cpp` (favourites); UI scripts `whatsapp-send` (list with New
+  message, Reply, compose, typing + Paste, confirmation, sent), `whatsapp-send-refused` (favourites list, refusal "too_soon"),
+  `whatsapp-send-missing` (one favourite, the script not installed: 400). Fixtures: the send script answers ok on `ha`, `too_soon` on
+  `ha-down`, 400 on `ha-empty` (`make-inbox-fixtures.py`; the fixture chat keys are now digit JIDs).
 
 ## Behaviour
 

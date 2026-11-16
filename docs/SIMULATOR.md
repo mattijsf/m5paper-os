@@ -171,7 +171,8 @@ A task is done only when `make check` passes.
     straight to the book, so `launcher` goes off its path). Device run 2026-11-15: the first five identical, `widgets3` 6 of 12 (STATUS.md).
   - **data** (runs, but the goldens come from preset card data and HTTP fixtures the device does not have): `home`, `inbox-empty`, `inbox-link`,
     `launcher-summary`, `library`, `reader-menu`, `settings`.
-  - **cannot**: scripts with `type` / `type-max` (key positions are not exposed: `keyboard`, `wifi`), `wifi on|off` (simulator only: `home-offline`,
+  - **cannot**: scripts with `type` / `type-max` (key positions are not exposed: `keyboard`, `wifi`, `textfield-menu`, `whatsapp-send`,
+    `whatsapp-send-refused`, `whatsapp-send-missing`), `wifi on|off` (simulator only: `home-offline`,
     `inbox-error`, `inbox-mail`), `restart` (`epub`, `inbox`, `inbox-wifi`, `reader`), `power-off` (`sleep`, `sleep-reader`), `timer-wake` (`sched-refresh`; on the device: `poweroff N M`), and `fonts` (drawn by the Os).
   Time is real on the device: a shot right after a tap can catch the frame before or after the settle pass, so it may differ from the golden by a few
   hundred anti-aliased pixels (seen in `widgets3-stepper` and `-level` even against the simulator's remote mode).

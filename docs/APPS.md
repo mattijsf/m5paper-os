@@ -114,6 +114,12 @@ keep (`ctx.store`) in `onStop()`/`onHide()`. Power-off calls `onStop()` first.
 | `ctx.clock` | `now()`, `millis()` |
 | `ctx.log` | `POS_LOG` with the app id as tag |
 
+### Opening the WhatsApp compose screen from another app
+
+`#include "apps/inbox/compose.h"`, then `whatsapp::sendToFavorite(ctx, "Family", text)` (or `openCompose` / `openNewMessage`): the compose
+screen is pushed onto your app's stack, the user confirms before anything is sent, back returns to your screen (apps/inbox.md "Sending").
+To hand text to any app instead, use the clipboard: `clipboard::set(text, "<your app id>")` (`core/clipboard.h`, D21).
+
 ## Rules for app code
 
 1. Never block: no `delay`, no file parsing of more than a few KB, no HTTP on the UI thread.
