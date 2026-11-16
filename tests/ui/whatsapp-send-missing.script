@@ -1,0 +1,14 @@
+# app: whatsapp
+# Sending before the script is installed in Home Assistant (fixture ha-empty.example.test answers 400): one favourite opens the
+# compose screen at once; the send ends in a toast and the text stays.
+wait 1500
+tap 140 918             # New message: one favourite, straight to compose
+wait 900
+type Hello
+wait 600
+tap 400 504             # Send
+wait 900
+tap 270 812             # Send in the sheet
+wait 1500
+expect-state chars=5
+shot whatsapp-send-missing

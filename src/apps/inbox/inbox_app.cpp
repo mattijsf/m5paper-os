@@ -1,11 +1,13 @@
-// WhatsApp and Mail: one implementation, registered twice (docs/apps/inbox.md). A read-only list of recent messages from a Home
-// Assistant sensor (the feed contract, BACKEND.md), chat conversations, mail with its full text fetched on demand, "Mark all read".
+// WhatsApp and Mail: one implementation, registered twice (docs/apps/inbox.md). A list of recent messages from a Home Assistant
+// sensor (the feed contract, BACKEND.md), chat conversations, mail with its full text fetched on demand, "Mark all read". WhatsApp
+// can also send (DECISIONS.md D21): "Reply" in a conversation and "New message" to a favourite open the compose screen (compose.h).
 #include <algorithm>
 #include <cstdio>
 #include <memory>
 
 #include <ArduinoJson.h>
 
+#include "apps/inbox/compose.h"
 #include "apps/inbox/inbox_model.h"
 #include "core/app.h"
 #include "core/fs.h"
@@ -88,6 +90,12 @@ class DetailScreen : public Screen {
     pageLabel_ = root.add<ui::Label>("", Type::Caption, ui::secondary);
     pageLabel_->align = ui::TextAlign::Center;
     root.add<ui::Spacer>(ui::s1);
+    if (!kind_.mail && whatsapp::validChat(msg_.key)) {
+      // A group's name is not known (BACKEND.md): "Group with Anna" says which one.
+      const whatsapp::Target to{msg_.chat.empty() ? msg_.from : msg_.chat + " with " + msg_.from, msg_.key};
+      root.add<ui::Button>("Reply", [this, to] { whatsapp::openCompose(ctx(), to); }, ui::Button::Kind::Secondary);
+      root.add<ui::Spacer>(ui::s1);
+    }
     block_->onPageChange = [this](int) { updatePage(); };
     block_->onLayout = [this] { updatePage(); };
     if (kind_.mail) {
@@ -157,7 +165,14 @@ class ListScreen : public Screen {
     holder_->flex = 1;
     status_ = root.add<ui::Label>("", Type::Caption, ui::secondary);
     status_->align = ui::TextAlign::Center;
-    markAll_ = root.add<ui::Button>("Mark all read", ui::Button::Kind::Secondary);
+    if (!kind_.mail && !whatsapp::favorites(ctx().config).empty()) {
+      auto* buttons = root.add<ui::Row>(ui::s2);
+      buttons->add<ui::Button>("New message", [this] { whatsapp::openNewMessage(ctx()); }, ui::Button::Kind::Secondary)->flex = 1;
+      markAll_ = buttons->add<ui::Button>("Mark all read", ui::Button::Kind::Secondary);
+      markAll_->flex = 1;
+    } else {
+      markAll_ = root.add<ui::Button>("Mark all read", ui::Button::Kind::Secondary);
+    }
     markAll_->onClick = [this] { confirmMarkAll(); };
     root.add<ui::Spacer>(ui::s1);
     std::string cached;

@@ -67,7 +67,8 @@ Size Button::measure(int availW) {
 }
 
 void Button::draw(Canvas& c) {
-  const bool filled = (kind == Kind::Primary) != pressed_ && !(kind == Kind::Text && !pressed_);
+  // A disabled primary button is drawn as an outline: disabled text on a disabled fill could not be read.
+  const bool filled = enabled && (kind == Kind::Primary) != pressed_ && !(kind == Kind::Text && !pressed_);
   const Color fg = !enabled ? disabled : filled ? paper : ink;
   const Color back = filled ? ink : paper;
   if (filled) c.fillRoundRect(frame.x, frame.y, frame.w, frame.h, kRadius, enabled ? ink : disabled);

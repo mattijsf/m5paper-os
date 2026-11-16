@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Writes the inbox HTTP fixtures of the UI tests (feed contract, docs/BACKEND.md "Inbox feeds"): fake messages, times relative to
 the simulator's test clock (2026-01-15T12:34:00Z = 13:34 in Amsterdam). Hosts: ha.example.test (normal), ha-down.example.test
-(WhatsApp link down), ha-empty.example.test (empty feeds).
+(WhatsApp link down), ha-empty.example.test (empty feeds). The send script (script.paperos_whatsapp_send, DECISIONS.md D21) answers
+"sent" on ha, "too_soon" on ha-down and 400 (no such script, as before it is installed) on ha-empty.
 
   python3 tests/fixtures/make-inbox-fixtures.py tests/fixtures/http
 """
@@ -26,17 +27,17 @@ LONG = ("Here is the plan for the weekend, in case you missed it: Saturday we st
         "Supercalifragilisticexpialidocious" + "x" * 70 + " ok?")
 
 WA = [  # newest first
-    ("Anna", "Group", "g-family@g.us", 13 * 60 + 31, "See you!"),
-    ("Anna", "Group", "g-family@g.us", 13 * 60 + 25, "I can bring the cake \U0001F382\U0001F600"),
-    ("Anna", "Group", "g-family@g.us", 13 * 60 + 20, "Are you coming at six?"),
-    ("Bram", "", "bram@s.whatsapp.net", 12 * 60 + 50, LONG),
-    ("Carla", "Group", "g-werk@g.us", 11 * 60 + 5, "Meeting moved to Thursday"),
-    ("Carla", "Group", "g-werk@g.us", 11 * 60 + 2, "Can someone send the agenda?"),
-    ("Dirk", "", "dirk@s.whatsapp.net", -(20 * HOUR), "Thanks for yesterday!"),   # yesterday evening
-    ("Emma", "", "emma@s.whatsapp.net", -(3 * DAY), "Did you see the match?"),
-    ("Fleur", "", "fleur@s.whatsapp.net", -(4 * DAY), "Call me when you can"),
-    ("Gijs", "", "gijs@s.whatsapp.net", -(5 * DAY), "Happy birthday! \U0001F389"),
-    ("Hanne", "", "hanne@s.whatsapp.net", -(20 * DAY), "Photos are in the shared album"),
+    ("Anna", "Group", "120363000000000001@g.us", 13 * 60 + 31, "See you!"),
+    ("Anna", "Group", "120363000000000001@g.us", 13 * 60 + 25, "I can bring the cake \U0001F382\U0001F600"),
+    ("Anna", "Group", "120363000000000001@g.us", 13 * 60 + 20, "Are you coming at six?"),
+    ("Bram", "", "31600000002@s.whatsapp.net", 12 * 60 + 50, LONG),
+    ("Carla", "Group", "120363000000000003@g.us", 11 * 60 + 5, "Meeting moved to Thursday"),
+    ("Carla", "Group", "120363000000000003@g.us", 11 * 60 + 2, "Can someone send the agenda?"),
+    ("Dirk", "", "31600000004@s.whatsapp.net", -(20 * HOUR), "Thanks for yesterday!"),   # yesterday evening
+    ("Emma", "", "31600000005@s.whatsapp.net", -(3 * DAY), "Did you see the match?"),
+    ("Fleur", "", "31600000006@s.whatsapp.net", -(4 * DAY), "Call me when you can"),
+    ("Gijs", "", "31600000007@s.whatsapp.net", -(5 * DAY), "Happy birthday! \U0001F389"),
+    ("Hanne", "", "31600000008@s.whatsapp.net", -(20 * DAY), "Photos are in the shared album"),
 ]
 
 def wa_items():
@@ -90,10 +91,14 @@ def main(out):
     write(out, h, "GET", "/api/states/sensor.paperos_mail_inbox", state(mail_items()))
     write(out, h, "POST", "/api/services/imap/fetch", {"changed_states": [], "service_response": {"text": FULL_HTML}}, "return_response")
     write(out, h, "POST", "/api/services/script/paperos_inbox_clear", "[]")
+    send = "/api/services/script/paperos_whatsapp_send"
+    write(out, h, "POST", send, {"changed_states": [], "service_response": {"ok": True, "reason": "", "message_id": "3EB0TEST000001"}}, "return_response")
     d = "ha-down.example.test"
     write(out, d, "GET", "/api/states/sensor.paperos_whatsapp_inbox", state(wa_items()[:4], False))
+    write(out, d, "POST", send, {"changed_states": [], "service_response": {"ok": False, "reason": "too_soon", "message_id": ""}}, "return_response")
     e = "ha-empty.example.test"
     for s in ("whatsapp", "mail"):
         write(out, e, "GET", f"/api/states/sensor.paperos_{s}_inbox", {"entity_id": "x", "state": "0", "attributes": {"updated": "2026-01-15T13:34:00+01:00", "items": []}})
+    write(out, e, "POST", send, {"message": "Service script.paperos_whatsapp_send not found."}, "return_response", status=400)
 
 main(sys.argv[1])

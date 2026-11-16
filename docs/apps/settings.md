@@ -55,9 +55,15 @@ the token and the Authorization header are never shown or logged. Developer > "H
   "net":      { "lingerSec": 20, "timezone": "CET-1CEST,M3.5.0,M10.5.0/3" },
   "reader":   { "fontSize": "M", "margins": "normal", "lineSpacing": 1.35 },
   "ha":       { "baseUrl": "http://homeassistant.local:8123" },
-  "launcher": { "resumeLastApp": true }
+  "launcher": { "resumeLastApp": true },
+  "inbox":    { "whatsapp": { "favorites": [ { "name": "Family", "chat": "120363000000000001@g.us" } ] } }
 }
 ```
+
+`inbox.whatsapp.favorites` (DECISIONS.md D21): the chats "New message" and other apps (a game's score) may start a WhatsApp message
+to; at most 8, each a `name` (shown, 40 characters) and a `chat` JID (`<digits>@s.whatsapp.net` or `<digits>@g.us`; others are
+ignored). No Settings screen edits it yet: write it into the file (it survives Settings saving the file). A chat's JID is the `key`
+of its items in `sensor.paperos_whatsapp_inbox`. Not secret, but private: it names the user's chats.
 
 ## Secrets and provisioning: `/sd/paperos_config`
 

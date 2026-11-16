@@ -40,6 +40,7 @@ void Config::reset() {
   reader = ReaderConfig{};
   ha = HaConfig{};
   launcher = LauncherConfig{};
+  inbox = InboxConfig{};
 }
 
 bool Config::load() {
@@ -73,6 +74,15 @@ bool Config::load() {
   readString(doc["ha"]["baseUrl"], ha.baseUrl);
 
   if (doc["launcher"]["resumeLastApp"].is<bool>()) launcher.resumeLastApp = doc["launcher"]["resumeLastApp"].as<bool>();
+
+  for (JsonVariantConst f : doc["inbox"]["whatsapp"]["favorites"].as<JsonArrayConst>()) {
+    if (inbox.whatsappFavorites.size() >= 8) break;
+    ChatFavorite fav;
+    readString(f["name"], fav.name);
+    readString(f["chat"], fav.chat);
+    if (fav.name.empty() || fav.chat.empty() || fav.name.size() > 160 || fav.chat.size() > 64) continue;
+    inbox.whatsappFavorites.push_back(std::move(fav));
+  }
   return true;
 }
 
@@ -93,6 +103,14 @@ bool Config::save() const {
   doc["reader"]["lineSpacing"] = reader.lineSpacing;
   doc["ha"]["baseUrl"] = ha.baseUrl;
   doc["launcher"]["resumeLastApp"] = launcher.resumeLastApp;
+  if (!inbox.whatsappFavorites.empty()) {
+    JsonArray favs = doc["inbox"]["whatsapp"]["favorites"].to<JsonArray>();
+    for (const ChatFavorite& f : inbox.whatsappFavorites) {
+      JsonObject o = favs.add<JsonObject>();
+      o["name"] = f.name;
+      o["chat"] = f.chat;
+    }
+  }
   std::string out;
   serializeJsonPretty(doc, out);
   return fs::writeFile(path_, out + "\n");
