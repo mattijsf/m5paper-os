@@ -5,7 +5,7 @@ PIO   ?= $(shell command -v pio || echo $(HOME)/.local/bin/pio)
 SIM   := .pio/build/sim/program
 PORT  ?= $(firstword $(wildcard /dev/cu.usbmodem*))
 
-.PHONY: help sim run shot test ui-test ui-accept gallery fw flash monitor device-shot cam-shot cam-video cam-compare backup books clean check
+.PHONY: help sim run shot test ui-test ui-accept gallery fw flash monitor device-shot view cam-shot cam-video cam-compare backup books clean check
 
 help:
 	@echo "make sim      build the simulator"
@@ -19,6 +19,7 @@ help:
 	@echo "make flash    build + flash the device (PORT=$(PORT))"
 	@echo "make monitor  serial log from the device"
 	@echo "make device-shot  dump the frame from the device over USB to out/device.png (tools/device.py)"
+	@echo "make view         live view of the device in a browser, click = tap (tools/view.py; ARGS=--sim, ARGS=--lan)"
 	@echo "make cam-shot     webcam still of the panel to out/cam.png (tools/cam.py; CAMERA=name or index)"
 	@echo "make cam-video    webcam video to out/cam.mp4 (SECONDS=5, 60 fps if the camera can)"
 	@echo "make cam-compare  device-shot + cam-shot, then the ghosting number and out/cam-diff.png"
@@ -48,6 +49,10 @@ monitor:
 device-shot:
 	@mkdir -p out
 	$(HOME)/.platformio/penv/bin/python tools/device.py shot out/device.png
+
+# Live view of the device in a browser, click = tap (ARGS=--sim: the simulator, ARGS=--lan: also from a phone)
+view:
+	$(HOME)/.platformio/penv/bin/python tools/view.py $(ARGS)
 
 CAM     := uv run --script tools/cam.py $(if $(CAMERA),--camera "$(CAMERA)")
 SECONDS ?= 5

@@ -9,6 +9,8 @@ Options:  --port /dev/cu.usbmodemXXXX (default: the first /dev/cu.usbmodem*)
           --limit N   the whole run ends after N seconds with exit code 3 (it never hangs): default 90, script: from its length
           --sim   talk to .pio/build/sim/program --headless --remote instead of a device
           -v      also print device log lines seen while waiting for a reply
+The port is opened exclusively: a second tool on the same port ends at once with "in use by another program".
+Live view in a browser (click = tap): tools/view.py.
 Protocol: docs/ROADMAP.md P1-8, src/core/remote.h. The dump is the frame the firmware drew, not
 what the panel physically shows (no ghosting, no half-played waveforms).
 """
@@ -47,7 +49,14 @@ class Link:
             self.ser.write_timeout = 5  # a device that does not read (asleep, busy) must not block the tool for ever
             # Do NOT touch dtr/rts: setting them while opening the USB-Serial/JTAG port walks
             # through the (DTR=0, RTS=1) reset state and reboots the board on every command.
-            self.ser.open()
+            # One program per port: two readers each get half of the replies. The lock goes when the holder closes or ends.
+            self.ser.exclusive = True
+            try:
+                self.ser.open()
+            except serial.SerialException as e:
+                if "lock" in str(e).lower() or "busy" in str(e).lower():
+                    sys.exit(f"{port} is in use by another program (tools/view.py or another device tool): stop it first")
+                raise
             self.r = self.w = self.ser
 
     def send(self, line):
@@ -149,7 +158,8 @@ def crc32(b):
     return zlib.crc32(b) & 0xFFFFFFFF
 
 
-def write_png(path, pixels, w=W, h=H):
+def png_bytes(pixels, w=W, h=H):
+    """Gray 8-bit pixels as a PNG file in memory."""
     raw = b"".join(b"\x00" + pixels[y * w:(y + 1) * w] for y in range(h))
 
     def chunk(t, d):
@@ -157,9 +167,12 @@ def write_png(path, pixels, w=W, h=H):
         return struct.pack(">I", len(d)) + body + struct.pack(">I", crc32(body))
 
     data = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 0, 0, 0, 0))
-    data += chunk(b"IDAT", zlib.compress(raw, 6)) + chunk(b"IEND", b"")
+    return data + chunk(b"IDAT", zlib.compress(raw, 6)) + chunk(b"IEND", b"")
+
+
+def write_png(path, pixels, w=W, h=H):
     with open(path, "wb") as f:
-        f.write(data)
+        f.write(png_bytes(pixels, w, h))
 
 
 def read_png(path):
@@ -185,11 +198,15 @@ def read_png(path):
     return w, h, b"".join(rows)
 
 
+_HIGH = bytes((b >> 4) * 17 for b in range(256))
+_LOW = bytes((b & 15) * 17 for b in range(256))
+
+
 def unpack4(packed):
+    """Two 4-bit pixels per byte -> one gray byte per pixel (0, 17, .. 255)."""
     out = bytearray(len(packed) * 2)
-    for i, b in enumerate(packed):
-        out[2 * i] = (b >> 4) * 17
-        out[2 * i + 1] = (b & 15) * 17
+    out[0::2] = packed.translate(_HIGH)
+    out[1::2] = packed.translate(_LOW)
     return bytes(out)
 
 

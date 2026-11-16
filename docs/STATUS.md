@@ -74,6 +74,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 252 tests; 201 goldens (2026-11-16); `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
+| Live view in a browser | `make view` (`ARGS=--sim`, `ARGS=--lan`) | `tools/view.py`: the device's frame on `http://127.0.0.1:8137/`, click = tap, hold = long press, drag = swipe; ~760 ms from click to new frame; holds the serial port (other device tools refuse to start meanwhile) |
 | Camera on the panel | `make cam-shot` / `cam-video` / `cam-compare`, `tools/cam.py around tap X Y` | C922 webcam; captures through one Terminal window (camera permission); `cam.py lock` (uvc-util) at the start of a session; video 30 fps at 640x480 |
 | Serial heartbeat | `make monitor` | `[beat]` and `[sd]` lines every 5 s (the refresh benchmark is gone since P1-1) |
 | Open books for the simulator | `make books` | 5 EPUB + 1 TXT in `sim-data/sd/books/` (not in git) |
@@ -754,3 +755,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-16: reader footer (chapter, "12 / 340") is part of the page's push (`Hint::Page`) and drawn in ink: the user saw the page number flicker more than the text (it got a Fast pass and then its own settle sweep); gray caption text breaks up in the Fast pass, so ink. One push per turn on the device.
 - 2026-11-16: the user keeps the reader footer in ink ("Keep black") over gray with its own settle pass.
 
+- 2026-11-16: live view (`make view`, `tools/view.py`): the device in a browser page, click = tap, hold = long press, drag = swipe; checked on the device (reader page forward and back, ~760 ms from click to new frame) and in the simulator (tap, long press on back, swipe); `--lan` with a random key for a phone. `device.py` opens the port exclusively (a second tool refuses to start instead of sharing replies) and `unpack4` is a table lookup.

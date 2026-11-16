@@ -180,6 +180,16 @@ A task is done only when `make check` passes.
     `inbox-error`, `inbox-mail`), `restart` (`epub`, `inbox`, `inbox-wifi`, `reader`), `power-off` (`sleep`, `sleep-reader`), `timer-wake` (`sched-refresh`; on the device: `poweroff N M`), and `fonts` (drawn by the Os).
   Time is real on the device: a shot right after a tap can catch the frame before or after the settle pass, so it may differ from the golden by a few
   hundred anti-aliased pixels (seen in `widgets3-stepper` and `-level` even against the simulator's remote mode).
+- **Live view (2026-11-16)**: `make view` (`tools/view.py`) serves a page on `http://127.0.0.1:8137/` with the device's frame; a click is a
+  tap, holding 600 ms a long press, a drag a swipe (pointer events, so a finger on a phone works too). One thread owns the link: it polls
+  `>refresh` every 0.15 s and takes a `>shot` when the refresh log changed, after every input, and every 5 s; the page long-polls for the
+  next frame. Measured on the device: click to new frame in the page ~760 ms (dump 400-550 ms), so at most ~2 frames per second.
+  `ARGS=--sim` shows the simulator's remote mode instead. `ARGS=--lan` listens on every interface for a phone on the same network; the
+  address then carries a random key (whoever opens the page sees the screen and can tap), without it only this computer can open the page
+  (Host and Origin are checked). It stops by itself after 300 s without an open page (`--idle`), because it holds the serial port and the
+  device does not sleep while a host holds it. Same limits as the frame dump: no ghosting, no flash.
+  **One program per port**: `device.py`'s `Link` opens the port exclusively, so a second tool (while the viewer or another tool runs) ends at
+  once with "in use by another program" instead of sharing replies with it.
 - **Camera (P7-7)**: what the panel physically shows (ghosting, flash, refresh timing on the panel, gray levels) comes from a webcam:
   `make cam-shot`, `make cam-video`, `make cam-compare`, `tools/cam.py around tap X Y`. Details and limits: DISPLAY.md "Camera on the panel".
 - Things only the device can answer are listed per task as "Device check" in `ROADMAP.md`.
