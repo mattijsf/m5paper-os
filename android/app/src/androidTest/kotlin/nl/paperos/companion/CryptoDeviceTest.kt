@@ -111,6 +111,24 @@ class CryptoDeviceTest {
         }
     }
 
+    /** tests/fixtures/companion/vectors.json through Conscrypt (fixed test values, never used for real). */
+    @Test fun companionVectorsOnDevice() {
+        val ss = hex("6d54cc9c397e31691401110f58da1e182a635d7e44c21dc2d7be93624652ab15")
+        val pid = hex("a1a2a3a4a5a6a7a8")
+        val keys = nl.paperos.companion.proto.KeySchedule.derive(
+            ss, pid,
+            hex("8f40c5adb68f25624ae5b214ea767a6ec94d829d3d7b5e1ad1ba6f3e2138285f"),
+            hex("79a631eede1bf9c98f12032cdeadd0e7a079398fc786b88cc846ec89af85a51a"),
+        )
+        assertEquals("929074", keys.code)
+        val reply = "AUShoqOkpaanqAAAAAAAAAABICEiIyQlJicoKSorQtFqLcJmOeYlm8-9wYIluPcApKH3g4NUeQ7bApP5MuSup2cBKy-EBjOg_8QtXuZ3n3dr21R9YhRnRT9oc8kOshxkxpjh4gbfyoVfOdU-6XSNXnqhRS64_RoX0SLxZVMqCE1CA-rHhQ"
+        val pt = """{"t":"reply","k":"0|com.whatsapp|1|test|10001","text":"See you at six","ts":1768480100}""".toByteArray()
+        val E = nl.paperos.companion.proto.Envelope
+        assertEquals(reply, E.seal(keys.d2p, E.DIR_D, pid, 1, pt, hex("202122232425262728292a2b")))
+        assertArrayEquals(pt, E.open(keys.d2p, E.DIR_D, pid, reply)!!.plaintext)
+        assertEquals(null, E.open(keys.p2d, E.DIR_D, pid, reply))
+    }
+
     @Test fun hkdfOnDevice() {
         val out = Hkdf.derive(ByteArray(0), ByteArray(22) { 0x0b }, ByteArray(0), 42)
         assertEquals(42, out.size)

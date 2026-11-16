@@ -1,23 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- No INTERNET permission yet: nothing leaves the phone until the relay lands (v1). -->
-    <!-- WorkManager adds ACCESS_NETWORK_STATE, WAKE_LOCK, RECEIVE_BOOT_COMPLETED for the upload queue. -->
+    <!-- Relay over HTTPS only (cleartext is off by default for targetSdk 28+). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature
         android:name="android.hardware.camera.any"
         android:required="false" />
 
-    <!-- allowBackup false: captured items and keys never go into Google backups. -->
+    <!-- allowBackup false: keys, token, counters never go into Google backups. -->
     <application
         android:allowBackup="false"
         android:dataExtractionRules="@xml/no_backup"
         android:label="PaperOS Companion"
+        android:usesCleartextTraffic="false"
         android:theme="@android:style/Theme.DeviceDefault.DayNight">
 
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -37,10 +45,22 @@
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
-            <!-- Only ask for the kinds of notifications messages arrive as. -->
             <meta-data
                 android:name="android.service.notification.default_filter_types"
                 android:value="conversations|alerting|silent" />
         </service>
+
+        <service
+            android:name=".RelayService"
+            android:exported="false"
+            android:foregroundServiceType="remoteMessaging" />
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

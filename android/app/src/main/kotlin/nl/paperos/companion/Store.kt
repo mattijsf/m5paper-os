@@ -5,31 +5,25 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-/** One captured notification. Holds the user's private message text: never log it. */
+/** One live notification: metadata only. Contents go straight into envelopes and are not kept. */
 data class Item(
     val app: String,
     val key: String,
     val time: Long,
-    val title: String,
-    val text: String,
     val canReply: Boolean,
 ) {
     fun toJson(): JSONObject = JSONObject()
-        .put("app", app).put("key", key).put("time", time)
-        .put("title", title).put("text", text).put("canReply", canReply)
+        .put("app", app).put("key", key).put("time", time).put("canReply", canReply)
 
     companion object {
-        fun fromJson(o: JSONObject) = Item(
-            o.getString("app"), o.getString("key"), o.getLong("time"),
-            o.optString("title"), o.optString("text"), o.optBoolean("canReply"),
-        )
+        fun fromJson(o: JSONObject) = Item(o.getString("app"), o.getString("key"), o.getLong("time"), o.optBoolean("canReply"))
     }
 }
 
 /**
  * Captured items, in memory and in app-private storage (filesDir, excluded from backup).
  *
- * items.json holds the latest item per notification key (contents, private).
+ * items.json holds the live notification keys with app, time and reply flag (no titles or texts).
  * counts.json holds only numbers per app (posted, updated, removed, held), so it can be checked
  * without seeing contents.
  */

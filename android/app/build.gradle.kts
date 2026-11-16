@@ -10,9 +10,16 @@ android {
         applicationId = "nl.paperos.companion"
         minSdk = 33
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2"
+        versionCode = 3
+        versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    testOptions {
+        unitTests.all {
+            // Shared protocol vectors (docs/COMPANION.md section 9).
+            it.systemProperty("vectors", rootProject.file("../tests/fixtures/companion/vectors.json").absolutePath)
+        }
     }
 
     compileOptions {
@@ -28,10 +35,9 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.6.2")
     implementation("androidx.camera:camera-view:1.6.2")
     implementation("com.google.zxing:core:3.5.4")
-    // Upload queue.
-    implementation("androidx.work:work-runtime:2.12.0")
-
     testImplementation("junit:junit:4.13.2")
+    // The real org.json for host tests (android.jar only has stubs).
+    testImplementation("org.json:json:20250517")
     androidTestImplementation("androidx.test:runner:1.7.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
 }

@@ -5,34 +5,47 @@ WhatsApp and Proton Mail notifications, and will later send them end to end encr
 Assistant to the PaperS3 (HA relays ciphertext only). Decision and open questions: `docs/DECISIONS.md`
 and the P6 cards in `docs/ROADMAP.md`.
 
-## v0 (P6-C0)
+## What it does (v1, protocol `docs/COMPANION.md`)
 
 - `CaptureListener` (`NotificationListenerService`) keeps notifications from `com.whatsapp`,
-  `com.whatsapp.w4b` and `ch.protonmail.android` only: app, title, text, post time, notification key,
-  and whether a reply action (RemoteInput) exists. Group summaries are skipped.
-- Items live in memory and in app-private storage: `files/items.json` (contents, at most 200, latest per
-  live notification key) and `files/counts.json` (numbers only per app: posted, updated, removed, held,
-  plus listener connected). Removals (read or dismissed on the phone) drop the item; on reconnect, items
-  whose notification went away meanwhile are dropped too.
-- One screen: access granted or not, a button to the notification-access settings, App info (for
-  "Allow restricted settings"), counts per app, phone key, upload queue, pairing. It never shows contents.
-- No network permission, no HA, no accessibility service. Backup and device transfer are off.
+  `com.whatsapp.w4b` and `ch.protonmail.android` only; group summaries are skipped. While paired, every
+  post or update goes to the Paper as an encrypted `post` (WhatsApp: MessagingStyle messages, at most 6;
+  Proton Mail: title = sender, text = subject, big text = preview), every removal as `remove`
+  (click or app cancel = `read`, user swipe = `dismissed`), and a `sync` of the live keys after every
+  (re)connect and hourly. Contents go straight into envelopes; nothing keeps titles or texts.
+- `proto/`: the protocol in plain JVM code (key schedule, envelopes, QR payload, receive policy,
+  messages, reply guards), tested byte for byte against `tests/fixtures/companion/vectors.json`.
+- `KeyVault`: the phone's X25519 key, made inside the Android Keystore (TEE on the Pixel 9 Pro, API 37)
+  per pairing; agreement runs there. Session keys are derived again in memory after a restart.
+- `TokenStore`: the Home Assistant long-lived token of a dedicated non-admin user, pasted by the user,
+  AES-256-GCM encrypted with a Keystore key in `noBackupFilesDir`. Never logged, never shown.
+- `Link`: pairing state and counters (`noBackupFilesDir/pairing.json`, no secrets). Pairing: scan the
+  Paper's QR (`ScanActivity`, CameraX + ZXing, no Play services), the hello goes to the `pairing`
+  queue, both screens show the 6-digit code, the user taps "The codes match", and the app becomes active
+  only after that **and** a valid `paired` envelope. HTTPS only (cleartext traffic is off).
+- `RelayService`: foreground service (type `remoteMessaging`). Drains the `Outbox` (pushes in counter
+  order, back-off 30 s doubling to 15 min), reads `sensor.paperos_relay_to_phone` every 3 s while
+  pairing and every minute when paired, acks up to `rx`. Writes `files/status.json` (numbers only).
+- Replies from the Paper go through the notification's RemoteInput action, after the guards of section
+  7.2 (live key with reply action, 6 h age, 1..900 characters, 10 s gap, 20 per hour; `rx` is stored
+  before the send, so never two sends per counter). **Replies are off until the user turns on "Allow
+  replies from the Paper" in the app**; while off, a reply is answered with `result` `why: "failed"`.
+  `dismiss` does nothing on the phone (v1).
+- Backup and device transfer are off. No accessibility service.
 
-## v1 groundwork (spec-independent; the wire format comes from `docs/COMPANION.md`)
+Notification contents are the user's private messages: never log, print or commit them. Check the app
+with numbers only:
 
-- `KeyVault`: the phone's X25519 key pair. Generated inside the Android Keystore (`XDH`,
-  `PURPOSE_AGREE_KEY`); agreement runs there, the private key never leaves it. Measured on the Pixel 9
-  Pro, API 37: Keystore X25519 works, security level TEE. Fallback when a phone cannot do that: a
-  software key, PKCS#8 encrypted with a Keystore AES-256-GCM key, in `noBackupFilesDir`. All-zero
-  shared secrets are rejected. Alias `paperos_phone_x25519`.
-- `Hkdf`: HKDF-SHA256 (RFC 5869). ChaCha20-Poly1305 comes from the platform (Conscrypt,
-  `ChaCha20/Poly1305/NoPadding`); no crypto library needed.
-- `ScanActivity` + `QrDecode`: QR scanner, CameraX frames decoded with ZXing core. No Google Play
-  services. Returns the text in memory only; pairing does nothing with it yet.
-- `Outbox` + `Drain` + `UploadWorker`: durable FIFO of sealed payloads in `noBackupFilesDir/outbox`
-  (cap 1000 items, 64 KiB each, oldest dropped), drained by WorkManager when the network is up, with
-  exponential backoff. `Relay` is a stub (`NOT_CONFIGURED`) until the HA webhook relay is specified.
-  Only sealed payloads may go in; nothing feeds it yet.
+```bash
+adb shell run-as nl.paperos.companion cat files/counts.json
+```
+
+```bash
+adb shell run-as nl.paperos.companion cat files/status.json
+```
+
+`status.json`: `stage`, `outbox` (waiting), `pushed`, `accepted`, `dropped`, last HTTP codes, and the
+shape of the relay queues after a push (`to_paper.n`, `max_len`, `max_id`; `pairing.n`, `len`).
 
 ## Tests
 
@@ -40,9 +53,10 @@ and the P6 cards in `docs/ROADMAP.md`.
 cd android && ./gradlew :app:testDebugUnitTest
 ```
 
-JVM: HKDF RFC 5869 vectors, QR decode (padded rows, short last row, inverted), outbox order and cap,
-drain outcomes. On the phone (Keystore X25519, wrapped fallback, low-order peer, RFC 7748 vector,
-ChaCha20-Poly1305, HKDF): build both APKs, install, run with `am instrument`, then remove the test APK.
+JVM: the shared companion vectors (keys, code, hello, post, reply, rejects), receive policy, messages and
+their size limits, reply guards, HKDF RFC 5869, QR decode, outbox and drain. On the phone (Keystore
+X25519, wrapped fallback, low-order peer, RFC 7748, ChaCha20-Poly1305, the companion vectors through
+Conscrypt): build both APKs, install, run with `am instrument`, then remove the test APK.
 Do not use `connectedAndroidTest`: it uninstalls the app afterwards, which drops the notification-access
 grant and the phone key.
 

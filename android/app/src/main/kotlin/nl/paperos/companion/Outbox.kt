@@ -4,9 +4,9 @@ import android.content.Context
 import java.io.File
 
 /**
- * Durable FIFO of sealed (already encrypted) payloads waiting for upload to the relay.
- * One file per item in noBackupFilesDir/outbox, named by a strictly increasing 20-digit number.
- * Never put plaintext in here.
+ * Durable FIFO of relay pushes waiting for a 200: `{"q":queue,"id":counter,"e":envelope}`, the
+ * envelope already sealed. One file per item in noBackupFilesDir/outbox, named by a strictly
+ * increasing 20-digit number, so pushes go out in counter order. Never put plaintext in here.
  */
 class Outbox(
     private val dir: File,
@@ -54,21 +54,23 @@ class Outbox(
             .sortedBy { it.name }
 
     companion object {
-        fun of(ctx: Context) = Outbox(File(ctx.noBackupFilesDir, "outbox"))
+        @Volatile private var shared: Outbox? = null
+
+        /** One instance per process, so names stay strictly increasing. */
+        fun of(ctx: Context): Outbox = shared ?: synchronized(this) {
+            shared ?: Outbox(File(ctx.applicationContext.noBackupFilesDir, "outbox")).also { shared = it }
+        }
     }
 }
 
-/** Where sealed payloads go. The HA webhook relay implements this once docs/COMPANION.md lands. */
+/** Where outbox items go: [RelayService] pushes them to the Home Assistant relay. */
 fun interface Relay {
     enum class Outcome { SENT, RETRY, REJECTED, NOT_CONFIGURED }
 
     fun upload(sealed: ByteArray): Outcome
 
     companion object {
-        /** No relay until pairing exists. */
         val NOT_CONFIGURED = Relay { Outcome.NOT_CONFIGURED }
-
-        fun current(@Suppress("UNUSED_PARAMETER") ctx: Context): Relay = NOT_CONFIGURED
     }
 }
 
