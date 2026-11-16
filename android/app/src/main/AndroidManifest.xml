@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- No INTERNET permission in v0: nothing leaves the phone. -->
+    <!-- allowBackup false: captured items never go into Google backups. -->
+    <application
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/no_backup"
+        android:label="PaperOS Companion"
+        android:theme="@android:style/Theme.DeviceDefault.DayNight">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".CaptureListener"
+            android:exported="true"
+            android:label="PaperOS Companion"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+            <!-- Only ask for the kinds of notifications messages arrive as. -->
+            <meta-data
+                android:name="android.service.notification.default_filter_types"
+                android:value="conversations|alerting|silent" />
+        </service>
+    </application>
+</manifest>
