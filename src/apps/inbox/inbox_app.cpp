@@ -1,6 +1,6 @@
-// WhatsApp and Mail: one implementation, registered twice (docs/apps/inbox.md). A list of recent messages from a Home Assistant
-// sensor (the feed contract, BACKEND.md), chat conversations, mail with its full text fetched on demand, "Mark all read". WhatsApp
-// can also send (DECISIONS.md D21): "Reply" in a conversation and "New message" to a favourite open the compose screen (compose.h).
+// WhatsApp and Mail: one implementation, registered twice (docs/apps/inbox.md). The phone's notifications, decrypted from the
+// Home Assistant relay (docs/COMPANION.md, relay_fetch.h), as a list: chat conversations, mails (sender, subject, the preview the
+// notification showed), "Mark all read". WhatsApp can reply to a chat whose notification is still on the phone (compose.h).
 #include <algorithm>
 #include <cstdio>
 #include <memory>
@@ -9,6 +9,8 @@
 
 #include "apps/inbox/compose.h"
 #include "apps/inbox/inbox_model.h"
+#include "apps/inbox/relay_fetch.h"
+#include "core/companion.h"
 #include "core/app.h"
 #include "core/fs.h"
 #include "core/os.h"
@@ -30,13 +32,11 @@ struct Kind {
   const char* entity;
   bool mail;
 };
-constexpr Kind kWhatsApp = {"whatsapp", "WhatsApp", Icon::MessageCircle, "sensor.paperos_whatsapp_inbox", false};
-constexpr Kind kMail = {"mail", "Mail", Icon::Mail, "sensor.paperos_mail_inbox", true};
+constexpr Kind kWhatsApp = {"whatsapp", "WhatsApp", Icon::MessageCircle, companion::kToPaperEntity, false};
+constexpr Kind kMail = {"mail", "Mail", Icon::Mail, companion::kToPaperEntity, true};
 
 constexpr int kRowsPerPage = 6;
 constexpr uint32_t kStaleMs = 60 * 1000;
-
-std::string cachePath(const Kind& k) { return std::string("/data/cache/inbox/") + k.id + ".json"; }
 
 // Splits cleaned text into paragraphs (one per non-empty line) for a TextBlock.
 std::vector<ui::Paragraph> paragraphsOf(const std::string& text, bool boldFirst = false) {
@@ -78,7 +78,7 @@ class DetailScreen : public Screen {
       auto* subject = root.add<ui::Label>(msg_.subject.empty() ? "(no subject)" : msg_.subject, Type::Title);
       subject->maxLines = 2;
       root.add<ui::Label>(relativeTime(msg_.ts, now_), Type::Caption, ui::secondary);
-      note_ = root.add<ui::Label>("", Type::Caption, ui::secondary);
+      root.add<ui::Label>("The preview your phone showed", Type::Caption, ui::secondary);
       root.add<ui::Spacer>(ui::s1);
     } else {
       setTitle(msg_.chat.empty() ? msg_.from : msg_.chat);
@@ -90,17 +90,15 @@ class DetailScreen : public Screen {
     pageLabel_ = root.add<ui::Label>("", Type::Caption, ui::secondary);
     pageLabel_->align = ui::TextAlign::Center;
     root.add<ui::Spacer>(ui::s1);
-    if (!kind_.mail && whatsapp::validChat(msg_.key)) {
-      // A group's name is not known (BACKEND.md): "Group with Anna" says which one.
-      const whatsapp::Target to{msg_.chat.empty() ? msg_.from : msg_.chat + " with " + msg_.from, msg_.key};
+    if (!kind_.mail && msg_.canReply) {  // only while the notification (with its reply action) is on the phone
+      const whatsapp::Target to{msg_.chat.empty() ? msg_.from : msg_.chat, msg_.key};
       root.add<ui::Button>("Reply", [this, to] { whatsapp::openCompose(ctx(), to); }, ui::Button::Kind::Secondary);
       root.add<ui::Spacer>(ui::s1);
     }
     block_->onPageChange = [this](int) { updatePage(); };
     block_->onLayout = [this] { updatePage(); };
     if (kind_.mail) {
-      block_->setParagraphs(paragraphsOf(msg_.text));
-      fetchFull();
+      block_->setParagraphs(paragraphsOf(msg_.text.empty() ? "(no preview)" : msg_.text));
     } else {
       block_->setParagraphs(chatParagraphs());
     }
@@ -124,33 +122,12 @@ class DetailScreen : public Screen {
     return out;
   }
 
-  void fetchFull() {
-    HaClient ha = ctx().ha();
-    const std::string key = msg_.key, uid = msg_.id;
-    ctx().async(
-        [ha, key, uid]() mutable {
-          return ha.callService("imap", "fetch", "{\"entry\":\"" + key + "\",\"uid\":\"" + uid + "\"}", true);
-        },
-        [this](HaResult r) {
-          std::string full = r.ok() ? fetchedText(r.body) : "";
-          if (full.empty()) {
-            note_->setText("Showing the beginning only");
-            return;
-          }
-          CleanOptions o;
-          o.html = full.find('<') != std::string::npos && (full.find("<html") != std::string::npos || full.find("<p") != std::string::npos ||
-                                                           full.find("<div") != std::string::npos || full.find("<br") != std::string::npos);
-          block_->setParagraphs(paragraphsOf(cleanText(full, o)));  // back to page 1 with the whole text
-          updatePage();
-        });
-  }
-
   const Kind& kind_;
   Msg msg_;
   std::vector<Msg> thread_;
   int64_t now_;
   ui::TextBlock* block_ = nullptr;
-  ui::Label *pageLabel_ = nullptr, *note_ = nullptr;
+  ui::Label* pageLabel_ = nullptr;
 };
 
 class ListScreen : public Screen {
@@ -165,18 +142,14 @@ class ListScreen : public Screen {
     holder_->flex = 1;
     status_ = root.add<ui::Label>("", Type::Caption, ui::secondary);
     status_->align = ui::TextAlign::Center;
-    if (!kind_.mail && !whatsapp::favorites(ctx().config).empty()) {
-      auto* buttons = root.add<ui::Row>(ui::s2);
-      buttons->add<ui::Button>("New message", [this] { whatsapp::openNewMessage(ctx()); }, ui::Button::Kind::Secondary)->flex = 1;
-      markAll_ = buttons->add<ui::Button>("Mark all read", ui::Button::Kind::Secondary);
-      markAll_->flex = 1;
-    } else {
-      markAll_ = root.add<ui::Button>("Mark all read", ui::Button::Kind::Secondary);
-    }
+    markAll_ = root.add<ui::Button>("Mark all read", ui::Button::Kind::Secondary);
     markAll_->onClick = [this] { confirmMarkAll(); };
     root.add<ui::Spacer>(ui::s1);
-    std::string cached;
-    if (fs::readFile(cachePath(kind_), cached) && parseFeed(cached, feed_)) {
+    companion::Pairing pairing;
+    notPaired_ = !companion::loadPairing(pairing);
+    companion::Notifs saved;
+    if (!notPaired_ && companion::loadNotifs(saved)) {
+      feed_ = feedFromNotifs(saved, kind_.mail);
       cleanFeed(feed_, kind_.mail);
       haveData_ = true;
     }
@@ -190,7 +163,7 @@ class ListScreen : public Screen {
 
   std::string debugState() const override {
     return std::string("rows=") + std::to_string(rowCount_) + "|" + status_->text() + (error_ ? "|error" : "") +
-           (notSetUp_ ? "|notsetup" : "");
+           (notSetUp_ ? "|notsetup" : "") + (notPaired_ ? "|notpaired" : "");
   }
 
  private:
@@ -202,9 +175,16 @@ class ListScreen : public Screen {
     pager_ = nullptr;
     convs_.clear();
     rowCount_ = 0;
-    if (notSetUp_) {  // the feed sensor does not exist in Home Assistant (404): the inbox moves to the companion app (D22)
+    if (notPaired_) {
+      holder_->add<ui::EmptyState>(kind_.icon, "No phone paired",
+                                   "Messages come from the PaperOS app on your phone. Pair it in Settings > Home Assistant > Phone.")->flex = 1;
+      markAll_->visible = false;
+      holder_->host()->relayout();
+      return;
+    }
+    if (notSetUp_) {  // the relay does not exist in Home Assistant (404)
       holder_->add<ui::EmptyState>(kind_.icon, "Not set up yet",
-                                   "Messages will come from the companion app on your phone. It is not built yet.")->flex = 1;
+                                   "The relay for your phone's messages is missing in Home Assistant.")->flex = 1;
       markAll_->visible = false;
       holder_->host()->relayout();
       return;
@@ -214,11 +194,6 @@ class ListScreen : public Screen {
       markAll_->visible = false;
       holder_->host()->relayout();
       return;
-    }
-    if (feed_.linkDown && !kind_.mail) {
-      auto* l = holder_->add<ui::Label>("WhatsApp link is down. Re-link in Home Assistant.", Type::BodyStrong);
-      l->maxLines = 2;
-      holder_->add<ui::Spacer>(ui::s1);
     }
     // Rows: one per conversation (chat) or per mail.
     if (kind_.mail) {
@@ -284,41 +259,46 @@ class ListScreen : public Screen {
 
   void refresh(bool announce) {
     if (busy_) return;
+    companion::Pairing pairing;
+    notPaired_ = !companion::loadPairing(pairing);
+    if (notPaired_) {
+      rebuild();
+      return;
+    }
     busy_ = true;
     if (!haveData_) status_->setText("Loading...");
     HaClient ha = ctx().ha();
-    const std::string path = std::string("/api/states/") + kind_.entity;
-    ctx().async([ha, path]() mutable { return ha.get(path); }, [this, announce](HaResult r) {
+    const int64_t t = now();
+    ctx().async([ha, t]() mutable { return fetchRelay(ha, t); }, [this, announce](RelayFetch f) {
       busy_ = false;
       fetchedOnce_ = true;
       lastFetchMs_ = ctx().clock.millis();
-      Feed f;
-      if (r.ok() && parseFeed(r.body, f)) {
-        cleanFeed(f, kind_.mail);
-        feed_ = std::move(f);
-        haveData_ = true;
-        error_ = false;
-        notSetUp_ = false;
-        fs::writeFile(cachePath(kind_), r.body);
-        status_->setText("Updated " + clockText());
-        markSeen();
-        rebuild();
-        return;
-      }
-      notSetUp_ = r.error == HaError::NotFound;
-      if (notSetUp_) {  // the saved list belongs to a feed that is gone: drop it with its badge
+      notPaired_ = !f.paired;
+      notSetUp_ = f.http.error == HaError::NotFound;
+      if (notPaired_ || notSetUp_) {
         feed_.items.clear();
         haveData_ = false;
         error_ = false;
-        fs::removeAll(cachePath(kind_));
         writeBadge(0);
         status_->setText("");
+        if (notPaired_ && f.applied.unpaired) ctx().toast("Your phone ended the pairing");
         rebuild();
+        return;
+      }
+      if (f.http.ok() && f.applied.parsed) {
+        feed_ = feedFromNotifs(f.notifs, kind_.mail);
+        cleanFeed(feed_, kind_.mail);
+        haveData_ = true;
+        error_ = false;
+        status_->setText("Updated " + clockText());
+        markSeen();
+        rebuild();
+        if (!f.applied.notes.empty()) ctx().toast(f.applied.notes.back());  // the phone's answer to a reply
         return;
       }
       error_ = true;
       if (haveData_) {
-        ctx().toast(r.ok() ? "Unexpected answer from Home Assistant" : haErrorText(r.error));  // the saved list stays
+        ctx().toast(f.http.ok() ? "Unexpected answer from Home Assistant" : haErrorText(f.http.error));  // the saved list stays
         status_->setText("Saved data");
       } else {
         status_->setText("");
@@ -352,7 +332,7 @@ class ListScreen : public Screen {
     ui::Column* c = sheet->content();
     ui::Sheet* raw = sheet.get();
     c->add<ui::Label>("Mark all read?", Type::Title);
-    c->add<ui::Label>("The list is cleared here and in Home Assistant.", Type::Body, ui::secondary)->maxLines = 2;
+    c->add<ui::Label>("The list is cleared here. The notifications stay on your phone.", Type::Body, ui::secondary)->maxLines = 2;
     c->add<ui::Button>("Mark all read", [this, raw] {
       raw->close();
       markAllRead();
@@ -361,24 +341,26 @@ class ListScreen : public Screen {
     holder_->host()->addOverlay(std::move(sheet));
   }
 
+  // Clears this app's notifications on the Paper and tells the phone (`dismiss`, best effort: COMPANION.md 7.2).
   void markAllRead() {
+    companion::Notifs n;
+    companion::loadNotifs(n);
+    std::vector<std::string> keys;
+    const std::string app = kind_.mail ? "mail" : "whatsapp";
+    for (const companion::Notif& x : n.items)
+      if (x.app == app) keys.push_back(x.key);
+    n.items.erase(std::remove_if(n.items.begin(), n.items.end(), [&](const companion::Notif& x) { return x.app == app; }), n.items.end());
+    companion::saveNotifs(n);
+    feed_.items.clear();
+    writeBadge(0);
+    rebuild();
+    ctx().toast("All read");
+    companion::Pairing pairing;
+    if (keys.empty() || !companion::loadPairing(pairing)) return;
+    const std::string body = companion::dismissEnvelope(pairing, keys);
+    if (body.empty() || !companion::savePairing(pairing)) return;
     HaClient ha = ctx().ha();
-    const std::string feed = kind_.mail ? "mail" : "whatsapp";
-    // Only what the list showed is cleared: messages that came in after the fetch stay in the feed.
-    const std::string body = clearBody(feed, newestTs(feed_.items));
-    ctx().async([ha, body]() mutable { return ha.callService("script", "paperos_inbox_clear", body); },
-                [this](HaResult r) {
-                  if (!r.ok()) {
-                    ctx().toast(haErrorText(r.error));  // nothing was cleared: the list stays
-                    return;
-                  }
-                  feed_.items.clear();
-                  fs::removeAll(cachePath(kind_));
-                  writeBadge(0);
-                  status_->setText("Updated " + clockText());
-                  rebuild();
-                  ctx().toast("All read");
-                });
+    ctx().async([ha, body]() mutable { return ha.callService("script", "paperos_relay_push", body); }, [](HaResult) {});
   }
 
   const Kind& kind_;
@@ -386,7 +368,7 @@ class ListScreen : public Screen {
   std::vector<Conversation> convs_;
   int rowCount_ = 0;
   int64_t seenAtStart_ = 0;
-  bool haveData_ = false, busy_ = false, error_ = false, notSetUp_ = false, fetchedOnce_ = false;
+  bool haveData_ = false, busy_ = false, error_ = false, notSetUp_ = false, notPaired_ = false, fetchedOnce_ = false;
   uint32_t lastFetchMs_ = 0;
   ui::Column* holder_ = nullptr;
   ui::Pager* pager_ = nullptr;

@@ -25,7 +25,6 @@ bool parseFeed(const std::string& json, Feed& out) {
   if (deserializeJson(doc, json) || !doc["attributes"].is<JsonObjectConst>()) return false;
   JsonObjectConst a = doc["attributes"].as<JsonObjectConst>();
   out.updated = str(a["updated"]);
-  if (a["connected"].is<bool>()) out.linkDown = !a["connected"].as<bool>();
   for (JsonObjectConst it : a["items"].as<JsonArrayConst>()) {
     Msg m;
     m.id = str(it["id"]);
@@ -128,25 +127,26 @@ std::string firstLine(const std::string& text) {
   return nl == std::string::npos ? text : text.substr(0, nl);
 }
 
-std::string clearBody(const std::string& feed, int64_t before) {
-  JsonDocument doc;
-  doc["feed"] = feed;
-  if (before > 0) doc["before"] = before;
-  std::string out;
-  serializeJson(doc, out);
-  return out;
-}
-
-std::string fetchedText(const std::string& json) {
-  JsonDocument doc;
-  if (deserializeJson(doc, json)) return "";
-  JsonVariantConst r = doc["service_response"];
-  if (r["text"].is<const char*>()) return r["text"].as<const char*>();
-  // imap.fetch may answer {"service_response": {"<entry>": {...}}} depending on the version: look one level down
-  if (r.is<JsonObjectConst>())
-    for (JsonPairConst kv : r.as<JsonObjectConst>())
-      if (kv.value()["text"].is<const char*>()) return kv.value()["text"].as<const char*>();
-  return "";
+Feed feedFromNotifs(const companion::Notifs& notifs, bool mail) {
+  Feed f;
+  for (const companion::Notif& n : notifs.items) {
+    if ((n.app == "mail") != mail) continue;
+    for (size_t i = 0; i < n.msgs.size(); ++i) {
+      const companion::NotifMsg& nm = n.msgs[i];
+      Msg m;
+      m.id = n.key + "#" + std::to_string(i);
+      m.from = nm.from;
+      m.chat = n.chat;
+      m.subject = nm.subject;
+      m.text = nm.text;
+      m.key = n.key;
+      m.ts = nm.ts > 0 ? nm.ts : n.ts;
+      m.canReply = n.reply && !mail;
+      f.items.push_back(std::move(m));
+    }
+  }
+  std::stable_sort(f.items.begin(), f.items.end(), [](const Msg& a, const Msg& b) { return a.ts > b.ts; });
+  return f;
 }
 
 }  // namespace pos::inbox

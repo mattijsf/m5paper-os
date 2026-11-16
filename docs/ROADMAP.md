@@ -310,7 +310,7 @@ simulator first; each task ends with screenshots.
 **Changed on 2026-11-16 (DECISIONS.md D22):** Home Assistant is not trusted with message text. The inbox now comes from a
 companion Android app that encrypts each phone notification for the device; Home Assistant only relays ciphertext. The
 add-on route (P6-1 to P6-3, the send path of P6-7) is removed. The device app (P6-4 to P6-6) and the clipboard stay.
-**P6-8 to P6-11 wait for the owner's answers** to the companion-app questions in STATUS.md ("Open questions for the user").
+The owner said "Continue" without answering the companion-app questions; the defaults assumed are in STATUS.md (open question 6).
 Read BACKEND.md "Companion app" and D22 before any of them. P6-C0 (a listener-only app) runs ahead of them. Order: P6-8 first; P6-9 and P6-10 can then run in parallel;
 P6-11 last (it needs the relay and a device that can pair).
 
@@ -326,14 +326,16 @@ P6-11 last (it needs the relay and a device that can pair).
 - [x] **P6-6 Text clean-up.** (`core/text_clean`; the reader's XML tokenizer shares its entity decoder) `core/text_clean`: HTML to text, entities, emoji, long words,
   links shortened to the host name. Unit tests.
 - [~] **P6-7 Clipboard and WhatsApp sending** (D21). The clipboard, the text-field sheet, compose and the confirmation are built and
-  stay. **The send path is gone** (D22): `script.paperos_whatsapp_send` was removed from Home Assistant; a send now ends in the toast
-  "Not sent: no send script in Home Assistant". Sending comes back as a reply through the phone (P6-10, P6-11).
+  stay. **The send path changed** (D22): `script.paperos_whatsapp_send` was removed from Home Assistant; since P6-10 a send is an
+  encrypted `reply` for the phone (only to chats with a live notification). Done when a real reply sent from the Paper arrives (P6-11).
 
-- [~] **P6-C0 Android app v0** (started 2026-11-16, separately; source in `android/`): a notification
+- [~] **P6-C0 Android app v0** (P6-11 builds on it, in the same session) (started 2026-11-16, separately; source in `android/`): a notification
   listener for WhatsApp and Proton Mail only, no network, no Home Assistant, no crypto; installed on the Pixel 9 Pro (Android 17) over
   adb. It shows what the notifications really carry and becomes the base of P6-11. The four open questions still decide the network and
   crypto part.
-- [ ] **P6-8 Protocol and crypto.** Read: D22, BACKEND.md "Companion app". Write `docs/COMPANION.md`: the threat model (Home
+- [x] **P6-8 Protocol and crypto.** (2026-11-16: `docs/COMPANION.md` v1 (commit 89aa3e3), `tests/fixtures/companion/vectors.json` made with
+  pyca/cryptography, `core/companion_crypto` on libsodium (not Monocypher: one library on both platforms, D22 addendum), unit tests
+  against the vectors and RFC 7748.) Read: D22, BACKEND.md "Companion app". Write `docs/COMPANION.md`: the threat model (Home
   Assistant reads, drops, delays and replays; never reads or forges), pairing (device X25519 key pair, private key in
   `/sd/paperos_config` under the secrets rules; QR code with the public key; the phone's public key back through Home Assistant;
   a short fingerprint on both screens that the user compares), the item envelope (version, sender key id, counter, nonce, ciphertext of
@@ -342,13 +344,17 @@ P6-11 last (it needs the relay and a device that can pair).
   simulator and the firmware); `core/companion_crypto` with unit tests against known-answer vectors that the Android side will share
   (`tests/fixtures/companion/`). Done when: the document is reviewed with the owner, and seal/open round-trips, tampering, wrong keys
   and replays are unit-tested on the host.
-- [ ] **P6-9 Home Assistant relay.** Read: P6-8 output, the Home Assistant repo's rules. In `packages/paperos_inbox.yaml`: a
+- [x] **P6-9 Home Assistant relay.** (2026-11-16: home-assistant `e04d613`, scripts plus three queue sensors, no webhook: COMPANION.md 6;
+  tested in Home Assistant's engine and live; **the recorder exclusion waits for a Home Assistant restart**.) Read: P6-8 output, the Home Assistant repo's rules. In `packages/paperos_inbox.yaml`: a
   webhook trigger (`local_only` false only if the phone must post from outside the home) into a trigger-based template sensor that keeps
   the last N blobs per feed (sizes capped, newest first, recorder-excluded), the clear path (`script.paperos_inbox_clear` drops blobs
   up to a counter), and the device-to-phone command queue the app reads. The webhook id is a secret: never committed, never logged. No
   plaintext, no send rule here. Validate YAML, push by that repo's rules, mirror to `ha/paperos_inbox.yaml`. Done when: posted test
   blobs appear in the sensor, the clear works with the device token (non-admin), nothing reaches the history database.
-- [ ] **P6-10 PaperOS decrypt side.** Read: P6-8, apps/inbox.md. Pairing screen in Settings (generate keys, show the QR code and the
+- [x] **P6-10 PaperOS decrypt side.** (2026-11-16: `core/companion`, `apps/inbox/relay_fetch`, Settings > Home Assistant > Phone with the QR
+  code, the inbox and the scheduled refresh on the relay, replies and Somdoku's score as `reply` envelopes; goldens; on the device a full
+  round trip through live Home Assistant with a scripted test phone: pairing code equal on both sides, three fake notifications shown,
+  `paired` and `unpair` decrypted by the test phone. Not run on the device: a reply typed on the device.) Read: P6-8, apps/inbox.md. Pairing screen in Settings (generate keys, show the QR code and the
   fingerprint, store the phone's key), fetch the relay sensor, check sizes, decrypt, drop anything that fails authentication or
   replays, map to the feed contract and keep the existing list, detail and badge code. Mail detail without the full-text fetch. Reply
   in a chat becomes an encrypted command to the phone (no favourites target any more; Somdoku's "Stuur naar WhatsApp" moves to the

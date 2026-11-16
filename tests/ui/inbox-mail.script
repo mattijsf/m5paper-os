@@ -1,17 +1,10 @@
 # app: mail
-# P6-4: the Mail list and a mail: the excerpt first, then the full text fetched from Home Assistant (imap.fetch); with no Wi-Fi the
-# excerpt stays and says so.
+# P6-4 since D22: the Mail list from the phone's Proton Mail notifications (sender, subject, the preview the notification showed),
+# and one mail: the preview only, no full text. The 9-day-old mail is dropped (7 days at most).
 wait 1500
 shot mail-list
-tap 270 178             # the HTML mail
+tap 270 178             # the newest mail
 wait 1500
-shot mail-detail-full
-tap 400 500
-wait 600
-shot mail-detail-p2
+shot mail-detail
 back
 wait 900
-wifi off
-tap 270 274             # a plain mail, the fetch cannot work
-wait 2500
-shot mail-detail-offline

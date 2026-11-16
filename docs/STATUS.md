@@ -41,6 +41,16 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   ROADMAP P6-8 to P6-11. Left on the Home Assistant disk (delete by hand, the automation was not allowed to):
   `/config/custom_components/whatsapp` and `/local_apps/protonmail_bridge`.
 
+- **Companion relay and the Paper side, 2026-11-16 (P6-8 to P6-10)**: `docs/COMPANION.md` v1 (89aa3e3, handed to the Android
+  session), the Home Assistant relay (home-assistant `e04d613`), libsodium crypto in `core/companion_crypto`, `core/companion`,
+  Settings > Home Assistant > Phone (QR pairing), the inbox, scheduled refresh, replies and Somdoku's score on the relay. **Run on the
+  device through live Home Assistant with a scripted test phone** (Python, pyca/cryptography; fake notifications only): the device's
+  QR decoded, the same six-digit code on both sides, three encrypted notifications shown (`out/dev-relay/5-whatsapp.png`,
+  `6-chat.png`, `7-mail.png`), the queue acked, the Paper's `paired` and `unpair` envelopes decrypted by the test phone; the device was
+  unpaired and the queues emptied afterwards. **Needs the owner**: a Home Assistant restart (the recorder exclusion of the relay only
+  takes effect then), and deleting `/config/custom_components/whatsapp` and `/local_apps/protonmail_bridge` (refused to the
+  automation). Next: the Android app (P6-C0 / P6-11, separate task), then a real pairing.
+
 ## What works today
 
 | Thing | Command | Result |
@@ -48,8 +58,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Simulator build | `make sim` | OK (first build ~3 min, then seconds) |
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
-| Firmware build | `make fw` | OK, 2.60 MB (49.6% of the 5 MB slot, 2026-11-16) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 215 tests; 170 goldens (2026-11-16); `out/gallery.html` |
+| Firmware build | `make fw` | OK, 2.73 MB (52.1% of the 5 MB slot, 2026-11-16; libsodium added ~130 KB) |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 228 tests; 172 goldens (2026-11-16); `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Camera on the panel | `make cam-shot` / `cam-video` / `cam-compare`, `tools/cam.py around tap X Y` | built and self-tested (synthetic images; `around` against the device with a replayed video); webcam not connected yet |
@@ -105,7 +115,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 - Home Assistant: entity ids come from the dashboard repo, not from the live instance; nothing
   has been requested from the live instance yet (tasks P5-1, P5-2).
 - Which Home Assistant user the token belongs to. The Home app and the inbox calls have **not been run with a non-admin token** (D18 assumes they work); the swap to a dedicated non-admin user comes after development.
-- **Inbox since D22 (2026-11-16)**: nothing of the companion app, the relay or the crypto exists. The "Not set up yet" state ran in the
+- **Inbox since D22 (2026-11-16)**: the Android app does not exist yet; the relay and the Paper side ran only with a scripted test
+  phone (above). Earlier note: The "Not set up yet" state ran in the
   simulator and on the device against the live 404 (Pending device checks). Whether the WhatsApp linked device is
   gone from the phone's "Linked devices" list was not checked (the logout ran, Baileys logged "Intentional Logout"): the user looks.
   Over adb it cannot be reached without opening the chat list (the Linked devices activity is not exported), so it was left alone.
@@ -264,6 +275,8 @@ connected** (2026-11-15: macOS lists only the built-in camera; the user will plu
   "Stuur naar WhatsApp" up to Send on the device (simulator golden `whatsapp-send-missing` covers the 400 toast; nothing can be sent,
   the integration is gone).
 - ~~Mark all read with `before`~~ and the real group message: dropped with the add-on route (D22).
+- **Companion (P6-10)**: a reply typed on the device and pushed to `to_phone` (the push code is the one that carried `paired` and
+  `unpair`, which ran); "Mark all read" sending `dismiss`; pairing with the real phone app; the scheduled refresh against the relay.
 
 - **P7-6**: "Sleep now" ends in the sleep screen and a power-off (not run: only the side button restarts it). The swipe from the status bar works on the device (checked 2026-11-15).
 - **P6-4/P6-5** (written before D22; the feeds are gone now): nothing of the inbox has run on the device or against real feeds. Unverified
@@ -591,3 +604,7 @@ None of these block Phase 1, Phase 2, or the reader.
   P6-8 to P6-11). WhatsApp Gateway (logged out first) and Proton Mail Bridge add-ons removed with the `whatsapp` integration and the
   FaserF repository; package cut to `script.paperos_inbox_clear` + recorder exclusion (home-assistant `ebc133d`); a 404 feed shows
   "Not set up yet" and drops the saved list and badge; `tests/ha/check-send-script.py` removed with the script.
+- 2026-11-16: P6-8 to P6-10. Companion protocol v1 (`docs/COMPANION.md`, vectors), relay in Home Assistant (`e04d613`: push/ack scripts,
+  three recorder-excluded queue sensors), `core/companion_crypto` (libsodium) and `core/companion`, Settings > Home Assistant > Phone
+  (QR pairing, `ui/qr`), inbox / scheduled refresh / replies / Somdoku on the relay, fixtures encrypted with pyca/cryptography; device
+  round trip with a scripted test phone through live Home Assistant.

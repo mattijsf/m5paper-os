@@ -1,10 +1,10 @@
 # app: whatsapp
-# Sending (DECISIONS.md D21): favourites in the config (New message on the list), Reply in a conversation, the compose screen
-# with typing and Paste (the clipboard holds a game score), the confirmation sheet, and a send the script answers with "sent"
-# (fixture ha.example.test): a toast and back to the conversation.
+# Replying (COMPANION.md 7.2): Reply in a conversation whose notification has a reply action, the reply screen with typing and
+# Paste (the clipboard holds a game score), the confirmation sheet, and the push of the encrypted reply to the relay (fixture
+# ha.example.test answers 200): "Sent to your phone" and back to the conversation.
 wait 1500
 shot whatsapp-send-list
-tap 270 178             # Anna - Group (3)
+tap 270 178             # Family (3)
 wait 900
 tap 270 918             # Reply
 wait 900
@@ -21,6 +21,6 @@ shot whatsapp-compose-typed
 tap 400 504             # Send: always a confirmation first
 wait 900
 shot whatsapp-confirm
-tap 270 812             # Send in the sheet: the script answers ok
+tap 270 812             # Send in the sheet: the relay takes it
 wait 1500
 shot whatsapp-sent

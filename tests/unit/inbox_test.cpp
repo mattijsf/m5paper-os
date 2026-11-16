@@ -29,9 +29,7 @@ TEST_CASE("inbox: feed parsing follows the contract, missing fields default, emp
   CHECK(f.items[3].id == "");
   CHECK(f.items[3].ts == 0);
   CHECK(f.updated == "2026-11-15T14:05:00+01:00");
-  CHECK_FALSE(f.linkDown);
   CHECK(parseFeed(R"({"attributes":{"connected":false,"items":[]}})", f));
-  CHECK(f.linkDown);
   CHECK(f.items.empty());
   CHECK_FALSE(parseFeed("", f));
   CHECK_FALSE(parseFeed(R"({"message":"Entity not found."})", f));
@@ -94,10 +92,6 @@ TEST_CASE("inbox: relative times in the local zone") {
   CHECK(relativeTime(now + 5 * 86400, now) == "");                        // a clock far off
   CHECK(firstLine("a\nb") == "a");
   CHECK(firstLine("") == "");
-  CHECK(fetchedText(R"({"changed_states":[],"service_response":{"text":"Full body"}})") == "Full body");
-  CHECK(fetchedText(R"({"service_response":{"entry1":{"text":"Nested"}}})") == "Nested");
-  CHECK(fetchedText("{}") == "");
-  CHECK(fetchedText("nope") == "");
 }
 
 TEST_CASE("inbox: items as the live package makes them (chat \"Group\", id is only a key, media placeholder)") {
@@ -116,8 +110,23 @@ TEST_CASE("inbox: items as the live package makes them (chat \"Group\", id is on
   CHECK(firstLine(c[0].lastText) == "[image]");
 }
 
-TEST_CASE("inbox: the clear call carries the newest time shown, so newer messages survive") {
-  CHECK(clearBody("whatsapp", 1768480000) == "{\"feed\":\"whatsapp\",\"before\":1768480000}");
-  CHECK(clearBody("mail", 0) == "{\"feed\":\"mail\"}");  // nothing shown: clear everything, as before
-  CHECK(clearBody("mail", -5) == "{\"feed\":\"mail\"}");
+TEST_CASE("inbox: feeds from the phone's notifications (one app each, newest first, reply only for WhatsApp)") {
+  pos::companion::Notifs n;
+  n.items.push_back({"wa-1", "whatsapp", "Family", true, 100, {{"Anna", "", "Six?", 90}, {"Bram", "", "Yes", 100}}});
+  n.items.push_back({"wa-2", "whatsapp", "", false, 120, {{"Carla", "", "Hi", 120}}});
+  n.items.push_back({"mail-1", "mail", "", false, 110, {{"Shop", "Your order", "Ready", 110}}});
+  Feed wa = feedFromNotifs(n, false);
+  REQUIRE(wa.items.size() == 3);
+  CHECK(wa.items[0].from == "Carla");
+  CHECK_FALSE(wa.items[0].canReply);
+  CHECK(wa.items[1].key == "wa-1");
+  CHECK(wa.items[1].canReply);
+  CHECK(wa.items[1].chat == "Family");
+  auto c = groupChats(wa.items, 0);
+  REQUIRE(c.size() == 2);
+  CHECK(c[1].count == 2);
+  Feed mail = feedFromNotifs(n, true);
+  REQUIRE(mail.items.size() == 1);
+  CHECK(mail.items[0].subject == "Your order");
+  CHECK_FALSE(mail.items[0].canReply);
 }

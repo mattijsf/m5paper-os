@@ -1,14 +1,16 @@
-// Settings (docs/apps/settings.md): list of sections; Display, Power, Reading, Home Assistant, Storage,
-// Developer and About are built; Wi-Fi shows a notice until the connectivity phase. Secret values are never
+// Settings (docs/apps/settings.md): list of sections; Display, Power, Reading, Home Assistant (with Phone: pairing the companion
+// app), Storage, Developer and About are built; Wi-Fi shows a notice until the connectivity phase. Secret values are never
 // shown: only key names and "present".
 #include <algorithm>
 #include <cstdio>
 
 #include "core/app.h"
+#include "core/companion.h"
 #include "core/fs.h"
 #include "core/os.h"
 #include "core/version.h"
 #include "hal/system.h"
+#include "ui/qr.h"
 #include "ui/root.h"
 #include "ui/widgets.h"
 
@@ -351,6 +353,196 @@ class WifiPage : public Page {
   ui::Label* note_ = nullptr;
 };
 
+// Settings > Home Assistant > Phone: pairing with the companion app (docs/COMPANION.md section 2). The QR code carries the Paper's
+// public key, a pairing id and the Home Assistant address; the phone answers through the relay; both screens show a six-digit
+// code the user compares. Keys are never shown or logged.
+class PhonePage : public Page {
+ public:
+  void build(ui::Column& root) override {
+    setTitle("Phone");
+    holder_ = root.add<ui::Column>(ui::s1);
+    holder_->flex = 1;
+    show();
+  }
+
+  void onHide() override { polling_ = false; }
+
+  std::string debugState() const override { return "phone=" + state_; }
+
+ private:
+  void clear() {
+    while (!holder_->children().empty()) holder_->remove(holder_->children().back().get());
+  }
+  ui::Label* text(const std::string& t, Type type = Type::Body, Color color = ui::ink, int lines = 3) {
+    auto* l = holder_->add<ui::Label>(t, type, color);
+    l->maxLines = lines;
+    return l;
+  }
+
+  void show() {
+    clear();
+    polling_ = false;
+    companion::Pairing p;
+    holder_->add<ui::Spacer>(ui::s2);
+    if (companion::loadPairing(p)) {
+      state_ = "paired";
+      holder_->add<ui::ListItem>("Paired phone", p.phoneName, true, ui::Icon::Check);
+      holder_->add<ui::Spacer>(ui::s2);
+      text("WhatsApp and Proton Mail notifications from this phone come here end-to-end encrypted. Home Assistant only relays them.",
+           Type::Body, ui::secondary, 4);
+      holder_->add<ui::Spacer>(ui::s1)->flex = 1;
+      holder_->add<ui::Button>("Unpair", [this] { confirmUnpair(); }, ui::Button::Kind::Secondary);
+    } else {
+      state_ = "none";
+      text("No phone paired", Type::Title, ui::ink, 1);
+      holder_->add<ui::Spacer>(ui::s1);
+      text("Install the PaperOS app on your phone, open it and choose Pair. Then tap Pair phone here and scan the code.", Type::Body,
+           ui::secondary, 4);
+      holder_->add<ui::Spacer>(ui::s1)->flex = 1;
+      holder_->add<ui::Button>("Pair phone", [this] { startPairing(); });
+    }
+    holder_->add<ui::Spacer>(ui::s2);
+    holder_->host()->relayout();
+  }
+
+  void startPairing() {
+    const std::string url = ctx().os().net().haBaseUrl();
+    if (url.empty()) {
+      ctx().toast("No Home Assistant address (HA_URL)");
+      return;
+    }
+    pending_ = companion::startPairing();
+    clear();
+    state_ = "scan";
+    holder_->add<ui::Spacer>(ui::s1);
+    text("Scan this code with the PaperOS app", Type::BodyStrong, ui::ink, 2);
+    auto* qr = holder_->add<ui::QrCode>(companion::qrText(pending_.pid, pending_.keys.pk, url), 492);
+    qr->flex = 1;
+    status_ = text("Waiting for your phone...", Type::Body, ui::secondary, 2);
+    status_->align = ui::TextAlign::Center;
+    holder_->add<ui::Button>("Cancel", [this] { show(); }, ui::Button::Kind::Secondary);
+    holder_->add<ui::Spacer>(ui::s2);
+    holder_->host()->relayout();
+    polling_ = true;
+    pollStartMs_ = ctx().clock.millis();
+    ctx().timer(3000, [this] { poll(); });  // scanning takes the phone a few seconds anyway
+  }
+
+  // Every 3 s while the code is shown, for 15 minutes at most (the relay keeps a hello that long).
+  void poll() {
+    if (!polling_ || busy_) return;
+    if (ctx().clock.millis() - pollStartMs_ > 15 * 60 * 1000) {
+      polling_ = false;
+      status_->setText("No answer from the phone. Cancel and try again.");
+      return;
+    }
+    busy_ = true;
+    HaClient ha = ctx().ha();
+    const companion::PendingPairing pending = pending_;
+    ctx().async(
+        [ha, pending]() mutable {
+          HaResult r = ha.get(std::string("/api/states/") + companion::kPairingEntity);
+          companion::HelloResult h;
+          if (r.ok()) h = companion::readHello(pending, r.body);
+          return std::make_pair(r, h);
+        },
+        [this](std::pair<HaResult, companion::HelloResult> res) {
+          busy_ = false;
+          if (!polling_) return;
+          if (res.second.found) {
+            polling_ = false;
+            showCode(res.second);
+            return;
+          }
+          if (res.first.error == HaError::NotFound) {
+            polling_ = false;
+            status_->setText("The relay is missing in Home Assistant.");
+            return;
+          }
+          if (!res.first.ok()) status_->setText(std::string("Waiting for your phone... (") + haErrorText(res.first.error) + ")");
+          ctx().timer(3000, [this] { poll(); });
+        });
+  }
+
+  void showCode(const companion::HelloResult& h) {
+    hello_ = h;
+    clear();
+    state_ = "code";
+    holder_->add<ui::Spacer>(ui::s3);
+    text(h.phoneName, Type::Title, ui::ink, 1);
+    text("wants to pair. Does your phone show this code?", Type::Body, ui::secondary, 2);
+    holder_->add<ui::Spacer>(ui::s3);
+    auto* code = text(h.code, Type::Headline, ui::ink, 1);
+    code->align = ui::TextAlign::Center;
+    holder_->add<ui::Spacer>(ui::s3);
+    text("Only confirm when the codes are the same: otherwise someone else's key would be used.", Type::Caption, ui::secondary, 3);
+    holder_->add<ui::Spacer>(ui::s1)->flex = 1;
+    holder_->add<ui::Button>("Codes match", [this] { confirm(); });
+    holder_->add<ui::Button>("Cancel", [this] { show(); }, ui::Button::Kind::Secondary);
+    holder_->add<ui::Spacer>(ui::s2);
+    holder_->host()->relayout();
+  }
+
+  void confirm() {
+    companion::Pairing p = hello_.pairing;
+    p.tx = 0;
+    p.rx = 0;
+    const std::string paired = companion::pairedEnvelope(p);  // counter 1
+    if (paired.empty() || !companion::savePairing(p)) {
+      ctx().toast("Could not save the pairing");
+      return;
+    }
+    companion::saveNotifs(companion::Notifs{});
+    ctx().log("paired with a phone");  // never the keys
+    HaClient ha = ctx().ha();
+    ctx().async(
+        [ha, paired]() mutable {
+          HaResult r = ha.callService("script", "paperos_relay_push", paired);
+          ha.callService("script", "paperos_relay_ack", companion::ackBody("pairing", 0));
+          return r;
+        },
+        [this](HaResult r) {
+          ctx().toast(r.ok() ? "Phone paired" : std::string("Paired; tell the phone later: ") + haErrorText(r.error));
+          show();
+        });
+  }
+
+  void confirmUnpair() {
+    auto sheet = std::make_unique<ui::Sheet>();
+    ui::Sheet* raw = sheet.get();
+    ui::Column* c = sheet->content();
+    c->add<ui::Label>("Unpair the phone?", Type::Title);
+    c->add<ui::Label>("Its messages stop coming here. Pairing again needs the phone.", Type::Body, ui::secondary)->maxLines = 2;
+    c->add<ui::Button>("Unpair", [this, raw] {
+      raw->close();
+      unpair();
+    });
+    c->add<ui::Button>("Cancel", [raw] { raw->close(); }, ui::Button::Kind::Secondary);
+    holder_->host()->addOverlay(std::move(sheet));
+  }
+
+  void unpair() {
+    companion::Pairing p;
+    std::string body;
+    if (companion::loadPairing(p)) body = companion::unpairEnvelope(p);
+    companion::forgetPairing();
+    ctx().log("unpaired");
+    show();
+    ctx().toast("Phone unpaired");
+    if (body.empty()) return;
+    HaClient ha = ctx().ha();
+    ctx().async([ha, body]() mutable { return ha.callService("script", "paperos_relay_push", body); }, [](HaResult) {});  // best effort
+  }
+
+  ui::Column* holder_ = nullptr;
+  ui::Label* status_ = nullptr;
+  std::string state_;
+  companion::PendingPairing pending_;
+  companion::HelloResult hello_;
+  bool polling_ = false, busy_ = false;
+  uint32_t pollStartMs_ = 0;
+};
+
 class HaPage : public Page {
  private:
   // GET <HA_URL>/api/ with the token: shows the HTTP status and the time it took. The token and the Authorization
@@ -392,6 +584,12 @@ class HaPage : public Page {
     result_->maxLines = 3;
     root.add<ui::Spacer>(ui::s2);
     root.add<ui::Button>("Test connection", [this] { test(); }, ui::Button::Kind::Secondary);
+    root.add<ui::Spacer>(ui::s3);
+    companion::Pairing p;
+    const bool paired = companion::loadPairing(p);
+    auto* phone = root.add<ui::ListItem>("Phone", paired ? "Paired: " + p.phoneName : "Not paired", true, ui::Icon::MessageCircle);
+    phone->setChevron();
+    phone->onClick = [this] { ctx().nav.push<PhonePage>(); };
   }
 };
 

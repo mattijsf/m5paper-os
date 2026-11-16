@@ -1,9 +1,10 @@
-// WhatsApp compose and the favourites list (compose.h). The send itself is one call of script.paperos_whatsapp_send (whatsapp_send.h).
+// WhatsApp reply screen (compose.h). The send is one encrypted `reply` envelope pushed to script.paperos_relay_push (COMPANION.md).
 #include "apps/inbox/compose.h"
 
 #include <memory>
 
 #include "core/clipboard.h"
+#include "core/companion.h"
 #include "ui/keyboard.h"
 #include "ui/root.h"
 #include "ui/widgets.h"
@@ -19,7 +20,7 @@ class ComposeScreen : public Screen {
   ComposeScreen(Target to, std::string text) : to_(std::move(to)), initial_(std::move(text)) {}
 
   void build(ui::Column& root) override {
-    setTitle("Message");
+    setTitle("Reply");
     auto* col = root.add<ui::Column>(ui::s1);
     col->add<ui::Spacer>(ui::s1);
     auto* toRow = col->add<ui::Row>(ui::s1);
@@ -82,7 +83,7 @@ class ComposeScreen : public Screen {
     auto* text = c->add<ui::Label>(trimmed(field_->text()), Type::Body);  // the message itself: ink
     text->maxLines = 7;
     text->keepLineBreaks = true;  // a score is lines of squares
-    c->add<ui::Label>("From your own WhatsApp account", Type::Caption, ui::secondary);
+    c->add<ui::Label>("Your phone sends it from your WhatsApp account", Type::Caption, ui::secondary);
     c->add<ui::Button>("Send", [this, raw] {
       raw->close();
       send();
@@ -93,20 +94,36 @@ class ComposeScreen : public Screen {
 
   void send() {
     if (busy_) return;
+    companion::Pairing pairing;
+    if (!companion::loadPairing(pairing)) {
+      ctx().toast("No phone paired: see Settings > Home Assistant");
+      return;
+    }
+    // The counter is stored before the push (COMPANION.md 5): a lost answer never makes the Paper reuse it.
+    const std::string body = companion::replyEnvelope(pairing, to_.key, trimmed(field_->text()), ctx().clock.now());
+    if (body.empty() || !companion::savePairing(pairing)) {
+      ctx().toast("Not sent: the message does not fit");
+      return;
+    }
     busy_ = true;
     send_->setText("Sending...");
     update();
     HaClient ha = ctx().ha();
-    const std::string body = sendBody(to_, field_->text());
+    const uint64_t ref = pairing.tx;
     const std::string name = to_.name;
-    ctx().async([ha, body]() mutable { return ha.callService("script", "paperos_whatsapp_send", body, true); },
-                [this, name](HaResult r) {
+    ctx().async([ha, body]() mutable { return ha.callService("script", "paperos_relay_push", body); },
+                [this, ref, name](HaResult r) {
                   busy_ = false;
                   send_->setText("Send");
-                  const SendOutcome o = sendOutcome(r, name);
-                  ctx().log("send: %s%s", o.sent ? "sent" : "not sent", o.reason.empty() ? "" : (" (" + o.reason + ")").c_str());  // never the text
+                  const SendOutcome o = pushOutcome(r);
+                  ctx().log("reply: %s", o.sent ? "pushed" : "not pushed");  // never the text
                   ctx().toast(o.message);
                   if (o.sent) {
+                    companion::Notifs n;
+                    companion::loadNotifs(n);
+                    n.sent.push_back(companion::SentReply{ref, name});
+                    if (n.sent.size() > 10) n.sent.erase(n.sent.begin());
+                    companion::saveNotifs(n);
                     ctx().nav.pop();
                     return;
                   }
@@ -123,29 +140,10 @@ class ComposeScreen : public Screen {
   ui::Widget* panel_ = nullptr;
 };
 
-class FavoritesScreen : public Screen {
- public:
-  explicit FavoritesScreen(std::string text) : text_(std::move(text)) {}
-
-  void build(ui::Column& root) override {
-    setTitle("New message");
-    root.add<ui::Spacer>(ui::s1);
-    root.add<ui::Label>("Send to", Type::Caption, ui::secondary);
-    for (const Target& t : favorites(ctx().config)) {
-      auto* row = root.add<ui::ListItem>(t.name, isGroup(t.chat) ? "Group" : "Person");
-      row->setChevron();
-      row->onClick = [this, t] { openCompose(ctx(), t, text_); };
-    }
-  }
-
- private:
-  std::string text_;
-};
-
 }  // namespace
 
 bool openCompose(AppContext& ctx, const Target& to, const std::string& text) {
-  if (!validChat(to.chat)) {
+  if (to.key.empty()) {
     ctx.toast("Not a WhatsApp chat");
     return false;
   }
@@ -153,24 +151,20 @@ bool openCompose(AppContext& ctx, const Target& to, const std::string& text) {
   return true;
 }
 
-void openNewMessage(AppContext& ctx, const std::string& text) {
-  const std::vector<Target> favs = favorites(ctx.config);
-  if (favs.empty()) {
-    ctx.toast("No favourite chats in the config");
-    return;
-  }
-  if (favs.size() == 1) {
-    openCompose(ctx, favs[0], text);
-    return;
-  }
-  ctx.nav.push<FavoritesScreen>(text);
-}
-
 bool sendToFavorite(AppContext& ctx, const std::string& name, const std::string& text) {
-  for (const Target& t : favorites(ctx.config))
-    if (t.name == name) return openCompose(ctx, t, text);
-  openNewMessage(ctx, text);
-  return false;
+  companion::Pairing pairing;
+  if (!companion::loadPairing(pairing)) {
+    ctx.toast("No phone paired: see Settings > Home Assistant");
+    return false;
+  }
+  companion::Notifs n;
+  companion::loadNotifs(n);
+  Target t;
+  if (!findByName(n, name, t)) {
+    ctx.toast("No WhatsApp notification from " + name + " on your phone");
+    return false;
+  }
+  return openCompose(ctx, t, text);
 }
 
 }  // namespace pos::whatsapp

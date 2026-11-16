@@ -1,15 +1,16 @@
 # app: whatsapp
-# P6-4: the WhatsApp list from fixtures (tests/fixtures/make-inbox-fixtures.py): conversations grouped by chat, new dots, a
-# conversation, the seen marker after a restart, mark all read.
+# P6-4: the WhatsApp list from the encrypted relay fixtures (tests/fixtures/make-inbox-fixtures.py, COMPANION.md): one row per
+# notification (chat), new dots, a conversation, the seen marker after a restart, mark all read (local, plus `dismiss` to the phone).
+# Hanne's notification is 20 days old: dropped (7 days at most).
 wait 1500
 shot inbox-list
-expect-state rows=8
+expect-state rows=7
 tap 480 805
 wait 900
 shot inbox-list-p2
 tap 60 805
 wait 900
-tap 270 178             # Anna - Family (3)
+tap 270 178             # Family (3)
 wait 900
 shot inbox-chat
 tap 400 500             # next page of the conversation (it fits one page: nothing happens)
@@ -22,6 +23,6 @@ shot inbox-list-seen
 tap 270 918             # Mark all read: a confirmation sheet
 wait 700
 shot inbox-markall-sheet
-tap 270 810             # confirm: calls script.paperos_inbox_clear, the list empties
+tap 270 810             # confirm: the list empties here; the phone gets `dismiss`
 wait 1200
 shot inbox-cleared

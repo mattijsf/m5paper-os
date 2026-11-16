@@ -1,0 +1,5 @@
+# app: whatsapp
+# The phone's answer to an earlier reply (COMPANION.md 7.1 `result`, ref 1 = "Family" in the preset's sent list) arrives with the
+# queue: the list shows the chats and a toast says the reply was not sent and why.
+wait 1500
+shot whatsapp-reply-result

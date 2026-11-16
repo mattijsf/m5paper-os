@@ -1,43 +1,193 @@
-# PaperOS inbox (repo m5paper-os, docs/BACKEND.md "Inbox feeds", DECISIONS.md D22).
+# PaperOS companion relay (repo m5paper-os: docs/COMPANION.md section 6, DECISIONS.md D22).
 #
-# Since 2026-11-16 Home Assistant is not trusted with message text (D22): the WhatsApp Gateway add-on, its
-# `whatsapp` integration and the Proton Mail Bridge add-on are removed, and with them the WhatsApp feed, the
-# guarded send script (script.paperos_whatsapp_send), its rate-limit sensor and the IMAP mail feed.
+# Home Assistant is not trusted with message text. A companion Android app on the owner's phone encrypts each WhatsApp and
+# Proton Mail notification for the PaperOS e-ink device ("the Paper") and pushes the ciphertext here; the Paper reads it,
+# decrypts it and acks it. Replies from the Paper go the other way and the phone app holds the send guards. Nothing here can
+# read, forge or send a message: this package only stores and forwards opaque base64url strings, with a receive time.
 #
-# What comes next (ROADMAP.md Phase 6): a companion Android app on the phone reads the WhatsApp and Proton Mail
-# notifications, encrypts each one for the PaperOS device (authenticated, end to end), and posts only the
-# ciphertext to Home Assistant. A relay sensor here will store and forward those blobs; it is added by the
-# relay task once the protocol is fixed. Home Assistant never sees plaintext and holds no send rules: those
-# live in the phone app.
+# Queues (trigger-based template sensors, restored after a restart, kept out of the recorder):
+#   sensor.paperos_relay_to_paper   phone -> Paper, max 40 entries, 7 days
+#   sensor.paperos_relay_to_phone   Paper -> phone, max 20 entries, 2 days
+#   sensor.paperos_relay_pairing    the phone's pairing hello, 1 entry, 15 minutes
+# State = unix time of the last change; attribute `queue` = [{id, ts, e}] sorted by id (id = the envelope's counter, 0 for a hello).
 #
-# Kept for that relay:
-# - script.paperos_inbox_clear: "Mark all read" on the device calls it (a service call works for a
-#   non-admin user; firing events does not). Today nothing listens to its event.
-# - the recorder exclusion of the two feed entity ids, so whatever fills them later never reaches the history
-#   database.
+# Calls (REST, non-admin tokens: the Paper's and a dedicated "PaperOS phone" user's):
+#   script.paperos_relay_push {queue, id, env}   adds an entry (a duplicate id is ignored; bad input is ignored)
+#   script.paperos_relay_ack  {queue, upto}      drops entries with id <= upto (pairing: clears it)
+# The scripts fire the event paperos_relay, which the sensors listen to (a non-admin user may call a script, not fire an
+# event). The event carries ciphertext, so it is excluded from the recorder too.
 
 recorder:
   exclude:
     entities:
-      - sensor.paperos_whatsapp_inbox
-      - sensor.paperos_mail_inbox
+      - sensor.paperos_relay_to_paper
+      - sensor.paperos_relay_to_phone
+      - sensor.paperos_relay_pairing
+    event_types:
+      - paperos_relay
 
 script:
-  paperos_inbox_clear:
-    alias: PaperOS inbox clear
-    description: Empties a PaperOS inbox feed ("Mark all read" on the device).
+  paperos_relay_push:
+    alias: PaperOS relay push
+    description: Adds one encrypted PaperOS companion envelope to a relay queue (docs/COMPANION.md in m5paper-os).
+    mode: queued
+    max: 20
     fields:
-      feed:
-        description: whatsapp or mail
-        example: whatsapp
-      before:
-        description: >
-          Optional unix time. Only items with ts <= before are dropped (what the device had shown when "Mark all read" was tapped);
-          newer messages stay. Without it, or 0, the whole feed is cleared.
-        required: false
-        example: 1768480000
+      queue:
+        description: to_paper, to_phone or pairing
+        required: true
+        example: to_paper
+      id:
+        description: The envelope's counter (0 for a pairing hello).
+        required: true
+        example: 1
+      env:
+        description: The envelope, base64url without padding (40 to 1411 characters).
+        required: true
+        example: AQ...
     sequence:
-      - event: paperos_inbox_clear
+      - condition: template
+        value_template: >-
+          {{ (queue | default('') | string) in ['to_paper', 'to_phone', 'pairing']
+             and (id | default('x') | string) is match('^[0-9]{1,16}$')
+             and (env | default('') | string) is match('^[A-Za-z0-9_-]{40,1411}$') }}
+      - event: paperos_relay
         event_data:
-          feed: "{{ feed }}"
-          before: "{{ before | default(0) | int(0) }}"
+          op: push
+          queue: "{{ queue | string }}"
+          id: "{{ id | int(0) }}"
+          env: "{{ env | string }}"
+
+  paperos_relay_ack:
+    alias: PaperOS relay ack
+    description: Drops the entries of a PaperOS relay queue up to a counter (pairing - clears it).
+    mode: queued
+    max: 20
+    fields:
+      queue:
+        description: to_paper, to_phone or pairing
+        required: true
+        example: to_paper
+      upto:
+        description: Highest counter that was read; entries with id <= upto are dropped.
+        required: true
+        example: 1
+    sequence:
+      - condition: template
+        value_template: >-
+          {{ (queue | default('') | string) in ['to_paper', 'to_phone', 'pairing']
+             and (upto | default('x') | string) is match('^[0-9]{1,16}$') }}
+      - event: paperos_relay
+        event_data:
+          op: ack
+          queue: "{{ queue | string }}"
+          upto: "{{ upto | int(0) }}"
+
+# The three sensors share one template; only the queue name, the cap and the time to keep differ. An entry whose `e` is
+# not a string (Home Assistant turns an all-digit string into a number) is dropped.
+template:
+  - triggers:
+      - trigger: event
+        event_type: paperos_relay
+        event_data:
+          queue: to_paper
+        id: relay
+      - trigger: time_pattern
+        minutes: 7
+        id: expire
+    sensor:
+      - name: PaperOS relay to Paper
+        unique_id: paperos_relay_to_paper
+        icon: mdi:email-lock
+        state: "{{ now().timestamp() | int }}"
+        attributes:
+          updated: "{{ now().isoformat() }}"
+          queue: >-
+            {%- set cap = 40 -%}
+            {%- set keep = 7 * 86400 -%}
+            {%- set t = now().timestamp() | int -%}
+            {%- set ns = namespace(q=[]) -%}
+            {%- for x in (this.attributes.get('queue') or []) -%}
+              {%- if x is mapping and x.get('e') is string and (x.get('ts') | int(0)) > t - keep -%}
+                {%- set ns.q = ns.q + [x] -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {%- if trigger.id == 'relay' -%}
+              {%- set d = trigger.event.data -%}
+              {%- if d.get('op') == 'ack' -%}
+                {%- set ns.q = ns.q | rejectattr('id', 'le', d.get('upto') | int(0)) | list -%}
+              {%- elif d.get('op') == 'push' and d.get('env') is string
+                    and (ns.q | selectattr('id', 'eq', d.get('id') | int(0)) | list | count) == 0 -%}
+                {%- set ns.q = ns.q + [{'id': d.get('id') | int(0), 'ts': t, 'e': d.get('env')}] -%}
+              {%- endif -%}
+            {%- endif -%}
+            {{ (ns.q | sort(attribute='id'))[-cap:] }}
+  - triggers:
+      - trigger: event
+        event_type: paperos_relay
+        event_data:
+          queue: to_phone
+        id: relay
+      - trigger: time_pattern
+        minutes: 7
+        id: expire
+    sensor:
+      - name: PaperOS relay to phone
+        unique_id: paperos_relay_to_phone
+        icon: mdi:email-lock
+        state: "{{ now().timestamp() | int }}"
+        attributes:
+          updated: "{{ now().isoformat() }}"
+          queue: >-
+            {%- set cap = 20 -%}
+            {%- set keep = 2 * 86400 -%}
+            {%- set t = now().timestamp() | int -%}
+            {%- set ns = namespace(q=[]) -%}
+            {%- for x in (this.attributes.get('queue') or []) -%}
+              {%- if x is mapping and x.get('e') is string and (x.get('ts') | int(0)) > t - keep -%}
+                {%- set ns.q = ns.q + [x] -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {%- if trigger.id == 'relay' -%}
+              {%- set d = trigger.event.data -%}
+              {%- if d.get('op') == 'ack' -%}
+                {%- set ns.q = ns.q | rejectattr('id', 'le', d.get('upto') | int(0)) | list -%}
+              {%- elif d.get('op') == 'push' and d.get('env') is string
+                    and (ns.q | selectattr('id', 'eq', d.get('id') | int(0)) | list | count) == 0 -%}
+                {%- set ns.q = ns.q + [{'id': d.get('id') | int(0), 'ts': t, 'e': d.get('env')}] -%}
+              {%- endif -%}
+            {%- endif -%}
+            {{ (ns.q | sort(attribute='id'))[-cap:] }}
+  - triggers:
+      - trigger: event
+        event_type: paperos_relay
+        event_data:
+          queue: pairing
+        id: relay
+      - trigger: time_pattern
+        minutes: /5
+        id: expire
+    sensor:
+      - name: PaperOS relay pairing
+        unique_id: paperos_relay_pairing
+        icon: mdi:qrcode
+        state: "{{ now().timestamp() | int }}"
+        attributes:
+          updated: "{{ now().isoformat() }}"
+          queue: >-
+            {%- set t = now().timestamp() | int -%}
+            {%- set ns = namespace(q=[]) -%}
+            {%- for x in (this.attributes.get('queue') or []) -%}
+              {%- if x is mapping and x.get('e') is string and (x.get('ts') | int(0)) > t - 900 -%}
+                {%- set ns.q = ns.q + [x] -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {%- if trigger.id == 'relay' -%}
+              {%- set d = trigger.event.data -%}
+              {%- if d.get('op') == 'ack' -%}
+                {%- set ns.q = [] -%}
+              {%- elif d.get('op') == 'push' and d.get('env') is string -%}
+                {%- set ns.q = [{'id': d.get('id') | int(0), 'ts': t, 'e': d.get('env')}] -%}
+              {%- endif -%}
+            {%- endif -%}
+            {{ ns.q }}

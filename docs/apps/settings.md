@@ -64,7 +64,7 @@ the token and the Authorization header are never shown or logged. Developer > "H
 to; at most 8, each a `name` (shown, 40 characters) and a `chat` JID (`<digits>@s.whatsapp.net` or `<digits>@g.us`; others are
 ignored). No Settings screen edits it yet: write it into the file (it survives Settings saving the file). A chat's JID is the `key`
 of its items in `sensor.paperos_whatsapp_inbox`. Not secret, but private: it names the user's chats. Since D22 (2026-11-16) there is
-no send path to a favourite (only replies through the phone are planned), so the key has no effect beyond opening the compose screen.
+no send path to a favourite: the key is no longer read (a game's score goes to the live notification of the chat with that name).
 
 ## Secrets and provisioning: `/sd/paperos_config`
 
@@ -102,3 +102,12 @@ WIFI_PASSWORD=<password>                   #   on-screen keyboard exists (task P
   fixtures and need no token.
 - No SD card: the device still boots; Home and inbox apps show "No Home Assistant token:
   put paperos_config on the SD card".
+
+## Phone (Settings > Home Assistant > Phone)
+
+Pairing with the companion Android app (DECISIONS.md D22, `docs/COMPANION.md` section 2). It sits under Home Assistant because the
+Settings list is full (eight rows). Not paired: "Pair phone" makes new keys and a pairing id and shows a QR code
+(`paperos1:<pid>:<public key>:<HA_URL>`, `ui/qr.h`), then polls `sensor.paperos_relay_pairing` every 3 s for at most 15 minutes. When
+the phone's hello arrives: the phone name and a six-digit code to compare with the phone; "Codes match" saves the pairing to
+`/data/companion.json` (secret: never shown, logged or readable over USB) and sends `paired`. Paired: the phone name and "Unpair"
+(with a confirmation; sends `unpair`, best effort, and deletes the pairing and the saved notifications). UI script `phone-pair`.

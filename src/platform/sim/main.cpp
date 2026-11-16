@@ -26,6 +26,7 @@
 #include <string>
 #include <vector>
 
+#include "core/companion_crypto.h"
 #include "core/gfx.h"
 #include "core/log.h"
 #include "core/os.h"
@@ -200,6 +201,8 @@ int main(int argc, char** argv) {
   std::string rx;
 
   if (!scriptPath.empty()) {
+    // UI scripts get repeatable "random" keys and nonces (companion pairing, COMPANION.md), so their screenshots are goldens.
+    companion::setTestRandom(1);
     if (!headless && !display.openWindow(scale)) return 1;
     if (!os.setup()) return 1;
     sim::ScriptRunner runner(os, display, input, clock, net, outDir, [&] { display.present(); });

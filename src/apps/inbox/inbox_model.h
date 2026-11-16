@@ -1,25 +1,31 @@
-// Inbox model (docs/apps/inbox.md, docs/BACKEND.md "Inbox feeds"): the feed contract, grouping of chat messages, relative times, the
-// seen marker and badge count. Pure logic, unit-tested.
+// Inbox model (docs/apps/inbox.md, docs/BACKEND.md "Inbox feeds"): the feed contract (built from the phone's decrypted
+// notifications, docs/COMPANION.md), grouping of chat messages, relative times, the seen marker and badge count. Pure logic,
+// unit-tested.
 #pragma once
 
 #include <cstdint>
 #include <string>
 #include <vector>
 
+#include "core/companion.h"
+
 namespace pos::inbox {
 
 struct Msg {
   std::string id, from, chat, subject, text, key;
   int64_t ts = 0;  // unix seconds
+  bool canReply = false;  // a WhatsApp notification with a reply action on the phone
 };
 
 struct Feed {
   std::vector<Msg> items;  // newest first, as the sensor has them
-  bool linkDown = false;   // attributes.connected == false (optional: the package may add it)
   std::string updated;     // attributes.updated, as sent
 };
 
-// Parses the body of GET /api/states/<feed sensor>. Missing fields default to empty, unknown fields are ignored; items without
+// The messages of one app ("mail" or "whatsapp") from the phone's notifications, newest first; `key` = the notification key.
+Feed feedFromNotifs(const companion::Notifs& notifs, bool mail);
+
+// Parses a state object in the feed contract (the shape of the Home Assistant sensors before D22; kept for fixtures and tests). Missing fields default to empty, unknown fields are ignored; items without
 // text and subject are dropped. False if it is not a state object.
 bool parseFeed(const std::string& json, Feed& out);
 
@@ -45,10 +51,4 @@ int newCount(const std::vector<Msg>& items, int64_t seen);
 int64_t newestTs(const std::vector<Msg>& items);
 // The first line of a text, for a list row ("" for an empty text).
 std::string firstLine(const std::string& text);
-// The body of the call that clears a feed: {"feed":"whatsapp","before":<newest ts the list showed>}. The feed then keeps messages that arrived
-// after the list was fetched (script.paperos_inbox_clear `before`); without a time (<= 0) the field is left out and everything is cleared.
-std::string clearBody(const std::string& feed, int64_t before);
-// The text of a service_response of imap.fetch ("service_response":{"text":...}); "" if there is none.
-std::string fetchedText(const std::string& json);
-
 }  // namespace pos::inbox

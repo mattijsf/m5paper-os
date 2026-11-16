@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
-"""Writes the inbox HTTP fixtures of the UI tests (feed contract, docs/BACKEND.md "Inbox feeds"): fake messages, times relative to
-the simulator's test clock (2026-01-15T12:34:00Z = 13:34 in Amsterdam). Hosts: ha.example.test (normal), ha-down.example.test
-(WhatsApp link down), ha-empty.example.test (empty feeds), ha-gone.example.test (no feed sensors at all: 404, as since DECISIONS.md D22). The send script (script.paperos_whatsapp_send, DECISIONS.md D21) answers
-"sent" on ha, "too_soon" on ha-down and 400 (no such script, as before it is installed) on ha-empty.
+"""Writes the inbox HTTP fixtures of the UI tests: the companion relay (docs/COMPANION.md) with fake phone notifications,
+encrypted with pyca/cryptography (not the Paper's libsodium code), times relative to the simulator's test clock
+(2026-01-15T12:34:00Z = 13:34 in Amsterdam). Also writes the paired state the UI test presets use (companion.json).
 
-  python3 tests/fixtures/make-inbox-fixtures.py tests/fixtures/http
+Hosts: ha.example.test (a full queue, the pairing hello for the UI scripts' fixed random keys), ha-down.example.test (a short
+queue plus the phone's answer to a reply), ha-empty.example.test (an empty queue; pushes answer 400), ha-gone.example.test (no
+relay at all: 404 / 400).
+
+  uv run -q --no-project --with cryptography python -I tests/fixtures/make-inbox-fixtures.py tests/fixtures/http tests/ui/data
 """
+import base64, hashlib, hmac, struct
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
+from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 import calendar, json, os, sys
 
 NOW = calendar.timegm((2026, 1, 15, 12, 34, 0))
@@ -27,12 +34,12 @@ LONG = ("Here is the plan for the weekend, in case you missed it: Saturday we st
         "Supercalifragilisticexpialidocious" + "x" * 70 + " ok?")
 
 WA = [  # newest first
-    ("Anna", "Group", "120363000000000001@g.us", 13 * 60 + 31, "See you!"),
-    ("Anna", "Group", "120363000000000001@g.us", 13 * 60 + 25, "I can bring the cake \U0001F382\U0001F600"),
-    ("Anna", "Group", "120363000000000001@g.us", 13 * 60 + 20, "Are you coming at six?"),
+    ("Anna", "Family", "120363000000000001@g.us", 13 * 60 + 31, "See you!"),
+    ("Anna", "Family", "120363000000000001@g.us", 13 * 60 + 25, "I can bring the cake \U0001F382\U0001F600"),
+    ("Anna", "Family", "120363000000000001@g.us", 13 * 60 + 20, "Are you coming at six?"),
     ("Bram", "", "31600000002@s.whatsapp.net", 12 * 60 + 50, LONG),
-    ("Carla", "Group", "120363000000000003@g.us", 11 * 60 + 5, "Meeting moved to Thursday"),
-    ("Carla", "Group", "120363000000000003@g.us", 11 * 60 + 2, "Can someone send the agenda?"),
+    ("Carla", "Work", "120363000000000003@g.us", 11 * 60 + 5, "Meeting moved to Thursday"),
+    ("Carla", "Work", "120363000000000003@g.us", 11 * 60 + 2, "Can someone send the agenda?"),
     ("Dirk", "", "31600000004@s.whatsapp.net", -(20 * HOUR), "Thanks for yesterday!"),   # yesterday evening
     ("Emma", "", "31600000005@s.whatsapp.net", -(3 * DAY), "Did you see the match?"),
     ("Fleur", "", "31600000006@s.whatsapp.net", -(4 * DAY), "Call me when you can"),
@@ -48,20 +55,77 @@ def wa_items():
         out.append({"id": f"{ts}-3161234{i:04d}-{i:06X}"[:48], "from": frm, "chat": chat, "text": text, "ts": ts, "key": key})
     return out
 
-HTML_MAIL = ("<html><head><style>p{color:#333}</style></head><body><p>Hello Daan,</p><p>Your order <b>#4821</b> &amp; the invoice are "
-             "ready. Pick it up before Friday.</p><ul><li>1 x Paper notebook</li><li>2 x Pencil &mdash; soft</li></ul>"
-             "<p>Track it at <a href=\"https://www.shop.example/orders/4821?ref=mail\">https://www.shop.example/orders/4821?ref=mail</a></p>"
-             "<p>Thanks,<br>The shop</p></body></html>")
-FULL_HTML = HTML_MAIL + "<p>" + " ".join(["This is a longer paragraph of the full mail text that the excerpt does not show."] * 18) + "</p>"
-
 MAIL = [
-    ("Shop <orders@shop.example>", "Your order #4821 is ready", HTML_MAIL, 12 * 60 + 40),
+    ("Shop", "Your order #4821 is ready", "Hello Daan, your order #4821 & the invoice are ready. Pick it up before Friday.", 12 * 60 + 40),
     ("Anna Jansen", "Re: Saturday", "Sounds good! I will bring the chairs.\n\nAnna", 9 * 60 + 15),
     ("Bank", "Your statement", "Your monthly statement is available in the app.", -(3 * HOUR)),
-    ("Newsletter", "Ten tips for \U0001F600 better sleep", "<p>Tip one: go to bed at the same time.</p>", -(DAY + 2 * HOUR)),
+    ("Newsletter", "Ten tips for \U0001F600 better sleep", "Tip one: go to bed at the same time.", -(DAY + 2 * HOUR)),
     ("Library", "Books due soon", "Two books are due on Monday.", -(3 * DAY)),
     ("Dirk", "Photos", "The photos from the trip are attached (not shown here).", -(9 * DAY)),
 ]
+
+def b64(b): return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+def pub(sk): return X25519PrivateKey.from_private_bytes(sk).public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+def hk(prk, info, n): return hmac.new(prk, info + b"\x01", hashlib.sha256).digest()[:n]
+def session(own_sk, peer_pk, pid, paper_pk, phone_pk):
+    ss = X25519PrivateKey.from_private_bytes(own_sk).exchange(X25519PublicKey.from_public_bytes(peer_pk))
+    prk = hmac.new(b"PaperOS companion v1", ss, hashlib.sha256).digest()
+    t = pid + paper_pk + phone_pk
+    return hk(prk, b"PaperOS p2d" + t, 32), hk(prk, b"PaperOS d2p" + t, 32)
+
+# The fixed pairing of the UI test presets (the same keys as tests/fixtures/companion/vectors.json).
+PAPER_SK, PHONE_SK, PID = bytes(range(0x00, 0x20)), bytes(range(0x40, 0x60)), bytes.fromhex("a1a2a3a4a5a6a7a8")
+PAPER_PK, PHONE_PK = pub(PAPER_SK), pub(PHONE_SK)
+P2D, D2P = session(PHONE_SK, PAPER_PK, PID, PAPER_PK, PHONE_PK)
+_nonce = [0]
+def nonce():
+    _nonce[0] += 1
+    return hashlib.sha256(b"fixture-nonce" + struct.pack(">I", _nonce[0])).digest()[:12]
+def envelope(ctr, plain):
+    head = bytes([1, ord("P")]) + PID + struct.pack(">Q", ctr)
+    n = nonce()
+    return b64(head + n + ChaCha20Poly1305(P2D).encrypt(n, json.dumps(plain, ensure_ascii=False, separators=(",", ":")).encode(), head))
+
+def test_random(seed, i):  # core/companion_crypto.h setTestRandom: block i
+    return hashlib.sha256(b"paperos-test-random" + struct.pack(">II", seed, i)).digest()
+
+def hello_for_ui_scripts():
+    """The phone's hello for the keys a UI script's Paper makes (setTestRandom(1): sk = block 0, pid = block 1)."""
+    paper_sk, pid = test_random(1, 0), test_random(1, 1)[:8]
+    paper_pk = pub(paper_sk)
+    phone_sk = bytes(range(0x70, 0x90))
+    phone_pk = pub(phone_sk)
+    p2d, _ = session(phone_sk, paper_pk, pid, paper_pk, phone_pk)
+    head = bytes([1, ord("H")]) + pid + phone_pk
+    n = nonce()
+    plain = b'{"t":"hello","name":"Pixel 9 Pro","app":"0.1"}'
+    return b64(head + n + ChaCha20Poly1305(p2d).encrypt(n, plain, head))
+
+def wa_posts():
+    """WA grouped into one notification per chat, oldest message first (MessagingStyle)."""
+    chats = {}
+    for item in reversed(wa_items()):
+        chats.setdefault(item["key"], []).append(item)
+    posts = []
+    for i, (key, items) in enumerate(chats.items()):
+        group = items[0]["chat"] != ""
+        posts.append({"t": "post", "k": "0|com.whatsapp|1|" + key.split("@")[0][-6:] + "|" + str(1000 + i), "app": "whatsapp",
+                      "chat": items[0]["chat"] if group else "", "reply": items[0]["from"] != "Gijs", "ts": items[-1]["ts"],
+                      "msgs": [{"from": x["from"], "text": x["text"][:500], "ts": x["ts"]} for x in items[-6:]]})
+    return sorted(posts, key=lambda p: p["ts"])
+
+def mail_posts():
+    out = []
+    for i, m in enumerate(reversed(mail_items())):
+        out.append({"t": "post", "k": "0|ch.protonmail.android|" + str(4800 + i) + "|null|10" + str(i), "app": "mail", "chat": "", "reply": False,
+                    "ts": m["ts"], "msgs": [{"from": m["from"], "subj": m["subject"], "text": m["text"], "ts": m["ts"]}]})
+    return out
+
+def queue(plains):
+    return [{"id": i + 1, "ts": NOW, "e": envelope(i + 1, p)} for i, p in enumerate(plains)]
+
+def relay_state(entity, q):
+    return {"entity_id": entity, "state": str(NOW), "attributes": {"updated": "2026-01-15T13:34:00+01:00", "queue": q}}
 
 def mail_items():
     out = []
@@ -69,12 +133,6 @@ def mail_items():
         ts = (NOW - (NOW % DAY) - HOUR + t * MIN) if t > 0 and t < 24 * 60 else NOW + t
         out.append({"id": 4800 + i, "from": frm, "subject": subj, "text": text[:1500], "ts": ts, "key": "entry-proton"})
     return out
-
-def state(items, connected=None):
-    attrs = {"updated": "2026-01-15T13:34:00+01:00", "items": items}
-    if connected is not None:
-        attrs["connected"] = connected
-    return {"entity_id": "sensor.paperos_inbox", "state": str(items[0]["ts"] if items else 0), "attributes": attrs}
 
 def write(out, host, method, path, body, query="", status=None):
     p = os.path.join(out, name(host, method, path, query))
@@ -84,25 +142,37 @@ def write(out, host, method, path, body, query="", status=None):
         with open(p[:-5] + ".status", "w") as f:
             f.write(str(status))
 
-def main(out):
-    os.makedirs(out, exist_ok=True)
-    h = "ha.example.test"
-    write(out, h, "GET", "/api/states/sensor.paperos_whatsapp_inbox", state(wa_items(), True))
-    write(out, h, "GET", "/api/states/sensor.paperos_mail_inbox", state(mail_items()))
-    write(out, h, "POST", "/api/services/imap/fetch", {"changed_states": [], "service_response": {"text": FULL_HTML}}, "return_response")
-    write(out, h, "POST", "/api/services/script/paperos_inbox_clear", "[]")
-    send = "/api/services/script/paperos_whatsapp_send"
-    write(out, h, "POST", send, {"changed_states": [], "service_response": {"ok": True, "reason": "", "message_id": "3EB0TEST000001"}}, "return_response")
-    d = "ha-down.example.test"
-    write(out, d, "GET", "/api/states/sensor.paperos_whatsapp_inbox", state(wa_items()[:4], False))
-    write(out, d, "POST", send, {"changed_states": [], "service_response": {"ok": False, "reason": "too_soon", "message_id": ""}}, "return_response")
-    e = "ha-empty.example.test"
-    for s in ("whatsapp", "mail"):
-        write(out, e, "GET", f"/api/states/sensor.paperos_{s}_inbox", {"entity_id": "x", "state": "0", "attributes": {"updated": "2026-01-15T13:34:00+01:00", "items": []}})
-    write(out, e, "POST", send, {"message": "Service script.paperos_whatsapp_send not found."}, "return_response", status=400)
-    g = "ha-gone.example.test"  # since D22 (2026-11-16): no feed sensors and no send script in Home Assistant
-    for s in ("whatsapp", "mail"):
-        write(out, g, "GET", f"/api/states/sensor.paperos_{s}_inbox", {"message": "Entity not found."}, status=404)
-    write(out, g, "POST", send, {"message": "Service script.paperos_whatsapp_send not found."}, "return_response", status=400)
+def preset_pairing():
+    return json.dumps({"v": 1, "paired": True, "pid": b64(PID), "sk": b64(PAPER_SK), "phone_pk": b64(PHONE_PK), "phone": "Pixel 9 Pro",
+                       "tx": 0, "rx": 0})
 
-main(sys.argv[1])
+def main(out, presets):
+    os.makedirs(out, exist_ok=True)
+    to_paper, pairing = "/api/states/sensor.paperos_relay_to_paper", "/api/states/sensor.paperos_relay_pairing"
+    push, ack = "/api/services/script/paperos_relay_push", "/api/services/script/paperos_relay_ack"
+    h = "ha.example.test"
+    write(out, h, "GET", to_paper, relay_state("sensor.paperos_relay_to_paper", queue(wa_posts() + mail_posts())))
+    write(out, h, "GET", pairing, relay_state("sensor.paperos_relay_pairing", [{"id": 0, "ts": NOW, "e": hello_for_ui_scripts()}]))
+    write(out, h, "POST", push, "[]")
+    write(out, h, "POST", ack, "[]")
+    d = "ha-down.example.test"  # a short queue and the phone's answer to reply 1 (the preset has sent [{ref 1, Family}])
+    write(out, d, "GET", to_paper, relay_state("sensor.paperos_relay_to_paper",
+                                               queue(wa_posts()[-4:] + [{"t": "result", "ref": 1, "ok": False, "why": "too_soon"}])))
+    write(out, d, "POST", push, "[]")
+    write(out, d, "POST", ack, "[]")
+    e = "ha-empty.example.test"
+    write(out, e, "GET", to_paper, relay_state("sensor.paperos_relay_to_paper", []))
+    write(out, e, "POST", push, {"message": "Service script.paperos_relay_push not found."}, status=400)
+    write(out, e, "POST", ack, "[]")
+    g = "ha-gone.example.test"  # no relay: 404 for the queues, 400 for the scripts
+    for path in (to_paper, pairing):
+        write(out, g, "GET", path, {"message": "Entity not found."}, status=404)
+    write(out, g, "POST", push, {"message": "Service script.paperos_relay_push not found."}, status=400)
+    # The paired state of the UI test presets that read a relay.
+    for name in ("inbox", "inbox-mail", "inbox-error", "inbox-wifi", "inbox-empty", "inbox-gone", "inbox-gone-mail", "whatsapp-send",
+                 "whatsapp-reply-result", "whatsapp-send-missing", "sched-refresh", "somdoku"):
+        os.makedirs(os.path.join(presets, name, "data"), exist_ok=True)
+        with open(os.path.join(presets, name, "data", "companion.json"), "w") as f:
+            f.write(preset_pairing())
+
+main(sys.argv[1], sys.argv[2])

@@ -16,7 +16,7 @@ struct RefreshResult {
   int unread = 0;
   int feedsOk = 0;
 };
-// Fetches every inbox feed, writes each feed's cache and badge. Blocking (worker thread).
-RefreshResult refreshFeeds(HaClient ha);
+// Reads the companion relay (relay_fetch.h) and writes both inbox badges. Blocking (worker thread).
+RefreshResult refreshFeeds(HaClient ha, int64_t now);
 
 }  // namespace pos::inbox

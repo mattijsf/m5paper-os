@@ -33,8 +33,9 @@ says so and shows no puzzle.
 - **Done**: "Opgelost in 3:42", the streak, the timeline as tiles (kept = solid ink, changed = hatched square), "Kopieer
   score" (to `core/clipboard`) and "Stuur naar WhatsApp" (`whatsapp::sendToFavorite`, favourite named by the app store key
   `shareFavorite`, default "Woordle challenge"; opens the compose screen prefilled; nothing is sent without the user's Send
-  and confirmation). **Since D22 (2026-11-16) the send script is gone from Home Assistant**: Send ends in the toast "Not sent: no
-  send script in Home Assistant" (the text stays); "Kopieer score" still works. Where the button goes is decided in ROADMAP P6-10.
+  and confirmation). **Since the companion relay (2026-11-16)** the score is a reply to the newest live WhatsApp notification of the chat
+  with that name (the phone sends it); without one: the toast "No WhatsApp notification from <name> on your phone". "Kopieer score"
+  always works.
 
 As on the web: no checking, no hints, the game ends by itself when the grid equals the solution.
 

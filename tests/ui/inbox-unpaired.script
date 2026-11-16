@@ -1,0 +1,5 @@
+# app: whatsapp
+# No phone paired (no /data/companion.json): the inbox says where to pair, and asks Home Assistant nothing.
+wait 1500
+expect-state notpaired
+shot inbox-unpaired

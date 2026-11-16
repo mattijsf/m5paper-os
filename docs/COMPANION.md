@@ -31,7 +31,7 @@ public key, prepend that prefix and use `X509EncodedKeySpec`. A shared secret of
 The Paper and the phone each hold one static X25519 key pair per pairing. A **pairing id** (`pid`) is 8 random bytes made by
 the Paper. Pairing again makes new keys and a new `pid` on both sides; old envelopes then fail.
 
-1. **Paper**: Settings > Phone > "Pair phone" makes `paper_sk`/`paper_pk` and `pid`, and shows a QR code whose text is
+1. **Paper**: Settings > Home Assistant > Phone > "Pair phone" makes `paper_sk`/`paper_pk` and `pid`, and shows a QR code whose text is
    (ASCII, byte mode):
 
    `paperos1:<pid b64url>:<paper_pk b64url>:<HA base URL>`
@@ -129,7 +129,7 @@ only ciphertext and a receive time. Attributes survive a Home Assistant restart.
 | `to_phone` | `sensor.paperos_relay_to_phone` | Paper | phone | 20 | 2 days |
 | `pairing` | `sensor.paperos_relay_pairing` | phone | Paper | 1 (a new hello replaces the old) | 15 minutes |
 
-Sensor state = number of entries. Attribute `queue` = list sorted by `id` ascending of
+Sensor state = unix time of the last change. Attribute `queue` = list sorted by `id` ascending of
 `{"id": <counter, or 0 for a hello>, "ts": <unix seconds when Home Assistant took it>, "e": "<base64url envelope>"}`;
 attribute `updated` = ISO time. When a queue is full, the lowest ids go first; expired entries go on every change and hourly.
 
@@ -217,7 +217,7 @@ none by default; an app setting may cancel those notifications on the phone. Nev
   nothing is queued on the Paper) and says "Sent to your phone". A later `result` shows as a toast in the inbox ("Reply to
   Anna sent" / "Reply to Anna not sent: <reason>").
 - "Mark all read": clears the local items of that app and sends `dismiss` with their keys.
-- Not paired: the inbox says so and points to Settings > Phone.
+- Not paired: the inbox says so and points to Settings > Home Assistant > Phone.
 
 **Phone**
 - Keeps an outbox of envelopes not yet confirmed by a 200 from `paperos_relay_push`, persisted, retried with back-off

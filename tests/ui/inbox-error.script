@@ -1,7 +1,7 @@
-# app: whatsapp
 # P6-4: Home Assistant cannot be reached and nothing is saved: the error state with Retry; Wi-Fi back, Retry works.
 wifi off
-restart
+wait 300
+tap 140 485             # launcher: WhatsApp (opened with Wi-Fi off, so its first fetch fails)
 wait 2500               # long enough for the settle pass of the footer, whenever the worker's answer lands
 shot inbox-error
 wifi on

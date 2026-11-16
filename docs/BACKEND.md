@@ -6,8 +6,9 @@ and HACS). Home Assistant does the heavy work; the device only reads small JSON 
 1. **Home app**: read entity states, call services.
 2. **Inbox (WhatsApp, Mail)**: since 2026-11-16 (DECISIONS.md D22) Home Assistant is **not trusted with message text**. A
    companion Android app on the user's phone reads the WhatsApp and Proton Mail notifications, encrypts each one for the
-   device, and posts only ciphertext; Home Assistant stores and forwards it ("Companion app" below). **Not built yet**: today
-   Home Assistant has no feed sensors and the inbox apps say "Not set up yet".
+   device, and posts only ciphertext; Home Assistant stores and forwards it ("Companion app" below). The relay and the Paper
+   side are built and were run end to end on the device with a scripted test phone (2026-11-16); the Android app is being
+   built in `android/`.
 
 The device never speaks WhatsApp or IMAP, and Home Assistant never sees a message in plaintext. The earlier route (a WhatsApp
 add-on and Proton Mail Bridge inside Home Assistant, D16/D17) was removed on 2026-11-16; see "Removed: the add-on route" below.
@@ -63,7 +64,8 @@ build this before measuring.
 ## Inbox feeds
 
 Both feeds have the same shape so the device has one implementation (`apps/inbox.md`).
-Until 2026-11-16 Home Assistant filled these two sensors in plaintext (D16/D17); both are gone now (404).
+Until 2026-11-16 Home Assistant filled these two sensors in plaintext (D16/D17); both are gone. Today the Paper builds the same
+items from decrypted notifications (`inbox::feedFromNotifs`).
 
 | Entity | state | attributes |
 |---|---|---|
@@ -93,10 +95,12 @@ P6-8/P6-9 (ROADMAP.md). What a notification gives: WhatsApp (MessagingStyle) sen
 sender and subject, maybe a short preview, never the full body (so mail `text` is short and `key` no longer names an IMAP entry).
 
 The package is `ha/paperos_inbox.yaml`, a copy of the live `packages/paperos_inbox.yaml` in the Home Assistant config repo
-(the Home Assistant repo is the source, sync by copying). Since 2026-11-16 (home-assistant commit `ebc133d`) it holds only
-`script.paperos_inbox_clear` and a recorder exclusion of `sensor.paperos_whatsapp_inbox` / `sensor.paperos_mail_inbox`, kept for the
-relay. `GET /api/states/sensor.paperos_*_inbox` answers **404** (checked live 2026-11-16 after the orphaned entities were removed):
-the inbox shows "Not set up yet" and drops its saved list (apps/inbox.md).
+(the Home Assistant repo is the source, sync by copying). Since 2026-11-16 (home-assistant commit `e04d613`) it is the **companion
+relay**: `script.paperos_relay_push`, `script.paperos_relay_ack` and the queue sensors `sensor.paperos_relay_to_paper`, `_to_phone`,
+`_pairing` (COMPANION.md section 6). Checked live: the queue template in Home Assistant's own engine (16 cases), push / duplicate /
+bad input / ack through REST, and a full round trip with the device (STATUS.md). **The recorder exclusion needs a Home Assistant
+restart** to take effect (the recorder reads its config only at start); until then the relay sensors write history rows (test
+data only so far).
 
 ## Companion app (D22)
 
@@ -108,20 +112,15 @@ the other way and the send guards live in the phone app. Home Assistant sees tim
 
 ### "Mark all read" from the device
 
-The package defines `script.paperos_inbox_clear` (field `feed`: `whatsapp` or `mail`; optional **`before`**, a unix time) which fires
-the `paperos_inbox_clear` event. **Kept for the relay** (P6-9 decides what it clears); since 2026-11-16 nothing listens to the event.
-`before`: the device sends the newest `ts` its list showed, so a message that arrived after the list was fetched is not lost.
-`event_data.before` is rendered with `| int(0)`. The device calls `POST /api/services/script/paperos_inbox_clear` with
-`{"feed":"whatsapp","before":<ts>}` (a service call works for a non-admin user; firing events directly does not). Installed and tested
-in Home Assistant's own engine on 2026-11-15 (home-assistant commit 80e19b0).
+Since the relay (2026-11-16) "Mark all read" is local: the Paper drops that app's notifications and sends the phone a `dismiss`
+envelope with their keys (COMPANION.md 7.2). `script.paperos_inbox_clear` is gone.
 
-### Sending a WhatsApp message (D21): removed by D22
+### Sending a WhatsApp message: replies through the phone
 
-`script.paperos_whatsapp_send` (guards: 1..1000 characters, one chat JID, 10 s gap, 20 per hour) was installed on 2026-11-16 and
-sent one message to the user's own number; it was removed the same day with the add-on. The device code (compose, confirmation,
-`whatsapp::sendToFavorite`) stays; `POST /api/services/script/paperos_whatsapp_send?return_response` now answers **400** (checked live
-2026-11-16), which the device shows as the toast "Not sent: no send script in Home Assistant", keeping the text. The guards move to
-the phone app (P6-11); the script's design is in git (`ha/paperos_inbox.yaml` before D22, `tests/ha/check-send-script.py`).
+`script.paperos_whatsapp_send` (D21: guards in a Home Assistant script) was installed on 2026-11-16, sent one message to the user's own
+number, and was removed the same day with the add-on (D22). Now the Paper pushes an encrypted `reply` envelope to `to_phone`; the
+phone app sends it through the notification's reply action and holds the guards (COMPANION.md 7.2, apps/inbox.md "Replying"). The old
+script's design is in git (`ha/paperos_inbox.yaml` before D22, `tests/ha/check-send-script.py`).
 
 ### Removed: the add-on route (D16, D17; 2026-11-15 to 2026-11-16)
 

@@ -1,0 +1,25 @@
+# app: settings
+# Pairing the companion app (docs/COMPANION.md section 2): Settings > Home Assistant > Phone, Pair phone shows the QR code (keys from
+# the script's fixed test random), the phone's hello is already in the fixture's pairing queue, so the next poll shows the phone name
+# and the six-digit code; Codes match saves the pairing and sends `paired`; the page then shows the paired phone. Unpair asks first.
+wait 900
+tap 270 556             # Home Assistant
+wait 900
+tap 270 678             # Phone
+wait 900
+shot phone-unpaired
+expect-state phone=none
+tap 270 900             # Pair phone
+wait 400
+shot phone-qr
+expect-state phone=scan
+wait 4000               # the first poll finds the hello
+shot phone-code
+expect-state phone=code
+tap 270 830             # Codes match
+wait 1500
+shot phone-paired
+expect-state phone=paired
+tap 270 900             # Unpair
+wait 700
+shot phone-unpair-sheet

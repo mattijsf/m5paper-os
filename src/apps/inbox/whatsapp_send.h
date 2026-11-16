@@ -1,43 +1,39 @@
-// Sending a WhatsApp message from the device (DECISIONS.md D21, docs/BACKEND.md "Sending a WhatsApp message", docs/apps/inbox.md
-// "Sending"). The device calls Home Assistant's script.paperos_whatsapp_send, which holds the guards (length, chat form, rate limit);
-// these checks only keep the device from asking for what the script would refuse. Pure logic, unit-tested; the screens are in compose.h.
+// Replying to a WhatsApp message from the device (docs/COMPANION.md 7.2 `reply`, docs/apps/inbox.md "Sending"). Since D22 a
+// reply is an encrypted envelope for the phone, pushed to the Home Assistant relay; the phone app sends it through the
+// notification's reply action and holds the guards (length, 10 s, 20 per hour). Only chats with a live notification that has a
+// reply action can be answered. Pure logic, unit-tested; the screens are in compose.h.
 #pragma once
 
 #include <string>
-#include <vector>
 
-#include "core/config.h"
+#include "core/companion.h"
 #include "core/ha.h"
 
 namespace pos::whatsapp {
 
-constexpr size_t kMaxChars = 1000;  // the script's limit, in characters after trimming
+constexpr size_t kMaxChars = companion::kMaxReplyChars;  // 900 characters after trimming
 constexpr size_t kMaxNameChars = 40;
 
-// A chat a message can go to: a name for the screen and the chat JID.
+// A chat a reply can go to: a name for the screen and the phone's notification key.
 struct Target {
   std::string name;
-  std::string chat;
+  std::string key;
 };
 
-// <digits>@s.whatsapp.net (a person) or <digits>@g.us / <digits>-<digits>@g.us (a group): the same rule as the script.
-bool validChat(const std::string& jid);
-bool isGroup(const std::string& jid);
-// The usable favourites of the config (inbox.whatsapp.favorites): valid JIDs only, names cut to kMaxNameChars characters.
-std::vector<Target> favorites(const Config& config);
-// Spaces, tabs and line feeds removed at both ends (what the script's `trim` does to a message from the device).
+// The name of a notification's chat: the group or conversation title, else the latest sender.
+std::string chatName(const companion::Notif& n);
+// The reply target for a notification key: false unless it is a WhatsApp notification with a reply action.
+bool replyTarget(const companion::Notifs& notifs, const std::string& key, Target& out);
+// A WhatsApp notification with a reply action whose chat name is `name` (a game's "send score"); the newest wins.
+bool findByName(const companion::Notifs& notifs, const std::string& name, Target& out);
+// Spaces, tabs and line feeds removed at both ends.
 std::string trimmed(const std::string& text);
-// The service data of the script call: {"chat":"...","text":"..."} with the text trimmed.
-std::string sendBody(const Target& to, const std::string& text);
 
-// What became of a send, from the answer of POST /api/services/script/paperos_whatsapp_send?return_response.
+// What became of the push of a reply to the relay (script.paperos_relay_push).
 struct SendOutcome {
-  bool sent = false;
-  std::string reason;   // the script's reason (empty, too_long, bad_chat, too_soon, hourly_limit, send_failed), "" otherwise
-  std::string message;  // one line for a toast: "Sent to Family", "Not sent: wait 10 seconds", ...
+  bool sent = false;    // in the relay: the phone sends it when it reads its queue
+  std::string message;  // one line for a toast
 };
-SendOutcome sendOutcome(const HaResult& r, const std::string& toName);
-// The toast line for a refusal reason of the script.
-std::string reasonText(const std::string& reason);
+SendOutcome pushOutcome(const HaResult& r);
 
 }  // namespace pos::whatsapp

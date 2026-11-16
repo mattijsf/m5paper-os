@@ -1,7 +1,5 @@
 #include <doctest.h>
 
-#include <ArduinoJson.h>
-
 #include <string>
 
 #include "apps/inbox/whatsapp_send.h"
@@ -9,79 +7,61 @@
 using namespace pos;
 using namespace pos::whatsapp;
 
-TEST_CASE("whatsapp send: chat JIDs the script accepts, and the ones it refuses") {
-  CHECK(validChat("31612345678@s.whatsapp.net"));
-  CHECK(validChat("120363012345678901@g.us"));
-  CHECK(validChat("31612345678-1600000000@g.us"));  // old-style group id
-  CHECK(isGroup("120363012345678901@g.us"));
-  CHECK_FALSE(isGroup("31612345678@s.whatsapp.net"));
-  for (const char* bad : {"", "31612345678", "31612345678@lid", "a@s.whatsapp.net", "+31612345678@s.whatsapp.net", "1234@s.whatsapp.net",
-                          "31612345678@s.whatsapp.net,31600000000@s.whatsapp.net", "status@broadcast", "123456@g.us.evil",
-                          "31612345678@s.whatsapp.netx", " 31612345678@s.whatsapp.net", "31612345678-@g.us", "31612345678-16000x0000@g.us",
-                          "31612345678-1600000000@s.whatsapp.net", "1234567890123456789012345@s.whatsapp.net"})
-    CHECK_MESSAGE(!validChat(bad), bad);
+namespace {
+companion::Notifs notifs() {
+  companion::Notifs n;
+  n.items.push_back({"g-1", "whatsapp", "Family", true, 100, {{"Anna", "", "Six?", 100}}});
+  n.items.push_back({"d-1", "whatsapp", "", true, 200, {{"Bram\n", "", "Hi", 200}}});
+  n.items.push_back({"d-2", "whatsapp", "", false, 300, {{"Carla", "", "No reply action", 300}}});
+  n.items.push_back({"m-1", "mail", "", false, 400, {{"Shop", "Order", "Ready", 400}}});
+  n.items.push_back({"g-2", "whatsapp", "Family", true, 500, {{"Dirk", "", "Newer", 500}}});
+  return n;
+}
+}  // namespace
+
+TEST_CASE("whatsapp reply: only WhatsApp notifications with a reply action are targets") {
+  const auto n = notifs();
+  Target t;
+  REQUIRE(replyTarget(n, "g-1", t));
+  CHECK(t.name == "Family");
+  CHECK(t.key == "g-1");
+  REQUIRE(replyTarget(n, "d-1", t));
+  CHECK(t.name == "Bram");  // a direct chat: the sender, cleaned
+  CHECK_FALSE(replyTarget(n, "d-2", t));
+  CHECK_FALSE(replyTarget(n, "m-1", t));
+  CHECK_FALSE(replyTarget(n, "nope", t));
 }
 
-TEST_CASE("whatsapp send: trim and the request body (JSON-escaped, trimmed text)") {
+TEST_CASE("whatsapp reply: a game's score goes to the newest live notification of that chat") {
+  const auto n = notifs();
+  Target t;
+  REQUIRE(findByName(n, "Family", t));
+  CHECK(t.key == "g-2");
+  REQUIRE(findByName(n, " Bram ", t));
+  CHECK(t.key == "d-1");
+  CHECK_FALSE(findByName(n, "Carla", t));  // no reply action
+  CHECK_FALSE(findByName(n, "Woordle challenge", t));
+  companion::Notif long_{"x", "whatsapp", "A name that is much longer than forty characters in total", true, 1, {{"A", "", "t", 1}}};
+  CHECK(chatName(long_) == "A name that is much longer than forty ch");
+}
+
+TEST_CASE("whatsapp reply: trim and the outcome of the push") {
   CHECK(trimmed("  hi \n") == "hi");
   CHECK(trimmed("\n\t ") == "");
   CHECK(trimmed("a\nb") == "a\nb");
-  const std::string body = sendBody(Target{"Family", "120363012345678901@g.us"}, "  Score \"42\"\nline two\n ");
-  JsonDocument doc;
-  REQUIRE_FALSE(deserializeJson(doc, body));
-  CHECK(std::string(doc["chat"].as<const char*>()) == "120363012345678901@g.us");
-  CHECK(std::string(doc["text"].as<const char*>()) == "Score \"42\"\nline two");
-  CHECK(doc.as<JsonObjectConst>().size() == 2);  // nothing else goes to the script
-}
-
-TEST_CASE("whatsapp send: favourites from the config keep valid chats only, names cleaned and cut") {
-  Config c;
-  c.inbox.whatsappFavorites = {{"Family", "120363012345678901@g.us"},
-                               {"Bad", "31612345678"},
-                               {"  Bram\n", "31600000002@s.whatsapp.net"},
-                               {"A name that is much longer than forty characters in total", "31600000003@s.whatsapp.net"},
-                               {"\n ", "31600000004@s.whatsapp.net"}};
-  const auto f = favorites(c);
-  REQUIRE(f.size() == 3);
-  CHECK(f[0].name == "Family");
-  CHECK(f[1].name == "Bram");
-  CHECK(f[1].chat == "31600000002@s.whatsapp.net");
-  CHECK(f[2].name == "A name that is much longer than forty ch");
-}
-
-TEST_CASE("whatsapp send: the script's answer becomes sent, a refusal with its reason, or an error") {
   HaResult ok;
   ok.status = 200;
-  ok.body = R"({"changed_states":[],"service_response":{"ok":true,"reason":"","message_id":"3EB0"}})";
-  SendOutcome o = sendOutcome(ok, "Family");
-  CHECK(o.sent);
-  CHECK(o.message == "Sent to Family");
-
-  HaResult refused = ok;
-  refused.body = R"({"changed_states":[],"service_response":{"ok":false,"reason":"too_soon","message_id":""}})";
-  o = sendOutcome(refused, "Family");
-  CHECK_FALSE(o.sent);
-  CHECK(o.reason == "too_soon");
-  CHECK(o.message == "Not sent: wait 10 seconds");
-  for (const char* r : {"empty", "too_long", "bad_chat", "hourly_limit", "send_failed"}) CHECK(reasonText(r).rfind("Not sent: ", 0) == 0);
-  CHECK(reasonText("something new") == "Not sent");
-
-  HaResult noResponse = ok;  // a script that ended without its response (or an old Home Assistant)
-  noResponse.body = R"({"changed_states":[]})";
-  o = sendOutcome(noResponse, "Family");
-  CHECK_FALSE(o.sent);
-  CHECK(o.message == "No answer from the send script");
-  noResponse.body = "not json";
-  CHECK_FALSE(sendOutcome(noResponse, "Family").sent);
-
+  CHECK(pushOutcome(ok).sent);
+  CHECK(pushOutcome(ok).message == "Sent to your phone");
   HaResult missing;
   missing.status = 400;
   missing.error = HaError::Other;
-  CHECK(sendOutcome(missing, "Family").message == "Not sent: no send script in Home Assistant");
+  CHECK_FALSE(pushOutcome(missing).sent);
+  CHECK(pushOutcome(missing).message == "Not sent: no relay in Home Assistant");
   HaResult timeout;
   timeout.error = HaError::Timeout;
-  CHECK(sendOutcome(timeout, "Family").message == "No answer: check WhatsApp first");
+  CHECK(pushOutcome(timeout).message == "No answer: it may still reach your phone");
   HaResult wifi;
   wifi.error = HaError::NoWifi;
-  CHECK(sendOutcome(wifi, "Family").message == "Not sent: No Wi-Fi");
+  CHECK(pushOutcome(wifi).message == "Not sent: No Wi-Fi");
 }

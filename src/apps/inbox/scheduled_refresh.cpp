@@ -5,6 +5,7 @@
 
 #include "apps/apps.h"
 #include "apps/inbox/inbox_model.h"
+#include "apps/inbox/relay_fetch.h"
 #include "core/fs.h"
 #include "core/ha.h"
 #include "core/log.h"
@@ -22,7 +23,7 @@ struct FeedDef {
   const char* id;
   const char* entity;
 };
-constexpr FeedDef kFeeds[] = {{"whatsapp", "sensor.paperos_whatsapp_inbox"}, {"mail", "sensor.paperos_mail_inbox"}};
+constexpr FeedDef kFeeds[] = {{"whatsapp", companion::kToPaperEntity}, {"mail", companion::kToPaperEntity}};
 constexpr uint32_t kMaxAwakeMs = 45 * 1000;  // whatever happens, the device is off again after this
 
 class RefreshSurface : public Surface {
@@ -46,7 +47,8 @@ class RefreshSurface : public Surface {
     POS_LOG("sched", "scheduled refresh: fetching the inbox feeds");
     HaClient ha = HaClient::fromNet(os_.net(), os_.secrets());
     auto alive = alive_;
-    os_.worker().async([ha]() mutable { return refreshFeeds(ha); }, [this, alive](RefreshResult r) {
+    const int64_t now = os_.platform().clock.now();
+    os_.worker().async([ha, now]() mutable { return refreshFeeds(ha, now); }, [this, alive](RefreshResult r) {
       if (*alive) finish(r);
     });
     timer_ = os_.timers().after(kMaxAwakeMs, [this] {
@@ -109,23 +111,19 @@ class RefreshSurface : public Surface {
 
 }  // namespace
 
-RefreshResult refreshFeeds(HaClient ha) {
+RefreshResult refreshFeeds(HaClient ha, int64_t now) {
   RefreshResult out;
-  for (const FeedDef& f : kFeeds) {
-    HaResult r = ha.get(std::string("/api/states/") + f.entity);
-    Feed feed;
-    if (r.error == HaError::NotFound) {  // no such feed in Home Assistant (DECISIONS.md D22): nothing to count, no stale badge
-      fs::removeAll(std::string("/data/cache/inbox/") + f.id + ".json");
-      fs::writeFile(std::string("/data/cache/") + f.id + "/badge", "0");
-      continue;
-    }
-    if (!r.ok() || !parseFeed(r.body, feed)) continue;
-    ++out.feedsOk;
-    Store app(std::string("/data/apps/") + f.id + ".json");  // the app's own store: its seen marker
-    const int n = newCount(feed.items, app.get("seen", 0));
+  RelayFetch f = fetchRelay(ha, now);  // one queue for both apps (docs/COMPANION.md)
+  const bool ok = f.paired && f.http.ok() && f.applied.parsed;
+  const bool gone = !f.paired || f.http.error == HaError::NotFound;  // no badge for a feed that cannot exist
+  for (const FeedDef& d : kFeeds) {
+    if (!ok && !gone) continue;  // an error: keep the badge as it was
+    const Feed feed = feedFromNotifs(f.notifs, std::string(d.id) == "mail");
+    Store app(std::string("/data/apps/") + d.id + ".json");  // the app's own store: its seen marker
+    const int n = gone ? 0 : newCount(feed.items, app.get("seen", 0));
+    if (ok) ++out.feedsOk;
     out.unread += n;
-    fs::writeFile(std::string("/data/cache/inbox/") + f.id + ".json", r.body);
-    fs::writeFile(std::string("/data/cache/") + f.id + "/badge", std::to_string(n));
+    fs::writeFile(std::string("/data/cache/") + d.id + "/badge", std::to_string(n));
   }
   return out;
 }
