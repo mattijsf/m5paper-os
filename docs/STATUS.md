@@ -293,9 +293,13 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   to idle after closing**: the app keeps nothing, its 28 KB word list is freed with the screen. The low first reading was most
   likely the first list fetch (Wi-Fi + a new TLS connection) under the old configuration: fits, **not measured**; Home's TLS
   fetch now bottoms out at 69 KB (was 18 KB). To measure the fetch: Statistieken > "Woordenlijst bijwerken" (apps/vijfje.md).
-  **The word list fetch on the device**: HTTPS to woordscore.nl with the built-in CA bundle (never run), heap during it (a
-  39 KB body + 22 KB of codes + the 28 KB packed list while TLS is up; expected to land in PSRAM, not measured), the
-  cache write (28 KB to LittleFS on the worker), the log line `[vijfje] word list: N words`.
+  **The word list fetch on the device: done 2026-11-16** (memory pass, "Woordenlijst bijwerken", D27 firmware). The first
+  tries **rebooted the board**: task watchdog on IDLE0, because Arduino's HTTPClient body loop spins around a TLS read that
+  returns 0 at once, so the worker on core 0 never let the idle task run for 5 s. Not in the app: any HTTPS download on the
+  worker could hit it; fixed in `platform/device/net.cpp` (54ad248: the clients sleep 1 ms on an empty read). After the fix:
+  `[vijfje] word list: 5616 words`; dns 28 ms, TLS + TCP 1493 ms, request + headers 1402 ms, body 98 ms; internal heap lowest
+  70 KB during the fetch (largest block 63 KB), PSRAM lowest 5.64 MB; Wi-Fi off 20 s later. Still open: flash + play-through
+  with injected taps, the camera on the hatched tiles and the gray(10) keys, the fetch on the app's first open (the same code).
 - **Screen passes with gray areas as one Text push** (`why=screen-gray`, 2026-11-16, simulator only: the device was reserved for other
   testing). With the camera, `around tap 36 92` (back from an app to the launcher), before and after the change: number of waveforms
   on the panel (expected one instead of Fast + settle sweep), the time until the final look and until the first visible change, whether
@@ -715,4 +719,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-16: D27 memory: allocations to PSRAM (`SPIRAM_MALLOC_ALWAYSINTERNAL=0`, 32 KB internal reserve), mbedTLS in PSRAM, core dumps off, log ring and serial buffer on the heap; `>set memreport` and `tools/memory.py`. Internal free idle 108 -> 141K, Home's lowest during TLS 18 -> 69K, Woordle 18 -> 126K; latency unchanged.
 - 2026-11-16: Vijfje: "Woordenlijst bijwerken" on the statistics screen (the list fetch by hand; shared `fetchList`), goldens `vijfje-list-updated`, `vijfje-list-failed`; device memory numbers of the app recorded.
 - 2026-11-16: fixed a reboot during HTTPS downloads (task watchdog: HTTPClient's read loop spun on core 0 while the TLS client had no data; `YieldingClient` in `platform/device/net.cpp`). Woordle's list fetch on the device: 5616 words, internal free lowest 70K; Home unchanged (lowest 69K).
-
+- 2026-11-16: Vijfje's list fetch ran on the device (5616 words, heap lowest 70 KB); it exposed a watchdog reboot in HTTPS downloads on the worker, fixed by the memory pass (54ad248).
