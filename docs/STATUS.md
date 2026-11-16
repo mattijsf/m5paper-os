@@ -282,9 +282,17 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   lines allowed; flashed and seen on the device (`9-stats-fixed.png`). One camera still (`cam-typed.png`, dark: exposure not
   set for this session): board, typed tiles, keys and legend are on the panel; the gray(9) box of "zit er niet in" in the
   legend is hard to see in it. `[perf] UI loop gap ~1.07 s` lines come with each frame dump (two dumps, two lines).
-  **Not run, on purpose: a played guess** (the row with marks, the keys' marks, won / lost, Kopieer score, statistics
-  counting): it would use up the user's puzzle of today and cannot be undone from here (`>rm` and `>cat` do not reach
-  `/data/apps`). So also not on the panel yet: the hatched ring, absent tiles, used-up keys. Next line: the older note.
+  **Played on the device 2026-11-16 14:07-14:10** (today's puzzle, three guesses chosen from the
+  answer to get every mark): guess 1 marked other / absent as computed, the row and the keys as two pushes (390 x 72, then
+  the box of the changed keys 210 x 232; each Fast + settle); left to the launcher and reopened: **the frame is identical**
+  (the saved game); guess 2 was a word that is **only in the fetched list** and was accepted (the cached list is loaded on
+  the device), with a double letter marked once; guess 3 solved it: "Geraden in 3 beurten", "Reeks: 1 dag", the result
+  screen as one Fast push + settle; "Kopieer score" toast "Score gekopieerd" (the clipboard file was not read back:
+  `>cat` does not reach `/data`); Statistieken 1 / 100 / 1 / 1 with the solid bar at 3. Dumps `out/dev-vijfje/11` to `16`.
+  **Camera** (`cam-guess1.png`, crop `cam-guess1-keys.png`, `cam-won.png`; exposure locked, the room is dim): hatched tiles
+  and keys read as a gray ring around the letter, clearly apart from solid and plain; absent tiles: letter readable, frame
+  faint; **used-up keys (gray(10)): letter faint but readable, outline almost gone**. Open: the lost screen on the device
+  (simulator only), a real finger on the 45 px keys, whether the used-up keys are too faint for a person's eyes.
 - **Vijfje (P7-9), older note**: (the firmware builds, see below): on 2026-11-16 the device and the
   `papers3` build were in use by other work (sdkconfig experiments; its builds exclude `apps/vijfje/`), the owner said
   "test in simulator". Done instead: simulator, unit tests, and `vijfje.cpp` + `words_data.cpp` compiled alone with the
@@ -734,3 +742,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-16: fixed a reboot during HTTPS downloads (task watchdog: HTTPClient's read loop spun on core 0 while the TLS client had no data; `YieldingClient` in `platform/device/net.cpp`). Woordle's list fetch on the device: 5616 words, internal free lowest 70K; Home unchanged (lowest 69K).
 - 2026-11-16: Vijfje's list fetch ran on the device (5616 words, heap lowest 70 KB); it exposed a watchdog reboot in HTTPS downloads on the worker, fixed by the memory pass (54ad248).
 - 2026-11-16: Vijfje on the device (taps, frame dumps, list update, one camera still); statistics line shortened after it was cut off there. A played guess not run (today's puzzle).
+- 2026-11-16: Vijfje: today's puzzle played on the device with injected taps (marks, resume, a fetched-only word, won screen, copy, statistics); camera stills of the marks on the panel.
