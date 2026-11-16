@@ -71,7 +71,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
 | Firmware build | `make fw` | OK, 2.74 MB (52.2% of the 5 MB slot, 2026-11-16; libsodium added ~130 KB) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 250 tests; 188 goldens (2026-11-16); `out/gallery.html` |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 250 tests; 191 goldens (2026-11-16); `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Camera on the panel | `make cam-shot` / `cam-video` / `cam-compare`, `tools/cam.py around tap X Y` | C922 webcam; captures through one Terminal window (camera permission); `cam.py lock` (uvc-util) at the start of a session; video 30 fps at 640x480 |

@@ -33,11 +33,17 @@ number), its texts, its colours. Consequences the user should know:
 | right place | solid ink, paper letter | solid ink, paper letter |
 | another place | hatched ring around a paper middle, ink letter | the same, smaller |
 | not in the word | gray(9) frame, gray(5) letter | 1 px gray(10) outline, gray(10) letter |
-| typed, not played | 2 px ink frame, ink letter | |
-| empty / not tried | gray(9) frame | 2 px ink outline |
+| typed, not played | 3 px ink frame, ink letter | |
+| empty / not tried | 1 px ink frame | 2 px ink outline |
 
 A used-up key is meant to fade: gray(5) was "still too easy to read", so its letter and
 outline are gray(10) (`kSpentKey`). The tiles keep gray(5): a played guess stays readable.
+
+An empty tile's frame is ink, not gray, on purpose: taking a letter back then changes only black and white pixels and is
+one Fast push. With a gray(9) frame the Fast pass showed no tile at all and the settle pass drew it again 0.6 s later
+. A typed letter still
+gets its settle pass (anti-aliased edges), as all text does. Known leftover: a letter typed and taken back within 0.6 s
+leaves the letter's settle pass pending, one Text push on the empty tile (DisplayManager, not the app).
 
 Solid = 🟩, hatched = 🟨, outline = ⬛: the same three looks `ui::drawText` uses for score squares in text. All three are ink
 and paper only, so the Fast pass shows the final look. A legend line under the board says what they mean (it never
@@ -113,7 +119,7 @@ row: a lost or a missed day ends it (`streakOn`).
   list (only the second part, line ends, an error page, a damaged cache file, when it is due).
 - `tests/ui/vijfje.script` (a win in three with all marks, unknown word, too few letters, copy, statistics, restart),
   `vijfje-lost.script` (resume after a restart, six wrong guesses), `vijfje-launcher.script` (page 2 of the launcher),
-  `vijfje-list.script` (the list from a fixture, a word that is only in it, then Wi-Fi off and a restart: the cached words
+  `vijfje-backspace.script` (one push for a backspace), `vijfje-list.script` (the list from a fixture, a word that is only in it, then Wi-Fi off and a restart: the cached words
   still count). The first three have preset data with a recent `listTried`, so they fetch nothing.
   The scripts run on 2028-01-20 and -21 (days 430 and 431), so no golden shows a word of the coming year.
   Key positions in a script come from `debugState()` (`keys=q49,708 ...`; `+` is Enter, `-` is Backspace).

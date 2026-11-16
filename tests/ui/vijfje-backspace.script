@@ -1,0 +1,16 @@
+# app: vijfje
+# time: 2028-01-20T09:00:00
+# Vijfje: taking a letter back is one push. The frame right after the tap (Fast pass) is already the final one: no settle
+# pass draws the tile a second time (it did while empty tiles had a gray frame).
+wait 800
+tap 318 868             # b
+wait 2000
+shot vijfje-back-typed
+expect-state typed=b;
+tap 477 868             # backspace
+wait 100
+shot vijfje-back-fast
+expect-state typed=;
+wait 2000
+shot vijfje-back-settled
+expect-shot-equal vijfje-back-fast vijfje-back-settled

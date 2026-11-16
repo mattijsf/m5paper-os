@@ -108,7 +108,7 @@ void frameRect(Canvas& c, int x, int y, int w, int h, int stroke, Color color) {
 
 // A square in the look of a mark: the tiles of the board, the legend and the statistics.
 //   right place: solid ink; another place: a hatched ring `ring` px wide around a paper middle; absent: a gray frame;
-//   empty: the same gray frame; typed and not played yet: an ink frame.
+//   empty: a 1 px ink frame; typed and not played yet: a 3 px ink frame.
 enum class Look : uint8_t { Empty, Typed, Right, Other, Absent };
 
 Look lookOf(char mark) { return mark == game::kRight ? Look::Right : mark == game::kOther ? Look::Other : Look::Absent; }
@@ -126,9 +126,13 @@ Color drawSquare(Canvas& c, int x, int y, int w, int h, Look look, int ring) {
       c.drawRect(x + ring - 1, y + ring - 1, w - 2 * ring + 2, h - 2 * ring + 2, ui::ink);
       return ui::paper;
     case Look::Typed:
-      frameRect(c, x, y, w, h, 2, ui::ink);
+      frameRect(c, x, y, w, h, 3, ui::ink);
       return ui::paper;
     case Look::Empty:
+      // Ink, not gray: taking a letter back then changes only black and white pixels, one Fast push. With a gray frame
+      // the Fast pass showed no tile at all and the settle pass drew it again 0.6 s later.
+      frameRect(c, x, y, w, h, 1, ui::ink);
+      return ui::paper;
     case Look::Absent:
       frameRect(c, x, y, w, h, 2, ui::divider);
       return ui::paper;
