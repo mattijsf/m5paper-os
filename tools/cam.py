@@ -11,6 +11,8 @@
     uv run --script tools/cam.py calibrate [--image out/cam.png] [--frame out/device.png]
     uv run --script tools/cam.py compare [--image out/cam.png] [--frame out/device.png]
     uv run --script tools/cam.py around tap X Y | long X Y | swipe X1 Y1 X2 Y2 [--before 1] [--after 4]
+    uv run --script tools/cam.py lock [--focus auto|N]   exposure, white balance, focus fixed for this session (uvc-util)
+    uv run --script tools/cam.py unlock
     uv run --script tools/cam.py selftest              synthetic camera images: registration, ghost number, timing
 
 The camera set-up is NOT stable over days (it can be moved, daylight changes): nothing here is a golden.
@@ -132,14 +134,25 @@ def camera_modes(name):
     return sorted(set(modes), key=lambda m: (-m[0] * m[1], -m[2]))
 
 
+USB_BYTES_PER_S = 20e6  # what avfoundation gets through for uncompressed frames (C922: 640x480 @ 30 = 18 MB/s ran at 31 fps,
+                        # 864x480 @ 30 = 25 MB/s at 15 fps, 1280x720 and 1920x1080 at 10 fps); MJPEG cannot be chosen
+
+
 def best_mode(name, fps):
-    """Largest mode that reaches `fps`, else the largest mode at its best rate; None if ffmpeg lists none."""
+    """fps 0: the largest mode (stills). Otherwise the largest mode that reaches `fps` within the USB budget, trying lower
+    rates down to 15 if none fits; else the largest mode at its best rate. None if ffmpeg lists none."""
     modes = camera_modes(name)
     if not modes:
         return None
-    fast = [m for m in modes if m[2] >= fps - 0.5]
-    if fast:
-        return fast[0][0], fast[0][1], fps
+    if fps <= 0:
+        m = modes[0]
+        return m[0], m[1], int(round(min(m[2], 30)))
+    for want in sorted({fps, 30, 25, 20, 15}, reverse=True):
+        if want > fps:
+            continue
+        fast = [m for m in modes if m[2] >= want - 0.5 and m[0] * m[1] * 2 * want <= USB_BYTES_PER_S]
+        if fast:
+            return fast[0][0], fast[0][1], want
     top = max(m[2] for m in modes)
     m = [m for m in modes if m[2] == top][0]
     return m[0], m[1], min(fps, int(round(top)))
@@ -427,7 +440,7 @@ def run_ffmpeg(args, timeout, what, via="direct", out=None, seconds=None):
 
 def cmd_shot(a):
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
-    inp, desc, via = input_args(a, 30)
+    inp, desc, via = input_args(a, 0)
     say(f"shot: {desc}, {a.warmup:.1f} s warm-up for exposure and focus ...")
     # Keep overwriting one image while the camera settles: the file holds the last frame.
     out = os.path.abspath(a.out)
@@ -473,8 +486,119 @@ def cmd_devices(a):
         if not is_screen(n):
             modes = camera_modes(n)
             say("     modes: " + (", ".join(f"{w}x{h}@{f:g}" for w, h, f in modes[:12]) or "(none listed)"))
-    say("exposure/focus/white-balance lock: " + ("uvc-util found" if shutil.which("uvc-util") else
+    have = shutil.which("uvc-util") or os.path.exists(os.path.expanduser("~/.local/bin/uvc-util"))
+    say("exposure/focus/white-balance lock: " + ("uvc-util found: `cam.py lock`" if have else
         "uvc-util not installed: auto exposure stays on (numbers are normalised per image anyway)"))
+
+
+# ---------------------------------------------------------------- camera controls (uvc-util)
+
+LOCK = os.path.join(ROOT, "out", "cam-lock.json")
+
+
+def uvc_util():
+    exe = shutil.which("uvc-util") or os.path.expanduser("~/.local/bin/uvc-util")
+    if not os.path.exists(exe):
+        sys.exit("uvc-util not found: build it (DISPLAY.md \"Camera on the panel\") into ~/.local/bin")
+    return exe
+
+
+def uvc_index(name):
+    r = subprocess.run([uvc_util(), "-d"], capture_output=True, text=True, timeout=15)
+    for line in r.stdout.splitlines():
+        m = re.match(r"\s*(\d+)\s+0x[0-9a-f]+:0x[0-9a-f]+\s+\S+\s+\S+\s+(.+?)\s*$", line)
+        if m and m.group(2).lower() == name.lower():
+            return m.group(1)
+    sys.exit(f"uvc-util does not list '{name}' (not a UVC camera?)")
+
+
+class Uvc:
+    def __init__(self, name):
+        self.idx = uvc_index(name)
+
+    def get(self, ctl):
+        r = subprocess.run([uvc_util(), "-I", self.idx, "-g", ctl], capture_output=True, text=True, timeout=15)
+        m = re.search(r"=\s*(\S+)", r.stdout)
+        if not m:
+            raise RuntimeError(f"uvc-util -g {ctl}: {r.stdout.strip() or r.stderr.strip()}")
+        v = m.group(1)
+        return {"true": 1, "false": 0}.get(v, int(v) if v.lstrip("-").isdigit() else v)
+
+    def set(self, **kv):
+        args = [uvc_util(), "-I", self.idx]
+        for k, v in kv.items():
+            args += ["-s", f"{k.replace('_', '-')}={v}"]
+        r = subprocess.run(args, capture_output=True, text=True, timeout=15)
+        if r.returncode != 0:
+            raise RuntimeError(f"uvc-util set {kv}: {r.stdout.strip()} {r.stderr.strip()}")
+
+
+def sharpness(img, Hm):
+    v = warp(img, Hm) if Hm is not None else img[img.shape[0] // 4: 3 * img.shape[0] // 4, img.shape[1] // 4: 3 * img.shape[1] // 4]
+    return float(cv2.Laplacian(v, cv2.CV_32F).var())
+
+
+def cmd_lock(a):
+    """Exposure, white balance and focus to fixed values for this session (they change with the light and the camera's place,
+    so lock again at the start of a session). Exposure and white balance: what the camera's automatics chose after a few
+    seconds, the exposure capped at 33 ms (30 fps). Focus: a sweep over the range on whatever the panel shows (a page with
+    text works best), sharpest = highest Laplacian variance inside the panel."""
+    if a.source:
+        sys.exit("lock needs a camera")
+    name = pick_camera(a.camera)
+    u = Uvc(name)
+    say(f"lock: '{name}' (uvc-util index {u.idx}); automatics on for a few seconds ...")
+    u.set(auto_exposure_mode=8, auto_white_balance_temp="true", auto_focus="true")
+    rec = Recorder(a, os.path.join(ROOT, "out", "cam-lock.mp4"), width=1920, fps=0)
+    rec.wait_first(20)
+    time.sleep(3.0)
+    expo, wb, gain = u.get("exposure-time-abs"), u.get("white-balance-temp"), u.get("gain")
+    expo = min(int(a.exposure or expo), 330)
+    wb = int(a.wb or wb)
+    u.set(auto_exposure_mode=1, exposure_time_abs=expo, auto_white_balance_temp="false", white_balance_temp=wb, auto_focus="false")
+    say(f"  exposure {expo / 10:.1f} ms (manual), white balance {wb} K, gain {gain}")
+    frame = load_frame(a.frame) if os.path.exists(a.frame) else None
+    Hm, how = find_panel(rec.frames[-1], frame, a.max_age * 60, quiet=True)
+    say(f"  sharpness measured {'inside the panel (' + how + ')' if Hm is not None else 'in the middle of the image (panel not found)'}")
+
+    def sweep(values):
+        marks = []
+        for v in values:
+            u.set(focus_abs=v)
+            marks.append((time.time(), v))
+            time.sleep(0.9)  # the lens moves, then two or three frames at 10 fps
+        marks.append((time.time(), None))
+        n = len(rec.frames)
+        res = []
+        for (t0, v), (t1, _) in zip(marks, marks[1:]):
+            idx = [i for i in range(n) if t0 + 0.45 <= rec.arrival[i] < t1]
+            if idx:
+                res.append((max(sharpness(rec.frames[i], Hm) for i in idx), v))
+        return res
+
+    if a.focus == "auto":
+        coarse = sweep(range(0, 251, 25))
+        say("  focus sweep: " + "  ".join(f"{v}:{sh:.0f}" for sh, v in coarse))
+        best = max(coarse)[1]
+        fine = sweep(range(max(0, best - 20), min(250, best + 20) + 1, 5))
+        say("  fine:        " + "  ".join(f"{v}:{sh:.0f}" for sh, v in fine))
+        focus = max(fine)[1]
+    else:
+        focus = int(a.focus)
+    u.set(focus_abs=focus)
+    time.sleep(0.8)
+    rec.stop()
+    settings = {"when": time.strftime("%Y-%m-%d %H:%M:%S"), "camera": name, "exposure_time_abs": expo, "white_balance_temp": wb,
+                "gain": gain, "focus_abs": focus}
+    with open(LOCK, "w") as f:
+        json.dump(settings, f, indent=1)
+    say(f"locked: exposure {expo / 10:.1f} ms, white balance {wb} K, focus {focus}; written to {LOCK}. `cam.py unlock` gives the automatics back.")
+
+
+def cmd_unlock(a):
+    name = pick_camera(a.camera)
+    Uvc(name).set(auto_exposure_mode=8, auto_white_balance_temp="true", auto_focus="true")
+    say(f"'{name}': automatic exposure, white balance and focus again")
 
 
 # ---------------------------------------------------------------- registration
@@ -794,8 +918,8 @@ def port_in_use(port):
 class Recorder:
     """ffmpeg: the camera to an mp4 file, and the same frames small and gray to a pipe, each with its capture time."""
 
-    def __init__(self, a, out_mp4, width=960):
-        inp, self.desc, via = input_args(a, a.fps)
+    def __init__(self, a, out_mp4, width=960, fps=None):
+        inp, self.desc, via = input_args(a, a.fps if fps is None else fps)
         self.width = width
         # showinfo prints pts_time per frame on stderr. Camera: wallclock timestamps (-copyts), the host's clock.
         cmd = [ffmpeg(), "-hide_banner", "-loglevel", "info", "-y", *inp, "-copyts",
@@ -1073,7 +1197,7 @@ def cmd_around(a):
     elif seen:
         pushes = [(s[0] - s[3] / 1000.0, s[1], s[2], s[3]) for s in seen]
     fps_real = (len(times) - 1) / max(times[-1] - times[0], 1e-3)
-    say(f"frame rate on the wire: {fps_real:.1f} fps (asked {a.fps}; a dim scene makes auto exposure slow the camera down)")
+    say(f"frame rate on the wire: {fps_real:.1f} fps (asked {a.fps}; uncompressed frames over USB 2 limit the size: see USB_BYTES_PER_S)")
     rec.desc += f", {fps_real:.0f} fps real"
     say(f"frame times: {how_t}; {len(entries)} refresh-log entr{'y' if len(entries) == 1 else 'ies'} after the input")
     # Register the panel on a quiet frame before the input, against the frame dump taken just before.
@@ -1251,7 +1375,7 @@ def main():
     p.add_argument("--warmup", type=float, default=2.0)
     p = sub.add_parser("video")
     p.add_argument("--seconds", type=float, default=5)
-    p.add_argument("--fps", type=int, default=60)
+    p.add_argument("--fps", type=int, default=30)
     p.add_argument("--out", default="out/cam.mp4")
     p = sub.add_parser("calibrate")
     p.add_argument("--image", default="out/cam.png")
@@ -1267,9 +1391,16 @@ def main():
     p.add_argument("coords", nargs="+", type=int)
     p.add_argument("--before", type=float, default=1.0)
     p.add_argument("--after", type=float, default=4.0)
-    p.add_argument("--fps", type=int, default=60)
+    p.add_argument("--fps", type=int, default=30)
     p.add_argument("--port")
     p.add_argument("--max-age", type=float, default=60)
+    p = sub.add_parser("lock", help="exposure, white balance, focus to fixed values (uvc-util)")
+    p.add_argument("--exposure", type=int, help="exposure-time-abs in 100 us units (default: what auto exposure chose, max 330)")
+    p.add_argument("--wb", type=int, help="white balance in K (default: what auto white balance chose)")
+    p.add_argument("--focus", default="auto", help="focus-abs 0..250, or auto (sweep)")
+    p.add_argument("--frame", default="out/device.png")
+    p.add_argument("--max-age", type=float, default=60)
+    sub.add_parser("unlock", help="automatic exposure, white balance and focus again")
     sub.add_parser("selftest")
     sub.add_parser("serve", help="capture server; started by itself in Terminal.app when needed")
     a = ap.parse_args()
@@ -1280,10 +1411,10 @@ def main():
     sys.stdout.reconfigure(line_buffering=True)
     os.chdir(ROOT)
     limit = a.limit or {"devices": 60, "shot": 60, "video": int(getattr(a, "seconds", 0)) + 60, "calibrate": 60, "compare": 60,
-                        "around": int(getattr(a, "before", 0) + getattr(a, "after", 0)) + 150, "selftest": 300, "serve": 0}[a.cmd]
+                        "around": int(getattr(a, "before", 0) + getattr(a, "after", 0)) + 150, "selftest": 300, "serve": 0, "lock": 120, "unlock": 30}[a.cmd]
     if limit:
         arm_limit(limit)
-    fn = {"serve": cmd_serve, "devices": cmd_devices, "shot": cmd_shot, "video": cmd_video, "calibrate": cmd_calibrate, "compare": cmd_compare,
+    fn = {"serve": cmd_serve, "lock": cmd_lock, "unlock": cmd_unlock, "devices": cmd_devices, "shot": cmd_shot, "video": cmd_video, "calibrate": cmd_calibrate, "compare": cmd_compare,
           "around": cmd_around, "selftest": cmd_selftest}[a.cmd]
     sys.exit(fn(a) or 0)
 

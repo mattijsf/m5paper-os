@@ -233,12 +233,19 @@ whether text is comfortable to read, ghosting too faint for the camera), batched
 - Every number is normalised by the same image: the light is a smooth surface fitted through the white areas, black and contrast are a
   robust fit of camera value against the frame's gray. A number is "% of this image's white-to-black contrast".
 - Numbers are compared only within one session (before and after a change, A against B). No camera goldens, no thresholds in `make check`.
-- Exposure, focus and white balance: macOS's avfoundation cannot lock them; `uvc-util` (not installed) could for a UVC camera. The
-  normalisation makes stills robust to auto exposure; in a video a big flash can make auto exposure hunt for a few frames.
+- **Lock at the start of a session**: `cam.py lock` puts exposure (what auto exposure chose, at most 33 ms), white balance and focus
+  to fixed values through `uvc-util` (IOKit, no camera permission needed) and writes them to `out/cam-lock.json`. Focus: a sweep over
+  0..250 on the page shown (text works best), sharpest inside the panel. 2026-11-16: exposure 29.5 ms, 4000 K, focus 45 (sharpness 173
+  against 4-6 out of focus). The settings stay in the camera until it is unplugged; `cam.py unlock` gives the automatics back.
+  `uvc-util`: github.com/jtfrey/uvc-util (commit 8110da7), source read before building (IOKit and Foundation only), built with
+  `clang -O2 -o uvc-util -framework IOKit -framework Foundation uvc-util.m UVCController.m UVCType.m UVCValue.m` (no ARC) in
+  `~/.local/src/uvc-util/src`, installed to `~/.local/bin/uvc-util`.
 - **Camera**: Logitech C922 Pro Stream Webcam (since 2026-11-16), above the device, the panel turned 90 degrees in the image, about
-  300x540 camera pixels at 1920x1080. **Measured limits (2026-11-16, room light in the morning)**: about 10 fps whatever is asked (auto
-  exposure lengthens the frame time in dim light; at 1080p and 720p alike), so timings are good to about 100 ms; autofocus hunts on pages
-  with little contrast (the Ramp came out blurred, text pages are sharp). More light, or locking exposure and focus (`uvc-util`), would fix both.
+  300x540 camera pixels at 1920x1080. **Frame rate**: avfoundation gets uncompressed frames only (MJPEG cannot be chosen), and USB 2 carries
+  about 20 MB/s of them: 640x480 runs at 30 fps, 864x480 at 15, 1280x720 and 1920x1080 at 10 (measured 2026-11-16, exposure locked).
+  So stills use 1920x1080 and videos and `around` the largest mode that fits 30 fps (640x480: the panel is about 160x290 camera pixels,
+  enough for timing and for the gray levels, which matched the 1080p still within 0.02). Timings are good to about 33 ms.
+  Autofocus hunted on low-contrast pages (a blurred Ramp) until `lock` fixed the focus.
 - **Camera permission**: macOS gives the camera per app. An editor that never asks for the camera gets no Camera prompt (it does not appear in
   System Settings > Privacy & Security > Camera), so ffmpeg started from its shell opens the camera and receives no frames. `cam.py`
   therefore runs ffmpeg through a **capture server in one Terminal window** (`cam.py serve`, started by itself the first time, Unix
@@ -269,8 +276,14 @@ the checkerboard is plainly visible on the panel (`out/cam-diff-white.png`). Wit
 (about 1-2 % in the lower and middle regions even after a Clean); `around tap 140 917` (Clean) with the same page before and after reports
 the ghost the Clean removed: **0.8-1.1 % of contrast in the checker area, 0.3-0.6 % in header and footer** (`out/cam-diff-removed.png`).
 The Quality push of the Clean shows on the panel from about +0.4 s to +1.5 s after the push call (dark frames at +0.65 to +0.94 s): about
-1.1 s of visible waveform, the refresh log's push call returns after 104 ms. The Ramp: g0..g15 measured monotonic except g11 darker than
-g10 and g5 = g6 (a blurred shot with ghosts of earlier screens visible: a vertical line and a wavy band; repeat after a Clean, in focus).
+1.1 s of visible waveform, the refresh log's push call returns after 104 ms. The first Ramp shot was blurred (autofocus) and
+showed ghosts of earlier screens. **After `lock` and a Clean (in focus, repeated at 640x480 within 0.02)**, lightness on this image's
+scale (ink 0, white 1): g0 0.15, g1 0.15, g2 0.17, g3 0.19, g4 0.21, g5 0.23, g6 0.25, g7 0.33, g8 0.40, g9 0.42, g10 0.50, g11 0.65,
+g12 0.89, g13 0.95, g14 1.01, g15 1.04: monotonic, but the ends crowd: g0..g6 lie within 0.10 of each other and g12..g15 within 0.15
+of white, while g11 to g12 is a jump of 0.24. Consequences for UI tokens (UI.md) and the custom waveform (P7-1): gray(13) wells read
+almost white, gray(1)..gray(4) are hard to tell from ink. A faint vertical line shows in the dark bars at the same place in every shot
+(x about 410 of 540): a panel or driver artefact, not a ghost. At 30 fps the Clean's Quality push shows on the panel from +0.27 s to
++1.23 s after the push call (0.96 s).
 
 `--source FILE` replays a video in real time instead of a camera (tests of the pipeline without a camera). The panel can show private
 messages: the images stay in `out/` (gitignored); never commit, upload or paste them, and do not record screens that show secrets.
