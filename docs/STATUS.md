@@ -223,6 +223,11 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 ## To verify with the camera (P7-7)
 
+- **Fast pass = ordered dither (2026-11-16, from the driver source, not seen on the panel)**: `around tap` on a Settings row and on
+  the back arrow: are the gray(9) dividers there in the first (Fast) pass as dotted lines, and the gray(13) launcher wells as
+  sparse dots? If yes, the simulator's new Fast emulation is right and "first the text, then the lines" was a simulator artefact;
+  if the panel shows no lines before the settle pass, revert `fastLevel` in `platform/sim/display.cpp` (and its 55 goldens).
+
 The webcam (`tools/cam.py`, DISPLAY.md "Camera on the panel") checks these instead of a person's eyes. Numbers are per session (the
 set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixes exposure, white balance and focus; 30 fps at 640x480 for video.
 
@@ -694,3 +699,5 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-16: D25: the Arduino core / ESP-IDF 5.5.5 built from source (`custom_sdkconfig`): 64 KB data cache, 64-byte lines, PSRAM initialised before global constructors. Screen change during a settle 408 -> 306 ms. Pitfalls (penv PlatformIO 6.2.0, SPIRAM_BOOT_INIT) in D25.
 - 2026-11-16: P7-9 Vijfje (D26): `apps/vijfje` (game logic, word lists + `tools/gen-vijfje-words.py`, game and statistics screens, score to the clipboard); 8 unit test cases, 13 new goldens, 9 launcher goldens with the pager bar. Simulator only.
 - 2026-11-16: P7-9 Vijfje fetches more accepted guesses weekly from woordscore.nl (second part of the list only), cached for offline use; 3 unit test cases, `vijfje-list.script` with a fixture, live fetch checked in the simulator (5616 words).
+- 2026-11-16: simulator: the Fast pass is the panel driver's ordered dither instead of a 50 % threshold (grays show as dots at once, as the driver writes them); 55 goldens that show a Fast image changed. Vijfje: backspace one push (ink frame for empty tiles), used-up keys gray(10).
+

@@ -14,6 +14,14 @@ constexpr float kResidueFraction = 0.06f;  // Fast: share of the old value left 
 
 uint8_t quant(uint8_t v) { return static_cast<uint8_t>((v + 8) / 17); }
 
+// Fast mode on the panel is black and white by ordered dither, not by a threshold: M5GFX's Panel_EPD writes
+// (value + Bayer * 16) < 248 ? black : white for epd_fast. So a gray line or a gray letter is in the Fast pass as dots (a
+// gray(9) line: 6 of 16 pixels black), and the settle pass makes it the even gray. With a plain threshold at 50 % the
+// simulator showed lighter grays not at all until the settle pass.
+// The pattern is indexed by logical x, y here; the driver indexes it in panel coordinates (rotation not matched).
+constexpr uint8_t kBayer[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
+uint8_t fastLevel(uint8_t v, int x, int y) { return v + kBayer[((y & 3) << 2) | (x & 3)] * 16 < 248 ? 0 : 15; }
+
 }  // namespace
 
 void Display::setOutDir(const std::string& dir) {
@@ -31,7 +39,7 @@ void Display::push(const Canvas& frame, Rect r, Refresh mode) {
   for (int y = y0; y < y1; ++y) {
     for (int x = x0; x < x1; ++x) {
       size_t i = static_cast<size_t>(y) * kScreenW + x;
-      uint8_t target = mode == Refresh::Fast ? (src[i] >= 128 ? 15 : 0) : quant(src[i]);
+      uint8_t target = mode == Refresh::Fast ? fastLevel(src[i], x, y) : quant(src[i]);
       uint8_t old = panel_[i];
       if (target != old) ++changed;
       switch (mode) {

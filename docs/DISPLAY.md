@@ -70,8 +70,16 @@ The DisplayManager maps hints to panel modes:
 same region restores the 16-level anti-aliasing without a flash. If new input arrives before the
 settle timer fires, the timer restarts, so rapid page turns stay at Fast speed.
 
-Thresholding for the Fast pass happens in `hal::Display` on the device (the panel does it) and
-in the emulation in the simulator. The canvas always holds the full-gray frame.
+The canvas always holds the full-gray frame; black and white for the Fast pass is made in `hal::Display`: on the device by
+the panel driver, in the simulator by the emulation. **It is an ordered dither, not a threshold** (found 2026-11-16 in the
+driver source, M5GFX `Panel_EPD`, `epd_fast`): a pixel is black if `value + Bayer4x4 * 16 < 248`. So grays are in the Fast
+pass as dots: a gray(9) divider has 6 of 16 pixels black, gray(13) 2 of 16, gray(3) 13 of 16; anti-aliased edges are speckled.
+The settle pass then turns the dots into the even gray. The simulator used a threshold at 50 % until then, which showed
+gray(8) and lighter **not at all** until the settle pass (dividers, gray icon wells, Vijfje's gray frames: "first the text,
+then the lines", user in the simulator window); it now uses the driver's formula (`platform/sim/display.cpp`; the pattern
+is indexed by logical x, y, the driver indexes it in panel coordinates). **Not seen on the panel yet**: camera check pending
+(STATUS.md). Text and Quality modes also dither between neighbouring levels in the driver (`(value + Bayer - 8) >> 4`); the
+simulator still shows the exact level there.
 
 ## Ghost budget
 
@@ -113,7 +121,9 @@ can be tuned on the device without rebuilding (task P7-1).
 - A settle region merges with any overlapping or touching Fast region and restarts its timer
   (500 ms later change in the same area = new 600 ms from then). Unrelated regions keep their timers.
 - Screen at or over `ghostLimit`: Quality over the whole screen, drops pending settles.
-- **Screen with flat gray areas (2026-11-16)**: a Fast pass thresholds gray to black or white, so gray *areas* (the launcher's and
+- **Screen with flat gray areas (2026-11-16)**: (written when the simulator thresholded: on the device a gray(13) well is in the
+  Fast pass as sparse dots, 2 of 16 pixels, not missing; whether one Text push is still the better trade there is for the camera.)
+  A Fast pass thresholds gray to black or white, so gray *areas* (the launcher's and
   Home's gray(13) icon wells, the keyboard) were missing from the Fast pass and arrived only with the settle pass 0.6 s later: a second
   refresh and on the panel a dark sweep. Now the diff of a
   Screen pass also counts changed pixels of flat gray (levels 1..14 with the same level 2 px away on all four sides, so anti-aliased text

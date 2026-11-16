@@ -122,8 +122,9 @@ With `--fixtures none` the simulator uses the real network through libcurl and t
 
 ### E-ink emulation and the refresh log
 
-Described in `DISPLAY.md`. The window and screenshots show the emulated panel (thresholded Fast
-passes, ghost residue), not the raw canvas. `out/refresh.log` records every push.
+Described in `DISPLAY.md`. The window and screenshots show the emulated panel (Fast passes in black and white by the panel
+driver's ordered dither, ghost residue), not the raw canvas. A screenshot taken before the settle pass therefore shows grays
+as dots. `out/refresh.log` records every push.
 
 ### Unit tests
 
