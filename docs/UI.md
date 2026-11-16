@@ -140,7 +140,7 @@ class Widget {
 | `Pager` | "3 / 12" with previous/next targets; also handles horizontal swipes | every list longer than one screen uses it |
 | `Badge` | filled ink circle/pill with count | unread counts |
 | `Sheet` | bottom sheet over the untouched screen, 2 px ink top edge, max 60% height; a tap outside or a swipe down closes it | detail controls, confirmations |
-| `Toast` | one line at the bottom for 3 s | errors like "No Wi-Fi" |
+| `Toast` | one line over the status bar for 3 s: an ink band, edge to edge | errors like "No Wi-Fi", "Score gekopieerd" |
 | `EmptyState` | 64 px icon + title + hint + optional button | empty lists, errors, loading |
 | `Keyboard` | QWERTY, 3 layers (abc / ABC / 123#), key 54x72 | Wi-Fi password, search |
 | `TextField` | one line (72 px) or `setLines(n)` wrapped lines; long press = Paste / Copy all / Clear | text input with the keyboard |
@@ -192,7 +192,7 @@ top edge, grab handle); the screen behind stays untouched (no dimming: a hatch w
 panel twice and cost ghost budget). `Widget::modal` makes the Screen send every touch that hits nothing
 else to the sheet, so a tap outside closes it without reaching the widgets below; a swipe down closes
 it too. Only the sheet's rectangle is invalidated on open and on close. Put controls into
-`sheet->content()`. `Root::showToast(text)`: ink pill at the bottom (y 864..936), 3 s, then the
+`sheet->content()`. `Root::showToast(text)`: an ink band over the status bar (y 0..56, paper text at the body size, regular weight), 3 s, then the
 screen below is restored pixel for pixel (checked: `widgets3-toast-gone` == `widgets3-base`).
 
 P2-7 (`ui/keyboard`, `ui/textblock`):
@@ -250,6 +250,9 @@ this: the firmware cannot read it (HARDWARE.md). No app may use a swipe up from 
 - **Grids**: 2 columns of `Tile`, 3 rows per page (as in the Phase 0 mock, `out/spike.png`).
 - **Confirmation**: destructive actions use a `Sheet` with a primary and a secondary button.
 - **Errors**: inline `EmptyState` for a failed first load; `Toast` when cached data is on screen.
+- **A toast is a message, not a control**: until 2026-11-16 it was an ink pill of the primary button's size at the bottom, often
+  exactly on a button ("The button / notification looks the same? bad system ui design", user). The band over the status bar
+  cannot be taken for a button and covers no content, no button and no keyboard; the clock is hidden for its three seconds.
 
 ## Reviewing UI work
 

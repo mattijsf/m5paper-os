@@ -609,11 +609,11 @@ TEST_CASE("Toast: shows for 3 s, passes touches through, a new one replaces it")
   auto* btn = root->add<Button>("Under");
   int clicks = 0;
   btn->onClick = [&] { ++clicks; };
-  btn->flex = 1;  // the button fills the screen so the toast sits on top of it
+  btn->flex = 1;  // the button fills the screen so the toast sits on top of it (at the top since 2026-11-16)
   f.screen.setRoot(std::move(root));
   f.screen.showToast("No Wi-Fi");
   CHECK(f.screen.hasOverlay());
-  tap(f.screen, 100, kScreenH - 40);  // inside the toast, which does not take touches
+  tap(f.screen, 100, 20);  // inside the toast (the band over the status bar), which does not take touches
   CHECK(clicks == 1);
   f.clock.ms += 2999;
   f.timers.runDue();

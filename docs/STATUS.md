@@ -272,6 +272,8 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Toast as a band over the status bar (2026-11-16, simulator only)**: on the device one Fast push of 540 x 56 and the status
+  bar back after 3 s (frame dump); with the camera whether the band leaves a ghost in the status bar.
 - **Vijfje (P7-9), device run 2026-11-16 14:00** (firmware of main bb517a4, then the statistics line fix; injected taps, frame
   dumps in `out/dev-vijfje/`): the game screen is **identical to the simulator golden** below the title bar (`1-open.png`);
   a typed letter is a Fast push of its tile (70 x 70, push call 2-30 ms) and a settle 0.6 s later; "Onbekend woord" and "Te
@@ -743,3 +745,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-16: Vijfje's list fetch ran on the device (5616 words, heap lowest 70 KB); it exposed a watchdog reboot in HTTPS downloads on the worker, fixed by the memory pass (54ad248).
 - 2026-11-16: Vijfje on the device (taps, frame dumps, list update, one camera still); statistics line shortened after it was cut off there. A played guess not run (today's puzzle).
 - 2026-11-16: Vijfje: today's puzzle played on the device with injected taps (marks, resume, a fetched-only word, won screen, copy, statistics); camera stills of the marks on the panel.
+- 2026-11-16: the toast is an ink band over the status bar instead of a button-like pill at the bottom; 22 goldens; unit test taps through it at the top.

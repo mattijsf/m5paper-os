@@ -63,12 +63,15 @@ Toast::Toast(std::string text) : text_(std::move(text)) {
   setBg(ink);
 }
 
-void Toast::layout() { frame = Rect{kMargin, static_cast<int16_t>(kScreenH - kMargin - kTouchMin), kContentW, kTouchMin}; }
+// A message, not a control: it must not look like a button. It did (an ink pill of the primary button's size at the bottom,
+// often right on top of a button). Now it is an ink band over the status bar for
+// its three seconds: edge to edge, no corners, regular weight, and it covers no content, no control and no keyboard.
+void Toast::layout() { frame = Rect{0, 0, kScreenW, kStatusBarH}; }
 
 void Toast::draw(Canvas& c) {
-  c.fillRoundRect(frame.x, frame.y, frame.w, frame.h, kRadius, ink);
-  drawText(c, ellipsize(c, text_, Type::BodyStrong, frame.w - 2 * s2), frame.x + frame.w / 2, frame.y + frame.h / 2, Type::BodyStrong,
-           paper, Anchor::MiddleCenter, ink);
+  c.fillRect(frame.x, frame.y, frame.w, frame.h, ink);
+  drawText(c, ellipsize(c, text_, Type::Body, frame.w - 2 * kMargin), frame.x + frame.w / 2, frame.y + frame.h / 2, Type::Body, paper,
+           Anchor::MiddleCenter, ink);
 }
 
 // ---- EmptyState
