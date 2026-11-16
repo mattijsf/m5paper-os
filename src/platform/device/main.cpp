@@ -75,6 +75,59 @@ PowerPolicy gPolicy(gOs, [](uint32_t ms) {
 Loop gLoop(gOs, gPolicy);
 
 // Remote control over the USB serial port (lines starting with '>', see core/remote.h).
+// PSRAM soak test (D25: 120 MHz PSRAM stays only if this finds nothing). ">set psram-test 600" starts it; each main-loop
+// pass then writes a pseudo-random pattern (xorshift, a new seed per pass) over 2 MB of PSRAM and reads it back, while the UI
+// keeps running (taps, waveforms). Every pass with errors is logged, and a summary at the end:
+// "[psram] test: 2048 KB x N passes in Ss, E words wrong, R MB/s".
+struct PsramSoak {
+  static constexpr size_t kWords = 2 * 1024 * 1024 / 4;
+  uint32_t* buf = nullptr;
+  uint32_t until = 0, t0 = 0, passes = 0, errors = 0, busyMs = 0;
+  uint64_t bytes = 0;
+  void start(uint32_t seconds) {
+    if (buf) return;
+    buf = static_cast<uint32_t*>(heap_caps_malloc(kWords * 4, MALLOC_CAP_SPIRAM));
+    if (!buf) {
+      POS_LOG("psram", "test: no memory");
+      return;
+    }
+    t0 = millis();
+    until = t0 + seconds * 1000u;
+    passes = errors = busyMs = 0;
+    bytes = 0;
+    POS_LOG("psram", "test: started for %us", static_cast<unsigned>(seconds));
+  }
+  void step() {
+    if (!buf) return;
+    const uint32_t p0 = millis();
+    const uint32_t seed = 0x9E3779B9u ^ (passes * 0x85EBCA6Bu) ^ 1u;
+    uint32_t x = seed;
+    for (size_t i = 0; i < kWords; ++i) {
+      x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+      buf[i] = x;
+    }
+    x = seed;
+    uint32_t bad = 0;
+    for (size_t i = 0; i < kWords; ++i) {
+      x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+      if (buf[i] != x) ++bad;
+    }
+    busyMs += millis() - p0;
+    bytes += kWords * 8;
+    ++passes;
+    if (bad) POS_LOG("psram", "pass %u: %u words wrong", static_cast<unsigned>(passes), static_cast<unsigned>(bad));
+    errors += bad;
+    if (static_cast<int32_t>(millis() - until) >= 0) {
+      heap_caps_free(buf);
+      buf = nullptr;
+      POS_LOG("psram", "test: 2048 KB x %u passes in %us, %u words wrong, %u MB/s (write + read)", static_cast<unsigned>(passes),
+              static_cast<unsigned>((millis() - t0) / 1000), static_cast<unsigned>(errors),
+              static_cast<unsigned>(busyMs ? bytes / 1000 / busyMs : 0));
+    }
+  }
+};
+PsramSoak gSoak;
+
 // Writes a test pattern into the panel's frame buffer twice, row by row (h = 1: M5GFX's stock writeImage) and as one rect
 // (the tiled writeImage of tools/patch_m5gfx.py), in Fast and Quality modes, and compares what the driver holds. Then the
 // UI is pushed again. The result is logged: "[epdtest] fast identical ...".
@@ -164,6 +217,10 @@ class SerialRemoteHost : public RemoteHost {
     }
     if (key == "epd-timing") {
       gDisplay.setTiming(value == "on");
+      return true;
+    }
+    if (key == "psram-test") {  // ">set psram-test 60": D25, a soak test for PSRAM speed settings
+      gSoak.start(static_cast<uint32_t>(atoi(value.c_str())));
       return true;
     }
     if (key == "epd-selftest") {  // tools/patch_m5gfx.py: the patched frame buffer write must equal the stock one
@@ -289,6 +346,7 @@ void loop() {
   pollSerial();
   gLoop.iterate();
   gRemote.tick();
+  gSoak.step();  // ">set psram-test N" (D25)
 
   // Heartbeat: lets a host script read hardware facts without catching the boot log.
   static uint32_t lastBeat = 0;

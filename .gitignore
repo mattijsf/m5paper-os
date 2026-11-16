@@ -14,3 +14,5 @@ managed_components/
 .dummy/
 sdkconfig.defaults
 sdkconfig.papers3
+CMakeLists.txt
+dependencies.lock

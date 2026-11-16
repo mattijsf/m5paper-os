@@ -308,6 +308,11 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   the platform's `>=6.2.0` check (a post release reads as older) and the platform uninstalled itself. Fix: `uv pip install --python
   ~/.platformio/penv/bin/python "platformio==6.2.0"`. (2) The rebuilt libraries replace the ones in the shared package
   `~/.platformio/packages/framework-arduinoespressif32-libs` (other projects on this machine using it get them too).
-- **Next candidates** (each measured before it stays): 120 MHz octal PSRAM (experimental in ESP-IDF: ask the owner first), dropping
+- **120 MHz PSRAM (tried 2026-11-16, not in use)**: ESP-IDF 5.5 has MSPI timing tables for a 240 MHz core clock only with flash at
+  120 MHz, so 120 MHz octal PSRAM needs 120 MHz flash as well (80 MHz flash fails to compile in `mspi_timing_tuning_configs.h`).
+  Flash holds the firmware and `/data`; asked the user before going on. pioarduino also sets the PSRAM speed from the flash speed:
+  override with values (`CONFIG_SPIRAM_SPEED_80M=n`, `CONFIG_SPIRAM_SPEED=120`), a "# ... is not set" line is ignored.
+  Baseline at 80 MHz: `>set psram-test 60` = 661 passes over 2 MB, 0 errors, 51 MB/s write + read.
+- **Next candidates** (each measured before it stays): 120 MHz flash + PSRAM (see above, the user decides), dropping
   unused components (Bluetooth, ESP-SR, RainMaker are built today) for flash and RAM, FreeRTOS tick rate, `-O2` for ESP-IDF.
 
