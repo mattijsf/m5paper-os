@@ -1,0 +1,93 @@
+# app: vijfje
+# time: 2028-01-21T09:00:00
+# Vijfje, day 431 (the word is "spons"): two guesses, the app closed and opened again (the game comes back), four more
+# wrong guesses: not guessed, the word is shown, the statistics count a lost game.
+wait 800
+tap 318 868             # blaft
+wait 300
+tap 465 788
+wait 300
+tap 73 788
+wait 300
+tap 220 788
+wait 300
+tap 245 708
+wait 300
+tap 61 868             # enter
+wait 900
+tap 122 788             # snoep
+wait 300
+tap 367 868
+wait 300
+tap 441 708
+wait 300
+tap 147 708
+wait 300
+tap 490 708
+wait 300
+tap 61 868             # enter
+wait 900
+expect-state marks=aaaaa,cpcap;
+restart
+wait 900
+expect-state tries=2
+expect-state marks=aaaaa,cpcap;
+shot vijfje-resumed
+tap 122 788             # spoor
+wait 300
+tap 490 708
+wait 300
+tap 441 708
+wait 300
+tap 441 708
+wait 300
+tap 196 708
+wait 300
+tap 61 868             # enter
+wait 900
+tap 122 788             # sport
+wait 300
+tap 490 708
+wait 300
+tap 441 708
+wait 300
+tap 196 708
+wait 300
+tap 245 708
+wait 300
+tap 61 868             # enter
+wait 900
+tap 122 788             # spook
+wait 300
+tap 490 708
+wait 300
+tap 441 708
+wait 300
+tap 441 708
+wait 300
+tap 416 788
+wait 300
+tap 61 868             # enter
+wait 900
+expect-state view=play
+expect-state tries=5
+tap 416 788             # kamer
+wait 300
+tap 73 788
+wait 300
+tap 416 868
+wait 300
+tap 147 708
+wait 300
+tap 196 708
+wait 300
+tap 61 868             # enter
+wait 900
+wait 600
+shot vijfje-lost
+expect-state view=done
+expect-state tries=6
+tap 504 92              # the info button
+wait 900
+shot vijfje-stats-lost
+expect-state view=stats

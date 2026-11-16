@@ -1,0 +1,91 @@
+# Vijfje: more words that are accepted as a guess (the answers are accepted too). Written for PaperOS; add words freely:
+# a word here never becomes the word of the day. Lowercase a-z, exactly five letters. Then run tools/gen-vijfje-words.py.
+aaien aapje aards abdij abuis acuut adder afdak afgod afrit afwas agaat agave ahorn aldus alert algen alibi allen aller
+alles aloud alpen alsof amber amper ampul ander angel anijs annex anode apart arend argon armen armoe aroma asbak atoom
+audio azijn azuur actor adept adieu afzet akten animo apneu armee assen astma aasje ademt aders appen armer
+baalt balen baden bajes bakje bakte banen bange baret baron barst bazen bazin beeft begon beide beits bekaf beken bekje
+belde belet benam benen benul beren besef besje beste beten beukt beval bevel bever bevat bezat bezet bidet biels biest
+bijen bindt bitse bizar bizon blaag blaat blaft bleef blies blije blijf blikt blink bloei blonk bloos blote bluft blust
+bluts boden boeit boert bofte bogen bokje bokst bolle bomen bonen bonje bonte boort boren borgt bosje botst botte boten
+bouwt boxen boxer braak brede breek breit breng bries brink brits broed broei brons broos brouw bruis brult brute buien
+buigt bukte bulkt buren buste bytes baten
+cache cadet casco casus cents check chefs choco circa clans clips clubs codes codex combo conga corps corso coupe cover
+crack crash credo cross cupje curry cycli cyste
+daagt daalt daags dacht daden dagen dagje daken dakje dalen dampt danig dankt danst debat debet decor deden deels deelt
+degen dekte delen dempt denim denkt derby deren desem deugt deukt dezer dient diepe dijen dikke dille dingo diode doden
+doelt doemt dogma doken dolen dolle domme domst donut doods doopt dopen dorps dorre dosis doven dozen draaf draag dreef
+dreig dring drink droef droeg droge drone dronk drukt duels duidt duikt dulde duldt dumpt dunne duren durft duwde duwen
+dwaal dweep dwing dwong drong
+ebben echte edele eerde effen egels eider eiken eisen eiser eitje elfde elfen elpee enfin enger engst enige enten eraan
+erbij erfde erger ergst erken ermee eruit ervan erven essen etens eters ethos ether etsen etter euvel exces exoot ezels
+fagot faalt facet fakir falen farce fases faxen feeks felle ferme fijne fikse files films fjord flans flapt flats flens
+fleur flikt flirt floep fluim fluks fluor flyer fokte forse foute frank frats frees frons fuift
+gaapt gaard gaten gaven gages gajes galei galmt gamba gamma gapen garde gebod gedag gedoe geduw geeft gegil gegok gehad
+gejat gekke gekte gekko gelag geldt gelet gelid gelog genas genen gerei gesel geste geuit geurt gevat geven gewas gewis
+gezel gezet giert gilet ginds gleed glijd glimp glimt glipt gloei gloor gnoes gnoom godin goede goeds goeie gokje gokte
+gooit goten graai graal grage grauw green grein grijp grill grime grint groei grote grove gruis gulle gunde gyros gered
+haakt haalt hagen haken hakje hakte halen hallo halma halve hands hangt hapje hapte harde haren harem harkt harte haten
+hazen heeft hefte heien heisa hekje helen heler helle henna heren hesen heten hetze heuse hevel hielp hield hiaat hijgt
+hijst hikte hinkt hippe hitje hoede hoeft hoera hoezo hofje hoger hokje holde hoopt hoort hopen horen horig houdt hoven
+hozen huilt hulde humus hunne huren hurkt hutje huwen hymne hyper
+iepen ijdel ijken ijkte ijlde ijlen ijsje ijzel imago imams immer inbox inham input inval inzag ionen items
+jaagt jagen jager jaren jasje jatte jeeps jemig jeukt jihad jofel joint jolig jonge jouwe juken jumbo juten jutte
+kaapt kaats kades kakel kaken kakte kalfs kalme kamde kapen kaper kapte karma kaste katje kauwt kazen keert keien keken
+kelen kende keren kerft kermt ketst keurt kever kiept kiest kieuw kijkt kille kilte kinds kitte klaag klamp klank klapt
+klare klauw kleef klemt klerk klets klikt klimt kling klink klits kloek klojo klokt klonk klont klooi klopt klots kluit
+kluts knaag knakt knalt knapt knars kneed knelt kneus knijp knikt knipt knoei knoet knokt koala kocht koelt koken kolen
+kolom komen kookt koopt kopen kopie kopte koren korps korte kotst koude kozen kraak kraal krabt krakt krast kreeg kreek
+kreuk kreun kriek krijg krimp kroes kromp kroop kroos kroot kruim kruip krult kuier kunde kuren kwaak kwade kweek kweel
+kwets kwiek kwijl kwijn kwint
+laadt laait laakt label lacht laden lader lades laffe lagen lakei lakte lamme lande landt lange langs lanen larve laste
+laten latex latje lauwe lazen leden ledig leeft leent leert leest legde legen legio leide leidt leien leken lekke lekte
+lemen lemma lende lenen lener lepra leren leste leuke leunt leurt lever lezen liaan liefs liegt lieve lijdt lijkt lijmt
+lijve likte limbo linze lipje loden loeit loert logen logge loken lokte lompe lonen lonkt looft loont loopt loost lopen
+losse loste loten lotus loven lozen luide luidt luien lukte lumen lusje luste luwte lycra lynch
+maait maakt maalt maant maart macho macro madam maden mafia magen magma maken maker makke malen malle malse manen manie
+manke manna mapje maten matje matte mauwt mazen medio meent meert meide meldt melde melkt menen mengt menig meren merkt
+merci mesje meten meute mijdt mijne mikte milde minne mirre miste mixen mixte modes modus moede moeit moest mogen mokte
+monde mondt mooie moois mopje morse morst mosje motel motje mores muffe mugje mulle musea muren mythe mocht
+naait naakt naast nadat nafta namen natje natte neder neemt negen neigt nemen nerds neten netje neven niest nihil nipte
+nodig noemt nogal nooit nopen norse noten notie novum nuken nulde
+oases oefen oehoe ofwel omarm omdat omega omver onwel onzer oogde oogje opdat opeen opent opgaf ophef opium opper opzag
+opzij orale orden orgie ouden oudje oudst ovale ovens oxide
+pacht pakte palen palet panel panne panty papje paren parka party paste patch pedel pegel peilt peins pekel peren perst
+pesto petje piekt piept pikte pinkt pioen pipet piste pitje plaid plakt plast plebs pleeg pleit plens plint ploft plomp
+plons plots plukt pocht poeha poets polio polka pompt poogt popje porto poten potig potje pover praal praam prees prijk
+prikt prior promo prooi pruil pruts psalm pufte puike puist pumps putje putte paden
+quasi queue quilt quota quote
+raadt raakt raapt raast rabbi races raden rages raken ramde ramen ranch ranke rapen rappe rapte ratel ratje rauwe raven
+razen rebus reder redde regie reeds reist reken rekje rekte relax remde remix rende rente repen repte reuze revue riant
+richt riekt rijdt rijen rijke rijks rijmt rijpe rilde rinse riool riten ritje ritst roept roeit roemt roert roken roker
+rokje rolde rondt ronkt rooft rooie rooit rookt rooms rosse rotje rotor rotte rouwt roven rover rozen rozig ruige ruikt
+ruilt ruime ruimt ruist rukte rumba ruwer
+saaie sagen salie sapje satan sater scalp scant schap schel schik schim schop schor schub schud schuw scoor scope score
+scout seint sekse sepia serre sesam setje shawl shift shots shows siert sigar sinas sinus sisal siste sites sjans sjeik
+sjerp sjees sjoel sjokt sjouw skate slaag slaak slaat slede slemp slenk sleet sliep slier slijk slijp slijt slikt slipt
+slips sloeg sloep sloft slokt slome sloop sluik sluip sluit slurf slurp sluwe smaad smakt smart smash smeed smeek smeer
+smelt smijt smoel smokt smoor smult snaai snaak snakt snapt snars sneed sneer snelt snert sneue snikt snoef snoei snoek
+snoes snoet snoof snuif softe sokje sonar sonde sopje sorry sound spaan spaar spant spats speed speel speen spelt spiek
+spies spijl spijs spike spint split spoed spoel spots spouw sprot spruw spuug spuwt staak staan staar stads stamp stang
+stank stapt steak steek stelt stemt steps sterk sterf stern stick stijf stijg stikt stilt stink stipt stoft stokt stolp
+stond stonk stoof stook stoop stoor stopt stort straf strek strik strip strop strot stuif stuip stuit stuks stulp stunt
+stuwt suffe sufte suist sujet sulky swing slaan smeet slonk sprak
+taaie taken takje talen talig talmt talud tamme tanig tanks tapas tapir tapte tarot tarra tasje taste teams teelt teert
+telde telen teler temde tenen tenue terts teste tests thans these tiert tikje tikte tilde timen timer tipte titan tjilp
+toffe tonen toner tonic tools toont toorn topje toque torso tosti traag track trage trant trapt treed treft trekt trema
+trens treur trial trilt trips trits trucs trust tukje tuner tunen turen turft tutje tutor tuurt tweed twist types typen
+typte
+uiers uilen uiten uitte unies units uraan urine urnen
+vakje vaker valse valst vangt varen varia vaste vaten vazal vazen veder veegt veert vegen velen venen veren verft verre
+verse verst veste vetes vette viert vieze vindt vinyl visje visum viste vitte vlaks vlamt vlast vleet vlekt vleug vliet
+vloei vloog vloot vodje voedt voegt voelt voert volgt volks volle voogd voort vorig vormt vosje vouwt vreet vries vrije
+vrijt vrind vroed vrome vroom vuile vulde vuren vurig vroor
+waagt waait waakt waant waden waken walgt walmt walst wanen wants waren warme wasem waste wedde weeft weegt weent weert
+wegen wegje weken wekte welig welke wende wendt wenen wenkt wenst werft werkt werpt weten weven wever wezen wicht wiens
+wijde wijdt wijkt wijst wijze wikte wilde wille winde windt wiste witje witte woelt wogen wonde wonen woont worde wordt
+worgt wrede wreef wrijf wring wroet wrong wulps wurgt wierp
+xenon yucca
+zaagt zaait zacht zagen zaken zakje zakte zalen zanik zapte zaten zeden zeeft zegge zegde zeikt zeilt zelve zemel zendt
+zenen zenit zesde zette zeurt zicht zieke ziens zilte zingt zinkt zitje zocht zoden zoekt zoemt zoent zoete zoets zogen
+zolen zomen zonen zones zonne zoogt zopas zorgt zotte zoute zowat zuigt zuipt zulke zulks zuren zusje zwalk zware zweeg
+zweef zweem zweer zwelg zwelt zwemt zwenk zwerf zwets zwiep zwier zwijg zwoel zwoer zemen

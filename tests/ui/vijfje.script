@@ -1,0 +1,89 @@
+# app: vijfje
+# time: 2028-01-20T09:00:00
+# Vijfje, day 430 (the word is "fabel"; a day far from today, so no screenshot gives a coming word away). The empty board,
+# three letters typed, a word that is not in the list (toast, the row stays), too few letters, two guesses with all three
+# marks (also a letter twice in a guess), the solve, Kopieer score, the statistics.
+wait 800
+shot vijfje-start
+expect-state view=play
+expect-state number=431
+tap 318 868             # bla
+wait 300
+tap 465 788
+wait 300
+tap 73 788
+wait 300
+wait 600
+shot vijfje-typing
+expect-state typed=bla;
+tap 61 868             # enter with three letters
+wait 600
+expect-state tries=0
+wait 4000
+tap 171 868             # blaxq: not a word
+wait 300
+tap 49 708
+wait 300
+tap 61 868             # enter
+wait 900
+shot vijfje-unknown
+expect-state tries=0
+expect-state typed=blaxq;
+wait 4000
+tap 477 868             # backspace
+wait 300
+tap 477 868
+wait 300
+tap 220 788             # blaft
+wait 300
+tap 245 708
+wait 300
+tap 61 868             # enter
+wait 900
+expect-state marks=ppppa;
+shot vijfje-first
+tap 465 788             # label
+wait 300
+tap 73 788
+wait 300
+tap 318 868
+wait 300
+tap 147 708
+wait 300
+tap 465 788
+wait 300
+tap 61 868             # enter
+wait 900
+expect-state marks=ppppa,acccc;
+shot vijfje-second
+tap 220 788             # fabel
+wait 300
+tap 73 788
+wait 300
+tap 318 868
+wait 300
+tap 147 708
+wait 300
+tap 465 788
+wait 300
+tap 61 868             # enter
+wait 900
+wait 600
+shot vijfje-won
+expect-state view=done
+expect-state tries=3
+tap 270 816             # Kopieer score
+wait 600
+shot vijfje-copied
+wait 4000
+tap 270 900             # Statistieken
+wait 900
+shot vijfje-stats
+expect-state view=stats
+back
+wait 900
+expect-state view=done
+restart
+wait 900
+expect-state view=done
+expect-state tries=3

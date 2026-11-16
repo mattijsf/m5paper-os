@@ -316,3 +316,18 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
 - **Next candidates** (each measured before it stays): 120 MHz flash + PSRAM (see above, the user decides), dropping
   unused components (Bluetooth, ESP-SR, RainMaker are built today) for flash and RAM, FreeRTOS tick rate, `-O2` for ESP-IDF.
 
+## D26. The word game is PaperOS's own (Vijfje), not a copy of woordle.nl (2026-11-16)
+
+- **Asked**: "Create woordle game" with a handover text of that web game: its word list address, its day formula (start
+  7 January 2022, number = days + 202), its texts, colours and share message; the user dropped colours and high contrast and
+  wanted the clipboard text to stay the same.
+- **Decision**: build the genre (five letters, six tries, three marks, one word a day, statistics, a score to share), not
+  that game. Left out: its name, its list of daily words and their order (its puzzle and number of the day), its texts. Vijfje
+  has its own name, its own word lists (`assets/vijfje/`), its own first day (2026-11-16 = puzzle 1) and order.
+- **Why**: the assistant building it does not recreate a specific existing game (name, levels, look); woordle.nl is not the
+  user's game (apps/somdoku.md said so already). A word game with the same rules is fine, the other game's daily puzzle
+  under its name is not.
+- **Cost**: the word of the day differs from the web game's, so scores cannot be compared with people who play that, and
+  woordscore.nl does not read a "Vijfje" score as the web game's. The share text keeps the genre's shape (apps/vijfje.md).
+- **Also found**: the handover's word list address answered 10 + 30 words on 2026-11-16, not 844 + 5616.
+

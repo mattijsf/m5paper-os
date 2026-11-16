@@ -35,6 +35,12 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   on both sides (Paper: Settings > Home Assistant > Phone, config `phone.clipboard`). **Installed on the phone (unpaired), not run
   end to end**: no real pairing exists yet.
 
+- **P7-9 Vijfje, 2026-11-16: built, simulator only.** A daily five-letter word game (docs/apps/vijfje.md). The owner asked for
+  "woordle" from a handover text of that web game; built is PaperOS's own game in that genre (D26): own name, own word lists
+  (688 answers, 2254 accepted words, `assets/vijfje/`), own first day and order, so **not the web game's word of the day** and a
+  shared score is named "Vijfje". Seventh app: the launcher now has a second page. Not in a firmware build yet (Pending device
+  checks). Open question 7.
+
 - **D22, 2026-11-16: the inbox moves to an end-to-end encrypted companion app; Home Assistant is not trusted with message text.**
   Done: both add-ons removed from Home Assistant (WhatsApp Gateway logged out first, then its integration, the add-on with its data and
   the FaserF repository; the Proton Mail Bridge local add-on with its data), the feeds emptied before that, the package cut down to
@@ -65,7 +71,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
 | Firmware build | `make fw` | OK, 2.74 MB (52.2% of the 5 MB slot, 2026-11-16; libsodium added ~130 KB) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 231 tests; 173 goldens (2026-11-16); `out/gallery.html` |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 247 tests; 186 goldens (2026-11-16); `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Camera on the panel | `make cam-shot` / `cam-video` / `cam-compare`, `tools/cam.py around tap X Y` | C922 webcam; captures through one Terminal window (camera permission); `cam.py lock` (uvc-util) at the start of a session; video 30 fps at 640x480 |
@@ -261,6 +267,13 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Vijfje (P7-9)**: nothing on the device, and **no firmware build with the app yet**: on 2026-11-16 the device and the
+  `papers3` build were in use by other work (sdkconfig experiments; its builds exclude `apps/vijfje/`), the owner said
+  "test in simulator". Done instead: simulator, unit tests, and `vijfje.cpp` + `words_data.cpp` compiled alone with the
+  ESP32-S3 compiler (no warnings, 15 KB). To do: `make fw` with the app (size), flash, open it from launcher page 2, type a
+  guess with injected taps (key positions from `debugState`), frame dump against the goldens; with the camera: how the
+  hatched ring and the gray(5) letters of absent tiles and keys show on the panel, and typing speed (a Fast push per
+  letter plus its settle). For a person's fingers, batched: whether 45 px wide keys are comfortable.
 - **Screen passes with gray areas as one Text push** (`why=screen-gray`, 2026-11-16, simulator only: the device was reserved for other
   testing). With the camera, `around tap 36 92` (back from an app to the launcher), before and after the change: number of waveforms
   on the panel (expected one instead of Fast + settle sweep), the time until the final look and until the first visible change, whether
@@ -376,9 +389,19 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
    the notification shows; read-only. (d) The phone is mostly on and online at home; both sides queue and survive the phone being
    away for hours. Protocol: docs/COMPANION.md.
 
+7. **Vijfje (P7-9, D26)**: (a) the word list is small (2254 accepted words, written by hand): may an open Dutch word list
+   (OpenTaal) be downloaded to widen `assets/vijfje/extra.txt`? (b) Vijfje is alone on launcher page 2: fine, or should
+   the two games share a place (a 2 x 4 grid, a Games folder)? (c) the handover's `woordscore.nl/woordlijst.txt` answers
+   10 + 30 words instead of 844 + 5616: if the scoreboard depends on that file, its daily refresh may be broken.
+
 None of these block Phase 1, Phase 2, or the reader.
 
 ## Notes for later tasks
+
+- **Two builds in one checkout (2026-11-16)**: an edit of `platformio.ini` makes PlatformIO wipe all of `.pio/build`, so
+  other builds' simulator and test programs vanish mid-task. Build into a private folder instead:
+  `PLATFORMIO_BUILD_DIR=<dir> pio run -e sim` (and `pio test -e test --without-testing`), then copy `<dir>/sim/program` to
+  `.pio/build/sim/program` before `tools/ui-test.sh`. Do not build `papers3` while another build rebuilds the core (D25).
 
 - **Reader page turns (done 2026-11-16)**: `Hint::Page`: Fast without the settle sweep, a Quality clean every 10th page
   (`display.pageCleanEvery`). Measured on the device (DISPLAY.md "Ghost budget"). Open for a person's eyes, batched: whether the
@@ -653,4 +676,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-16: going home drew the icon wells in a second pass (Fast thresholded gray(13) to white, the settle 0.6 s later brought them in). A Screen pass with flat gray areas is now one Text push (`why=screen-gray`, DISPLAY.md "As implemented"); 2 unit tests, golden `launcher-back-first` (wells in the first push), `lab-*` goldens: push counters only. Simulator only; device check pending.
 - 2026-11-16: tap latency (DISPLAY.md "Tap latency", D24): `[lat]` trace + `tools/latency.py`; fast text path (byte-identical to LovyanGFX); M5GFX patched at build time (`tools/patch_m5gfx.py`: tiled table-driven frame buffer write, finished rows skipped; `>set epd-selftest on`); reader prefetches the next page; Settings write the config a second later. Page turn 516 -> 199 ms, screen 807 -> 408 ms, small tap 52 -> 7 ms (finger up to the driver).
 - 2026-11-16: D25: the Arduino core / ESP-IDF 5.5.5 built from source (`custom_sdkconfig`): 64 KB data cache, 64-byte lines, PSRAM initialised before global constructors. Screen change during a settle 408 -> 306 ms. Pitfalls (penv PlatformIO 6.2.0, SPIRAM_BOOT_INIT) in D25.
-
+- 2026-11-16: P7-9 Vijfje (D26): `apps/vijfje` (game logic, word lists + `tools/gen-vijfje-words.py`, game and statistics screens, score to the clipboard); 8 unit test cases, 13 new goldens, 9 launcher goldens with the pager bar. Simulator only.

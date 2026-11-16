@@ -1,0 +1,11 @@
+# time: 2028-01-20T09:00:00
+# Vijfje is the seventh app: the launcher gets a second page (2 x 3 tiles per page). Page 2, then the game opened from its tile.
+wait 800
+tap 480 922             # next page
+wait 900
+shot vijfje-launcher-page2
+tap 140 266             # the Vijfje tile
+wait 900
+shot vijfje-from-launcher
+expect-state view=play
+expect-state number=431

@@ -153,3 +153,5 @@ To hand text to any app instead, use the clipboard: `clipboard::set(text, "<your
 | Read | `apps/reader.md` | P4 |
 | Home (Home Assistant) | `apps/home.md` | P5 |
 | WhatsApp, Mail (two tiles, one implementation) | `apps/inbox.md` | P6 |
+| Somdoku (the user's daily sum puzzle) | `apps/somdoku.md` | P7 |
+| Vijfje (daily five-letter word game) | `apps/vijfje.md` | P7 |
