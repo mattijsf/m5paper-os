@@ -77,8 +77,7 @@ pass as dots: a gray(9) divider has 6 of 16 pixels black, gray(13) 2 of 16, gray
 The settle pass then turns the dots into the even gray. The simulator used a threshold at 50 % until then, which showed
 gray(8) and lighter **not at all** until the settle pass (dividers, gray icon wells, Vijfje's gray frames: "first the text,
 then the lines", user in the simulator window); it now uses the driver's formula (`platform/sim/display.cpp`; the pattern
-is indexed by logical x, y, the driver indexes it in panel coordinates). **Not seen on the panel yet**: camera check pending
-(STATUS.md). Text and Quality modes also dither between neighbouring levels in the driver (`(value + Bayer - 8) >> 4`); the
+is indexed by logical x, y, the driver indexes it in panel coordinates). **Confirmed on the panel 2026-11-16** (camera session, Display lab "Fast" after a logged `mode=F ... why=page` push, `cam.py compare`): lightness per band, 0 = ink, 1 = white: g0 .01, g1 .03, g2 .13, g3 .23, g4 .27, g5 .30, g6 .38, g7 .44, g8 .54, g9 .57, g10 .61, g11 .64, g12 .71, g13 .81, g14 .94, g15 1.04: a steady rise that follows the predicted white share (g3 .19, g7 .44, g9 .62, g13 .88); a threshold would give two flat groups, and the real-gray ramp bunches at both ends instead. A reader page was tried first and showed nothing: at 1.3 camera pixels per panel pixel the 4 x 4 pattern on text edges blurs away. Text and Quality modes also dither between neighbouring levels in the driver (`(value + Bayer - 8) >> 4`); the
 simulator still shows the exact level there.
 
 ## Ghost budget
@@ -271,7 +270,9 @@ Settings > Developer > Display lab (task P7-1) shows: the 16-step gray ramp, a g
 (checkerboard then white), a fine-text sample, and counters for pushes per mode. Use it to tune
 `ghostLimit` and the settle delay, and to compare custom waveforms.
 
-**Fast (2026-11-16)**: a fifth pattern, the same ramp pushed as `Hint::Page`: one Fast pass and no settle pass, so the panel
+**Fast (2026-11-16)**: a fifth pattern, the ramp upside down (white at the top, so it differs from Ramp in every band and
+is pushed also when coming from Ramp: with the same ramp the diff found nothing and the panel kept the Text-mode image)
+pushed as `Hint::Page`: one Fast pass and no settle pass, so the panel
 keeps what the driver's Fast mode makes of 16 grays. An ordered dither (what the driver source says, "Fast then settle" above)
 shows 16 bands of rising brightness; a threshold would show black bands and white bands only. For the camera: a still of the
 whole ramp is enough, no pixel detail needed. Check the counters line or `tools/device.py refresh` for an `F ... why=page`

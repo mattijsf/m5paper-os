@@ -28,3 +28,11 @@ expect-no-quality
 wait 2500                # no settle pass comes
 shot lab-fast-ramp
 expect-state lab=4
+tap 73 164              # Ramp, then Fast again: the upside-down ramp differs in every band, so it is pushed (Fast)
+wait 2500
+tap 465 164
+wait 300
+expect-no-quality
+wait 2500
+shot lab-fast-after-ramp   # the dithered ramp again (only the counters line differs from lab-fast-ramp)
+

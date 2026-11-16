@@ -641,11 +641,14 @@ class LabView : public ui::Widget {
   void draw(Canvas& c) override {
     const int x = frame.x, y = frame.y, w = frame.w, h = frame.h;
     if (mode_ == Mode::Ramp || mode_ == Mode::FastRamp) {
-      // 16 steps, black at the top, each labelled with its level (the label in the colour that contrasts).
+      // 16 steps, black at the top, each labelled with its level (the label in the colour that contrasts). The Fast ramp is
+      // upside down (white at the top): coming from Ramp every band then differs, so the Fast push is not skipped as
+      // "nothing changed" (it was, on the device: the panel kept the Text-mode ramp).
       const int step = h / 16;
       for (int i = 0; i < 16; ++i) {
-        c.fillRect(x, y + i * step, w, step, gray(i));
-        ui::drawText(c, "gray(" + std::to_string(i) + ")", x + 12, y + i * step + step / 2, Type::Caption, i < 8 ? ui::paper : ui::ink, ui::Anchor::MiddleLeft, gray(i));
+        const int g = mode_ == Mode::FastRamp ? 15 - i : i;
+        c.fillRect(x, y + i * step, w, step, gray(g));
+        ui::drawText(c, "gray(" + std::to_string(g) + ")", x + 12, y + i * step + step / 2, Type::Caption, g < 8 ? ui::paper : ui::ink, ui::Anchor::MiddleLeft, gray(g));
       }
     } else if (mode_ == Mode::Checker) {
       const int cell = 41;  // 12 columns of 41 px in 492

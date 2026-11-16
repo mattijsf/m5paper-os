@@ -71,7 +71,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
 | Firmware build | `make fw` | OK, 2.74 MB (52.2% of the 5 MB slot, 2026-11-16; libsodium added ~130 KB) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 250 tests; 192 goldens (2026-11-16); `out/gallery.html` |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 250 tests; 193 goldens (2026-11-16); `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Camera on the panel | `make cam-shot` / `cam-video` / `cam-compare`, `tools/cam.py around tap X Y` | C922 webcam; captures through one Terminal window (camera permission); `cam.py lock` (uvc-util) at the start of a session; video 30 fps at 640x480 |
@@ -223,13 +223,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 
 ## To verify with the camera (P7-7)
 
-- **Fast pass = ordered dither (2026-11-16, from the driver source, not seen on the panel)**: `around tap` on a Settings row and on
-  the back arrow: are the gray(9) dividers there in the first (Fast) pass as dotted lines, and the gray(13) launcher wells as
-  sparse dots? If yes, the simulator's new Fast emulation is right and "first the text, then the lines" was a simulator artefact;
-  if the panel shows no lines before the settle pass, revert `fastLevel` in `platform/sim/display.cpp` (and its 55 goldens).
-  **Tried by the camera session 2026-11-16 on a reader page: not conclusive** (1.3 camera px per panel px: the 4 x 4 pattern
-  on text edges blurs away). **Use Settings > Developer > Display lab > Fast** instead (the ramp left in its Fast state): one
-  still; 16 bands of rising brightness = dither, black and white bands = threshold. Needs a firmware with this pattern.
+- **Fast pass = ordered dither: done 2026-11-16.** Confirmed on the panel by the camera session with Display lab "Fast" (firmware 8f221ab): 16 bands of steadily rising lightness (numbers in DISPLAY.md "Fast then settle"). The simulator's Fast emulation (70dba80) stays. "First the text, then the lines" was the old simulator emulation: on the panel a gray divider is in the first pass as a dotted line. Images (local): `out/cam-diff-fastramp.png`, `out/fast-ramp-zoom.png`.
 
 The webcam (`tools/cam.py`, DISPLAY.md "Camera on the panel") checks these instead of a person's eyes. Numbers are per session (the
 set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixes exposure, white balance and focus; 30 fps at 640x480 for video.
@@ -706,3 +700,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-16: Vijfje: `kName` set to "Woordle" by the user (own edit); the share text unit test follows the constant, 15 goldens with the title or the tile regenerated; launcher tile label from `kName`.
 - 2026-11-16: D25 120 MHz flash + PSRAM: soak 20 min + 10 min with page turns clean (29.4 -> 34.4 C), temperature in boot log and heartbeat, restart guard at 12 C drift; page turn 140 ms, screen change 190 ms, small tap 5 ms (finger up to the driver). Full flash backed up before (`backup/before-120m-2026-11-16.bin`).
 - 2026-11-16: Display lab: fifth pattern "Fast" (the gray ramp left in its Fast state, `Hint::Page`) to check the driver's Fast dither with the camera; golden `lab-fast-ramp`, the five lab goldens with the wider control.
+- 2026-11-16: Fast pass dither confirmed on the panel with the camera (Display lab "Fast"); the Fast ramp is upside down so it is pushed also after Ramp; golden `lab-fast-after-ramp`.
