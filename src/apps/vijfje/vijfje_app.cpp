@@ -2,12 +2,16 @@
 //
 // One screen: the board of six rows, a legend, the letter keys; when the game is over the keys make way for the result
 // and "Kopieer score". A second screen (the title bar's info button) has the statistics and the rules.
+// More accepted words come from a list on the web, fetched about once a week and kept in the app's cache, so the game
+// works offline (vijfje.h "More accepted words"). The words of the day are always the built-in ones.
 // No colours on this panel: right place = solid ink, another place = a hatched ring, not in the word = a plain gray frame.
 // All three are ink and paper only, so the Fast pass already shows the final look.
 #include <algorithm>
+#include <cstdio>
 #include <cstdlib>
 #include <ctime>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -52,6 +56,8 @@ std::string upper(const std::string& s) {
   for (char c : s) out += upper(c);
   return out;
 }
+
+constexpr const char* kListFile = "guesses";  // in the app's cache: the fetched words, packed (game::packGuessList)
 
 std::string triesText(int n) { return std::to_string(n) + (n == 1 ? " beurt" : " beurten"); }
 std::string daysText(int n) { return std::to_string(n) + (n == 1 ? " dag" : " dagen"); }
@@ -385,6 +391,20 @@ class StatsScreen : public Screen {
         ui::Type::Body);
     rules->maxLines = 4;
     col->add<Legend>();
+    // Metadata: how many words are accepted and when more were fetched.
+    std::string list = "Woorden: " + std::to_string(game::wordCount()) + " ingebouwd, ";
+    const int fetched = ctx().store.get("listWords", 0);
+    struct tm t{};
+    if (fetched > 0 && localTime(static_cast<int64_t>(ctx().store.get("listFetched", 0.0)), t)) {
+      char date[16];
+      std::snprintf(date, sizeof date, "%d-%d-%d", t.tm_mday, t.tm_mon + 1, t.tm_year + 1900);
+      list += std::to_string(fetched) + " opgehaald op " + date;
+    } else {
+      list += "nog niets opgehaald";
+    }
+    col->add<ui::Spacer>(4);
+    auto* listLine = col->add<ui::Label>(list, ui::Type::Caption, ui::secondary);
+    listLine->align = ui::TextAlign::Center;
   }
 
   std::string debugState() const override { return "view=stats"; }
@@ -424,6 +444,8 @@ class GameScreen : public Screen {
     setAction(Icon::Info, [this] { ctx().nav.push<StatsScreen>(); });
     openDay();
     show();
+    loadList();
+    fetchListIfDue();
   }
 
   // Back from the statistics, or still open after midnight: the word may be another one by now.
@@ -446,7 +468,7 @@ class GameScreen : public Screen {
     for (const std::string& g : guesses_) marks += (marks.empty() ? "" : ",") + game::marksOf(answer_, g);
     std::string s = std::string("view=") + (!hasDay_ ? "noclock" : over() ? "done" : "play") + " day=" + std::to_string(day_) +
                     " number=" + std::to_string(game::puzzleNumber(day_)) + " tries=" + std::to_string(guesses_.size()) +
-                    " guesses=" + join(guesses_) + "; typed=" + typed_ + "; marks=" + marks + ";";
+                    " guesses=" + join(guesses_) + "; typed=" + typed_ + "; marks=" + marks + "; list=" + std::to_string(extra_.size() / kLen) + ";";
     // Where the keys are: UI scripts tap them.
     if (keys_ && keys_->visible) {
       s += " keys=";
@@ -489,7 +511,8 @@ class GameScreen : public Screen {
     Store& st = ctx().store;
     if (st.get("day", INT32_MIN) == day_ && st.get("answer", std::string()) == answer_) {
       for (const std::string& g : split(st.get("guesses", std::string()))) {
-        if (game::finished(answer_, guesses_) || !game::isWord(g)) break;
+        // Checked against the lists when it was played; the fetched list may not be loaded yet, so only the shape here.
+        if (game::finished(answer_, guesses_) || g.size() != static_cast<size_t>(kLen)) break;
         guesses_.push_back(g);
       }
     } else {
@@ -546,7 +569,7 @@ class GameScreen : public Screen {
       ctx().toast("Te weinig letters");
       return;
     }
-    if (!game::isWord(typed_)) {
+    if (!known(typed_)) {
       ctx().toast("Onbekend woord");  // the row is not used up
       return;
     }
@@ -574,6 +597,61 @@ class GameScreen : public Screen {
     });
   }
 
+  bool known(const std::string& word) const { return game::isWord(word) || game::inPacked(extra_, word); }
+
+  // The fetched words from the cache, read on the worker (about 30 KB). Until they are in, only the built-in words count.
+  void loadList() {
+    const Cache cache = ctx().cache;  // a copy: the job may run after the app is gone
+    ctx().async(
+        [cache] {
+          std::string packed = cache.read(kListFile);
+          return game::validPacked(packed) ? packed : std::string();
+        },
+        [this](std::string packed) {
+          if (!packed.empty() && extra_.empty()) extra_ = std::move(packed);
+        });
+  }
+
+  // About once a week (and a day after a failed try): the list from the web. Wi-Fi comes up for it by itself; nothing is
+  // shown, and a failure leaves the words that are there.
+  void fetchListIfDue() {
+    Store& st = ctx().store;
+    const int64_t now = ctx().clock.now();
+    if (!game::listDue(now, static_cast<int64_t>(st.get("listFetched", 0.0)), static_cast<int64_t>(st.get("listTried", 0.0)))) return;
+    st.set("listTried", static_cast<double>(now));
+    st.save();
+    hal::HttpRequest req;
+    req.url = game::kListUrl;
+    req.timeoutMs = 15000;
+    ctx().http(req, [this](hal::HttpResponse r) {
+      if (r.status != 200 || r.body.empty() || r.body.size() > game::kListMaxBytes) {
+        ctx().log("word list not fetched: status %d, %u bytes", r.status, static_cast<unsigned>(r.body.size()));
+        return;
+      }
+      // Packing and the cache file on the worker.
+      const Cache cache = ctx().cache;
+      auto body = std::make_shared<std::string>(std::move(r.body));
+      ctx().async(
+          [cache, body] {
+            std::string packed = game::packGuessList(*body);
+            if (!packed.empty() && !cache.write(kListFile, packed)) packed.clear();
+            return packed;
+          },
+          [this](std::string packed) {
+            if (packed.empty()) {
+              ctx().log("word list: no words in it, or not written");
+              return;
+            }
+            Store& st = ctx().store;
+            st.set("listFetched", static_cast<double>(ctx().clock.now()));
+            st.set("listWords", static_cast<int>(packed.size() / kLen));
+            st.save();
+            ctx().log("word list: %u words", static_cast<unsigned>(packed.size() / kLen));
+            extra_ = std::move(packed);
+          });
+    });
+  }
+
   void copyScore() {
     if (clipboard::set(game::shareText(game::puzzleNumber(day_), answer_, guesses_), "vijfje"))
       ctx().toast("Score gekopieerd");
@@ -594,6 +672,7 @@ class GameScreen : public Screen {
   std::string answer_;
   std::vector<std::string> guesses_;
   std::string typed_;  // the letters of the row being filled; not kept when the app is left
+  std::string extra_;  // fetched words accepted as a guess, packed and sorted; "" until loaded or when there are none
   static GameScreen* current_;
 };
 GameScreen* GameScreen::current_ = nullptr;

@@ -42,6 +42,8 @@ changes, so it is never refreshed).
 
 ## Screens
 
+(The word list fetch has no screen: see "Fetched words".)
+
 - **Game** (`GameScreen`): title "Vijfje 431" (the puzzle number), the board of 6 x 5 tiles (72 px), the legend, the keys
   (three rows, QWERTY, Enter and Backspace in the last row as icons; 45 x 72 px keys, a tap in a gap goes to the nearer
   key). A typed letter refreshes its tile only; a played row refreshes the row, and 30 ms later the keys in their own push.
@@ -70,11 +72,29 @@ indices into it (so the source does not show next week's words to someone readin
 - Adding a word to `extra.txt` is always safe. **Adding or removing an answer changes which word falls on which day**
   (the shuffle is over the sorted list), also for today's saved game: the saved game is dropped when its word is not
   today's any more.
-- **The list is small.** A Dutch five-letter dictionary with inflections has several thousand more words, so a real word
-  can get "Onbekend woord". The cure is a bigger `extra.txt`, for instance from an open word list (OpenTaal); nothing was
-  downloaded for this (it needs the owner's go-ahead).
-- The handover named `https://woordscore.nl/woordlijst.txt` (844 answers + 5616 guesses). On 2026-11-16 that address
-  answered 241 bytes: 10 + 30 words. Not used.
+- **The built-in list is small**: a real word can get "Onbekend woord" until the fetched words are there (next section).
+
+## Fetched words
+
+More **accepted guesses** come from `https://woordscore.nl/woordlijst.txt` (`vijfje::kListUrl`): plain text, one word per
+line, two parts split by one empty line. **Only the second part is used** (5616 accepted words on 2026-11-16, 3381 of them
+not built in). The first part is the web game's words of the day in its order: it is skipped by the parser and never
+stored (D26), so the word of the day always comes from the built-in answers.
+
+- **When**: on opening the app, if the list was never fetched or is a week old (`kListMaxAgeS`); after a failed try not
+  before a day later (`kListRetryS`); with the clock not set only when there is no list yet (`listDue`, unit-tested).
+  `ctx.http` brings Wi-Fi up by itself; nothing is shown, a failure is a log line and the old words stay.
+- **Kept**: `packGuessList` turns the second part into packed sorted words (lines that are not five letters a-z are
+  skipped, at most 12000 words, the response at most 200 KB), written to the app's cache (`/data/cache/vijfje/guesses`,
+  28 KB) on the worker. On every open the file is read on the worker and checked (`validPacked`: sorted, a-z, whole
+  words); until it is in, only the built-in words count. So the game works offline with the last fetched words, and with
+  the built-in ones when nothing was ever fetched.
+- A guess is known if it is built in or in the fetched list. Saved guesses are not checked again on reload (the fetched
+  list may not be loaded yet).
+- Store keys: `listTried`, `listFetched` (Unix seconds), `listWords`. The statistics screen's last line says
+  "Woorden: 2254 ingebouwd, 5616 opgehaald op 16-11-2026" (or "nog niets opgehaald").
+- Checked 2026-11-16 with the simulator against the live address (`--fixtures none`): 5616 words cached, equal to the
+  file's second part. Earlier the same day the address answered a 10 + 30 word placeholder.
 
 ## State
 
@@ -86,9 +106,12 @@ row: a lost or a missed day ends it (`streakOn`).
 ## Tests
 
 - `tests/unit/vijfje_test.cpp`: marks (double letters), key marks, days and numbers, the word list (sorted, a-z, every
-  answer a word, each answer once per round, wrap), the share text byte for byte, statistics and streak.
+  answer a word, each answer once per round, wrap), the share text byte for byte, statistics and streak, the fetched
+  list (only the second part, line ends, an error page, a damaged cache file, when it is due).
 - `tests/ui/vijfje.script` (a win in three with all marks, unknown word, too few letters, copy, statistics, restart),
-  `vijfje-lost.script` (resume after a restart, six wrong guesses), `vijfje-launcher.script` (page 2 of the launcher).
+  `vijfje-lost.script` (resume after a restart, six wrong guesses), `vijfje-launcher.script` (page 2 of the launcher),
+  `vijfje-list.script` (the list from a fixture, a word that is only in it, then Wi-Fi off and a restart: the cached words
+  still count). The first three have preset data with a recent `listTried`, so they fetch nothing.
   The scripts run on 2028-01-20 and -21 (days 430 and 431), so no golden shows a word of the coming year.
   Key positions in a script come from `debugState()` (`keys=q49,708 ...`; `+` is Enter, `-` is Backspace).
 

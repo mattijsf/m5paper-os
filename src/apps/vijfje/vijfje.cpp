@@ -121,6 +121,84 @@ int streakOn(const Stats& stats, int today) {
   return stats.lastWonDay == today || stats.lastWonDay == today - 1 ? stats.streak : 0;
 }
 
+std::string packGuessList(const std::string& text) {
+  // The second part starts after the first empty line (a line of only spaces or a carriage return counts as empty).
+  size_t pos = 0;
+  bool found = false, any = false;
+  while (pos < text.size()) {
+    size_t end = text.find('\n', pos);
+    if (end == std::string::npos) end = text.size();
+    bool blank = true;
+    for (size_t i = pos; i < end; ++i) blank = blank && (text[i] == ' ' || text[i] == '\r' || text[i] == '\t');
+    pos = end + 1;
+    if (blank && any) {
+      found = true;
+      break;
+    }
+    any = any || !blank;
+  }
+  if (!found) return "";
+  // Words as numbers (26^5 fits in 32 bits): 4 bytes a word while sorting, instead of a string each.
+  std::vector<uint32_t> codes;
+  while (pos < text.size() && codes.size() < kListMaxWords) {
+    size_t end = text.find('\n', pos);
+    if (end == std::string::npos) end = text.size();
+    size_t a = pos, b = end;
+    while (a < b && (text[a] == ' ' || text[a] == '\t')) ++a;
+    while (b > a && (text[b - 1] == ' ' || text[b - 1] == '\r' || text[b - 1] == '\t')) --b;
+    pos = end + 1;
+    if (b - a != static_cast<size_t>(kLen)) continue;
+    uint32_t code = 0;
+    bool ok = true;
+    for (size_t i = a; i < b; ++i) {
+      ok = ok && text[i] >= 'a' && text[i] <= 'z';
+      code = code * 26 + static_cast<uint32_t>(text[i] - 'a');
+    }
+    if (ok) codes.push_back(code);
+  }
+  std::sort(codes.begin(), codes.end());
+  codes.erase(std::unique(codes.begin(), codes.end()), codes.end());
+  std::string packed(codes.size() * kLen, 'a');
+  for (size_t w = 0; w < codes.size(); ++w) {
+    uint32_t code = codes[w];
+    for (int i = kLen - 1; i >= 0; --i) {
+      packed[w * kLen + static_cast<size_t>(i)] = static_cast<char>('a' + code % 26);
+      code /= 26;
+    }
+  }
+  return packed;
+}
+
+bool validPacked(const std::string& packed) {
+  if (packed.empty() || packed.size() % kLen != 0 || packed.size() > kListMaxWords * kLen) return false;
+  for (size_t i = 0; i < packed.size(); ++i) {
+    if (packed[i] < 'a' || packed[i] > 'z') return false;
+    if (i >= static_cast<size_t>(kLen) && i % kLen == 0 && std::memcmp(packed.data() + i - kLen, packed.data() + i, kLen) >= 0) return false;
+  }
+  return true;
+}
+
+bool inPacked(const std::string& packed, const std::string& word) {
+  if (word.size() != static_cast<size_t>(kLen)) return false;
+  long lo = 0, hi = static_cast<long>(packed.size() / kLen) - 1;
+  while (lo <= hi) {
+    const long mid = (lo + hi) / 2;
+    const int c = std::memcmp(word.data(), packed.data() + static_cast<size_t>(mid) * kLen, kLen);
+    if (c == 0) return true;
+    if (c < 0)
+      hi = mid - 1;
+    else
+      lo = mid + 1;
+  }
+  return false;
+}
+
+bool listDue(int64_t now, int64_t fetchedAt, int64_t triedAt) {
+  if (now <= 1700000000) return fetchedAt == 0;  // no clock: once, so the game gets its words (the connection sets the clock)
+  if (triedAt != 0 && now >= triedAt && now - triedAt < kListRetryS) return false;
+  return fetchedAt == 0 || now < fetchedAt || now - fetchedAt >= kListMaxAgeS;
+}
+
 int winPercent(const Stats& stats) { return stats.played > 0 ? (stats.won * 100 + stats.played / 2) / stats.played : 0; }
 
 }  // namespace pos::vijfje

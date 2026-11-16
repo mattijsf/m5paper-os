@@ -149,3 +149,53 @@ TEST_CASE("vijfje: statistics and the streak") {
   record(third, 2, false, 6);
   CHECK(winPercent(third) == 33);
 }
+
+TEST_CASE("vijfje: the fetched list: only the second part, packed and sorted") {
+  // Part 1 (another game's words of the day) is never taken, whatever is in it.
+  const std::string text = "eerst\ntwede\n\nzomer\nappel\n  kamer \r\nappel\nKAMER\nboot\nlangerwoord\ntjalk\nab1de\n";
+  const std::string packed = packGuessList(text);
+  CHECK(packed == "appelkamertjalkzomer");
+  CHECK(validPacked(packed));
+  CHECK(inPacked(packed, "tjalk"));
+  CHECK(inPacked(packed, "appel"));
+  CHECK(inPacked(packed, "zomer"));
+  CHECK_FALSE(inPacked(packed, "eerst"));
+  CHECK_FALSE(inPacked(packed, "twede"));
+  CHECK_FALSE(inPacked(packed, "boot"));
+  CHECK_FALSE(inPacked(packed, ""));
+  CHECK_FALSE(inPacked("", "appel"));
+  // Windows line ends, no line end after the last word, empty lines before the first part.
+  CHECK(packGuessList("\r\n\r\neerst\r\n\r\nzomer\r\nappel") == "appelzomer");
+  // No second part: nothing, also for an error page.
+  CHECK(packGuessList("eerst\ntwede\n") == "");
+  CHECK(packGuessList("") == "");
+  CHECK(packGuessList("<html>Not found</html>") == "");
+  CHECK(packGuessList("eerst\n\n") == "");
+}
+
+TEST_CASE("vijfje: a damaged cache file is not used") {
+  CHECK(validPacked("appelkamer"));
+  CHECK_FALSE(validPacked(""));
+  CHECK_FALSE(validPacked("appelkame"));     // cut
+  CHECK_FALSE(validPacked("kamerappel"));    // not sorted
+  CHECK_FALSE(validPacked("appelappel"));    // twice
+  CHECK_FALSE(validPacked("appelKamer"));
+  CHECK_FALSE(validPacked(std::string("appel\0amer", 10)));
+}
+
+TEST_CASE("vijfje: when the list is fetched") {
+  const int64_t now = 1830000000;
+  CHECK(listDue(now, 0, 0));                                    // never fetched
+  CHECK_FALSE(listDue(now, now - 6 * 86400, 0));                // fresh
+  CHECK(listDue(now, now - 7 * 86400, 0));                      // a week old
+  CHECK_FALSE(listDue(now, now - 30 * 86400, now - 3600));      // old, but tried an hour ago
+  CHECK(listDue(now, now - 30 * 86400, now - 86400));           // tried a day ago
+  CHECK_FALSE(listDue(now, 0, now - 60));                       // never fetched, tried a minute ago
+  CHECK(listDue(now, now + 86400 * 400, 0));                    // fetched "in the future": the clock was wrong then
+  CHECK(listDue(now, now - 8 * 86400, now + 5000));             // tried "in the future": ignored
+  // No clock: only when there is no list at all.
+  CHECK(listDue(0, 0, 0));
+  CHECK(listDue(0, 0, 12345));
+  CHECK_FALSE(listDue(0, now, 0));
+}
+

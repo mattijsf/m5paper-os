@@ -329,5 +329,8 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   under its name is not.
 - **Cost**: the word of the day differs from the web game's, so scores cannot be compared with people who play that, and
   woordscore.nl does not read a "Vijfje" score as the web game's. The share text keeps the genre's shape (apps/vijfje.md).
-- **Also found**: the handover's word list address answered 10 + 30 words on 2026-11-16, not 844 + 5616.
+- **Also found**: the handover's word list address answered 10 + 30 words on 2026-11-16, not 844 + 5616 (filled later that day).
+- **Later the same day**: the app fetches that file and uses its second
+  part only, the words accepted as a guess (a dictionary); the first part, the web game's words of the day in order, is
+  skipped by the parser and never stored. The line of this decision stays where it was.
 

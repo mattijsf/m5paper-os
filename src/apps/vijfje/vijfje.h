@@ -65,6 +65,26 @@ void record(Stats& stats, int day, bool won, int tries);
 int streakOn(const Stats& stats, int today);
 int winPercent(const Stats& stats);
 
+// --- More accepted words, fetched now and then (docs/apps/vijfje.md "Fetched words") ----------------------------------------
+
+// A plain text file: one lowercase five-letter word per line, two parts split by one empty line. Only the second part is
+// used (words accepted as a guess); the first part is another game's words of the day and is not read.
+constexpr const char* kListUrl = "https://woordscore.nl/woordlijst.txt";
+constexpr int64_t kListMaxAgeS = 7 * 86400;  // fetched again after a week
+constexpr int64_t kListRetryS = 86400;       // after a failed try: not before a day later
+constexpr size_t kListMaxBytes = 200 * 1024;
+constexpr size_t kListMaxWords = 12000;
+
+// The second part of the list file as packed words: sorted, each once, five letters a-z each, no separators. Lines that are
+// not such a word are skipped. "" if the text has no second part.
+std::string packGuessList(const std::string& text);
+// True if `packed` is what packGuessList gives (a cache file that was cut or damaged is not).
+bool validPacked(const std::string& packed);
+bool inPacked(const std::string& packed, const std::string& word);
+// Whether to fetch the list now. Times in Unix seconds, 0 = never. With the clock not set (`now` too small to be a date):
+// only if the list was never fetched.
+bool listDue(int64_t now, int64_t fetchedAt, int64_t triedAt);
+
 namespace data {
 extern const int kWordCount;
 extern const char kWords[];

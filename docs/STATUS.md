@@ -71,7 +71,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
 | Firmware build | `make fw` | OK, 2.74 MB (52.2% of the 5 MB slot, 2026-11-16; libsodium added ~130 KB) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 247 tests; 186 goldens (2026-11-16); `out/gallery.html` |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 250 tests; 188 goldens (2026-11-16); `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Camera on the panel | `make cam-shot` / `cam-video` / `cam-compare`, `tools/cam.py around tap X Y` | C922 webcam; captures through one Terminal window (camera permission); `cam.py lock` (uvc-util) at the start of a session; video 30 fps at 640x480 |
@@ -274,6 +274,9 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   guess with injected taps (key positions from `debugState`), frame dump against the goldens; with the camera: how the
   hatched ring and the gray(5) letters of absent tiles and keys show on the panel, and typing speed (a Fast push per
   letter plus its settle). For a person's fingers, batched: whether 45 px wide keys are comfortable.
+  **The word list fetch on the device**: HTTPS to woordscore.nl with the built-in CA bundle (never run), heap during it (a
+  39 KB body + 22 KB of codes + the 28 KB packed list while TLS is up; expected to land in PSRAM, not measured), the
+  cache write (28 KB to LittleFS on the worker), the log line `[vijfje] word list: N words`.
 - **Screen passes with gray areas as one Text push** (`why=screen-gray`, 2026-11-16, simulator only: the device was reserved for other
   testing). With the camera, `around tap 36 92` (back from an app to the launcher), before and after the change: number of waveforms
   on the panel (expected one instead of Fast + settle sweep), the time until the final look and until the first visible change, whether
@@ -389,12 +392,12 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
    the notification shows; read-only. (d) The phone is mostly on and online at home; both sides queue and survive the phone being
    away for hours. Protocol: docs/COMPANION.md.
 
-7. **Vijfje (P7-9, D26)**: (a) the word list is small (2254 accepted words, written by hand): may an open Dutch word list
-   (OpenTaal) be downloaded to widen `assets/vijfje/extra.txt`? (b) Vijfje is alone on launcher page 2: fine, or should
+7. **Vijfje (P7-9, D26)**: (a) ~~the word list is small: download OpenTaal?~~ **Closed 2026-11-16**: "Not now"; instead the
+   app fetches the accepted guesses of woordscore.nl weekly (apps/vijfje.md "Fetched words"). (b) Vijfje is alone on launcher page 2: fine, or should
    the two games share a place (a 2 x 4 grid, a Games folder)? (c) the handover's `woordscore.nl/woordlijst.txt` answers
-   10 + 30 words instead of 844 + 5616. **** (read as: that file is
-   a placeholder for now). When it is: its second part (accepted guesses) can widen `extra.txt`; its first part (the web
-   game's daily answers in order) stays out (D26).
+   10 + 30 words at first; **since 2026-11-16 about 11:50 the full list (844 + 5616)**. The app fetches its second part
+   (accepted guesses) weekly; its first part (the web game's daily answers in order) stays out (D26). **Still the user's
+   wish as far as understood: the web game's word of the day; that part is not built.**
 
 None of these block Phase 1, Phase 2, or the reader.
 
@@ -679,3 +682,4 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-16: tap latency (DISPLAY.md "Tap latency", D24): `[lat]` trace + `tools/latency.py`; fast text path (byte-identical to LovyanGFX); M5GFX patched at build time (`tools/patch_m5gfx.py`: tiled table-driven frame buffer write, finished rows skipped; `>set epd-selftest on`); reader prefetches the next page; Settings write the config a second later. Page turn 516 -> 199 ms, screen 807 -> 408 ms, small tap 52 -> 7 ms (finger up to the driver).
 - 2026-11-16: D25: the Arduino core / ESP-IDF 5.5.5 built from source (`custom_sdkconfig`): 64 KB data cache, 64-byte lines, PSRAM initialised before global constructors. Screen change during a settle 408 -> 306 ms. Pitfalls (penv PlatformIO 6.2.0, SPIRAM_BOOT_INIT) in D25.
 - 2026-11-16: P7-9 Vijfje (D26): `apps/vijfje` (game logic, word lists + `tools/gen-vijfje-words.py`, game and statistics screens, score to the clipboard); 8 unit test cases, 13 new goldens, 9 launcher goldens with the pager bar. Simulator only.
+- 2026-11-16: P7-9 Vijfje fetches more accepted guesses weekly from woordscore.nl (second part of the list only), cached for offline use; 3 unit test cases, `vijfje-list.script` with a fixture, live fetch checked in the simulator (5616 words).
