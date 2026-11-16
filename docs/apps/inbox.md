@@ -58,7 +58,7 @@ with `POS_REGISTER_APP`.
 - **API for other apps** (`apps/inbox/compose.h`): `whatsapp::openCompose(ctx, {name, key}, text)` and
   `whatsapp::sendToFavorite(ctx, "Woordle challenge", "Somdoku 12:34")`: a reply to the newest live WhatsApp notification whose chat
   name is that name; none: the toast "No WhatsApp notification from <name> on your phone" (or "No phone paired: see Settings > Home
-  Assistant"). The config's `inbox.whatsapp.favorites` is no longer used.
+  Assistant"). The config key `inbox.whatsapp.favorites` was removed (D22).
 
 ## Behaviour
 

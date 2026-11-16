@@ -55,16 +55,12 @@ the token and the Authorization header are never shown or logged. Developer > "H
   "net":      { "lingerSec": 20, "timezone": "CET-1CEST,M3.5.0,M10.5.0/3" },
   "reader":   { "fontSize": "M", "margins": "normal", "lineSpacing": 1.35 },
   "ha":       { "baseUrl": "http://homeassistant.local:8123" },
-  "launcher": { "resumeLastApp": true },
-  "inbox":    { "whatsapp": { "favorites": [ { "name": "Family", "chat": "120363000000000001@g.us" } ] } }
+  "launcher": { "resumeLastApp": true }
 }
 ```
 
-`inbox.whatsapp.favorites` (DECISIONS.md D21): the chats "New message" and other apps (a game's score) may start a WhatsApp message
-to; at most 8, each a `name` (shown, 40 characters) and a `chat` JID (`<digits>@s.whatsapp.net` or `<digits>@g.us`; others are
-ignored). No Settings screen edits it yet: write it into the file (it survives Settings saving the file). A chat's JID is the `key`
-of its items in `sensor.paperos_whatsapp_inbox`. Not secret, but private: it names the user's chats. Since D22 (2026-11-16) there is
-no send path to a favourite: the key is no longer read (a game's score goes to the live notification of the chat with that name).
+`inbox.whatsapp.favorites` (D21) was removed with the direct WhatsApp send (D22, 2026-11-16): the key is not read, and the next
+save of the file drops it. Replies go only to chats with a live notification on the phone (apps/inbox.md "Replying").
 
 ## Secrets and provisioning: `/sd/paperos_config`
 

@@ -3,7 +3,6 @@
 #pragma once
 
 #include <string>
-#include <vector>
 
 namespace pos {
 
@@ -39,14 +38,6 @@ struct HaConfig {
 struct LauncherConfig {
   bool resumeLastApp = true;
 };
-// A WhatsApp chat the device may start a message to ("New message", a game's "Send score"): DECISIONS.md D21.
-struct ChatFavorite {
-  std::string name;  // shown on the device, at most 40 characters
-  std::string chat;  // the chat JID: <digits>@s.whatsapp.net or <digits>@g.us (checked by the WhatsApp app, not here)
-};
-struct InboxConfig {
-  std::vector<ChatFavorite> whatsappFavorites;  // inbox.whatsapp.favorites, at most 8 (one screen); entries without a name or chat are skipped
-};
 
 class Config {
  public:
@@ -58,7 +49,6 @@ class Config {
   ReaderConfig reader;
   HaConfig ha;
   LauncherConfig launcher;
-  InboxConfig inbox;
 
   // Reads the file; anything missing or invalid keeps its default. Returns true if a file was read.
   bool load();

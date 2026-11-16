@@ -26,11 +26,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   headings, long words, tiny pages, parser). **P2-6**: config service, secrets reader, time zone, Settings (all sections). The device shows the real
   Settings. **Phase 3 continues** (P3-1 device power HAL, P3-4 idle policy; Wi-Fi tasks wait for credentials).
 - The factory firmware is saved in `backup/factory-16MB.bin` (restore command in HARDWARE.md).
-- **P6-7 clipboard and WhatsApp sending (D21), 2026-11-16: built in the simulator, not live.** `core/clipboard`; Paste / Copy all / Clear on
-  a long press in every text field; `script.paperos_whatsapp_send` in `ha/paperos_inbox.yaml` (guards, rate limit: BACKEND.md "Sending a
-  WhatsApp message"); WhatsApp Reply, New message (config `inbox.whatsapp.favorites`), compose, confirmation, toasts; `apps/inbox/compose.h`
-  for other apps. **The script is not installed in Home Assistant and nothing has been sent** (the repo copy of the package is now ahead of
-  the live one). The send path is verified only against fixtures and a Jinja harness.
+- **P6-7 clipboard (D21), 2026-11-16.** `core/clipboard`; Paste / Copy all / Clear on a long press in every text field. The direct
+  WhatsApp send of D21 is gone with the WhatsApp integration (D22): no Home Assistant script, no favourites (config key and the device
+  test aid `>set favorite` removed); a reply goes to the phone through the relay (apps/inbox.md "Replying").
 
 - **D22, 2026-11-16: the inbox moves to an end-to-end encrypted companion app; Home Assistant is not trusted with message text.**
   Done: both add-ons removed from Home Assistant (WhatsApp Gateway logged out first, then its integration, the add-on with its data and
@@ -261,7 +259,7 @@ connected** (2026-11-15: macOS lists only the built-in camera; the user will plu
 
 - **P6-7 (2026-11-16, firmware of this commit, flashed)**: run on the device: the text-field sheet on `widgets6` (frame dump identical to the
   golden `textfield-menu-empty`), Clear on the three-line field, and the WhatsApp compose screen with a fake favourite added in memory
-  (`>set favorite Test=31600000000@s.whatsapp.net`, removed afterwards with `>set favorite clear`): compose, typing "hi" with injected key
+  (`>set favorite`, removed since with the favourites): compose, typing "hi" with injected key
   taps, the confirmation sheet, Cancel (frame back to the compose screen, no send in the log). Dumps: `out/dev-textfield-menu.png`,
   `out/dev-compose.png`, `out/dev-compose-typed.png`, `out/dev-confirm.png`, `out/dev-note-menu.png`, `out/dev-note-cleared.png`.
   **Not run**: Send in the sheet (never, until the script is installed and the user chooses a chat), Paste with a real clipboard on the

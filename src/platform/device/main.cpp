@@ -116,21 +116,6 @@ class SerialRemoteHost : public RemoteHost {
       gPower.powerOff(static_cast<uint32_t>(atoi(value.c_str())));
       return true;
     }
-    if (key == "favorite") {
-      // Test aid (D21): ">set favorite Test=31600000000@s.whatsapp.net" adds a WhatsApp favourite in memory only (a fake chat for
-      // frame dumps of the compose screen, without the user's real chats); ">set favorite clear" removes them. Not saved, gone at
-      // reboot; Settings would save it with the file, so clear it after the test.
-      auto& favs = gOs.config().inbox.whatsappFavorites;
-      if (value == "clear") {
-        favs.clear();
-        gOs.config().load();  // back to what the file says
-        return true;
-      }
-      const size_t eq = value.find('=');
-      if (eq == std::string::npos || eq == 0) return false;
-      favs.push_back(ChatFavorite{value.substr(0, eq), value.substr(eq + 1)});
-      return true;
-    }
     if (key == "epd-timing") {
       gDisplay.setTiming(value == "on");
       return true;

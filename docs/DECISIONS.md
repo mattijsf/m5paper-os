@@ -215,7 +215,9 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
 - **Status (2026-11-16)**: built in the simulator: `core/clipboard`, the text-field sheet (UI.md), `script.paperos_whatsapp_send` in
   `ha/paperos_inbox.yaml` (guards in BACKEND.md "Sending a WhatsApp message"), Reply / New message / compose / confirmation in the WhatsApp
   app and `apps/inbox/compose.h` for other apps (apps/inbox.md "Sending"). The compose screen and the sheet ran on the device (frame dumps).
-  **Nothing is installed in Home Assistant and nothing has been sent.**
+  **Superseded (2026-11-16)**: the script was installed, sent one message to the user's own number, and was removed the same day with
+  the WhatsApp integration (D22). Favourites, "New message" and the script are gone; the clipboard and the text-field sheet stay, and
+  a reply now goes through the phone (D22, COMPANION.md 7.2).
 - Mail stays read-only.
 
 ## D22. Home Assistant is not trusted with message text: the inbox comes from an end-to-end encrypted companion app. Supersedes D16, D17, D20 and the send path of D21

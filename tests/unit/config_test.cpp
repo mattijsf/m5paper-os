@@ -96,40 +96,6 @@ TEST_CASE("config: missing keys, wrong types and out-of-range values never crash
   CHECK_FALSE(d.load());
 }
 
-TEST_CASE("config: WhatsApp favourites load, skip bad entries, cap at 8 and survive a save") {
-  TempRoots t;
-  std::string json = R"({"inbox":{"whatsapp":{"favorites":[
-    {"name":"Family","chat":"120363000000000001@g.us"},
-    {"name":"","chat":"31600000001@s.whatsapp.net"},
-    {"name":"No chat"},
-    {"name":42,"chat":"31600000002@s.whatsapp.net"},
-    "not an object",
-    {"name":"Bram","chat":"31600000002@s.whatsapp.net"})";
-  for (int i = 0; i < 12; ++i) json += R"(,{"name":"F)" + std::to_string(i) + R"(","chat":"3160000010)" + std::to_string(i % 10) + R"(@s.whatsapp.net"})";
-  json += "]}}}";
-  REQUIRE(fs::writeFile("/data/config.json", json));
-  Config c;
-  REQUIRE(c.load());
-  REQUIRE(c.inbox.whatsappFavorites.size() == 8);
-  CHECK(c.inbox.whatsappFavorites[0].name == "Family");
-  CHECK(c.inbox.whatsappFavorites[0].chat == "120363000000000001@g.us");
-  CHECK(c.inbox.whatsappFavorites[1].name == "Bram");
-  CHECK(c.inbox.whatsappFavorites[2].name == "F0");
-  c.display.settleMs = 700;  // Settings saves the whole file: the favourites must come back
-  REQUIRE(c.save());
-  Config d;
-  REQUIRE(d.load());
-  REQUIRE(d.inbox.whatsappFavorites.size() == 8);
-  CHECK(d.inbox.whatsappFavorites[1].chat == "31600000002@s.whatsapp.net");
-  CHECK(d.display.settleMs == 700);
-  Config e;  // no favourites: none written
-  e.reset();
-  REQUIRE(e.save());
-  std::string text;
-  REQUIRE(fs::readFile("/data/config.json", text));
-  CHECK(text.find("favorites") == std::string::npos);
-}
-
 TEST_CASE("secrets: parsing") {
   TempRoots t;
   fs::writeFile("/sd/paperos_config",
