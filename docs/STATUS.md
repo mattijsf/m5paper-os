@@ -120,9 +120,9 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 - Which Home Assistant user the token belongs to. The Home app and the inbox calls have **not been run with a non-admin token** (D18 assumes they work); the swap to a dedicated non-admin user comes after development.
 - **Inbox since D22 (2026-11-16)**: the Android app does not exist yet; the relay and the Paper side ran only with a scripted test
   phone (above). Earlier note: The "Not set up yet" state ran in the
-  simulator and on the device against the live 404 (Pending device checks). Whether the WhatsApp linked device is
-  gone from the phone's "Linked devices" list was not checked (the logout ran, Baileys logged "Intentional Logout"): the user looks.
-  Over adb it cannot be reached without opening the chat list (the Linked devices activity is not exported), so it was left alone.
+  simulator and on the device against the live 404 (Pending device checks). The WhatsApp linked device is gone: the user
+  checked the phone's "Linked devices" list on 2026-11-16 and Home Assistant is no longer listed (the logout had run, Baileys
+  logged "Intentional Logout"). Neither Home Assistant nor the Green has access to the WhatsApp or Proton accounts now.
 
 ## P6-1 progress (2026-11-15, done with the owner in Home Assistant; history: the add-on was removed on 2026-11-16, D22)
 
