@@ -251,14 +251,11 @@ std::string cleanText(const std::string& inRaw, const CleanOptions& opt) {
       chars += ' ';
       continue;
     }
-    if (cp == 0x200D) {  // a ZWJ sequence ("👨‍👩‍👧") keeps its first emoji: the joined one goes too
-      if (i < in.size()) {
-        unsigned next;
-        i += decodeAt(in, i, next);
-      }
+    if (cp == 0x200D || isEmojiModifier(cp)) {  // sequences stay whole: ui/text draws 👩‍💻, 🇳🇱, keycaps from the atlas
+      appendUtf8(chars, cp);
       continue;
     }
-    if (cp < 0x20 || cp == 0x7F || (cp >= 0x80 && cp < 0xA0) || cp == 0x200B || cp == 0x200C || cp == 0xFEFF || isEmojiModifier(cp)) continue;
+    if (cp < 0x20 || cp == 0x7F || (cp >= 0x80 && cp < 0xA0) || cp == 0x200B || cp == 0x200C || cp == 0xFEFF) continue;
     if (cp == 0xAD) continue;  // soft hyphen
     if (hasGlyph(cp)) {
       appendUtf8(chars, cp);

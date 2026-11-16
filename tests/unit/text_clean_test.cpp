@@ -36,12 +36,13 @@ TEST_CASE("text_clean: link host names") {
 }
 
 TEST_CASE("text_clean: emoji, control characters and invalid UTF-8") {
-  // Emoji stay (ui/text draws them from the atlas, docs/UI.md "Emoji"); the variation selector goes.
-  CHECK(cleanText("Great \xF0\x9F\x98\x80 see you \xE2\x9D\xA4\xEF\xB8\x8F") == "Great \xF0\x9F\x98\x80 see you \xE2\x9D\xA4");
+  // Emoji and their sequences stay whole (ui/text draws them from the atlas, docs/UI.md "Emoji").
+  CHECK(cleanText("Great \xF0\x9F\x98\x80 see you \xE2\x9D\xA4\xEF\xB8\x8F") == "Great \xF0\x9F\x98\x80 see you \xE2\x9D\xA4\xEF\xB8\x8F");
   CHECK(cleanText("a\xF0\x9F\xA6\x84" "b") == "a\xF0\x9F\xA6\x84" "b");
-  CHECK(cleanText("ok \xF0\x9F\x91\x8D\xF0\x9F\x8F\xBD") == "ok \xF0\x9F\x91\x8D");  // the skin tone goes
-  // A ZWJ sequence (man, woman, girl) keeps its first emoji.
-  CHECK(cleanText("us \xF0\x9F\x91\xA8\xE2\x80\x8D\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x91\xA7!") == "us \xF0\x9F\x91\xA8!");
+  CHECK(cleanText("ok \xF0\x9F\x91\x8D\xF0\x9F\x8F\xBD") == "ok \xF0\x9F\x91\x8D\xF0\x9F\x8F\xBD");
+  CHECK(cleanText("us \xF0\x9F\x91\xA8\xE2\x80\x8D\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x91\xA7!") ==
+        "us \xF0\x9F\x91\xA8\xE2\x80\x8D\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x91\xA7!");
+  CHECK(cleanText("\xF0\x9F\x8F\xB4\xF3\xA0\x81\xA7\xF3\xA0\x81\xA2\xF3\xA0\x81\xA5\xF3\xA0\x81\xAE\xF3\xA0\x81\xA7\xF3\xA0\x81\xBF").size() == 28);  // England: tags kept
   CHECK(std::string(emojiFallback(0x1F44D)) == "(+1)");  // the text form for a panel without the atlas
   CHECK(emojiFallback(0x1F984) == nullptr);
   CHECK(cleanText("a\x01" "b\x7F" "c\xC2\x85" "d") == "abcd");

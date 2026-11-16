@@ -20,9 +20,9 @@ struct CleanOptions {
   size_t maxWord = 60;     // a word longer than this is cut with an ellipsis (nothing wider than the column is wanted)
 };
 
-// What can be read on the panel: invalid UTF-8 and control characters dropped; emoji kept (ui/text draws them from the emoji
-// atlas, docs/UI.md "Emoji"), a ZWJ sequence as its first emoji, skin tones and other modifiers dropped; other characters
-// without a glyph dropped; CR LF to LF, tabs and runs of blanks to one space, at most one blank line in a row,
+// What can be read on the panel: invalid UTF-8 and control characters dropped; emoji and their sequences kept whole (ZWJ,
+// variation selectors, skin tones, keycap marks, tags: ui/text draws them from the emoji atlas, docs/UI.md "Emoji"); other
+// characters without a glyph dropped; CR LF to LF, tabs and runs of blanks to one space, at most one blank line in a row,
 // no blank lines or spaces at the ends. Never longer than the input plus a few bytes per emoji.
 std::string cleanText(const std::string& in, const CleanOptions& opt = {});
 

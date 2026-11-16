@@ -4,6 +4,8 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <unistd.h>
 
@@ -84,13 +86,35 @@ TEST_CASE("emoji: the atlases on the card have the emoji, every size, with sane 
   CHECK(emoji::atlasPx(12) == 18);
 }
 
-TEST_CASE("emoji: sanitize keeps emoji, drops modifiers, keeps a ZWJ sequence's first emoji") {
+// The one code point sanitize() made of a sequence: its atlas id.
+uint32_t only(const std::string& s) {
+  const auto* b = reinterpret_cast<const unsigned char*>(s.data());
+  if (s.size() != 4 || (b[0] & 0xF8) != 0xF0) return 0;
+  return ((b[0] & 0x07u) << 18) | ((b[1] & 0x3Fu) << 12) | ((b[2] & 0x3Fu) << 6) | (b[3] & 0x3Fu);
+}
+
+TEST_CASE("emoji: sanitize keeps emoji, turns sequences into atlas ids, drops what is left of modifiers") {
   Card card(true);
   CHECK(sanitize(kFamily) == kFamily);
-  CHECK(sanitize("ok \xF0\x9F\x91\x8D\xF0\x9F\x8F\xBD") == "ok \xF0\x9F\x91\x8D");
+  CHECK(sanitize("ok \xF0\x9F\x91\x8D\xF0\x9F\x8F\xBD") == "ok \xF0\x9F\x91\x8D");  // a skin tone on its own goes
   CHECK(sanitize("\xE2\x9D\xA4\xEF\xB8\x8F") == "\xE2\x9D\xA4");
-  CHECK(sanitize("\xF0\x9F\x91\xA8\xE2\x80\x8D\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x91\xA7 x") == "\xF0\x9F\x91\xA8 x");
   CHECK(sanitize("\xE4\xB8\xAD") == "?");  // not an emoji and no glyph: as before
+  // Sequences from the atlas: woman technologist (also with a skin tone), heart on fire, a keycap, flags.
+  const uint32_t tech = only(sanitize("\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x92\xBB"));
+  CHECK(tech >= emoji::kSequenceBase);
+  CHECK(emoji::available(tech));
+  CHECK(only(sanitize("\xF0\x9F\x91\xA9\xF0\x9F\x8F\xBD\xE2\x80\x8D\xF0\x9F\x92\xBB")) == tech);
+  CHECK(only(sanitize("\xE2\x9D\xA4\xEF\xB8\x8F\xE2\x80\x8D\xF0\x9F\x94\xA5")) >= emoji::kSequenceBase);
+  CHECK(only(sanitize("#\xEF\xB8\x8F\xE2\x83\xA3")) >= emoji::kSequenceBase);
+  const uint32_t nl = only(sanitize("\xF0\x9F\x87\xB3\xF0\x9F\x87\xB1"));
+  CHECK(nl >= emoji::kSequenceBase);
+  CHECK(only(sanitize("\xF0\x9F\x87\xA7\xF0\x9F\x87\xAA")) != nl);  // Belgium is another flag
+  CHECK(only(sanitize("\xF0\x9F\x8F\xB4\xF3\xA0\x81\xA7\xF3\xA0\x81\xA2\xF3\xA0\x81\xA5\xF3\xA0\x81\xAE\xF3\xA0\x81\xA7\xF3\xA0\x81\xBF")) >=
+        emoji::kSequenceBase);  // England
+  CHECK(sanitize("2026 #1 *") == "2026 #1 *");  // digits, # and * stay text
+  // A family (the atlas has none): the family emoji. An unknown ZWJ sequence: its first emoji.
+  CHECK(sanitize("\xF0\x9F\x91\xA8\xE2\x80\x8D\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x91\xA7 x") == "\xF0\x9F\x91\xAA x");
+  CHECK(sanitize("\xF0\x9F\x98\x80\xE2\x80\x8D\xF0\x9F\x8E\x82") == "\xF0\x9F\x98\x80");
 }
 
 TEST_CASE("emoji: without the atlas a few get their text form, the rest go, nothing becomes ?") {
@@ -154,4 +178,28 @@ TEST_CASE("emoji: a cached emoji line costs about what a line of letters costs")
   const double emojiUs = time(kFamily), letterUs = time(letters);
   MESSAGE("draw per line: emoji " << emojiUs << " us, letters " << letterUs << " us");
   CHECK(emojiUs < letterUs * 3 + 20);
+}
+
+TEST_CASE("emoji: an atlas replaced while in use is read again (make emoji while the device runs)") {
+  Card card(false);
+  char cwd[1024];
+  REQUIRE(getcwd(cwd, sizeof cwd));
+  const std::string src = std::string(cwd) + "/assets/emoji/";
+  std::string good, other;
+  {
+    std::ifstream a(src + "emoji-22.bin", std::ios::binary), b(src + "emoji-18.bin", std::ios::binary);
+    good.assign(std::istreambuf_iterator<char>(a), {});
+    other.assign(std::istreambuf_iterator<char>(b), {});
+  }
+  REQUIRE(fs::writeFile("/sd/paperos/emoji/emoji-22.bin", good));
+  emoji::reset();
+  CHECK(emoji::available(0x1F600));
+  const unsigned gen = emoji::generation();
+  // Replaced by a file that is not a 22 px atlas (as a push replaces it: written aside, renamed over): no emoji now.
+  REQUIRE(fs::writeFile("/sd/paperos/emoji/emoji-22.bin", other));
+  CHECK_FALSE(emoji::available(0x1F600));
+  CHECK(emoji::generation() > gen);
+  // And the right one again.
+  REQUIRE(fs::writeFile("/sd/paperos/emoji/emoji-22.bin", good));
+  CHECK(emoji::available(0x1F600));
 }

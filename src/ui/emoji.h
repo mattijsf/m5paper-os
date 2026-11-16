@@ -5,7 +5,9 @@
 // ui/text falls back to a short text form (":)") or "?".
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace pos::ui::emoji {
@@ -25,8 +27,16 @@ int atlasPx(int px);
 bool available(uint32_t cp);
 // The bitmap of `cp` in the atlas of `px` (an atlasPx() size). False if there is no such atlas or emoji, or the file is broken.
 bool load(int px, uint32_t cp, Bitmap& out);
+// Sequences (ZWJ sequences like 👩‍💻, keycaps, flags): the atlas gives each an id from kSequenceBase up. When a sequence
+// starts at byte `i` of `s`, returns the bytes it spans and its id; 0 otherwise. Variation selectors and skin tones inside
+// the text are skipped while matching (and spanned). The longest sequence wins.
+constexpr uint32_t kSequenceBase = 0xF0000;
+size_t matchSequence(const std::string& s, size_t i, uint32_t& id);
+
 // Forget the loaded indexes and open files (tests switch the data root).
 void reset();
+// Bumped whenever an atlas is dropped (reset(), or its file was replaced): ui/text drops the emoji bitmaps it kept.
+unsigned generation();
 // Bitmaps read from the card so far (each emoji and size once; then ui/text's glyph cache has it).
 unsigned loads();
 

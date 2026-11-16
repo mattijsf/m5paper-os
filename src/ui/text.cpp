@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <iterator>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -223,6 +224,7 @@ struct GlyphCache {
   std::vector<Glyph> table;                                  // kFonts * kSlots
   std::unordered_map<uint64_t, Glyph> other;                 // icons (private-use code points)
   std::vector<std::unique_ptr<uint8_t[]>> pages;             // alpha bitmaps
+  unsigned emojiGeneration = 0;                              // emoji::generation() the emoji entries in `other` belong to
   size_t used = kPage;
   static constexpr size_t kPage = 32 * 1024;
   Canvas probe;
@@ -346,6 +348,10 @@ int baselineOf(FontId id) {
 
 const Glyph& emojiGlyph(FontId id, uint32_t cp) {
   GlyphCache& gc = cache();
+  if (gc.emojiGeneration != emoji::generation()) {  // an atlas was replaced: its old bitmaps go (their memory stays in the pages)
+    for (auto it = gc.other.begin(); it != gc.other.end();) it = (it->first & 0x80000000u) ? gc.other.erase(it) : std::next(it);
+    gc.emojiGeneration = emoji::generation();
+  }
   Glyph& g = gc.other[(static_cast<uint64_t>(id) << 32) | 0x80000000u | cp];  // apart from the font glyphs of the same code point
   if (g.ready) return g;
   g.ready = true;
@@ -515,13 +521,60 @@ void forgetLoadedFont() {
   gLoaded = FontId::None;
 }
 
+// A family written as people joined by ZWJ ("👨‍👩‍👧"; the atlas has no family sequences): the bytes it spans if it is one
+// (three or more people, or two with a child), else 0.
+size_t familySpan(const std::string& s, size_t i) {
+  auto person = [](uint32_t c) { return c == 0x1F468 || c == 0x1F469 || c == 0x1F9D1 || c == 0x1F466 || c == 0x1F467 || c == 0x1F9D2; };
+  auto child = [](uint32_t c) { return c == 0x1F466 || c == 0x1F467 || c == 0x1F9D2; };
+  int people = 0;
+  bool kid = false;
+  size_t end = i;
+  for (size_t at = i; at < s.size();) {
+    uint32_t cp;
+    const size_t n = decode(s, at, cp);
+    if (!person(cp)) break;
+    ++people;
+    kid = kid || child(cp);
+    at += n;
+    while (at < s.size()) {  // skin tones and selectors after a person
+      uint32_t m;
+      const size_t k = decode(s, at, m);
+      if (!isEmojiModifier(m)) break;
+      at += k;
+    }
+    end = at;
+    uint32_t zwj;
+    if (at >= s.size() || (decode(s, at, zwj), zwj != 0x200D)) break;
+    at += 3;
+  }
+  return people >= 3 || (people == 2 && kid) ? end - i : 0;
+}
+
 std::string sanitize(const std::string& s) {
   std::string out;
   out.reserve(s.size());
   for (size_t i = 0; i < s.size();) {
     uint32_t cp;
+    const size_t at = i;
     i += decode(s, i, cp);
     if (cp == '\n' || cp == '\t') cp = ' ';
+    // A sequence (👩‍💻, 🇳🇱, a keycap) becomes its atlas id. A digit, # or * can only start a keycap: the next bytes must be
+    // U+FE0F or U+20E3, so ordinary numbers cost no lookup.
+    const bool keycap = (cp == '#' || cp == '*' || (cp >= '0' && cp <= '9')) && i + 3 <= s.size() &&
+                        (s.compare(i, 3, "\xEF\xB8\x8F") == 0 || s.compare(i, 3, "\xE2\x83\xA3") == 0);
+    if (keycap || cp >= 0x2000) {
+      uint32_t id;
+      if (const size_t n = emoji::matchSequence(s, at, id)) {
+        append(out, id);
+        i = at + n;
+        continue;
+      }
+      if (const size_t n = cp >= 0x1F466 && cp <= 0x1F9D2 ? familySpan(s, at) : 0) {
+        if (isEmoji(0x1F46A)) append(out, 0x1F46A);  // 👪
+        i = at + n;
+        continue;
+      }
+    }
     if (hasGlyph(cp) || squareKind(cp) != Square::None) {
       append(out, cp);
     } else if (cp == 0x200D) {  // a ZWJ sequence shows its first emoji: the joined one is skipped

@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <climits>
 #include <cstdio>
@@ -20,6 +21,13 @@ std::string gDataRoot = "sim-data/data";
 std::string gSdRoot = "/sd";
 std::string gDataRoot = "/littlefs";
 #endif
+
+std::atomic<unsigned> gChanges{0};  // changes(): bumped by writeFile, rename and removeAll on the card
+
+// Only the card: /data writes (settings, saved state) are frequent, and nothing caches a /data file's contents this way.
+void noteChange(const std::string& real) {
+  if (!real.empty() && real.compare(0, gSdRoot.size(), gSdRoot) == 0) ++gChanges;
+}
 
 bool hasPrefix(const std::string& s, const char* prefix, size_t n) {
   return s.size() >= n && s.compare(0, n, prefix) == 0 && (s.size() == n || s[n] == '/');
@@ -85,6 +93,7 @@ bool readFile(const std::string& v, std::string& out) {
 
 bool writeFile(const std::string& v, const std::string& data) {
   std::string p = resolve(v);
+  noteChange(p);  // it replaces the file (written aside, then renamed over it)
   if (p.empty()) return false;
   size_t slash = p.rfind('/');
   if (slash != std::string::npos && slash > 0 && !mkdirsReal(p.substr(0, slash))) return false;
@@ -153,13 +162,17 @@ bool removeReal(const std::string& p) {
 }
 }  // namespace
 
+unsigned changes() { return gChanges.load(); }
+
 bool removeAll(const std::string& v) {
   std::string p = resolve(v);
+  noteChange(p);
   return !p.empty() && p != gSdRoot && p != gDataRoot && removeReal(p);
 }
 
 bool rename(const std::string& from, const std::string& to) {
   std::string a = resolve(from), b = resolve(to);
+  noteChange(b);
   if (a.empty() || b.empty()) return false;
   if (std::rename(a.c_str(), b.c_str()) == 0) return true;
   std::remove(b.c_str());  // FAT refuses to overwrite

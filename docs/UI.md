@@ -269,10 +269,13 @@ Every text drawn with `drawText` / `measureText` / `ellipsize` shows emoji. Sour
 for black and white, bold filled shapes that survive 16 grays and small sizes. Chosen by the user on 2026-11-16 over Noto
 Emoji ("These are ugly. Especially the grandma and grandpa"); the comparison of Noto, Fluent High Contrast, OpenMoji and
 gray-converted Fluent Flat and Twemoji is `tools/gen-emoji.py`'s history (colour sets turn yellow faces into pale gray, which
-the panel prints lighter still; OpenMoji's lines are too thin). The 57 emoji Fluent lacks come from **Noto Emoji** (SIL OFL
-1.1, `assets/fonts/NotoEmoji.ttf`, weight 600). `tools/gen-emoji.py` (needs the Fluent SVGs fetched first, see its top)
-renders 1426 single-code-point emoji as 4-bit alpha bitmaps, one atlas per size: 18 (caption), 22 (body, bodyStrong), 24
-(read-S), 28 (title, read-M and up, headline), `assets/emoji/emoji-<px>.bin`, 1.5 MB together. A Fluent emoji's 32 x 32
+the panel prints lighter still; OpenMoji's lines are too thin). The 36 single emoji Fluent lacks come from **Noto Emoji** (SIL
+OFL 1.1, `assets/fonts/NotoEmoji.ttf`, weight 600); **flags** from **Twemoji** (CC BY 4.0,
+`assets/fonts/Twemoji-LICENSE-GRAPHICS.txt`; Fluent has none), their colours as grays with a dark edge round the cloth so a
+white band does not melt into the paper. `tools/gen-emoji.py` (needs the Fluent and Twemoji SVGs fetched first, see its top)
+renders 1891 emoji as 4-bit alpha bitmaps: 1405 single code points, 224 sequences (ZWJ sequences like 👩‍💻 and ❤️‍🔥,
+keycaps) and 262 flags (🇳🇱, 🏴󠁧󠁢󠁥󠁮󠁧󠁿 England); one atlas per size: 18 (caption), 22 (body, bodyStrong), 24 (read-S), 28 (title,
+read-M and up, headline), `assets/emoji/emoji-<px>.bin`, 2.1 MB together. A Fluent emoji's 32 x 32
 box is the font size, 0.86 of it above the baseline, with px/8 (at least 2 px) on each side.
 
 - **On the card, not in the firmware**: one size alone is 260-600 KB, the firmware has about 250 KB left under its 3 MB
@@ -283,8 +286,11 @@ box is the font size, 0.86 of it above the baseline, with px/8 (at least 2 px) o
   draws like a line of letters (host: 7 us against 6 us per line, `emoji_test`); widths, ellipsis and line wrap include
   emoji. Each emoji and size is read from the card once per boot.
 - **Placement**: on the font's baseline (the bottom of its "x"), at the font's size, advance as the font gives it.
-- **Sequences**: variation selectors, skin tones, the keycap mark and tags are dropped; a ZWJ sequence shows its first
-  emoji ("👨‍👩‍👧" -> 👨); flags show their two letter boxes. `core/text_clean` keeps emoji (it used to drop them).
+- **Sequences**: each atlas sequence has an id from U+F0000 (private use); `ui::sanitize` replaces a sequence it finds by its
+  id (`emoji::matchSequence`, longest match, skin tones and selectors inside skipped), so drawing stays the one-code-point
+  fast path. A digit, # or * is looked up only when U+FE0F or U+20E3 follows. Families written as joined people
+  ("👨‍👩‍👧"; Fluent has no family sequences) show 👪; another unknown ZWJ sequence shows its first emoji; leftover skin tones
+  and selectors are dropped (a black-and-white set has no skin colour). `core/text_clean` keeps emoji and sequences whole.
 - **No card / no atlas**: a few emoji get a text form (`:)`, `<3`, `(+1)`), the rest disappear (never `?`).
 - **Score squares** keep their own drawing (below): they must stay apart on the gray panel.
 - **Test screen** `emoji` (`--app emoji` in the simulator, `tools/device.py set screen emoji` on the device): every size, a

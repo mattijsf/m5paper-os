@@ -71,6 +71,10 @@ class Reader {
   FILE* f_ = nullptr;
 };
 
+// Bumped by every writeFile, rename and removeAll on the card (a file replaced or gone): a cache of a file's contents compares it cheaply and checks
+// the file again only when it moved (ui/emoji: atlases replaced over USB while the device runs).
+unsigned changes();
+
 // Creates the folder and every missing parent ("mkdir -p"). True if it exists afterwards.
 bool mkdirs(const std::string& virtualPath);
 

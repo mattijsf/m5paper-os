@@ -98,6 +98,12 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   hour grid with the now line; List), the next event under the launcher's date and on the sleep screen. Launcher page 2 now holds
   Woordle, Agenda and Weather. The APK is built (`android/app/build/outputs/apk/debug/app-debug.apk`), not installed.
 
+- **Emoji sequences and flags, 2026-11-16 night**: 224 ZWJ sequences and keycaps from Fluent,
+  262 flags from Twemoji in gray with an edge, 1891 emoji in all (2.1 MB on the card, pushed in 16 s); families show 👪.
+  On the device the `emoji` test screen is **identical** to the simulator. Found on the way: atlases pushed while the device
+  ran were read through the index of the old files (blank emoji at body size) until a reboot; now the loader notices a
+  replaced file (`fs::changes()`) and reloads (unit test; on the device the second push was skipped as identical, so that
+  path ran on the host only).
 - **Emoji on the device, 2026-11-16 evening**: main (merge a002da2 + the emoji test screen) flashed; the four atlases pushed
   to `/sd/paperos/emoji/` with `tools/push.py` (1.56 MB in 12.2 s, 110-131 KB/s, CRC checked). `set screen emoji` (test
   screen, golden `emoji`): the frame dump is **identical** to the simulator's. First open 518 ms of UI loop (about 70
