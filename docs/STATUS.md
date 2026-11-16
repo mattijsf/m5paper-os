@@ -284,6 +284,15 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   f859131 with its uncommitted core settings in `platformio.ini`): compiles and links; checked here: `firmware.elf` holds
   the `pos::vijfje` symbols, `firmware.bin` is 2,897,584 bytes (2.76 MB, 55.3% of the 5 MB slot; the 3 MB budget has
   248 KB left). Not flashed (a PSRAM soak was running on the device).
+  **First run on the device, memory pass 2026-11-16**: after opening the app the internal heap had 18 KB free (lowest 14 KB,
+  largest block 9 KB) against 108 KB idle, and 19 KB after going back to the launcher. **Not explained yet.** Reading of the
+  code (a guess until measured): the app keeps nothing after it closes (no statics but one pointer; the 28 KB word list, the
+  response body and the sort buffer are single large allocations freed with the screen or the job), but its first open fetches
+  the word list, so Wi-Fi and the kept-alive TLS connection are up for `net.lingerSec` (20 s) after it: about what Home shows
+  during TLS. To tell the two apart: measure 30 s after leaving, or open the app a second time (no fetch within a day:
+  `listTried` in `/data/apps/vijfje.json`), and read the log for `[vijfje] word list: N words` or `not fetched`. A heap that low
+  while the fetch runs is a risk by itself (an allocation failing while the user types): the memory pass moves small
+  allocations and mbedTLS to PSRAM (D27) and measures again.
   **The word list fetch on the device**: HTTPS to woordscore.nl with the built-in CA bundle (never run), heap during it (a
   39 KB body + 22 KB of codes + the 28 KB packed list while TLS is up; expected to land in PSRAM, not measured), the
   cache write (28 KB to LittleFS on the worker), the log line `[vijfje] word list: N words`.
