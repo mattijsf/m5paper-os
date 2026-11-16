@@ -351,3 +351,21 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   part only, the words accepted as a guess (a dictionary); the first part, the web game's words of the day in order, is
   skipped by the parser and never stored. The line of this decision stays where it was.
 
+## D27. Memory: ordinary allocations live in PSRAM; measured per app
+
+- **Measured** (`tools/memory.py`: reboots, opens each app, uses it, `>set memreport` logs internal free / lowest since boot /
+  largest free block, PSRAM, task stack high-water marks). Before: idle 108K internal free; the reader 69K (lowest 48K);
+  Home during its TLS fetch 40K, **lowest 18K**; Woordle 18K (lowest 14K, largest block 9K) and still 19K after leaving.
+- **Cause**: ESP-IDF put every allocation under 4 KB (`SPIRAM_MALLOC_ALWAYSINTERNAL=4096`) in internal RAM: strings, vectors,
+  map nodes, chapter text, word lists competed with Wi-Fi and TLS, with no reserve (`SPIRAM_MALLOC_RESERVE_INTERNAL=0`).
+- **Decision** (`custom_sdkconfig`, D25 build): `SPIRAM_MALLOC_ALWAYSINTERNAL=0` (ordinary allocations to PSRAM; FreeRTOS
+  objects, task stacks and DMA buffers ask for internal RAM explicitly), `SPIRAM_MALLOC_RESERVE_INTERNAL=32768` (kept for those),
+  `MBEDTLS_EXTERNAL_MEM_ALLOC` (TLS buffers in PSRAM), core dumps off (there is no partition for them; every boot logged a failed
+  write). In code: the log ring (8 KB) and the serial upload buffer (4 KB) are heap blocks now, so they live in PSRAM.
+- **After**: idle 141K internal free; every app 126-141K, nothing kept after leaving; Home during TLS 102K, **lowest 69K**.
+  Tap latency unchanged (page turn 110 ms, screen change 148 ms, small tap 5 ms), EPD self-test identical, upload over USB works.
+- **Rule for code**: nothing to do per allocation; but a task that writes flash (the worker, the UI loop) keeps its stack in
+  internal RAM (ESP-IDF: the cache is off during flash writes), and large fixed buffers should be heap blocks, not static arrays.
+- **Left**: Bluetooth is linked but never started (small gain, risk to the core build); Wi-Fi buffer counts; the reader's
+  prefetch canvas costs 486 KB of PSRAM (of ~5.5 MB free).
+

@@ -79,6 +79,27 @@ PowerPolicy gPolicy(gOs, [](uint32_t ms) {
 Loop gLoop(gOs, gPolicy);
 
 // Remote control over the USB serial port (lines starting with '>', see core/remote.h).
+// Memory report (D27, tools/memory.py): internal heap free / lowest since boot / largest free block (fragmentation: TLS
+// needs one large block), the same for PSRAM, and the unused stack of each known task (high-water mark, bytes).
+void memReport(const std::string& tag) {
+  const uint32_t iFree = heap_caps_get_free_size(MALLOC_CAP_INTERNAL), iMin = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+                 iBig = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+  const uint32_t pFree = heap_caps_get_free_size(MALLOC_CAP_SPIRAM), pMin = heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM),
+                 pBig = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
+  std::string stacks;
+  for (const char* name : {"loopTask", "worker", "epd", "epdtile", "wifi", "tiT", "sys_evt", "async_tcp", "ipc0", "ipc1", "esp_timer"}) {
+    if (TaskHandle_t t = xTaskGetHandle(name)) {
+      char b[40];
+      snprintf(b, sizeof b, " %s=%u", name, static_cast<unsigned>(uxTaskGetStackHighWaterMark(t)));
+      stacks += b;
+    }
+  }
+  POS_LOG("mem", "%s internal free=%u min=%u largest=%u psram free=%u min=%u largest=%u", tag.c_str(),
+          static_cast<unsigned>(iFree), static_cast<unsigned>(iMin), static_cast<unsigned>(iBig), static_cast<unsigned>(pFree),
+          static_cast<unsigned>(pMin), static_cast<unsigned>(pBig));
+  POS_LOG("memstack", "%s%s", tag.c_str(), stacks.c_str());  // a separate line: the log line is at most 256 characters
+}
+
 // PSRAM soak test (D25: 120 MHz PSRAM stays only if this finds nothing). ">set psram-test 600" starts it; each main-loop
 // pass then writes a pseudo-random pattern (xorshift, a new seed per pass) over 2 MB of PSRAM and reads it back, while the UI
 // keeps running (taps, waveforms). Every pass with errors is logged, and a summary at the end:
@@ -256,6 +277,10 @@ class SerialRemoteHost : public RemoteHost {
       gDisplay.setTiming(value == "on");
       return true;
     }
+    if (key == "memreport") {  // ">set memreport": one "[mem]" line (tools/memory.py), D27
+      memReport(value);
+      return true;
+    }
     if (key == "temp-guard") {  // test aid: ">set temp-guard 1" makes the drift restart easy to trigger (D25)
       gTempGuardC = static_cast<float>(atof(value.c_str()));
       return true;
@@ -283,8 +308,9 @@ std::string gRxLine;
 void pollSerial() {
   while (Serial.available() > 0) {
     if (gRemote.wantsRaw()) {  // an upload (>put): the bytes are file content
-      static uint8_t raw[4096];
-      const size_t n = Serial.readBytes(reinterpret_cast<char*>(raw), std::min<size_t>(sizeof raw, Serial.available()));
+      static uint8_t* raw = static_cast<uint8_t*>(malloc(4096));  // a heap block: PSRAM, not internal RAM (D27)
+      if (!raw) break;
+      const size_t n = Serial.readBytes(reinterpret_cast<char*>(raw), std::min<size_t>(4096, Serial.available()));
       if (n == 0) break;
       gRemote.feedRaw(raw, n);
       continue;
