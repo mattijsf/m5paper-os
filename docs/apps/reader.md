@@ -23,7 +23,7 @@ bar for refresh quality and battery life.
 ```
 (no StatusBar, no TitleBar: the whole 540x960 is the page)
 margins: 40 px left/right (normal), 48 top, 56 bottom
-footer (caption, ink; goes out with the page, Hint::Page, 2026-11-16):   chapter title ............ 123 / 450      battery icon if < 20%
+footer (caption, ink, kept by the user; goes out with the page, Hint::Page, 2026-11-16):   chapter title ............ 123 / 450      battery icon if < 20%
 ```
 
 Touch zones:
