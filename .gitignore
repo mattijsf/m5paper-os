@@ -16,3 +16,6 @@ sdkconfig.defaults
 sdkconfig.papers3
 CMakeLists.txt
 dependencies.lock
+
+# Python bytecode caches (tools/)
+__pycache__/
