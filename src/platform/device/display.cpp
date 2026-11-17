@@ -5,7 +5,16 @@
 
 #include "platform/device/device.h"
 
+// The switch of tools/patch_m5gfx.py patch 4 (DISPLAY.md "Unchanged pixels are left alone"): read by the panel's update task.
+namespace lgfx {
+inline namespace v1 {
+volatile bool paperos_epd_keep_unchanged = true;
+}
+}  // namespace lgfx
+
 namespace pos::device {
+
+void Display::setKeepUnchanged(bool on) { lgfx::paperos_epd_keep_unchanged = on; }
 
 void Display::push(const Canvas& frame, Rect r, Refresh mode) {
   const uint32_t t0 = millis();

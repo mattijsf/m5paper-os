@@ -104,7 +104,7 @@ Widget* Root::addOverlay(std::unique_ptr<Widget> w) {
   w->frame = Rect{0, 0, kScreenW, kScreenH};
   overlays_.push_back(std::move(w));
   raw->layout();
-  markDirty(raw, Hint::Screen);
+  markDirty(raw, raw->overlayHint());
   return raw;
 }
 
@@ -112,12 +112,13 @@ void Root::closeOverlay(Widget* w) {
   for (size_t i = 0; i < overlays_.size(); ++i) {
     if (overlays_[i].get() != w) continue;
     const Rect f = w->frame;
+    const Hint hint = w->overlayHint();
     forgetTree(w);
     w->screen_ = nullptr;
     retired_.push_back(std::move(overlays_[i]));  // may be the widget whose handler is running
     overlays_.erase(overlays_.begin() + i);
     if (toast_ == w) toast_ = nullptr;
-    invalidateRect(f, Hint::Screen);
+    invalidateRect(f, hint);
     return;
   }
 }

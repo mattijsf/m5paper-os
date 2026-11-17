@@ -46,6 +46,7 @@ Sheet* confirmSheet(Widget& from, const std::string& title, const std::string& b
 class Toast : public Widget {
  public:
   explicit Toast(std::string text);
+  Hint overlayHint() const override { return Hint::Content; }  // a band of text: never the reason for a full-screen clean
   void layout() override;
   void draw(Canvas& c) override;
 

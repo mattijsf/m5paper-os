@@ -1,6 +1,7 @@
 # PlatformIO pre-build script (platformio.ini: extra_scripts): patches M5GFX 0.3.0 in .pio/libdeps for the device.
 # Idempotent; fails the build if the library text is not what the patch was written against (a new M5GFX version).
-# Why and what: docs/DISPLAY.md "Tap latency", docs/DECISIONS.md D24. Every patch keeps the panel's pixels identical.
+# Why and what: docs/DISPLAY.md "Tap latency", docs/DECISIONS.md D24. Every patch keeps the panel's pixels identical;
+# patch 4 changes which pixels a waveform drives (not what they end as): docs/DISPLAY.md "Unchanged pixels are left alone".
 import os
 import sys
 
@@ -212,6 +213,56 @@ TASK_C_NEW = """        // PAPEROS PATCH 2c: finished rows get a zero line witho
 PATCHES.append(("src/lgfx/v1/platforms/esp32/Panel_EPD.inl", TASK_A_OLD, TASK_A_NEW, "PAPEROS PATCH 2"))
 PATCHES.append(("src/lgfx/v1/platforms/esp32/Panel_EPD.inl", TASK_B_OLD, TASK_B_NEW, "PAPEROS PATCH 2b"))
 PATCHES.append(("src/lgfx/v1/platforms/esp32/Panel_EPD.inl", TASK_C_OLD, TASK_C_NEW, "PAPEROS PATCH 2c"))
+
+# 4. Unchanged pixels are left alone when the refresh mode changes (2026-11-17,
+#    worst in Settings). The stock code asks "is this the request the pixel pair already has", and a request carries its
+#    mode: after a Fast pass every pair of the Text settle is a new request, also the white background, which the Text
+#    waveform drives toward black for five frames and back: the whole region darkens 0.6 s after every navigation. The
+#    same the other way round (a Fast pass after a Text or Quality one blinks every pixel in its box), and a Text pass
+#    drives every pair that is not white again, changed or not. Here a pair whose two pixel values are what was last
+#    requested is skipped, whatever mode asked: it is at that level already (a Fast request holds 0 or 15 per pixel, so an
+#    equal value after it is black or white, which is where Fast left it). Quality is untouched: a clean drives
+#    everything. `lgfx::paperos_epd_keep_unchanged` (platform/device/display.cpp, ">set epd-keep off") gives the stock
+#    behaviour back for a comparison on the panel.
+STEP_OLD = """  static inline void step_fast(uint_fast16_t s0, uint16_t* d)
+  {
+    // Update only when it differs from what is already requested
+    if (d[1] != s0) {
+      // Fast mode: request the update directly, without the erase pass.
+      d[1] = s0;
+      d[0] = s0 - 0x8000;
+    }
+  }
+
+  static inline void step_text(uint_fast16_t s0, uint16_t* d, uint_fast16_t white)
+  {
+    uint_fast16_t d1 = d[1] & 0x7FFF;
+    // Update when the previous request was not white, or when it differs from the new one
+    if (white != d1 || d1 != s0) {
+"""
+STEP_NEW = """  // PAPEROS PATCH 4 (tools/patch_m5gfx.py): a pixel pair that already has these two values is not driven again because
+  // the mode differs (or, in Text mode, because it is not white). Off: the stock rule.
+  extern volatile bool paperos_epd_keep_unchanged;
+
+  static inline void step_fast(uint_fast16_t s0, uint16_t* d)
+  {
+    if (paperos_epd_keep_unchanged && (uint8_t)d[1] == (uint8_t)s0) { return; }
+    // Update only when it differs from what is already requested
+    if (d[1] != s0) {
+      // Fast mode: request the update directly, without the erase pass.
+      d[1] = s0;
+      d[0] = s0 - 0x8000;
+    }
+  }
+
+  static inline void step_text(uint_fast16_t s0, uint16_t* d, uint_fast16_t white)
+  {
+    if (paperos_epd_keep_unchanged && (uint8_t)d[1] == (uint8_t)s0) { return; }
+    uint_fast16_t d1 = d[1] & 0x7FFF;
+    // Update when the previous request was not white, or when it differs from the new one
+    if (white != d1 || d1 != s0) {
+"""
+PATCHES.append(("src/lgfx/v1/platforms/esp32/Panel_EPD.inl", STEP_OLD, STEP_NEW, "PAPEROS PATCH 4"))
 
 
 def apply(libdir):

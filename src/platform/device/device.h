@@ -21,6 +21,9 @@ class Display : public hal::Display {
   void wait() override;
   // Debug (">set epd-timing on"): wait after each push and log how long it took. Blocks the UI.
   void setTiming(bool on) { timing_ = on; }
+  // ">set epd-keep off": the stock driver rule again, every pixel of a pass driven when the mode changes (the flashes this
+  // was patched for), to compare on the panel. On by default.
+  void setKeepUnchanged(bool on);
 
  private:
   bool timing_ = false;

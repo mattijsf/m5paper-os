@@ -13,7 +13,12 @@ void ListItem::setSubtitleIsContent(bool content) {
   subtitleContent_ = content;
   invalidate(Hint::Content);
 }
-void ListItem::setIcon(Icon i) { hasIcon_ = true; icon_ = i; invalidate(Hint::Content); }
+void ListItem::setIcon(Icon i) {
+  if (hasIcon_ && icon_ == i) return;
+  hasIcon_ = true;
+  icon_ = i;
+  invalidate(Hint::Content);
+}
 
 void ListItem::clearChildren() {
   if (toggle_) remove(toggle_);
@@ -29,6 +34,7 @@ void ListItem::clearTrailing() {
 }
 
 void ListItem::setTrailingText(const std::string& t) {
+  if (trailing_ == Trailing::Text && trailingText_ == t) return;  // a list filled again must not redraw rows that stay as they are
   clearChildren();
   trailing_ = Trailing::Text;
   trailingText_ = t;
@@ -213,12 +219,16 @@ void PagedList::setCount(int count) {
 
 void PagedList::refill() {
   const int first = page() * rowsPerPage();
+  bool cameOrWent = false;
   for (int i = 0; i < rowsPerPage(); ++i) {
     const int index = first + i;
-    rows_[i]->visible = index < count_;
-    if (index < count_) fill_(*rows_[i], index);
+    const bool show = index < count_;
+    cameOrWent = cameOrWent || rows_[i]->visible != show;
+    rows_[i]->visible = show;
+    if (show) fill_(*rows_[i], index);
   }
   if (list_->frame.w > 0) list_->layout();  // rows came and went: positions change
+  if (cameOrWent) list_->invalidate(Hint::Content);  // (a row that went leaves no picture behind)
 }
 
 bool Pager::onTouch(const Gesture& g) {

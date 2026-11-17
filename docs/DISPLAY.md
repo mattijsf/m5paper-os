@@ -142,6 +142,36 @@ can be tuned on the device without rebuilding (task P7-1).
   device wait after each push and log `[epd] ... push+waveform <ms> done t=<ms>` (blocks the UI:
   debug only).
 
+## Unchanged pixels are left alone (2026-11-17, `tools/patch_m5gfx.py` patch 4; **not seen on the panel yet**)
+
+Measured in the simulator
+(refresh log of a walk through Settings): every navigation is a Fast pass over 78 % of the screen (the content area,
+492 x 823) and, 0.6 s later, a Text settle over the same 78 %; no Quality pass in 16 navigations. Why that flashes is in
+the driver (M5GFX `Panel_EPD.inl`, `step_fast` / `step_text`): the update task keeps per pixel pair the *request* it last
+got, and a request carries its mode. So
+
+- a **Text settle after a Fast pass** drives every pair of its rectangle again, the white background too (it was "white,
+  asked for by Fast", now it is "white, asked for by Text"): through the erase steps and then the Text waveform, which for
+  white is five frames toward black and back. The whole region darkens and returns: the "dark sweep" the camera saw;
+- a **Fast pass after a Text or Quality pass** does the same in small: every pair of its box gets the Fast waveform, for
+  white two frames toward black first;
+- a Text pass drives every pair that is not white again, changed or not (unchanged text flickers under a `screen-gray` push).
+
+The launcher and Home change screens with one Text pass after another (`screen-gray`), where white on white is skipped, so
+they flash less; list screens (Settings) are Fast then settle, and get two full-area flashes per navigation.
+
+Patch 4: a pair whose two pixel values are what was last requested is not driven again, whatever mode asked (a Fast
+request holds 0 or 15 per pixel, so an equal value after it is black or white, where Fast left it; an equal gray was put
+there by Text or Quality). Only what changes is driven: the settle touches the anti-aliased edges and gray lines, a
+navigation the pixels that differ. Quality is untouched (a clean drives everything). `>set epd-keep off` gives the stock
+rule back while the device runs, `on` the patch: for a comparison with the camera.
+
+**Open (Pending device checks in STATUS.md)**: none of this has been on a panel. To look at: the walk through Settings
+with `cam.py around tap` on a row, `epd-keep` off against on (the sweep 0.6 s after the tap should be gone); whether
+white left by Fast next to white driven by Text shows as patches; ghosting after 20 navigations (the settle no longer
+refreshes unchanged pixels, so the score's "a settle takes half back" may be too kind: `ghostLimit` may have to come
+down). Also changed: a toast is a Content update, not a Screen change (it could trigger the full-screen Quality clean).
+
 ## Navigation speed (2026-11-15)
 
 Measured on the device with `tools/device.py tap` and `refresh` (injected taps, so Down and Up are

@@ -307,6 +307,10 @@ class SerialRemoteHost : public RemoteHost {
       gDisplay.setTiming(value == "on");
       return true;
     }
+    if (key == "epd-keep") {  // tools/patch_m5gfx.py patch 4: off = the stock rule, for a comparison on the panel
+      gDisplay.setKeepUnchanged(value != "off");
+      return true;
+    }
     if (key == "memreport") {  // ">set memreport": one "[mem]" line (tools/memory.py), D27
       memReport(value);
       return true;

@@ -44,6 +44,9 @@ class Widget {
   // until consumed; the consumer then gets the rest of that touch (Tap, LongPress, Cancel), and
   // Swipe* bubbles from there.
   virtual bool onTouch(const Gesture& /*g*/) { return false; }
+  // As an overlay (Root::addOverlay): what its coming and going is to the panel. A sheet is a change of screen (the
+  // moment a due clean may flash); a message over the status bar is not.
+  virtual Hint overlayHint() const { return Hint::Screen; }
   // The device build has no RTTI: widgets that must be found by kind say so.
   virtual bool isKeyboard() const { return false; }
 
