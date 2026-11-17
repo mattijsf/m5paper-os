@@ -54,6 +54,22 @@ struct Pick {
 };
 std::optional<Pick> strongestKnown(const std::vector<WifiCred>& known, const std::vector<hal::WifiNetwork>& scan);
 
+// The networks of "Join a network": one row per name, built up over several scans. One scan misses access points (a
+// beacon not heard in the 0.3 s the radio listens on a channel), so the page scans a few times and adds what is new.
+class ScanList {
+ public:
+  // Takes in the result of a scan and returns how many names are new. Hidden networks (no name) are left out; of
+  // several access points with one name the strongest counts. A name already listed keeps its row (the list must not
+  // move under a finger; its signal follows the strongest seen); new names come after it, strongest first.
+  int merge(const std::vector<hal::WifiNetwork>& scan);
+  // Forgets everything: the next merge is in order of signal again.
+  void clear() { rows_.clear(); }
+  const std::vector<hal::WifiNetwork>& rows() const { return rows_; }
+
+ private:
+  std::vector<hal::WifiNetwork> rows_;
+};
+
 // "HomeNet -48 dBm ch6, Other -70 dBm ch1": a log-safe summary of a scan (SSIDs, signal, channel; no passwords).
 std::string scanSummary(const std::vector<hal::WifiNetwork>& scan, size_t maxEntries = 8);
 

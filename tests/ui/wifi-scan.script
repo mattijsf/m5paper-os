@@ -1,0 +1,26 @@
+# app: settings
+# Settings > Wi-Fi > Join a network with many networks in range (`wifi crowd 12`: the simulator's first scan hears
+# every second one). The page lists them all, seven to a page, scans three times and adds what is new at the end:
+# rows that are listed do not move. The arrows in the title bar start over (in order of signal again).
+wifi crowd 12
+wait 500
+tap 270 172             # Wi-Fi
+wait 900
+tap 270 300             # Join a network
+wait 700
+shot wifi-scan-first
+expect-state networks=9
+wait 4000
+shot wifi-scan-all
+expect-state networks=15
+expect-state Tap one to join it
+tap 500 920             # next page: the names the later scans added
+wait 900
+shot wifi-scan-page2
+tap 500 920
+wait 900
+shot wifi-scan-page3
+tap 504 92              # scan again
+wait 5000
+shot wifi-scan-again
+expect-state networks=15

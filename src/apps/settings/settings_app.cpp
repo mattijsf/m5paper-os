@@ -207,43 +207,86 @@ class WifiPasswordPage : public Page {
   bool masked_ = true, joining_ = false;
 };
 
+// Every network in range, strongest first, seven to a page. One scan does not hear them all, so the page scans a few
+// times in a row and adds what is new at the end (a row never moves under a finger); the title bar's arrows start over.
 class WifiScanPage : public Page {
  public:
   void build(ui::Column& root) override {
     setTitle("Join a network");
+    setAction(ui::Icon::RefreshCw, [this] { restart(); });
     root.add<ui::Spacer>(ui::s1);
-    info_ = root.add<ui::Label>("Scanning... (2.4 GHz networks only)", Type::Caption, ui::secondary);
-    list_ = root.add<ui::Column>(0);
+    info_ = root.add<ui::Label>("", Type::Caption, ui::secondary);
+    list_ = root.add<ui::PagedList>(kRows, [this](ui::ListItem& row, int index) { fillRow(row, index); });
+    list_->flex = 1;
   }
-  void onShow() override { scan(); }
+  void onShow() override {
+    shown_ = true;
+    restart();
+  }
+  void onHide() override { shown_ = false; }  // a scan that is running ends by itself; no new one starts
+
+  std::string debugState() const override {
+    return "networks=" + std::to_string(found_.rows().size()) + "|round=" + std::to_string(round_) + (scanning_ ? "|scanning" : "") +
+           "|" + info_->text();
+  }
 
  private:
+  static constexpr int kRows = 7;
+  static constexpr int kRounds = 3;            // scans in a row after opening the page or asking again
+  static constexpr uint32_t kPauseMs = 1500;   // between them
+
+  // Forgets the list and scans again (the page opened, or the arrows in the title bar).
+  void restart() {
+    found_.clear();
+    round_ = 0;
+    list_->setPage(0);
+    showList();
+    if (!scanning_) scan();
+  }
+
   void scan() {
+    scanning_ = true;
+    showInfo();
     NetService* net = &ctx().os().net();
-    info_->setText("Scanning... (2.4 GHz networks only)");
     ctx().async([net] { return net->scan(); }, [this](std::vector<hal::WifiNetwork> aps) {
-      std::sort(aps.begin(), aps.end(), [](const hal::WifiNetwork& a, const hal::WifiNetwork& b) { return a.rssi > b.rssi; });
-      // one row per SSID (the strongest access point), at most seven rows
-      std::vector<hal::WifiNetwork> rows;
-      for (const auto& ap : aps) {
-        if (ap.ssid.empty()) continue;
-        bool dup = false;
-        for (const auto& r : rows)
-          if (r.ssid == ap.ssid) dup = true;
-        if (!dup) rows.push_back(ap);
-        if (rows.size() == 7) break;
-      }
-      list_->removeAll();
-      info_->setText(rows.empty() ? "No networks found. The device sees 2.4 GHz only." : "Tap a network to join it.");
-      for (const auto& ap : rows) {
-        auto* item = list_->add<ui::ListItem>(ap.ssid, signalText(ap.rssi) + "  ch " + std::to_string(ap.channel), true,
-                                              ap.secure ? ui::Icon::Wifi : ui::Icon::Wifi);
-        item->setTrailingText(ap.secure ? "Secured" : "Open");
-        item->onClick = [this, ap] { choose(ap); };
-      }
-      list_->host()->relayout();
+      scanning_ = false;
+      ++round_;
+      // The list is drawn again only when it grew: a scan that heard nothing new changes nothing on the panel.
+      if (found_.merge(aps) > 0 || round_ == 1) showList();
+      if (shown_ && round_ < kRounds) ctx().timer(kPauseMs, [this] { if (shown_ && !scanning_ && round_ < kRounds) scan(); });
+      showInfo();
     });
   }
+
+  void showList() {
+    const bool barBefore = list_->bar()->visible;
+    list_->setCount(static_cast<int>(found_.rows().size()));
+    // Only when the page bar came or went (the rows' room changes); "1 / 2" becoming "1 / 3" redraws the bar alone.
+    if (list_->bar()->visible != barBefore && list_->host()) list_->host()->relayout();
+  }
+
+  void showInfo() {
+    const size_t n = found_.rows().size();
+    const std::string count = std::to_string(n) + (n == 1 ? " network" : " networks");
+    std::string text;
+    if (scanning_ || round_ < kRounds) text = n == 0 ? "Scanning... (2.4 GHz networks only)" : count + ", still scanning...";
+    else if (n == 0) text = "No networks found. The device sees 2.4 GHz only.";
+    else text = count + ". Tap one to join it.";
+    info_->setText(text);
+  }
+
+  void fillRow(ui::ListItem& row, int index) {
+    const hal::WifiNetwork ap = found_.rows()[index];
+    row.setIcon(ui::Icon::Wifi);
+    row.setTitle(ap.ssid);
+    row.setSubtitle(signalText(ap.rssi) + "  ch " + std::to_string(ap.channel));
+    const hal::WifiLink link = ctx().os().net().link();
+    bool saved = false;
+    for (const auto& k : ctx().os().net().known()) saved = saved || k.ssid == ap.ssid;
+    row.setTrailingText(link.connected && link.ssid == ap.ssid ? "Connected" : saved ? "Saved" : ap.secure ? "Secured" : "Open");
+    row.onClick = [this, ap] { choose(ap); };
+  }
+
   void choose(const hal::WifiNetwork& ap) {
     // A known network joins without asking; an open one too; else ask for the password.
     for (const auto& k : ctx().os().net().known())
@@ -266,7 +309,10 @@ class WifiScanPage : public Page {
     ctx().nav.push<WifiPasswordPage>(ap);
   }
   ui::Label* info_ = nullptr;
-  ui::Column* list_ = nullptr;
+  ui::PagedList* list_ = nullptr;
+  ScanList found_;
+  int round_ = 0;       // scans finished since the list was started
+  bool scanning_ = false, shown_ = false;
 };
 
 class WifiSavedPage : public Page {

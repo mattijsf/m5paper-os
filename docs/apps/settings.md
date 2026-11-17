@@ -37,8 +37,13 @@ none of them appears in any widget text or in the log.
 
 ## As built: Wi-Fi screens and Home Assistant test (P3-7)
 
-Settings > Wi-Fi: status row (network, signal, IP; "Off: turns on when an app needs it"), "Join a network" (scan, one row
-per SSID with the strongest access point, signal and channel, Secured/Open; a known or open network joins at once, else a
+Settings > Wi-Fi: status row (network, signal, IP; "Off: turns on when an app needs it"), "Join a network" (**every** network in range,
+one row per SSID with the strongest access point, signal and channel, and Connected / Saved / Secured / Open; seven rows
+to a page (`ui::PagedList`). One scan does not hear every access point, so the page scans three times in a row (1.5 s
+apart) and adds what is new **at the end**: a row that is listed never moves under a finger, and a scan that heard nothing
+new redraws nothing (`core/wifi.h` `ScanList`). The arrows in the title bar start over, in order of signal again. Until
+2026-11-17 the page scanned once and kept the seven strongest: user, "It only does a scan once but it doesn't find/show
+all". A known or open network joins at once, else a
 password page with the on-screen keyboard as a bottom overlay, masked with a Show/Hide button, Enter joins and saves),
 "Saved networks" (card entries marked, device entries can be forgotten by a tap), "Connect now". Settings > Home Assistant >
 "Test connection": `GET <base URL>/api/` with the token; the page shows the HTTP status, the time and the start of the reply;

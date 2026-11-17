@@ -502,3 +502,33 @@ TEST_CASE("fixtureFileName: method, host and path; query gets a hash") {
   CHECK(a.rfind("GET_h_p_", 0) == 0);
   CHECK(a == fixtureFileName("GET", "https://h/p?a=1"));
 }
+
+TEST_CASE("ScanList: one row per name, rows keep their place, new names follow by signal") {
+  ScanList list;
+  CHECK(list.merge({}) == 0);
+  // First scan: strongest first, the strongest access point of a name, hidden networks left out.
+  CHECK(list.merge({{"Far", -80, true, 1, "01"}, {"Home", -61, true, 11, "02"}, {"", -30, true, 3, "03"}, {"Home", -48, true, 6, "04"},
+                    {"Cafe", -66, false, 9, "05"}}) == 3);
+  REQUIRE(list.rows().size() == 3);
+  CHECK(list.rows()[0].ssid == "Home");
+  CHECK(list.rows()[0].rssi == -48);
+  CHECK(list.rows()[0].bssid == "04");
+  CHECK(list.rows()[1].ssid == "Cafe");
+  CHECK(list.rows()[2].ssid == "Far");
+  // A later scan: what is listed stays where it is (also when it is now the strongest), its signal follows the best
+  // seen; new names come after, strongest first.
+  CHECK(list.merge({{"Far", -40, true, 1, "01"}, {"New weak", -85, true, 4, "06"}, {"New strong", -50, false, 2, "07"},
+                    {"Home", -70, true, 6, "04"}}) == 2);
+  REQUIRE(list.rows().size() == 5);
+  CHECK(list.rows()[0].ssid == "Home");
+  CHECK(list.rows()[0].rssi == -48);  // the weaker reading does not replace the stronger
+  CHECK(list.rows()[2].ssid == "Far");
+  CHECK(list.rows()[2].rssi == -40);
+  CHECK(list.rows()[3].ssid == "New strong");
+  CHECK(list.rows()[4].ssid == "New weak");
+  CHECK(list.merge({{"Home", -48, true, 6, "04"}}) == 0);  // nothing new: nothing to redraw
+  list.clear();
+  CHECK(list.rows().empty());
+  CHECK(list.merge({{"Far", -40, true, 1, "01"}, {"Home", -48, true, 6, "04"}}) == 2);
+  CHECK(list.rows()[0].ssid == "Far");  // started over: by signal again
+}

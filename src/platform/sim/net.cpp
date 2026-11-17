@@ -56,7 +56,16 @@ void Net::wifiOff() { link_ = hal::WifiLink{}; }
 
 std::vector<hal::WifiNetwork> Net::scan() {
   if (!wifiAvailable_) return {};
-  return world();
+  std::vector<hal::WifiNetwork> out = world();
+  const bool first = scans_++ == 0;
+  for (int i = 1; i <= crowd_; ++i) {
+    if (first && i % 2 == 0) continue;  // not heard this time
+    char name[16], bssid[24];
+    std::snprintf(name, sizeof name, "Flat %02d", i);
+    std::snprintf(bssid, sizeof bssid, "F1:A7:00:00:00:%02X", i);
+    out.push_back({name, -60 - i, i % 3 != 0, 1 + (i * 5) % 13, bssid});
+  }
+  return out;
 }
 
 hal::HttpResponse Net::request(const hal::HttpRequest& req) {

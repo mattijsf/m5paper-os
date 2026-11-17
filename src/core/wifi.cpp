@@ -129,4 +129,23 @@ std::string scanSummary(const std::vector<hal::WifiNetwork>& scan, size_t maxEnt
   return out.empty() ? "no networks found" : out;
 }
 
+int ScanList::merge(const std::vector<hal::WifiNetwork>& scan) {
+  std::vector<hal::WifiNetwork> fresh;  // names not listed yet, the strongest access point of each
+  for (const hal::WifiNetwork& ap : scan) {
+    if (ap.ssid.empty()) continue;
+    auto same = [&ap](const hal::WifiNetwork& r) { return r.ssid == ap.ssid; };
+    auto listed = std::find_if(rows_.begin(), rows_.end(), same);
+    if (listed != rows_.end()) {
+      if (ap.rssi > listed->rssi) *listed = ap;  // in place: the row stays where it is
+      continue;
+    }
+    auto found = std::find_if(fresh.begin(), fresh.end(), same);
+    if (found == fresh.end()) fresh.push_back(ap);
+    else if (ap.rssi > found->rssi) *found = ap;
+  }
+  std::stable_sort(fresh.begin(), fresh.end(), [](const hal::WifiNetwork& a, const hal::WifiNetwork& b) { return a.rssi > b.rssi; });
+  rows_.insert(rows_.end(), fresh.begin(), fresh.end());
+  return static_cast<int>(fresh.size());
+}
+
 }  // namespace pos

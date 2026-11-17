@@ -154,8 +154,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Simulator build | `make sim` | OK (first build ~3 min, then seconds) |
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
-| Firmware build | `make fw` | OK, 2,425,920 bytes = 2.31 MB (46.3% of the 5 MB slot; 720 KB under the 3 MB budget) after the code review of 2026-11-17 (2,424,592 after the size pass of D31; 2.85 MB before that) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 303 tests; 231 goldens (2026-11-17, after the code review); `out/gallery.html` |
+| Firmware build | `make fw` | OK, 2,428,912 bytes = 2.32 MB (46.3% of the 5 MB slot; 717 KB under the 3 MB budget) after the code review of 2026-11-17 (2,424,592 after the size pass of D31; 2.85 MB before that) |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 304 tests; 236 goldens (2026-11-17, after the code review and the Wi-Fi scan page); `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Live view in a browser | `make view` (`ARGS=--sim`, `ARGS=--lan`) | `tools/view.py`: the device's frame on `http://127.0.0.1:8137/`, click = tap, hold = long press, drag = swipe; ~760 ms from click to new frame; holds the serial port (other device tools refuse to start meanwhile) |
@@ -357,6 +357,15 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Flashes while navigating (2026-11-17, driver patch 4, not flashed: no device attached).** DISPLAY.md "Unchanged
+  pixels are left alone" has the cause (read from the driver source) and what to look at. After the next flash: the log
+  must show the same pushes as before (`F ... why=screen`, `T ... why=settle`); with the camera, `around tap` on a
+  Settings row with `tools/device.py set epd-keep off` and then `on`: the dark sweep of the settle and the blink of the
+  Fast pass should be gone with it on. If the panel shows patches or more ghost, `epd-keep off` is the old behaviour
+  without a reflash. `tools/device.py set epd-selftest on` still has to say "identical" (patch 1 is untouched).
+- **Wi-Fi "Join a network" (2026-11-17, simulator only)**: on the device, in a place with many networks: all of them
+  listed over the pages, the count growing over the three scans (each a few seconds), rows not moving, the arrows in
+  the title bar starting over; a network that the first scan missed must appear.
 - **Code review and refactor (2026-11-17, commits 4a39887, 812f00c, dad9bbf, 42293ab and the one after): not flashed, no
   device was attached.** Host only: 303 unit tests, 231 goldens identical (one re-accepted: `inbox-error`), the file server
   end to end with curl against the simulator (17 checks), `make fw` builds. On the device, after the next flash:
@@ -929,3 +938,11 @@ None of these block Phase 1, Phase 2, or the reader.
   characters does not fit the 1000-byte envelope and is refused ("does not fit") instead of counted in bytes while typing;
   `device.py` resends input commands (a slow device can run a tap twice); the inbox's "Clear caches" also deletes the
   decrypted notifications. Not flashed (no device attached): Pending device checks.
+- 2026-11-17: Two things the owner asked for after the review. (1) "find redraw bugs. I see allot of flashes when
+  navigating through the OS. Especially Settings": the refresh log of a walk through Settings shows a Fast pass and a Text
+  settle over 78 % of the screen per navigation; the driver source shows why both flash the whole area (a pixel is driven
+  again when the mode of the request differs, white background included). Patch 4 of `tools/patch_m5gfx.py` leaves
+  unchanged pixels alone (`>set epd-keep off` = stock); a toast is no longer a "screen change"; a list that is filled
+  again redraws only the rows that changed. Not on a panel yet. (2) "Wifi networks do not refresh. It only does a scan
+  once but it doesn't find/show all": the scan page lists every network (paged), scans three times and adds what is new
+  at the end, with a scan-again action; `ScanList` (unit test), `wifi crowd N` in the simulator, goldens `wifi-scan-*`.

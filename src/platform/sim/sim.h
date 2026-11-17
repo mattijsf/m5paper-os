@@ -98,6 +98,12 @@ class Net : public hal::Net {
 
   // "" = real network through libcurl; else answer from <dir>/<fixture name> (core/http_fixture.h).
   void setFixturesDir(const std::string& dir) { fixturesDir_ = dir; }
+  // Script `wifi crowd N`: N more networks in range ("Flat 01".."Flat N", weaker than the four of the test world), and a
+  // scan misses some of them as a real one does: the first hears every second one, later scans hear them all.
+  void setCrowd(int n) {
+    crowd_ = n;
+    scans_ = 0;
+  }
   // Script `wifi off` / `wifi on`: no network is reachable.
   void setWifiAvailable(bool on) {
     wifiAvailable_ = on;
@@ -105,6 +111,7 @@ class Net : public hal::Net {
   }
 
  private:
+  int crowd_ = 0, scans_ = 0;
   hal::WifiLink link_;
   bool wifiAvailable_ = true;
   std::string fixturesDir_;

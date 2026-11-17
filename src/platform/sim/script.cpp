@@ -99,11 +99,15 @@ bool ScriptRunner::command(const std::string& cmd, const std::string& args, std:
   } else if (cmd == "wifi") {
     std::string state;
     in >> state;
-    if (state != "on" && state != "off") {
-      error = "usage: wifi on|off";
+    int crowd = 0;
+    if (state == "crowd" && (in >> crowd) && crowd >= 0 && crowd <= 60) {
+      net_.setCrowd(crowd);  // that many more networks in range (the scan page's paging and rescans)
+    } else if (state == "on" || state == "off") {
+      net_.setWifiAvailable(state == "on");
+    } else {
+      error = "usage: wifi on|off, wifi crowd N (0..60)";
       return false;
     }
-    net_.setWifiAvailable(state == "on");
   } else if (cmd == "type" || cmd == "type-max") {
     // Taps the keys of the on-screen keyboard that spells the text (switching layers as needed). type-max N:
     // every character key press (until just after it) may push at most N pixels; layer switches repaint all keys.
