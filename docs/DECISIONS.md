@@ -452,6 +452,10 @@ Answers STATUS.md open question 5 with its option a, widened from "upload" to ma
 - **Later the same night**: the
   browser page gained New folder, Rename and Move (WebDAV MKCOL and MOVE from the page's own script), so a phone needs no
   WebDAV app; the reader's library finds books in folders and a moved book keeps its position (apps/reader.md).
+- **Download** (2026-11-17): per file on the page, saved under its own name. Measured
+  on the device: a download ran at ~30 KB/s with Wi-Fi power save on (Arduino's default, never changed before); with it off
+  while serving (`hal::Net::setPowerSave`) 250-380 KB/s. It is switched on again when the server stops (a page destroyed
+  without onHide leaves it off until Wi-Fi next restarts: Arduino keeps the setting).
 
 ## D31. Firmware size: no C++ exceptions, no iostreams, a trimmed ESP-IDF
 

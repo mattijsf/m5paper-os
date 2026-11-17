@@ -125,6 +125,12 @@ TEST_CASE("files: upload, list, download, rename, copy, delete inside the books 
   CHECK(dl.status == 200);
   CHECK(dl.file == "/sd/books/Alice in.epub");
   CHECK(dl.fileSize == 3);
+  bool attachment = false;
+  for (const auto& h : f.send("GET", "/Alice%20in.epub?download").headers)
+    attachment = attachment || (h.first == "Content-Disposition" &&
+                                h.second == "attachment; filename=\"Alice in.epub\"; filename*=UTF-8''Alice%20in.epub");
+  CHECK(attachment);  // the page's Download button
+  for (const auto& h : dl.headers) CHECK(h.first != "Content-Disposition");  // a plain GET (Finder, apps) stays plain
 
   CHECK(f.send("MKCOL", "/Classics").status == 201);
   CHECK(f.send("MKCOL", "/Classics").status == 405);

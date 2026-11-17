@@ -57,6 +57,7 @@ class Net : public hal::Net {
   std::vector<hal::WifiNetwork> scan() override;
   hal::HttpResponse request(const hal::HttpRequest& req) override;
   int64_t syncTime(uint32_t timeoutMs) override;
+  void setPowerSave(bool on) override;
 };
 
 // Battery (8 samples averaged, 5 % steps), light sleep with touch + timer wake, power off.

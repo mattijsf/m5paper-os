@@ -77,6 +77,12 @@ void Net::wifiOff() {
 
 bool Net::wifiConnected() { return WiFi.status() == WL_CONNECTED; }
 
+void Net::setPowerSave(bool on) {
+  if (WiFi.getMode() == WIFI_OFF) return;
+  WiFi.setSleep(on);  // WIFI_PS_MIN_MODEM or WIFI_PS_NONE
+  POS_LOG("net", "Wi-Fi power save %s", on ? "on" : "off");
+}
+
 int Net::rssi() { return WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0; }
 
 hal::WifiLink Net::link() {

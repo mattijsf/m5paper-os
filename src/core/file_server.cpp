@@ -22,7 +22,7 @@ using hal::ServerResponse;
 const char* kAllow = "OPTIONS, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, PROPFIND, PROPPATCH, LOCK, UNLOCK";
 
 // The page for a browser (GET on a folder): lists the folder, uploads with progress (PUT per file), opens subfolders, makes a
-// folder (MKCOL), renames and moves (MOVE), deletes. Plain HTML and JS, no outside resources: it works with no internet.
+// folder (MKCOL), downloads (GET ?download), renames and moves (MOVE), deletes. Plain HTML and JS, no outside resources: it works with no internet.
 const char* kPage = R"HTML(<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PaperOS files</title>
@@ -67,6 +67,10 @@ function load() {
         const acts = document.createElement('span'); acts.className = 'acts';
         const btn = (label, fn) => { const b = document.createElement('button'); b.className = 'quiet'; b.textContent = label; b.onclick = fn; acts.appendChild(b); };
         const self = base + encodeURIComponent(it.name) + (it.dir ? '/' : '');
+        if (!it.dir) btn('Download', () => {
+          const a = document.createElement('a'); a.href = self + '?download'; a.download = it.name;
+          document.body.appendChild(a); a.click(); a.remove();
+        });
         btn('Rename', () => {
           const to = prompt('New name', it.name);
           if (to && to !== it.name && !to.includes('/')) move(self, base + encodeURIComponent(to) + (it.dir ? '/' : ''));
@@ -528,6 +532,12 @@ ServerResponse FileServer::route(ServerRequest& req, const std::string& path, co
     r.headers.emplace_back("Content-Type", contentType(path));
     if (mtime > 0) r.headers.emplace_back("Last-Modified", httpDate(mtime));
     r.headers.emplace_back("ETag", "\"" + std::to_string(size) + "-" + std::to_string(mtime) + "\"");
+    if (query == "download") {  // the page's Download: saved under its own name, not opened (an EPUB would start a reader app)
+      std::string ascii;
+      for (unsigned char c : nameOf(path)) ascii += (c >= 0x20 && c < 0x7F && c != '"' && c != '\\') ? static_cast<char>(c) : '_';
+      std::string encoded = percentEncodePath(nameOf(path));
+      r.headers.emplace_back("Content-Disposition", "attachment; filename=\"" + ascii + "\"; filename*=UTF-8''" + encoded);
+    }
     return r;
   }
   if (m == "PROPFIND") return propfind(req, path);

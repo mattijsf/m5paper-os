@@ -51,6 +51,9 @@ class Net {
   virtual HttpResponse request(const HttpRequest&) = 0;
   // SNTP: returns unix seconds, 0 if it did not work. Needs a connection.
   virtual int64_t syncTime(uint32_t /*timeoutMs*/) { return 0; }
+  // Radio power save between packets (on by default). Off while the Paper serves files: downloads from it were ~30 KB/s with
+  // it on. Call from the worker (the Wi-Fi stack's locks), like every radio call.
+  virtual void setPowerSave(bool /*on*/) {}
 };
 
 }  // namespace pos::hal

@@ -675,7 +675,12 @@ class FilesPage : public Page {
     activity_->setText("");
     showRunning(false);
     NetService* net = &ctx().os().net();
-    ctx().async([net] { return net->ensureConnected(); }, [this, http](NetService::Result r) {
+    hal::Net* radio = &ctx().os().platform().net;
+    ctx().async([net, radio] {
+      NetService::Result r = net->ensureConnected();
+      if (r.ok) radio->setPowerSave(false);  // full speed while serving (a download was ~30 KB/s with it on)
+      return r;
+    }, [this, http](NetService::Result r) {
       starting_ = false;
       if (!r.ok) {
         state_->setText("No Wi-Fi: " + r.error);
@@ -729,6 +734,8 @@ class FilesPage : public Page {
     if (!running_) return;
     running_ = false;
     if (http_) http_->stop();
+    hal::Net* radio = &ctx().os().platform().net;
+    ctx().async([radio] { radio->setPowerSave(true); return 0; }, [](int) {});
     server_.reset();
     if (!why.empty()) {
       state_->setText(why);
