@@ -8,6 +8,7 @@
 namespace pos::ui {
 
 Root::~Root() {
+  if (timers_ && toastTimer_) timers_->cancel(toastTimer_);  // its action holds this Root
   // Widgets must not call back into a dead screen while the tree is destroyed.
   if (root_) root_->screen_ = nullptr;
   for (auto& o : overlays_) o->screen_ = nullptr;
@@ -16,6 +17,8 @@ Root::~Root() {
 void Root::setRoot(std::unique_ptr<Widget> root) {
   dirty_.clear();
   target_ = consumer_ = nullptr;
+  if (timers_ && toastTimer_) timers_->cancel(toastTimer_);
+  toastTimer_ = 0;
   toast_ = nullptr;
   overlays_.clear();
   if (root_) root_->screen_ = nullptr;
@@ -141,7 +144,7 @@ void Root::render(Canvas& canvas, DisplayManager& dm) {
     }
     const Rect f = d.hasRect ? d.rect : d.w->frame;
     canvas.setClipRect(f.x, f.y, f.w, f.h);
-    if (!d.w->transparent) canvas.fillRect(f.x, f.y, f.w, f.h, d.w == root_.get() ? (d.hasRect ? paper : d.w->bg()) : d.w->bg());
+    if (!d.w->transparent) canvas.fillRect(f.x, f.y, f.w, f.h, d.w->bg());
     d.w->drawTree(canvas, f);
     // Anything drawn in the root tree is covered again by the overlays above it.
     if (!overlayOf(d.w)) {

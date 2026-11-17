@@ -376,6 +376,13 @@ bool ChapterLoader::load(int n, std::string& marked) {
   return true;
 }
 
+std::vector<ui::Paragraph> loadParagraphs(const BookMeta& meta, int chapter) {
+  std::string text;
+  ChapterLoader loader(meta);
+  loader.load(chapter, text);
+  return ui::parseMarked(text);
+}
+
 namespace {
 const char* coverExt(const std::string& zipPath) {
   const std::string l = lowerAscii(zipPath);

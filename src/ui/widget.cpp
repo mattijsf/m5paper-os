@@ -29,6 +29,10 @@ std::unique_ptr<Widget> Widget::remove(Widget* child) {
   return nullptr;
 }
 
+void Widget::removeAll() {
+  while (!children_.empty()) remove(children_.back().get());
+}
+
 Root* Widget::host() const {
   for (const Widget* w = this; w; w = w->parent_)
     if (w->screen_) return w->screen_;

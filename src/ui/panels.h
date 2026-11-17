@@ -11,8 +11,8 @@
 namespace pos::ui {
 
 // Bottom sheet drawn over the untouched screen with a 2 px ink top edge, at most 60% of the height.
-// Modal: a tap anywhere outside it closes it and does not reach the widgets below; swipe down closes too. Put the controls into `content()` (a Column with 24 px margins).
-// Open with Root::addOverlay(std::make_unique<Sheet>()); close() restores what was under it.
+// Modal: a tap anywhere outside it closes it and does not reach the widgets below; swipe down closes too. Put the controls
+// into `content()` (a Column with 24 px margins). Open with openSheet() or confirmSheet(); close() restores what was under it.
 class Sheet : public Widget {
  public:
   Sheet();
@@ -20,6 +20,10 @@ class Sheet : public Widget {
   Column* content() const { return content_; }
   // Closes this sheet (calls onClose first). The Sheet is destroyed after the current gesture.
   void close();
+  // A handler that closes this sheet and then runs `action` (if any): what a button of the sheet does.
+  std::function<void()> closing(std::function<void()> action = {});
+  // A button at the end of the content that closes the sheet, then runs `action`: "Cancel", "Done", an answer.
+  Button* addButton(const std::string& text, std::function<void()> action = {}, Button::Kind kind = Button::Kind::Primary);
 
   void layout() override;
   void draw(Canvas& c) override;
@@ -30,6 +34,13 @@ class Sheet : public Widget {
   Column* content_;
   Rect panel_;
 };
+
+// Opens a sheet over the screen `from` is on; `fill` puts its controls in. The sheet belongs to that screen's Root;
+// nullptr (and `fill` not called) if `from` is on no screen.
+Sheet* openSheet(Widget& from, const std::function<void(Sheet&)>& fill);
+// A question before something that cannot be taken back: the title, what it means (gray, up to three lines), the answer
+// (`onOk` runs after the sheet closed) and Cancel.
+Sheet* confirmSheet(Widget& from, const std::string& title, const std::string& body, const std::string& okText, std::function<void()> onOk);
 
 // One line at the bottom, ink pill with paper text. Created by Root::showToast; touches pass through.
 class Toast : public Widget {

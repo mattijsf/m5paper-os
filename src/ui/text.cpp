@@ -302,12 +302,17 @@ int baselineOf(FontId id) {
   return x.ok && x.h > 0 ? x.yoff + x.h : fontPx(id) * 4 / 5;
 }
 
+// An atlas was replaced (pushed to the card while running): its cached bitmaps go (their memory stays in the pages).
+// Called where a text call starts, never while one holds glyph pointers: fastDraw() keeps them across emojiGlyph() calls.
+void dropStaleEmojiGlyphs() {
+  GlyphCache& gc = cache();
+  if (gc.emojiGeneration == emoji::generation()) return;
+  for (auto it = gc.other.begin(); it != gc.other.end();) it = (it->first & 0x80000000u) ? gc.other.erase(it) : std::next(it);
+  gc.emojiGeneration = emoji::generation();
+}
+
 const Glyph& emojiGlyph(FontId id, uint32_t cp) {
   GlyphCache& gc = cache();
-  if (gc.emojiGeneration != emoji::generation()) {  // an atlas was replaced: its old bitmaps go (their memory stays in the pages)
-    for (auto it = gc.other.begin(); it != gc.other.end();) it = (it->first & 0x80000000u) ? gc.other.erase(it) : std::next(it);
-    gc.emojiGeneration = emoji::generation();
-  }
   Glyph& g = gc.other[(static_cast<uint64_t>(id) << 32) | 0x80000000u | cp];  // apart from the font glyphs of the same code point
   if (g.ready) return g;
   g.ready = true;
@@ -549,6 +554,7 @@ std::string sanitize(const std::string& s) {
 }
 
 void drawText(Canvas& c, const std::string& utf8, int x, int y, Type type, Color color, Anchor anchor, Color bg) {
+  dropStaleEmojiGlyphs();
   useFont(c, fontFor(type));
   c.setTextColor(color, bg);
   const std::string text = sanitize(utf8);
@@ -597,6 +603,7 @@ void drawText(Canvas& c, const std::string& utf8, int x, int y, Type type, Color
 }
 
 int measureText(Canvas& c, const std::string& utf8, Type type) {
+  dropStaleEmojiGlyphs();
   useFont(c, fontFor(type));
   const std::string text = sanitize(utf8);
   return hasSquares(text) || hasEmoji(text) ? widthSpecial(c, fontFor(type), text) : c.textWidth(text.c_str());

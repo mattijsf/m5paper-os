@@ -269,9 +269,6 @@ bool TextField::paste() {
 void TextField::openMenu() {
   Root* r = host();
   if (!r) return;
-  auto sheet = std::make_unique<Sheet>();
-  Sheet* raw = sheet.get();
-  Column* col = sheet->content();
   const bool syncing = clipboard::syncing();
   // A count, never the text (it may be a password).
   auto caption = [](bool checking) {
@@ -281,34 +278,33 @@ void TextField::openMenu() {
                                  std::to_string(n) + (n == 1 ? " character" : " characters");
     return checking ? t + ", checking your phone..." : t;
   };
-  auto* info = col->add<Label>(caption(syncing), Type::Caption, secondary);
-  info->maxLines = 2;
-  const size_t clipChars = charCount(clipboard::get());
+  // The sheet may outlive the field (a screen change under it): its buttons ask first.
   std::weak_ptr<bool> alive = alive_;
   TextField* self = this;
-  auto* paste = col->add<Button>("Paste", [raw, self, alive] {
-    raw->close();
-    if (!alive.expired()) self->paste();
-  }, Button::Kind::Secondary);
-  paste->enabled = clipChars > 0;
-  if (!masked_) {  // a masked field (a password) is never copied
-    auto* copy = col->add<Button>("Copy all", [raw, self, alive, r] {
-      raw->close();
-      if (alive.expired()) return;
-      r->showToast(clipboard::set(self->text(), "field") ? "Copied" : "Could not copy");
+  Label* info = nullptr;
+  Button* paste = nullptr;
+  Sheet* sheet = openSheet(*this, [&](Sheet& sh) {
+    info = sh.content()->add<Label>(caption(syncing), Type::Caption, secondary);
+    info->maxLines = 2;
+    paste = sh.addButton("Paste", [self, alive] {
+      if (!alive.expired()) self->paste();
     }, Button::Kind::Secondary);
-    copy->enabled = !text_.empty();
-  }
-  auto* clear = col->add<Button>("Clear", [raw, self, alive] {
-    raw->close();
-    if (!alive.expired()) self->setText("");
-  }, Button::Kind::Secondary);
-  clear->enabled = !text_.empty();
-  r->addOverlay(std::move(sheet));
+    paste->enabled = !clipboard::empty();
+    if (!masked_) {  // a masked field (a password) is never copied
+      auto* copy = sh.addButton("Copy all", [self, alive, r] {
+        if (!alive.expired()) r->showToast(clipboard::set(self->text(), "field") ? "Copied" : "Could not copy");
+      }, Button::Kind::Secondary);
+      copy->enabled = !text_.empty();
+    }
+    auto* clear = sh.addButton("Clear", [self, alive] {
+      if (!alive.expired()) self->setText("");
+    }, Button::Kind::Secondary);
+    clear->enabled = !text_.empty();
+  });
   if (!syncing) return;
   // The phone may have shared something newer: read the relay, then show what the clipboard holds now.
-  clipboard::pull([alive, r, raw, info, paste, caption](bool) {
-    if (alive.expired() || !r->hasOverlay(raw)) return;
+  clipboard::pull([alive, r, sheet, info, paste, caption](bool) {
+    if (alive.expired() || !r->hasOverlay(sheet)) return;
     info->setText(caption(false));
     const bool on = !clipboard::empty();
     if (paste->enabled != on) {
@@ -397,7 +393,9 @@ void TextField::draw(Canvas& c) {
 
 void bindKeyboard(Keyboard& kb, TextField& field, std::function<void()> onEnter, size_t maxLen) {
   TextField* f = &field;
-  kb.onKey = [f, onEnter = std::move(onEnter), maxLen](Keyboard::Kind kind, const std::string& s) {
+  // The keyboard may be an overlay that outlives the field (the field's screen rebuilt under it): ask first.
+  kb.onKey = [f, alive = f->aliveToken(), onEnter = std::move(onEnter), maxLen](Keyboard::Kind kind, const std::string& s) {
+    if (alive.expired()) return;
     switch (kind) {
       case Keyboard::Kind::Char:
         if (f->text().size() + s.size() <= maxLen) f->append(s);

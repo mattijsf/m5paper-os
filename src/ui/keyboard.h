@@ -91,6 +91,8 @@ class TextField : public Widget {
   bool onTouch(const Gesture& g) override;
 
   static size_t charCount(const std::string& text);  // code points
+  // Expires when the field is destroyed: for handlers that may run after it (bindKeyboard, the clipboard sheet).
+  std::weak_ptr<bool> aliveToken() const { return alive_; }
 
  private:
   std::string shown() const;

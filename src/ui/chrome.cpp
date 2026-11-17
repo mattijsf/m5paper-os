@@ -117,6 +117,7 @@ bool TabBar::onTouch(const Gesture& g) {
     case Gesture::Tap: {
       const int i = indexAt(g.startX);
       pressed_ = -1;
+      if (i < 0) return true;  // no tabs: nothing to select
       const bool changed = i != selected_;
       selected_ = i;
       invalidate(Hint::Feedback);

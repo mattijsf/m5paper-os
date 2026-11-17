@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 
+#include "ui/chrome.h"
+#include "ui/inputs.h"
 #include "ui/label.h"
 #include "ui/layout.h"
 #include "ui/root.h"
@@ -424,8 +426,77 @@ TEST_CASE("Pager: arrows, swipes, clamping, onPage, disabled ends") {
   CHECK(pager->page() == 1);
   CHECK(pages == std::vector<int>{1, 2, 1});
 
-  pager->setPages(1);  // fewer pages than the current one: clamped
+  pager->setPages(1);  // fewer pages than the current one: the last page that is left, told like any change
   CHECK(pager->page() == 0);
+  CHECK(pages == std::vector<int>{1, 2, 1, 0});
+  pager->setPages(4);  // more pages: the page stays, nothing to tell
+  CHECK(pager->page() == 0);
+  CHECK(pages.size() == 4);
+}
+
+TEST_CASE("Pager: a start page past the end is the last page") {
+  Pager a(3, 7), b(3, -2), c(0, 1);
+  CHECK(a.page() == 2);
+  CHECK(b.page() == 0);
+  CHECK(c.pages() == 1);
+  CHECK(c.page() == 0);
+}
+
+TEST_CASE("PagedList: fills the rows of the page on screen, pages follow the count") {
+  Fixture f;
+  auto root = std::make_unique<Column>();
+  std::vector<int> filled;
+  auto* list = root->add<PagedList>(3, [&filled](ListItem& row, int index) {
+    filled.push_back(index);
+    row.setTitle("item " + std::to_string(index));
+  });
+  list->flex = 1;
+  f.screen.setRoot(std::move(root));
+  CHECK(list->pages() == 1);
+  CHECK_FALSE(list->bar()->visible);  // nothing yet: no bar, no rows
+  CHECK(filled.empty());
+
+  list->setCount(7);
+  f.screen.relayout();
+  CHECK(list->pages() == 3);
+  CHECK(list->bar()->visible);
+  CHECK(filled == std::vector<int>{0, 1, 2});
+  filled.clear();
+  list->showItem(6);  // the last page holds one item
+  CHECK(list->page() == 2);
+  CHECK(filled == std::vector<int>{6});
+  filled.clear();
+  list->setCount(2);  // the page that was shown is gone
+  CHECK(list->page() == 0);
+  CHECK(list->pages() == 1);
+  CHECK_FALSE(list->bar()->visible);
+  CHECK(filled.size() >= 2);
+  CHECK(filled.back() == 1);
+  filled.clear();
+  list->refill();
+  CHECK(filled == std::vector<int>{0, 1});
+  list->setCount(0);
+  CHECK(list->pages() == 1);
+}
+
+TEST_CASE("TabBar and Segmented without options ignore a tap") {
+  Fixture f;
+  auto root = std::make_unique<Column>();
+  auto* tabs = root->add<TabBar>(std::vector<TabBar::Tab>{});
+  auto* seg = root->add<Segmented>(std::vector<std::string>{}, 0);
+  int told = 0;
+  tabs->onSelect = [&told](int) { ++told; };
+  seg->onChange = [&told](int) { ++told; };
+  f.screen.setRoot(std::move(root));
+  f.screen.render(f.canvas, f.dm);
+  for (Widget* w : {static_cast<Widget*>(tabs), static_cast<Widget*>(seg)}) {
+    const int x = w->frame.x + 20, y = w->frame.y + w->frame.h / 2;
+    f.screen.onGesture(g(Gesture::Down, x, y));
+    f.screen.onGesture(g(Gesture::Tap, x, y));
+  }
+  CHECK(told == 0);
+  CHECK(tabs->selected() >= 0);
+  CHECK(seg->selected() >= 0);
 }
 
 TEST_CASE("Tile: measure, value and badge setters redraw") {

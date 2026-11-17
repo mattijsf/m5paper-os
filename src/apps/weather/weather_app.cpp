@@ -349,7 +349,7 @@ class WeatherScreen : public Screen {
   }
 
   void rebuild() {
-    while (!holder_->children().empty()) holder_->remove(holder_->children().back().get());
+    holder_->removeAll();
     view_ = nullptr;
     if (weather_.valid()) {
       auto* pager = holder_->add<ui::Pager>(kPages, page_);

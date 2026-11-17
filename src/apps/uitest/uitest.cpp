@@ -172,15 +172,13 @@ std::unique_ptr<Widget> widgets3() {
   auto* sheetBtn = row->add<Button>("Sheet", Button::Kind::Primary);
   toastBtn->onClick = [toastBtn] { toastBtn->host()->showToast("No Wi-Fi: showing saved data"); };
   sheetBtn->onClick = [sheetBtn] {
-    auto sheet = std::make_unique<Sheet>();
-    Column* c = sheet->content();
-    c->add<Label>("Quick controls", Type::Title);
-    c->add<Segmented>(std::vector<std::string>{"Off", "Low", "High"}, 1);
-    c->add<LevelBar>(30);
-    auto* done = c->add<Button>("Done", Button::Kind::Primary);
-    Sheet* raw = sheet.get();
-    done->onClick = [raw] { raw->close(); };
-    sheetBtn->host()->addOverlay(std::move(sheet));
+    openSheet(*sheetBtn, [](Sheet& sheet) {
+      Column* c = sheet.content();
+      c->add<Label>("Quick controls", Type::Title);
+      c->add<Segmented>(std::vector<std::string>{"Off", "Low", "High"}, 1);
+      c->add<LevelBar>(30);
+      sheet.addButton("Done");
+    });
   };
 
   auto* empty = col->add<EmptyState>(Icon::WifiOff, "No connection", "Connect to Wi-Fi to load messages.", "Retry");

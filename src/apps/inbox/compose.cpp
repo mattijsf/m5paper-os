@@ -96,20 +96,16 @@ class ComposeScreen : public Screen {
   // Always asked: who it goes to and the text, then Send or Cancel.
   void confirm() {
     if (busy_ || trimmed(field_->text()).empty()) return;
-    auto sheet = std::make_unique<ui::Sheet>();
-    ui::Sheet* raw = sheet.get();
-    ui::Column* c = sheet->content();
-    c->add<ui::Label>("Send to " + to_.name + "?", Type::Title)->maxLines = 2;
-    auto* text = c->add<ui::Label>(trimmed(field_->text()), Type::Body);  // the message itself: ink
-    text->maxLines = 7;
-    text->keepLineBreaks = true;  // a score is lines of squares
-    c->add<ui::Label>("Your phone sends it from your WhatsApp account", Type::Caption, ui::secondary);
-    c->add<ui::Button>("Send", [this, raw] {
-      raw->close();
-      send();
+    ui::openSheet(*field_, [this](ui::Sheet& sheet) {
+      ui::Column* c = sheet.content();
+      c->add<ui::Label>("Send to " + to_.name + "?", Type::Title)->maxLines = 2;
+      auto* text = c->add<ui::Label>(trimmed(field_->text()), Type::Body);  // the message itself: ink
+      text->maxLines = 7;
+      text->keepLineBreaks = true;  // a score is lines of squares
+      c->add<ui::Label>("Your phone sends it from your WhatsApp account", Type::Caption, ui::secondary);
+      sheet.addButton("Send", [this] { send(); });
+      sheet.addButton("Cancel", {}, ui::Button::Kind::Secondary);
     });
-    c->add<ui::Button>("Cancel", [raw] { raw->close(); }, ui::Button::Kind::Secondary);
-    field_->host()->addOverlay(std::move(sheet));
   }
 
   void send() {

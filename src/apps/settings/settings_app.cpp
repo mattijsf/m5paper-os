@@ -233,7 +233,7 @@ class WifiScanPage : public Page {
         if (!dup) rows.push_back(ap);
         if (rows.size() == 7) break;
       }
-      while (!list_->children().empty()) list_->remove(list_->children().back().get());
+      list_->removeAll();
       info_->setText(rows.empty() ? "No networks found. The device sees 2.4 GHz only." : "Tap a network to join it.");
       for (const auto& ap : rows) {
         auto* item = list_->add<ui::ListItem>(ap.ssid, signalText(ap.rssi) + "  ch " + std::to_string(ap.channel), true,
@@ -280,7 +280,7 @@ class WifiSavedPage : public Page {
 
  private:
   void fill() {
-    while (!list_->children().empty()) list_->remove(list_->children().back().get());
+    list_->removeAll();
     auto known = ctx().os().net().known();
     if (known.empty()) {
       list_->add<ui::Label>("No saved networks. Add WIFI_SSID and WIFI_PASSWORD to /sd/paperos_config, or join one from the scan.", Type::Body, ui::secondary)->maxLines = 4;
@@ -373,7 +373,7 @@ class PhonePage : public Page {
 
  private:
   void clear() {
-    while (!holder_->children().empty()) holder_->remove(holder_->children().back().get());
+    holder_->removeAll();
   }
   ui::Label* text(const std::string& t, Type type = Type::Body, Color color = ui::ink, int lines = 3) {
     auto* l = holder_->add<ui::Label>(t, type, color);
@@ -522,17 +522,8 @@ class PhonePage : public Page {
   }
 
   void confirmUnpair() {
-    auto sheet = std::make_unique<ui::Sheet>();
-    ui::Sheet* raw = sheet.get();
-    ui::Column* c = sheet->content();
-    c->add<ui::Label>("Unpair the phone?", Type::Title);
-    c->add<ui::Label>("Its messages stop coming here. Pairing again needs the phone.", Type::Body, ui::secondary)->maxLines = 2;
-    c->add<ui::Button>("Unpair", [this, raw] {
-      raw->close();
-      unpair();
-    });
-    c->add<ui::Button>("Cancel", [raw] { raw->close(); }, ui::Button::Kind::Secondary);
-    holder_->host()->addOverlay(std::move(sheet));
+    ui::confirmSheet(*holder_, "Unpair the phone?", "Its messages stop coming here. Pairing again needs the phone.", "Unpair",
+                     [this] { unpair(); });
   }
 
   void unpair() {
@@ -924,14 +915,8 @@ class DeveloperPage : public Page {
     auto* off = row->add<ui::Button>("Power off", ui::Button::Kind::Secondary);
     off->flex = 1;
     off->onClick = [this, off] {
-      auto sheet = std::make_unique<ui::Sheet>();
-      ui::Column* c = sheet->content();
-      c->add<ui::Label>("Power off?", Type::Title);
-      c->add<ui::Label>("The picture stays on the screen. Press the side button to start again.", Type::Body, ui::secondary)->maxLines = 3;
-      ui::Sheet* raw = sheet.get();
-      c->add<ui::Button>("Power off", [this] { ctx().os().platform().power.powerOff(0); });
-      c->add<ui::Button>("Cancel", [raw] { raw->close(); }, ui::Button::Kind::Secondary);
-      off->host()->addOverlay(std::move(sheet));
+      ui::confirmSheet(*off, "Power off?", "The picture stays on the screen. Press the side button to start again.", "Power off",
+                       [this] { ctx().os().platform().power.powerOff(0); });
     };
     root.add<ui::Spacer>(ui::s1);
     auto* row2 = root.add<ui::Row>(ui::s2);

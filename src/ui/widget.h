@@ -62,6 +62,7 @@ class Widget {
   }
   Widget* adopt(std::unique_ptr<Widget> child);
   std::unique_ptr<Widget> remove(Widget* child);  // gives the child back; nothing is redrawn by itself
+  void removeAll();                               // destroys every child (a holder that is filled again)
   Widget* parent() const { return parent_; }
   const std::vector<std::unique_ptr<Widget>>& children() const { return children_; }
   Root* host() const;

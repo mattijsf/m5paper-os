@@ -96,6 +96,9 @@ class ChapterLoader {
   std::string docHref_, doc_;
 };
 
+// The paragraphs of one chapter, ready to lay out (empty if it cannot be read). Blocking: run on the worker.
+std::vector<ui::Paragraph> loadParagraphs(const BookMeta& meta, int chapter);
+
 // The cover image: copies it from the EPUB to the cache folder as cover.jpg / cover.png (M5GFX decodes both when drawn).
 // Slow on the card (it is a write): the reader does it in the background after the book is open.
 bool extractCover(const BookMeta& meta);

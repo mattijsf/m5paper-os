@@ -484,42 +484,45 @@ class HomeScreen : public Screen {
   }
 
   void openLightSheet(const Item& it) {
-    auto sheet = std::make_unique<ui::Sheet>();
-    ui::Column* c = sheet->content();
-    ui::Sheet* raw = sheet.get();
-    const LightView lv = lightView(it, states_);
-    c->add<ui::Label>(it.name, Type::Title);
-    if (it.dimmable) {
-      // "Brightness" on the left, the value on the right ("60%", "--" when unknown), the ten boxes below.
-      auto* head = c->add<ui::Row>(ui::s1);
-      auto* cap = head->add<ui::Label>("Brightness", Type::Caption, ui::secondary);
-      cap->flex = 1;
-      const int shown = lv.percent >= 0 ? (lv.percent + 5) / 10 * 10 : -1;
-      auto* value = head->add<ui::Label>(shown >= 0 ? std::to_string(shown) + "%" : "--", Type::BodyStrong);
-      value->align = ui::TextAlign::Right;
-      auto* level = c->add<ui::LevelBar>(shown >= 0 ? shown : 50);
-      const Item* ip = &it;
-      level->onChange = [this, ip, value](int pct) {
-        value->setText(std::to_string(pct) + "%");
-        onBrightness(*ip, pct);
-      };
-    }
-    if (!it.members.empty()) {
-      c->add<ui::Label>("Lamps", Type::Caption, ui::secondary);
-      for (const std::string& m : it.members) {
-        auto* row = c->add<ui::ListItem>(nameOf(config_, m));
-        auto s = states_.find(m);
-        const std::string member = m;
-        row->setToggle(s != states_.end() && s->second.on(), [this, member](bool on) {
-          touched();
-          setLocal(member, on ? "on" : "off");
-          send({Call{on ? "light.turn_on" : "light.turn_off", member, "{}"}}, [this, member] { states_[member].state = states_[member].on() ? "off" : "on"; });
-        });
+    ui::openSheet(*body_, [&](ui::Sheet& sheet) {
+      ui::Column* c = sheet.content();
+      const LightView lv = lightView(it, states_);
+      c->add<ui::Label>(it.name, Type::Title);
+      if (it.dimmable) {
+        // "Brightness" on the left, the value on the right ("60%", "--" when unknown), the ten boxes below.
+        auto* head = c->add<ui::Row>(ui::s1);
+        auto* cap = head->add<ui::Label>("Brightness", Type::Caption, ui::secondary);
+        cap->flex = 1;
+        const int shown = lv.percent >= 0 ? (lv.percent + 5) / 10 * 10 : -1;
+        auto* value = head->add<ui::Label>(shown >= 0 ? std::to_string(shown) + "%" : "--", Type::BodyStrong);
+        value->align = ui::TextAlign::Right;
+        auto* level = c->add<ui::LevelBar>(shown >= 0 ? shown : 50);
+        const Item* ip = &it;
+        level->onChange = [this, ip, value](int pct) {
+          value->setText(std::to_string(pct) + "%");
+          onBrightness(*ip, pct);
+        };
       }
-    }
-    c->add<ui::Button>("Done", [raw] { raw->close(); }, ui::Button::Kind::Secondary);
-    sheet->onClose = [this] { applyAll(); };
-    body_->host()->addOverlay(std::move(sheet));
+      if (!it.members.empty()) {
+        c->add<ui::Label>("Lamps", Type::Caption, ui::secondary);
+        for (const std::string& m : it.members) {
+          auto* row = c->add<ui::ListItem>(nameOf(config_, m));
+          auto s = states_.find(m);
+          const std::string member = m;
+          row->setToggle(s != states_.end() && s->second.on(), [this, member](bool on) {
+            touched();
+            const EntityState before = states_.count(member) ? states_[member] : EntityState{};
+            setLocal(member, on ? "on" : "off");
+            send({Call{on ? "light.turn_on" : "light.turn_off", member, "{}"}}, [this, member, before] {
+              states_[member] = before;  // as the tiles do: back to what it was, and shown
+              applyAll();
+            });
+          });
+        }
+      }
+      sheet.addButton("Done", {}, ui::Button::Kind::Secondary);
+      sheet.onClose = [this] { applyAll(); };
+    });
   }
 
   Config config_;

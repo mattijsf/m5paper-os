@@ -58,6 +58,7 @@ void ListItem::setBadge(int count) {
     layout();
   } else {
     badge_->setCount(count);
+    layout();  // "9" to "10" is a wider pill: the title's room follows
   }
   invalidate(Hint::Content);
 }
@@ -155,20 +156,22 @@ void PagerBar::draw(Canvas& c) {
 
 // ---- Pager
 
-Pager::Pager(int pages, int page) : page_(page), pages_(std::max(1, pages)) {
+Pager::Pager(int pages, int page) : pages_(std::max(1, pages)) {
+  page_ = std::max(0, std::min(page, pages_ - 1));
   bar_ = add<PagerBar>(this);
 }
 
 void Pager::setPages(int n) {
   pages_ = std::max(1, n);
-  page_ = std::min(page_, pages_ - 1);
   bar_->invalidate(Hint::Content);
+  if (page_ >= pages_) setPage(pages_ - 1);  // the page that was shown is gone: the last one, told to onPage like any change
 }
 
 void Pager::setPage(int p) {
   p = std::max(0, std::min(p, pages_ - 1));
   if (p == page_) return;
   page_ = p;
+  pageChanged();
   if (onPage) onPage(page_);
   for (auto& ch : children()) ch->invalidate(Hint::Content);
 }
@@ -189,6 +192,33 @@ void Pager::layout() {
     ch->layout();
   }
   bar_->frame = Rect{frame.x, static_cast<int16_t>(frame.y + contentH), frame.w, static_cast<int16_t>(barH)};
+}
+
+// ---- PagedList
+
+PagedList::PagedList(int rowsPerPage, Fill fill) : fill_(std::move(fill)) {
+  list_ = add<Column>(0);
+  for (int i = 0; i < std::max(1, rowsPerPage); ++i) rows_.push_back(list_->add<ListItem>());
+  for (ListItem* row : rows_) row->visible = false;
+  bar()->visible = false;
+}
+
+void PagedList::setCount(int count) {
+  count_ = std::max(0, count);
+  const int perPage = rowsPerPage();
+  setPages((count_ + perPage - 1) / perPage);  // (a page that is gone turns to the last one, which fills the rows)
+  bar()->visible = pages() > 1;
+  refill();
+}
+
+void PagedList::refill() {
+  const int first = page() * rowsPerPage();
+  for (int i = 0; i < rowsPerPage(); ++i) {
+    const int index = first + i;
+    rows_[i]->visible = index < count_;
+    if (index < count_) fill_(*rows_[i], index);
+  }
+  if (list_->frame.w > 0) list_->layout();  // rows came and went: positions change
 }
 
 bool Pager::onTouch(const Gesture& g) {

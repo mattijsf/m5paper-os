@@ -14,7 +14,7 @@ enum class TextAlign : uint8_t { Left, Center, Right };
 class Label : public Widget {
  public:
   explicit Label(std::string text = "", Type type = Type::Body, Color color = ink)
-      : text_(std::move(text)), type(type), color(color) {}
+      : type(type), color(color), text_(std::move(text)) {}
 
   Type type;
   Color color;

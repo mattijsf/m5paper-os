@@ -6,6 +6,7 @@
 #include <string>
 
 #include "ui/controls.h"
+#include "ui/layout.h"
 
 namespace pos::ui {
 
@@ -86,9 +87,37 @@ class Pager : public Widget {
   void layout() override;
   bool onTouch(const Gesture& g) override;
 
+ protected:
+  virtual void pageChanged() {}  // the page is another one: before onPage
+
  private:
   int page_, pages_;
   PagerBar* bar_;
+};
+
+// A list too long for one screen: `rowsPerPage` rows in a Pager. `fill(row, index)` makes a row show item `index`; it
+// runs for the rows of the page on screen whenever the page or the items change. The bar shows only with a second page.
+class PagedList : public Pager {
+ public:
+  using Fill = std::function<void(ListItem& row, int index)>;
+  PagedList(int rowsPerPage, Fill fill);
+  // How many items there are: the pages follow (the page on screen stays if it still exists) and the rows are filled.
+  void setCount(int count);
+  int count() const { return count_; }
+  // Fills the rows on screen again: the items changed, their number did not.
+  void refill();
+  // Turns to the page that holds item `index`.
+  void showItem(int index) { setPage(index / rowsPerPage()); }
+  int rowsPerPage() const { return static_cast<int>(rows_.size()); }
+
+ protected:
+  void pageChanged() override { refill(); }
+
+ private:
+  Fill fill_;
+  Column* list_;
+  std::vector<ListItem*> rows_;
+  int count_ = 0;
 };
 
 }  // namespace pos::ui

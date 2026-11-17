@@ -55,6 +55,37 @@ void Sheet::close() {
   if (Root* s = host()) s->closeOverlay(this);
 }
 
+std::function<void()> Sheet::closing(std::function<void()> action) {
+  // The sheet outlives the gesture that closes it (Root::closeOverlay), so `this` is good for the whole handler.
+  return [this, action = std::move(action)] {
+    close();
+    if (action) action();
+  };
+}
+
+Button* Sheet::addButton(const std::string& text, std::function<void()> action, Button::Kind kind) {
+  return content_->add<Button>(text, closing(std::move(action)), kind);
+}
+
+Sheet* openSheet(Widget& from, const std::function<void(Sheet&)>& fill) {
+  Root* root = from.host();
+  if (!root) return nullptr;
+  auto sheet = std::make_unique<Sheet>();
+  Sheet* raw = sheet.get();
+  fill(*raw);
+  root->addOverlay(std::move(sheet));
+  return raw;
+}
+
+Sheet* confirmSheet(Widget& from, const std::string& title, const std::string& body, const std::string& okText, std::function<void()> onOk) {
+  return openSheet(from, [&](Sheet& sheet) {
+    sheet.content()->add<Label>(title, Type::Title);
+    if (!body.empty()) sheet.content()->add<Label>(body, Type::Body, secondary)->maxLines = 3;
+    sheet.addButton(okText, std::move(onOk));
+    sheet.addButton("Cancel", {}, Button::Kind::Secondary);
+  });
+}
+
 // ---- Toast
 
 Toast::Toast(std::string text) : text_(std::move(text)) {

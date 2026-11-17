@@ -170,9 +170,7 @@ class ListScreen : public Screen {
   int64_t now() { return ctx().clock.now(); }
 
   void rebuild() {
-    while (!holder_->children().empty()) holder_->remove(holder_->children().back().get());
-    rows_.clear();
-    pager_ = nullptr;
+    holder_->removeAll();
     convs_.clear();
     rowCount_ = 0;
     if (notPaired_) {
@@ -218,36 +216,21 @@ class ListScreen : public Screen {
       holder_->host()->relayout();
       return;
     }
-    const int pages = std::max(1, (rowCount_ + kRowsPerPage - 1) / kRowsPerPage);
-    pager_ = holder_->add<ui::Pager>(pages);
-    pager_->flex = 1;
-    pager_->bar()->visible = pages > 1;
-    auto* list = pager_->add<ui::Column>(0);
-    for (int i = 0; i < kRowsPerPage; ++i) rows_.push_back(list->add<ui::ListItem>());
-    pager_->onPage = [this](int p) { fill(p); };
-    fill(0);
+    auto* list = holder_->add<ui::PagedList>(kRowsPerPage, [this](ui::ListItem& row, int idx) { fillRow(row, idx); });
+    list->flex = 1;
+    list->setCount(rowCount_);
     holder_->host()->relayout();
   }
 
-  void fill(int page) {
-    for (int i = 0; i < kRowsPerPage; ++i) {
-      const int idx = page * kRowsPerPage + i;
-      ui::ListItem* row = rows_[i];
-      row->visible = idx < rowCount_;
-      if (idx >= rowCount_) continue;
-      const Conversation& c = convs_[idx];
-      std::string title = (c.isNew ? "\xE2\x80\xA2 " : "") + c.title;
-      if (c.count > 1) title += " (" + std::to_string(c.count) + ")";
-      row->setTitle(title);
-      row->setSubtitle(firstLine(c.lastText));
-      row->setSubtitleIsContent(true);  // the message (or the mail subject) is what the list is for
-      row->setTrailingText(relativeTime(c.ts, now()));
-      row->onClick = [this, idx] { open(idx); };
-    }
-    if (rows_.empty() == false) {
-      auto* parent = rows_[0]->parent();
-      if (parent && parent->frame.w > 0) parent->layout();
-    }
+  void fillRow(ui::ListItem& row, int idx) {
+    const Conversation& c = convs_[idx];
+    std::string title = (c.isNew ? "\xE2\x80\xA2 " : "") + c.title;
+    if (c.count > 1) title += " (" + std::to_string(c.count) + ")";
+    row.setTitle(title);
+    row.setSubtitle(firstLine(c.lastText));
+    row.setSubtitleIsContent(true);  // the message (or the mail subject) is what the list is for
+    row.setTrailingText(relativeTime(c.ts, now()));
+    row.onClick = [this, idx] { open(idx); };
   }
 
   void open(int idx) {
@@ -325,17 +308,8 @@ class ListScreen : public Screen {
   void writeBadge(int n) { ctx().cache.write("badge", std::to_string(n)); }
 
   void confirmMarkAll() {
-    auto sheet = std::make_unique<ui::Sheet>();
-    ui::Column* c = sheet->content();
-    ui::Sheet* raw = sheet.get();
-    c->add<ui::Label>("Mark all read?", Type::Title);
-    c->add<ui::Label>("The list is cleared here. The notifications stay on your phone.", Type::Body, ui::secondary)->maxLines = 2;
-    c->add<ui::Button>("Mark all read", [this, raw] {
-      raw->close();
-      markAllRead();
-    });
-    c->add<ui::Button>("Cancel", [raw] { raw->close(); }, ui::Button::Kind::Secondary);
-    holder_->host()->addOverlay(std::move(sheet));
+    ui::confirmSheet(*holder_, "Mark all read?", "The list is cleared here. The notifications stay on your phone.", "Mark all read",
+                     [this] { markAllRead(); });
   }
 
   // Clears this app's notifications on the Paper and tells the phone (`dismiss`, best effort: COMPANION.md 7.2).
@@ -368,10 +342,8 @@ class ListScreen : public Screen {
   bool haveData_ = false, busy_ = false, error_ = false, notSetUp_ = false, notPaired_ = false, fetchedOnce_ = false;
   uint32_t lastFetchMs_ = 0;
   ui::Column* holder_ = nullptr;
-  ui::Pager* pager_ = nullptr;
   ui::Label* status_ = nullptr;
   ui::Button* markAll_ = nullptr;
-  std::vector<ui::ListItem*> rows_;
 };
 
 template <const Kind& K>

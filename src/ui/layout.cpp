@@ -57,7 +57,7 @@ void Column::layout() {
       h = upto - given;
       given = upto;
     }
-    int off, w;
+    int off = 0, w = 0;
     crossPlace(align, frame.w, sizes[i].w, off, w);
     kids[i]->frame = rect(frame.x + off, y, w, h);
     kids[i]->layout();
@@ -121,7 +121,7 @@ void Row::layout() {
   int x = frame.x;
   for (size_t i = 0; i < kids.size(); ++i) {
     const int w = r.sizes[i].w;
-    int off, h;
+    int off = 0, h = 0;
     crossPlace(align, frame.h, r.sizes[i].h, off, h);
     kids[i]->frame = rect(x, frame.y + off, w, h);
     kids[i]->layout();

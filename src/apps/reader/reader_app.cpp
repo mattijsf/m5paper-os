@@ -123,41 +123,30 @@ class ContentsScreen : public Screen {
 
   void build(ui::Column& root) override {
     setTitle("Contents");
-    const int n = static_cast<int>(entries_.size());
-    const int pages = std::max(1, (n + kRows - 1) / kRows);
-    // Open on the page that holds the chapter being read.
-    int startPage = 0;
-    for (int i = 0; i < n; ++i)
-      if (entries_[i].page <= currentPage_) startPage = i / kRows;
     root.add<ui::Spacer>(ui::s2);
-    auto* pager = root.add<ui::Pager>(pages, startPage);
-    pager->flex = 1;
-    pager->bar()->visible = pages > 1;
-    auto* list = pager->add<ui::Column>(0);
-    for (int i = 0; i < kRows; ++i) rows_.push_back(list->add<ui::ListItem>());
-    pager->onPage = [this](int page) { fill(page); };
-    fill(startPage);
+    auto* list = root.add<ui::PagedList>(kRows, [this](ui::ListItem& row, int idx) { fillRow(row, idx); });
+    list->flex = 1;
+    list->setCount(static_cast<int>(entries_.size()));
+    // Open on the page that holds the chapter being read.
+    for (int i = 0; i < static_cast<int>(entries_.size()); ++i)
+      if (isCurrent(i)) list->showItem(i);
   }
 
  private:
   static constexpr int kRows = 7;
-  void fill(int page) {
-    for (int i = 0; i < kRows; ++i) {
-      const int idx = page * kRows + i;
-      const bool show = idx < static_cast<int>(entries_.size());
-      rows_[i]->visible = show;
-      if (!show) continue;
-      rows_[i]->setTitle(entries_[idx].title);
-      rows_[i]->setTrailingText("p. " + std::to_string(entries_[idx].page + 1));
-      const bool current = entries_[idx].page <= currentPage_ && (idx + 1 >= static_cast<int>(entries_.size()) || entries_[idx + 1].page > currentPage_);
-      rows_[i]->setSubtitle(current ? "reading now" : "");
-      rows_[i]->onClick = [this, p = entries_[idx].page] { pick_(p); };
-    }
+  // The chapter that holds the page being read: the last one that starts at or before it.
+  bool isCurrent(int idx) const {
+    return entries_[idx].page <= currentPage_ && (idx + 1 >= static_cast<int>(entries_.size()) || entries_[idx + 1].page > currentPage_);
+  }
+  void fillRow(ui::ListItem& row, int idx) {
+    row.setTitle(entries_[idx].title);
+    row.setTrailingText("p. " + std::to_string(entries_[idx].page + 1));
+    row.setSubtitle(isCurrent(idx) ? "reading now" : "");
+    row.onClick = [this, p = entries_[idx].page] { pick_(p); };
   }
   std::vector<ContentsEntry> entries_;
   int currentPage_;
   std::function<void(int)> pick_;
-  std::vector<ui::ListItem*> rows_;
 };
 
 // 10 20 ... 100 under the segments of the "Go to" bar (same geometry as ui::LevelBar::draw): each box is "this far into the book".
@@ -178,6 +167,11 @@ class PageScreen : public Screen {
   PageScreen(std::string file, int fontIndex) : file_(std::move(file)), font_(fontIndex) {}
   // The book stays "open" in the store until the reader leaves it for the library: after a power-off the app opens it again.
   void leaveBook() { ctx().store.set("open", std::string()); }
+  // Back to the library.
+  void leave() {
+    leaveBook();
+    ctx().nav.pop();
+  }
   ~PageScreen() override {
     if (steps_) steps_->cancel = true;  // the worker stops indexing a book nobody waits for
     saveProgress();
@@ -303,12 +297,7 @@ class PageScreen : public Screen {
     const BookMeta meta = meta_;
     const int ch = ref.chapter;
     ctx().async(
-        [meta, ch] {
-          std::string text;
-          ChapterLoader loader(meta);
-          loader.load(ch, text);
-          return ui::parseMarked(text);
-        },
+        [meta, ch] { return loadParagraphs(meta, ch); },
         [this, idx, ch](std::vector<ui::Paragraph> paras) {
           loading_ = false;
           enterChapter(idx, ch, std::move(paras));
@@ -334,12 +323,7 @@ class PageScreen : public Screen {
     nextLoading_ = true;
     const BookMeta meta = meta_;
     ctx().async(
-        [meta, ch] {
-          std::string text;
-          ChapterLoader loader(meta);
-          loader.load(ch, text);
-          return ui::parseMarked(text);
-        },
+        [meta, ch] { return loadParagraphs(meta, ch); },
         [this, ch](std::vector<ui::Paragraph> paras) {
           nextLoading_ = false;
           if (ch == loadedChapter_) return;  // the reader got there first and loaded it itself
@@ -371,8 +355,7 @@ class PageScreen : public Screen {
     if (state_ != State::Ready) {
       if (z == PageView::Zone::Menu) {  // while preparing (or after an error) the centre leaves
         if (steps_) steps_->cancel = true;
-        leaveBook();
-        ctx().nav.pop();
+        leave();
       }
       return;
     }
@@ -420,49 +403,35 @@ class PageScreen : public Screen {
 
   // The menu: a sheet over the page (docs/apps/reader.md "Page"). Text size, go to (by 10% and by page), contents, clean screen.
   void openMenu() {
-    auto sheet = std::make_unique<ui::Sheet>();
-    ui::Column* c = sheet->content();
-    ui::Sheet* raw = sheet.get();
-    c->add<ui::Label>(meta_.title, Type::Title);
-    auto caption = [c](const char* t) { c->add<ui::Label>(t, Type::Caption, ui::secondary); };
-    caption("Text size");
-    auto* size = c->add<ui::Segmented>(std::vector<std::string>{"S", "M", "L", "XL"}, font_);
-    size->onChange = [this, raw](int i) {
-      raw->close();
-      changeFont(i);
-    };
-    caption("Go to: percent of the book, or page by page");
-    const int total = static_cast<int>(pages_.size());
-    auto* level = c->add<ui::LevelBar>(std::max(10, (percentOf(cur_, pages_.size()) + 9) / 10 * 10));
-    c->add<SegmentLabels>();
-    auto* stepper = c->add<ui::Stepper>(cur_ + 1, 1, std::max(1, total), 1, [total](int v) { return "Page " + std::to_string(v) + " of " + std::to_string(total); });
-    level->onChange = [this, stepper](int pct) {
-      const int target = std::min(static_cast<int>(pages_.size()) - 1, (static_cast<int>(pages_.size()) - 1) * pct / 100);
-      jumpTo(target);
-      stepper->setValue(target + 1, Hint::Content);  // cur_ follows once the chapter is loaded
-    };
-    stepper->onChange = [this](int v) { jumpTo(v - 1); };
-    auto* row = c->add<ui::Row>(ui::s1);
-    auto* contents = row->add<ui::Button>("Contents", ui::Button::Kind::Secondary);
-    contents->flex = 1;
-    contents->onClick = [this, raw] {
-      raw->close();
-      openContents();
-    };
-    auto* clean = row->add<ui::Button>("Clean", ui::Button::Kind::Secondary);
-    clean->flex = 1;
-    clean->onClick = [this, raw] {
-      raw->close();
-      ctx().os().displayManager().forceClean();
-    };
-    auto* lib = row->add<ui::Button>("Library");
-    lib->flex = 1;
-    lib->onClick = [this, raw] {
-      raw->close();
-      leaveBook();
-      ctx().nav.pop();
-    };
-    view_->host()->addOverlay(std::move(sheet));
+    ui::openSheet(*view_, [this](ui::Sheet& sheet) {
+      ui::Column* c = sheet.content();
+      c->add<ui::Label>(meta_.title, Type::Title);
+      auto caption = [c](const char* t) { c->add<ui::Label>(t, Type::Caption, ui::secondary); };
+      caption("Text size");
+      auto* size = c->add<ui::Segmented>(std::vector<std::string>{"S", "M", "L", "XL"}, font_);
+      size->onChange = [this, menu = &sheet](int i) {
+        menu->close();
+        changeFont(i);
+      };
+      caption("Go to: percent of the book, or page by page");
+      const int total = static_cast<int>(pages_.size());
+      auto* level = c->add<ui::LevelBar>(std::max(10, (percentOf(cur_, pages_.size()) + 9) / 10 * 10));
+      c->add<SegmentLabels>();
+      auto* stepper = c->add<ui::Stepper>(cur_ + 1, 1, std::max(1, total), 1, [total](int v) { return "Page " + std::to_string(v) + " of " + std::to_string(total); });
+      level->onChange = [this, stepper](int pct) {
+        const int target = (static_cast<int>(pages_.size()) - 1) * pct / 100;
+        jumpTo(target);
+        stepper->setValue(target + 1, Hint::Content);  // cur_ follows once the chapter is loaded
+      };
+      stepper->onChange = [this](int v) { jumpTo(v - 1); };
+      auto* row = c->add<ui::Row>(ui::s1);
+      auto button = [&](const char* text, ui::Button::Kind kind, std::function<void()> action) {
+        row->add<ui::Button>(text, sheet.closing(std::move(action)), kind)->flex = 1;
+      };
+      button("Contents", ui::Button::Kind::Secondary, [this] { openContents(); });
+      button("Clean", ui::Button::Kind::Secondary, [this] { ctx().os().displayManager().forceClean(); });
+      button("Library", ui::Button::Kind::Primary, [this] { leave(); });
+    });
   }
 
   void jumpTo(int idx) {

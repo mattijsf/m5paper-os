@@ -110,7 +110,7 @@ void LibraryScreen::refresh() {
 }
 
 void LibraryScreen::rebuild() {
-  while (!holder_->children().empty()) holder_->remove(holder_->children().back().get());
+  holder_->removeAll();
   rows_.clear();
   others_.clear();
   pager_ = nullptr;

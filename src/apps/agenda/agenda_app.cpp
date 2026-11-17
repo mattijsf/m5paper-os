@@ -127,7 +127,7 @@ class AgendaScreen : public Screen {
 
   void rebuild() {
     rebuilt_ = true;
-    while (!holder_->children().empty()) holder_->remove(holder_->children().back().get());
+    holder_->removeAll();
     headers_.clear();
     rows_.clear();
     gaps_.clear();
@@ -218,14 +218,13 @@ class AgendaScreen : public Screen {
     const Day* day = dayOf(date);
     if (!day || event < 0 || event >= static_cast<int>(day->events.size())) return;
     const Event& ev = day->events[event];
-    auto sheet = std::make_unique<ui::Sheet>();
-    ui::Column* c = sheet->content();
-    ui::Sheet* raw = sheet.get();
-    c->add<ui::Label>(ev.title.empty() ? "(No title)" : ev.title, Type::Title)->maxLines = 3;
-    c->add<ui::Label>(dayTitle(date, today_) + ", " + timeText(ev), Type::Body);
-    if (!ev.location.empty()) c->add<ui::Label>(ev.location, Type::Body, ui::secondary)->maxLines = 2;
-    c->add<ui::Button>("Close", [raw] { raw->close(); }, ui::Button::Kind::Secondary);
-    holder_->host()->addOverlay(std::move(sheet));
+    ui::openSheet(*holder_, [&](ui::Sheet& sheet) {
+      ui::Column* c = sheet.content();
+      c->add<ui::Label>(ev.title.empty() ? "(No title)" : ev.title, Type::Title)->maxLines = 3;
+      c->add<ui::Label>(dayTitle(date, today_) + ", " + timeText(ev), Type::Body);
+      if (!ev.location.empty()) c->add<ui::Label>(ev.location, Type::Body, ui::secondary)->maxLines = 2;
+      sheet.addButton("Close", {}, ui::Button::Kind::Secondary);
+    });
   }
 
   // Once a minute (like the status bar clock): the now line moves, and at midnight the views start from the new today.
