@@ -72,8 +72,8 @@ with `POS_REGISTER_APP`.
   badges.
 - **Badges**: every read of the relay writes both apps' launcher badges (`writeBadges` in `fetchRelay`): what is newer
   than each app's seen marker. Until 2026-11-17 an app wrote only its own badge, right after marking everything seen,
-  so a badge never showed; golden `inbox-badges-launcher`. Still true: nothing reads
-  the relay while the device is on and nobody opens an app, so a badge is as fresh as the last read.
+  so a badge never showed; golden `inbox-badges-launcher`. The launcher reads the relay itself when it
+  comes up and nobody read or tried it for ten minutes (`inbox::checkRelay`, apps/launcher.md "Fresh badges").
 - No polling: messages come when the Paper reads the relay (the inbox opened or refreshed, Agenda, a scheduled wake,
   the clipboard menu), always on the worker. Each notification is cleaned there, once, when it is stored
   (`companion::cleanNotif`; the store's file carries `"clean": true`, an older file is cleaned when loaded): the inbox

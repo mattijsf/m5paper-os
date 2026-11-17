@@ -1,6 +1,8 @@
 #include "apps/inbox/relay_fetch.h"
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 
 #include "apps/inbox/scheduled_refresh.h"
 #include "core/agenda.h"
@@ -21,12 +23,40 @@ void saveRx(const companion::Pairing& read) {
 
 }  // namespace
 
+namespace {
+// When the relay was last read or tried, in steady-clock seconds; 0: not in this boot.
+std::atomic<int64_t> gLastTry{0};
+
+int64_t steadySeconds() {
+  return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count() + 1;
+}
+}  // namespace
+
+bool relayCheckDue() {
+  const int64_t last = gLastTry.load();
+  if (last != 0 && steadySeconds() - last < kLauncherCheckSec) return false;
+  return companion::pairedPhone();
+}
+
+void checkRelay(Os& os, std::function<void()> done) {
+  gLastTry = steadySeconds();  // from now on: not due (also while this one waits for its turn on the worker)
+  HaClient ha = HaClient::fromNet(os.net(), os.secrets());
+  const int64_t now = os.platform().clock.now();
+  const bool clip = os.config().phone.shareClipboard;
+  os.worker().async([ha, now, clip]() mutable { return fetchRelay(ha, now, clip); },
+                    [done = std::move(done)](RelayFetch f) {
+                      POS_LOG("relay", "launcher check: %s", !f.paired ? "not paired" : f.http.ok() ? "read" : haErrorText(f.http.error));
+                      if (done) done();
+                    });
+}
+
 RelayFetch fetchRelay(HaClient& ha, int64_t now, bool takeClip) {
   RelayFetch f;
   companion::Pairing pairing;
   f.paired = companion::loadPairing(pairing);
   companion::loadNotifs(f.notifs);
   if (!f.paired) return f;
+  gLastTry = steadySeconds();
   f.http = ha.get(std::string("/api/states/") + companion::kToPaperEntity);
   if (!f.http.ok()) return f;
   f.applied = companion::applyQueue(pairing, f.notifs, f.http.body, now, takeClip);

@@ -54,3 +54,18 @@ No Wi-Fi switch: the net service switches it on and off itself. Goldens: `quick-
 
 `src/apps/launcher/launcher.cpp`, `src/ui/status_bar.cpp`, `src/ui/quick_panel.cpp`.
 UI test: `tests/ui/launcher.script`.
+
+## Fresh badges (2026-11-17)
+
+The launcher shows what the apps cached, and until this day nothing read the phone's relay unless an app was opened.
+Now: when the launcher comes up (boot, leaving an app) and a phone is paired and nobody read or tried the relay in the
+last ten minutes of this boot (`inbox::relayCheckDue`, `kLauncherCheckSec`), it reads it in the background 1.5 s later
+(`inbox::checkRelay`: the same read as the inbox's, on the worker; the store, both badges, the agenda and the clipboard
+follow). A tap into an app before that cancels it; a failed try counts as a try (away from the known Wi-Fi a try is a
+scan of several seconds). When the result is in and the launcher is still on top, the badges, the summary line and the
+agenda line are set again: a tile whose count did not change is not drawn again; only the agenda line appearing or
+going moves the tiles (one pass). Not done: no timer while the launcher just stays on (a device lying on USB does not
+check again until an app was opened and left). On the device (boot): Wi-Fi joined in 1.3 s, the read took 1.2 s, the
+log says `[relay] launcher check: read`, and the panel changed only by the Wi-Fi icon (nothing was unread); leaving
+Settings a moment later started no second read. Goldens: `agenda-launcher-page2` (the agenda line and "4 unread" are
+there before any app was opened), `inbox-badges-launcher`.

@@ -1,8 +1,11 @@
 #include "apps/launcher/launcher.h"
 
+#include <memory>
+
 #include <cstdlib>
 #include <ctime>
 
+#include "apps/inbox/relay_fetch.h"
 #include "core/agenda.h"
 #include "core/fs.h"
 #include "core/log.h"
@@ -83,9 +86,30 @@ class LauncherScreen : public Screen {
     if (t3 - t0 >= 20)
       POS_LOG("perf", "launcher shown in %ums: agenda %u, summary %u, badges %u", static_cast<unsigned>(t3 - t0), static_cast<unsigned>(t1 - t0),
               static_cast<unsigned>(t2 - t1), static_cast<unsigned>(t3 - t2));
+    checkPhoneSoon();
   }
 
  private:
+  // Fresh badges without opening an app: when the launcher comes up and the phone's relay was not read for ten minutes,
+  // read it in the background (inbox::checkRelay; Wi-Fi comes up for a few seconds). A moment after the launcher shows,
+  // so its own first frame and a quick tap into an app go first; what changed is then set on the tiles and lines that
+  // are there (a tile whose count did not change is not drawn again).
+  void checkPhoneSoon() {
+    if (!inbox::relayCheckDue()) return;
+    std::weak_ptr<bool> alive = alive_;
+    shell_.os().timers().after(kCheckDelayMs, [this, alive] {
+      if (alive.expired() || shell_.appOpen() || !inbox::relayCheckDue()) return;
+      inbox::checkRelay(shell_.os(), [this, alive] {
+        if (alive.expired() || shell_.appOpen()) return;  // (an app on top: the launcher shows the new counts when it is back)
+        const bool agendaWas = agenda_->visible;
+        showAgenda();
+        summary_->setText(computeSummary(apps_));
+        showBadges();
+        if (agenda_->visible != agendaWas && summary_->host()) summary_->host()->relayout();  // the line came or went
+      });
+    });
+  }
+
   // The agenda line takes no room when there is nothing to say.
   void showAgenda() {
     const std::string line = agendaLine(shell_.os().platform().clock);
@@ -120,6 +144,8 @@ class LauncherScreen : public Screen {
     showBadges();  // of the page now on screen (they showed 0 after a page turn until the launcher was shown again)
   }
 
+  static constexpr uint32_t kCheckDelayMs = 1500;
+  std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
   Shell& shell_;
   std::vector<const AppEntry*> apps_;
   ui::Label *date_ = nullptr, *agenda_ = nullptr, *summary_ = nullptr;

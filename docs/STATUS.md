@@ -994,3 +994,7 @@ None of these block Phase 1, Phase 2, or the reader.
   does not change is not written to the flash again. Simulator: after WhatsApp read the relay, Mail shows 5 and the
   launcher "5 unread" (golden `inbox-badges-launcher`). Flashed; not seen on the device (no unread message at hand).
   Open: nothing reads the relay while the device is on and idle (the scheduled wake is off on the user's device).
+- 2026-11-17: The launcher reads the phone's relay itself: when it comes up and the last read
+  or try is over ten minutes old, 1.5 s later, in the background (apps/launcher.md "Fresh badges"). On the device
+  after a boot: Wi-Fi 1.3 s, the read 1.2 s, only the Wi-Fi icon changed on the panel; no second read on the next
+  return to the launcher. Golden `agenda-launcher-page2` re-accepted. Not seen with a real unread message yet.

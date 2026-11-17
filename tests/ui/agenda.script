@@ -4,7 +4,7 @@
 # launcher and on the sleep screen.
 wait 800
 tap 480 922             # launcher: next page
-wait 900
+wait 900                # (1.5 s after the launcher came up it read the relay itself: the agenda line and "4 unread" are there)
 shot agenda-launcher-page2
 tap 400 266             # the Agenda tile
 wait 1500
@@ -12,7 +12,8 @@ shot agenda-day
 expect-state view=day|date=2026-01-15
 tap 504 92              # refresh: the relay has nothing new, so nothing but the button's press reaches the panel
 wait 1500
-expect-state unchanged-reads=1
+# (2: the app's own read at opening found nothing new either, the launcher had read the relay)
+expect-state unchanged-reads=2
 expect-max-pushed 12000
 swipe 400 600 100 600   # next day
 wait 900
