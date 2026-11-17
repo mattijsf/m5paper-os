@@ -33,6 +33,24 @@ bool touches(Rect a, Rect b) {
   return a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h;
 }
 
+// What `box` leaves of `s`, when that is one rectangle: false when `box` covers all of `s`. When the rest is not one
+// rectangle (`box` in the middle of `s`, or over one corner) `s` stays whole.
+bool uncovered(Rect& s, const Rect& box) {
+  const int sx0 = s.x, sy0 = s.y, sx1 = s.x + s.w, sy1 = s.y + s.h;
+  const int bx0 = box.x, by0 = box.y, bx1 = box.x + box.w, by1 = box.y + box.h;
+  const bool spansX = bx0 <= sx0 && bx1 >= sx1, spansY = by0 <= sy0 && by1 >= sy1;
+  if (spansX && spansY) return false;
+  if (bx1 <= sx0 || bx0 >= sx1 || by1 <= sy0 || by0 >= sy1) return true;  // no overlap
+  if (spansY) {
+    if (bx0 <= sx0) s = Rect{static_cast<int16_t>(bx1), s.y, static_cast<int16_t>(sx1 - bx1), s.h};
+    else if (bx1 >= sx1) s.w = static_cast<int16_t>(bx0 - sx0);
+  } else if (spansX) {
+    if (by0 <= sy0) s = Rect{s.x, static_cast<int16_t>(by1), s.w, static_cast<int16_t>(sy1 - by1)};
+    else if (by1 >= sy1) s.h = static_cast<int16_t>(by0 - sy0);
+  }
+  return true;
+}
+
 constexpr float kScreenPixels = static_cast<float>(kScreenW) * kScreenH;
 
 }  // namespace
@@ -259,14 +277,13 @@ void DisplayManager::pushPass(Rect r, Hint hint) {
       } else if (wantGray && grayArea >= params_.grayAreaMin) {
         // Flat gray areas (icon wells): Fast would show them black or white and the settle pass would bring them in
         // 0.6 s later, a second refresh. One Text pass shows the final screen at once. It counts like Fast then settle
-        // (half of what a Fast pass would add) and replaces the settles inside it.
+        // (half of what a Fast pass would add) and replaces the settles it covers. A settle that sticks out of it (the
+        // first frame of a screen one column wider than the next) keeps only the strip outside, not a second pass over all.
         push(box, Refresh::Text, changed, "screen-gray", dms);
         score_ += added / 2;
-          for (size_t i = 0; i < settles_.size();) {
-          const Rect s = settles_[i].rect;
-          const bool inside = s.x >= box.x && s.y >= box.y && s.x + s.w <= box.x + box.w && s.y + s.h <= box.y + box.h;
-          if (inside) settles_.erase(settles_.begin() + i);
-          else ++i;
+        for (size_t i = 0; i < settles_.size();) {
+          if (uncovered(settles_[i].rect, box)) ++i;
+          else settles_.erase(settles_.begin() + i);
         }
       } else {
         push(box, Refresh::Fast, changed, "screen", dms);

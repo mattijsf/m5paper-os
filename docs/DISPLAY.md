@@ -128,7 +128,8 @@ can be tuned on the device without rebuilding (task P7-1).
   Screen pass also counts changed pixels of flat gray (levels 1..14 with the same level 2 px away on all four sides, so anti-aliased text
   edges and 1 px dividers do not count; white or black 8-byte runs are skipped; it stops at the limit). At `grayAreaMin` (2000 px, a
   disc of radius 25; `DisplayParams`, not in `config.json`) the pass is **one Text push** of the changed box (`why=screen-gray`): the final
-  screen at once, no settle afterwards, settles inside the box dropped. Ghost score: half of what the Fast pass would add (what Fast then
+  screen at once, no settle afterwards, settles inside the box dropped (one that sticks out keeps only the strip outside the box, when
+  that is one rectangle: the Agenda's first frame was 2 px wider than its next and got a second Text pass over 494x882). Ghost score: half of what the Fast pass would add (what Fast then
   settle nets). Screens without gray areas (text, lists) keep Fast then settle. The Text push takes longer on the panel than a Fast one
   (full screen 1.37 s against 0.5 s), but ends with the final look; one waveform instead of two.
   Image: Quality on the changed box only, does not touch the score.

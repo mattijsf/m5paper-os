@@ -414,6 +414,23 @@ TEST_CASE("Screen with a gray area: a settle inside the pushed box is dropped, t
   CHECK(f.display.pushes.back().mode == Refresh::Text);
   CHECK(f.dm.nextDeadlineMs() == kNoDeadline);
 
+  // A settle that sticks out of the Text pass by two columns (the screen's first frame was wider): only those columns
+  // are settled later, not the whole region a second time.
+  Fixture g;
+  g.fill(Rect{24, 77, 494, 400}, gray(5));
+  g.dm.invalidate(Rect{24, 77, 494, 400}, Hint::Content);
+  g.dm.commit();
+  g.fill(Rect{24, 11, 492, 500}, gray(13));
+  g.dm.invalidateAll(Hint::Screen);
+  g.dm.commit();
+  REQUIRE(g.display.pushes.size() == 2);
+  CHECK(g.display.pushes[1].mode == Refresh::Text);
+  g.dm.tick(g.clock.ms + 5000);
+  REQUIRE(g.display.pushes.size() == 3);
+  CHECK(g.display.pushes[2].mode == Refresh::Text);
+  CHECK(g.display.pushes[2].rect.x >= 516);
+  CHECK(g.display.pushes[2].rect.w <= 2);
+
   f.fill(kFull, kBlack);  // over the limit next
   f.dm.invalidateAll(Hint::Screen);
   f.dm.commit();
