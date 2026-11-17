@@ -86,6 +86,15 @@ TEST_CASE("text_clean: HTML mail") {
   CHECK(cleanText("a <b>bold</b> &amp; c") == "a <b>bold</b> &amp; c");
 }
 
+TEST_CASE("text_clean: a tag is its whole name") {
+  CHECK(html("<header>Top news</header><p>Body</p>") == "Top news\nBody");  // not <head>: its text stays
+  CHECK(html("<head><title>t</title></head><headline>Kept</headline>") == "Kept");
+  CHECK(html("<styles>kept</styles>") == "kept");
+  CHECK(html("<STYLE type=\"text/css\">p{}</STYLE>seen") == "seen");
+  CHECK(html("<script>var a = '</scripts>';</script>after") == "after");
+  CHECK(html("<table><thead><tr><th>A</th><th>B</th></tr></thead></table>") == "A B");
+}
+
 TEST_CASE("text_clean: never crashes on noise") {
   unsigned x = 5;
   for (int round = 0; round < 50; ++round) {

@@ -167,7 +167,6 @@ bool expire(Notifs& n, int64_t now) {
 }
 
 std::string resultText(const std::string& why) {
-  if (why.empty()) return "sent";
   if (why == "gone") return "the notification is gone from the phone";
   if (why == "stale") return "too old";
   if (why == "too_long") return "too long";
@@ -235,7 +234,7 @@ ApplyResult applyQueue(Pairing& p, Notifs& n, const std::string& stateJson, int6
       for (auto it = n.sent.begin(); it != n.sent.end(); ++it) {
         if (it->ref != ref) continue;
         const bool ok = m["ok"].as<bool>();
-        r.notes.push_back("Reply to " + it->name + (ok ? " sent" : " not sent: " + resultText(m["why"].as<std::string>())));
+        r.notes.push_back("Reply to " + it->name + (ok ? " sent" : " not sent: " + resultText(m["why"] | "")));
         n.sent.erase(it);
         break;
       }

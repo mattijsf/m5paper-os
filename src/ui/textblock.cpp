@@ -141,7 +141,7 @@ Page layoutPage(const std::vector<Paragraph>& paras, TextPos start, const TextSt
   page.start = start;
   int y = 0;
   int p = std::max(0, start.para);
-  int off = start.byte;
+  int off = std::max(0, start.byte);  // a position from a file: never before the paragraph
   const int total = static_cast<int>(paras.size());
   int headingLines = 0, headingPara = -1;  // a heading placed last on the page moves to the next page with its text
   int nLines = 0;                           // lines on the page (page.lines only fills when buildLines)

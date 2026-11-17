@@ -174,6 +174,42 @@ TEST_CASE("registry: hello is registered with its data, sorted by order") {
   CHECK(AppRegistry::instance().find("nope") == nullptr);
 }
 
+TEST_CASE("navigation queued behind the action that closed the app is dropped") {
+  static int built = 0, destroyed = 0;
+  struct Late : Screen {
+    Late() { ++built; }
+    ~Late() override { ++destroyed; }
+    void build(ui::Column&) override {}
+  };
+  struct Only : Screen {
+    void build(ui::Column& root) override {
+      setTitle("Only");
+      root.add<ui::Button>("Leave", [this] {
+        ctx().nav.pop();         // from the first screen: closes the app (and its Nav)
+        ctx().nav.pop();         // queued behind it: must not run through the closed app
+        ctx().nav.push<Late>();  // nor show a screen of an app that is gone
+        ctx().nav.home();
+      });
+    }
+  };
+  struct LeaveApp : App {
+    void onStart(AppContext& ctx) override { ctx.nav.push<Only>(); }
+  };
+  AppRegistry::instance().add({"leave", "Leave", Icon::Info, 92}, &createApp<LeaveApp>);
+
+  Env env;
+  env.shell->openApp("leave");
+  auto* leave = findButton(env.shell->root().root(), "Leave");
+  REQUIRE(leave != nullptr);
+  env.tapAt(leave->frame.x + 20, leave->frame.y + 20);
+  CHECK_FALSE(env.shell->appOpen());
+  CHECK(env.shell->depth() == 1);  // the launcher alone
+  CHECK(built == 1);
+  CHECK(destroyed == 1);  // the screen that was never shown did not leak
+  CHECK(env.shell->openApp("leave"));  // and the next run works
+  CHECK(env.shell->depth() == 2);
+}
+
 TEST_CASE("hello opens from the launcher, counts taps, and back returns") {
   Env env;
   CHECK_FALSE(env.shell->appOpen());

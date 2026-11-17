@@ -74,7 +74,8 @@ ApplyResult applyQueue(Pairing& pairing, Notifs& notifs, const std::string& stat
 // Drops notifications older than kKeepSeconds; true if something went.
 bool expire(Notifs& notifs, int64_t now);
 
-// The text of a result's `why` ("" = sent).
+// Why a reply was not sent, for the note the inbox shows: the text of a failed result's `why` (an unknown or missing
+// reason reads "the phone could not send it").
 std::string resultText(const std::string& why);
 
 // Paper -> phone (section 7.2). Each call takes the next counter (pairing.tx + 1, stored into pairing.tx): save the pairing

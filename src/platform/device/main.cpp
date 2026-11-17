@@ -333,26 +333,14 @@ class SerialRemoteHost : public RemoteHost {
 };
 SerialRemoteHost gRemoteHost;
 Remote gRemote(gOs, gClock, gRemoteHost);
-std::string gRxLine;
-
+// Command lines and upload bytes alike go to the remote, which tells them apart (Remote::feed).
 void pollSerial() {
+  static uint8_t* buf = static_cast<uint8_t*>(malloc(4096));  // a heap block: PSRAM, not internal RAM (D27)
+  if (!buf) return;
   while (Serial.available() > 0) {
-    if (gRemote.wantsRaw()) {  // an upload (>put): the bytes are file content
-      static uint8_t* raw = static_cast<uint8_t*>(malloc(4096));  // a heap block: PSRAM, not internal RAM (D27)
-      if (!raw) break;
-      const size_t n = Serial.readBytes(reinterpret_cast<char*>(raw), std::min<size_t>(4096, Serial.available()));
-      if (n == 0) break;
-      gRemote.feedRaw(raw, n);
-      continue;
-    }
-    int ch = Serial.read();
-    if (ch < 0) break;
-    if (ch == '\n') {
-      gRemote.handleLine(gRxLine);
-      gRxLine.clear();
-    } else if (gRxLine.size() < 128) {
-      gRxLine += static_cast<char>(ch);
-    }
+    const size_t n = Serial.readBytes(reinterpret_cast<char*>(buf), std::min<size_t>(4096, Serial.available()));
+    if (n == 0) break;
+    gRemote.feed(buf, n);
   }
 }
 

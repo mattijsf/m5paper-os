@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
 
 namespace pos {
 
@@ -15,12 +16,18 @@ char* ring() {
   return r;
 }
 unsigned gCount = 0;  // total lines recorded
+// The worker logs too (network, Home Assistant): the ring and its counter are shared with the UI thread.
+std::mutex& ringMutex() {
+  static std::mutex m;
+  return m;
+}
 }  // namespace
 
 namespace detail {
 void logRecord(const char* line) {
   char* base = ring();
   if (!base) return;
+  std::lock_guard<std::mutex> lock(ringMutex());
   char* dst = base + (gCount % kLines) * kLineLen;
   std::strncpy(dst, line, kLineLen - 1);
   dst[kLineLen - 1] = '\0';
@@ -29,11 +36,14 @@ void logRecord(const char* line) {
 }  // namespace detail
 
 std::string logTail(int maxLines) {
+  const char* base = ring();
+  if (!base) return "";
+  std::lock_guard<std::mutex> lock(ringMutex());
   unsigned n = gCount < kLines ? gCount : kLines;
   if (maxLines > 0 && static_cast<unsigned>(maxLines) < n) n = static_cast<unsigned>(maxLines);
   std::string out;
   for (unsigned i = gCount - n; i < gCount; ++i) {
-    out += ring() + (i % kLines) * kLineLen;
+    out += base + (i % kLines) * kLineLen;
     if (out.back() != '\n') out += '\n';
   }
   return out;

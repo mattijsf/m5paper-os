@@ -1,38 +1,27 @@
 #include "core/paired_owed.h"
 
 #include "core/companion.h"
-#include "core/fs.h"
+#include "core/time_mark.h"
 
 namespace pos::companion {
 
 namespace {
-const char* const kPath = "/data/companion_paired_owed";
-
-bool owedSince(int64_t& ts) {
-  std::string s;
-  if (!fs::readFile(kPath, s) || s.empty() || s.size() > 20) return false;
-  ts = 0;
-  for (char c : s) {
-    if (c < '0' || c > '9') return false;
-    ts = ts * 10 + (c - '0');
-  }
-  return true;
-}
+const TimeMark kOwed("/data/companion_paired_owed");
 }  // namespace
 
-void markPairedOwed(int64_t now) { fs::writeFile(kPath, std::to_string(now < 0 ? 0 : now)); }
+void markPairedOwed(int64_t now) { kOwed.set(now); }
 
-void markPairedSent() { fs::removeAll(kPath); }
+void markPairedSent() { kOwed.clear(); }
 
 std::string pairedOwed(int64_t now) {
   int64_t since = 0;
-  if (!owedSince(since)) {
-    fs::removeAll(kPath);  // missing or damaged
+  if (!kOwed.get(since)) {
+    kOwed.clear();  // missing or damaged
     return "";
   }
   Pairing p;
-  if (now - since > kPairedOwedMax ||!loadPairing(p) || p.rx > 0) {
-    fs::removeAll(kPath);
+  if (now - since > kPairedOwedMax || !loadPairing(p) || p.rx > 0) {
+    kOwed.clear();
     return "";
   }
   p.tx = 0;  // a copy: counter 1 again, nothing saved

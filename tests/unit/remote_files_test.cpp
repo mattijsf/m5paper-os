@@ -38,6 +38,8 @@ TEST_CASE("remote: only /sd/books and /sd/paperos, never paperos_config or ..") 
   CHECK_FALSE(remotePathAllowed("/sd/other/x"));
   CHECK_FALSE(remotePathAllowed("/sd/bookshelf/x"));
   CHECK_FALSE(remotePathAllowed("/sd/books\\..\\x"));
+  CHECK_FALSE(remotePathAllowed("/sd/paperos/PaperOS_Config"));  // FAT: the same file
+  CHECK_FALSE(remotePathAllowed("sd/books/a.epub"));
 }
 
 TEST_CASE("crc32 chains") {
@@ -241,10 +243,49 @@ TEST_CASE("remote ls and rm") {
   CHECK(e.host.has("#ok"));
   CHECK_FALSE(fs::exists("/sd/books/.paperos/id1/meta.json"));
   e.host.out.clear();
-  e.remote.handleLine(">rm /sd/books");  // the books folder itself is protected
-  CHECK(e.host.has("#err path not allowed"));
+  for (const char* spelling : {"/sd/books", "/sd/books/", "/sd/books/.", "/sd//books", "/sd/paperos/"}) {  // the folders themselves are protected
+    e.host.out.clear();
+    e.remote.handleLine(std::string(">rm ") + spelling);
+    CHECK(e.host.has("#err path not allowed"));
+  }
+  CHECK(fs::isDir("/sd/books"));
+  e.host.out.clear();
   e.remote.handleLine(">rm /sd/paperos_config");
   CHECK(e.host.has("#err path not allowed"));
+}
+
+TEST_CASE("remote: feed splits lines and upload bytes itself, in any chunking") {
+  Env e;
+  const std::string data = "hello paper";
+  const uint32_t crc = crc32(reinterpret_cast<const uint8_t*>(data.data()), data.size());
+  char head[96];
+  std::snprintf(head, sizeof head, ">put /sd/books/f.txt %zu %08x\n", data.size(), static_cast<unsigned>(crc));
+  // One buffer: the command, the file's bytes, and the next command right behind them.
+  const std::string all = std::string(head) + data + ">ls /sd/books\n";
+  for (size_t chunk : {all.size(), size_t{1}, size_t{7}}) {
+    fs::removeAll("/sd/books/f.txt");
+    e.host.out.clear();
+    for (size_t i = 0; i < all.size(); i += chunk)
+      e.remote.feed(reinterpret_cast<const uint8_t*>(all.data()) + i, std::min(chunk, all.size() - i));
+    std::string text;
+    CHECK(fs::readFile("/sd/books/f.txt", text));
+    CHECK(text == data);
+    CHECK(e.host.has("#ls "));  // the command after the upload was not swallowed
+    CHECK(e.host.has("f.txt\t11\n"));
+  }
+}
+
+TEST_CASE("remote: a line that is too long is refused, not run cut short") {
+  Env e;
+  REQUIRE(fs::writeFile("/sd/books/keep/a.txt", "x"));
+  // Cut at the limit this would be ">rm /sd/books/keep".
+  std::string line = ">rm /sd/books/keep";
+  line.resize(Remote::kMaxLine, ' ');
+  line += "/a.txt.old\n>status\n";
+  e.remote.feed(reinterpret_cast<const uint8_t*>(line.data()), line.size());
+  CHECK(e.host.has("#err line too long"));
+  CHECK(fs::exists("/sd/books/keep/a.txt"));
+  CHECK(e.host.has("#status "));  // the next line is read as usual
 }
 
 TEST_CASE("remote: poweroff needs 1..3600 seconds, never 0") {

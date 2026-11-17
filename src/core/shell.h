@@ -73,10 +73,15 @@ class Shell : public Surface {
   void push(std::unique_ptr<Screen> s, bool launcher);
   void popTop(bool hide = true);  // destroys the top screen (onHide first)
   void defer(std::function<void()> fn) { deferred_.push_back(std::move(fn)); }
+  // The same for an action of the running app: dropped if that app has closed by the time its turn comes.
+  void deferForApp(std::function<void()> fn) {
+    defer([this, run = appRun_, fn = std::move(fn)] {
+      if (app_ && run == appRun_) fn();
+    });
+  }
   void runDeferred();
   void showTop();          // title bar, visibility, onShow
   void updateStatus();
-  Entry* entryOf(const Screen* s);
 
   Os& os_;
   ui::Root root_;
@@ -96,6 +101,7 @@ class Shell : public Surface {
   std::unique_ptr<Cache> cache_;
   std::unique_ptr<AppContext> ctx_;
   size_t appBase_ = 0;  // stack index of the app's first screen
+  unsigned appRun_ = 0;  // changes whenever an app opens or closes: tells the actions of one run from the next
 };
 
 }  // namespace pos

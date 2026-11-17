@@ -18,6 +18,9 @@ struct DirEntry {
   uint64_t size = 0;  // bytes, 0 for folders
 };
 
+// A virtual path in its one spelling: "/sd/books/" and "/sd//books/./" are "/sd/books". "" for a path that is not
+// absolute or has a ".." part. Compare paths (a folder that must not be deleted) only in this form.
+std::string normalize(const std::string& virtualPath);
 // Maps a virtual path to a real one. Returns "" for anything that is not under /sd or /data,
 // or that contains a ".." component.
 std::string resolve(const std::string& virtualPath);
@@ -26,16 +29,19 @@ std::string resolve(const std::string& virtualPath);
 void setRoots(const std::string& sdRoot, const std::string& dataRoot);
 
 bool exists(const std::string& virtualPath);
+bool isDir(const std::string& virtualPath);  // an existing folder (one stat; listDir reads the whole folder)
 bool readFile(const std::string& virtualPath, std::string& out);
 // Appends to a file (created, with its folders, if missing).
 bool appendFile(const std::string& virtualPath, const std::string& data);
-// Atomic: writes <path>.tmp, then renames over <path>. Creates missing parent folders.
+// Writes <path>.tmp, then puts it in the place of <path>: the old contents stay until the new file is complete, and a
+// failure leaves them (atomic on LittleFS; on the card's FAT the old file steps aside as <path>.old for a moment).
+// Creates missing parent folders.
 bool writeFile(const std::string& virtualPath, const std::string& data);
 // Entries sorted by name, without "." and "..". False if the folder cannot be opened.
 bool listDir(const std::string& virtualPath, std::vector<DirEntry>& out);
 // Deletes a file, or a folder and everything in it. True if nothing is left afterwards (also if it never existed).
 bool removeAll(const std::string& virtualPath);
-// Renames a file, replacing the destination. Both must be virtual paths.
+// Renames a file or folder, replacing a file at the destination (which survives if the rename fails). Virtual paths.
 bool rename(const std::string& fromVirtual, const std::string& toVirtual);
 // Size and modification time (unix seconds) of a file; false if it does not exist.
 bool fileInfo(const std::string& virtualPath, uint64_t& size, int64_t& mtime);

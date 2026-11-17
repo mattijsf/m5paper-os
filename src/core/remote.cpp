@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "core/strings.h"
 
 namespace pos {
 
@@ -171,12 +172,23 @@ RemoteCommand parseRemoteCommand(const std::string& raw) {
   return c;
 }
 
-bool remotePathAllowed(const std::string& p) {
-  if (p.find("..") != std::string::npos || p.find('\\') != std::string::npos) return false;
-  const bool ok = p.rfind("/sd/books/", 0) == 0 || p == "/sd/books" || p.rfind("/sd/paperos/", 0) == 0 || p == "/sd/paperos";
-  if (!ok) return false;
-  const size_t slash = p.rfind('/');
-  return p.substr(slash + 1) != "paperos_config";
+namespace {
+const char* const kRemoteRoots[] = {"/sd/books", "/sd/paperos"};
+
+bool isRemoteRoot(const std::string& normalized) {
+  for (const char* root : kRemoteRoots)
+    if (normalized == root) return true;
+  return false;
+}
+}  // namespace
+
+bool remotePathAllowed(const std::string& virtualPath) {
+  if (virtualPath.find("..") != std::string::npos || virtualPath.find('\\') != std::string::npos) return false;
+  const std::string p = fs::normalize(virtualPath);
+  bool inside = isRemoteRoot(p);
+  for (const char* root : kRemoteRoots) inside = inside || startsWith(p, std::string(root) + "/");
+  if (!inside) return false;
+  return lowerAscii(p.substr(p.rfind('/') + 1)) != "paperos_config";  // the card's FAT does not tell upper from lower case
 }
 
 void Remote::say(const std::string& s) {
@@ -333,7 +345,8 @@ void Remote::handleLine(const std::string& line) {
       break;
     }
     case RemoteCommand::Rm:
-      if (!remotePathAllowed(c.path) || c.path == "/sd/books" || c.path == "/sd/paperos") {
+      // The two folders themselves stay, however the path is spelled ("/sd/books/", "/sd/books/.").
+      if (!remotePathAllowed(c.path) || isRemoteRoot(fs::normalize(c.path))) {
         say("#err path not allowed");
         return;
       }
@@ -382,15 +395,38 @@ void Remote::abortPut(const std::string& why) {
   say("#err " + why);
 }
 
-void Remote::feedRaw(const uint8_t* data, size_t n) {
-  if (!put_.active) return;
+void Remote::feed(const uint8_t* data, size_t n) {
+  while (n > 0) {
+    if (put_.active) {
+      const size_t used = feedRaw(data, n);
+      data += used;
+      n -= used;
+      continue;
+    }
+    const char ch = static_cast<char>(*data++);
+    --n;
+    if (ch != '\n') {
+      if (line_.size() < kMaxLine) line_ += ch;
+      else lineTooLong_ = true;
+      continue;
+    }
+    if (!lineTooLong_) handleLine(line_);
+    else if (line_[0] == '>') say("#err line too long");
+    line_.clear();
+    lineTooLong_ = false;
+  }
+}
+
+size_t Remote::feedRaw(const uint8_t* data, size_t n) {
+  if (!put_.active) return 0;
+  const size_t offered = n;
   put_.lastByteMs = clock_.millis();
   while (n > 0 && put_.got < put_.size) {
     const size_t take = static_cast<size_t>(std::min<uint64_t>(n, put_.size - put_.got));
     const uint64_t before = put_.got;
     if (!put_.file.write(data, take)) {
       abortPut("write failed");
-      return;
+      return offered - n;
     }
     put_.crc = crc32(data, take, put_.crc);
     put_.got += take;
@@ -398,7 +434,12 @@ void Remote::feedRaw(const uint8_t* data, size_t n) {
     n -= take;
     if (put_.got / 4096 != before / 4096 && put_.got < put_.size) say("#ack " + std::to_string(put_.got));
   }
-  if (put_.got < put_.size) return;
+  if (put_.got >= put_.size) finishPut();
+  return offered - n;
+}
+
+// The last byte of an upload is in: check it and put the file in its place.
+void Remote::finishPut() {
   const bool wrote = put_.file.close();
   put_.active = false;
   if (!wrote) {

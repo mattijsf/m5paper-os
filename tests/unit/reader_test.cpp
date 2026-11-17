@@ -141,6 +141,18 @@ TEST_CASE("reader: page index file round trip and bad files") {
   std::string bad = enc;
   bad[0] = 'X';
   CHECK_FALSE(decodeIndex(bad, back));
+  // A damaged file: a position past INT32_MAX (it would become negative), pages out of order, a count that does not fit.
+  bad = enc;
+  bad[8 + 10 + 9] = '\xFF';  // top byte of the second page's byte offset
+  CHECK_FALSE(decodeIndex(bad, back));
+  CHECK(back.empty());
+  bad = enc;
+  bad[8 + 2 * 10] = '\0';  // the third page back in chapter 0, before the second
+  CHECK_FALSE(decodeIndex(bad, back));
+  bad = enc;
+  bad[4] = '\x05';  // says five pages, holds four
+  CHECK_FALSE(decodeIndex(bad, back));
+  CHECK_FALSE(decodeIndex(std::string("PIX1\x9A\x99\x99\x19", 8) + std::string(8, 'x'), back));  // count * 10 wraps on 32 bits
 }
 
 TEST_CASE("reader: position to page") {

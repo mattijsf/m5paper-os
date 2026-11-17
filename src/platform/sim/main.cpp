@@ -109,25 +109,13 @@ class StdioRemoteHost : public RemoteHost {
 };
 
 // Reads stdin without blocking (waits up to waitMs). Returns false once stdin is closed.
-bool readStdinLines(std::string& buf, Remote& remote, int waitMs) {
+bool readStdin(Remote& remote, int waitMs) {
   struct pollfd pfd = {0, POLLIN, 0};
   if (poll(&pfd, 1, waitMs) > 0 && (pfd.revents & (POLLIN | POLLHUP))) {
-    char tmp[4096];
-    ssize_t n = read(0, tmp, sizeof tmp);
+    uint8_t tmp[4096];
+    const ssize_t n = read(0, tmp, sizeof tmp);
     if (n <= 0) return false;
-    buf.append(tmp, static_cast<size_t>(n));
-    for (;;) {
-      if (remote.wantsRaw()) {  // an upload: the buffered bytes are file content
-        std::string chunk;
-        chunk.swap(buf);
-        remote.feedRaw(reinterpret_cast<const uint8_t*>(chunk.data()), chunk.size());
-        break;
-      }
-      size_t nl = buf.find('\n');
-      if (nl == std::string::npos) break;
-      remote.handleLine(buf.substr(0, nl));
-      buf.erase(0, nl + 1);
-    }
+    remote.feed(tmp, static_cast<size_t>(n));  // command lines, and the bytes of an upload
   }
   return true;
 }
@@ -200,7 +188,6 @@ int main(int argc, char** argv) {
   StdioRemoteHost remoteHost(input);
   remoteHost.os_ = &os;
   Remote remote(os, clock, remoteHost);
-  std::string rx;
 
   if (!scriptPath.empty()) {
     // UI scripts get repeatable "random" keys and nonces (companion pairing, COMPANION.md), so their screenshots are goldens.
@@ -241,7 +228,7 @@ int main(int argc, char** argv) {
     if (!os.setup()) return 1;
     bool open = true;
     while (open || remote.busy()) {
-      if (open) open = readStdinLines(rx, remote, 10);
+      if (open) open = readStdin(remote, 10);
       else SDL_Delay(10);
       os.loopOnce();
       remote.tick();
@@ -259,7 +246,7 @@ int main(int argc, char** argv) {
   int shotCount = 0;
   while (!input.quit) {
     input.pump();
-    if (remoteMode && !readStdinLines(rx, remote, 0)) remoteMode = false;
+    if (remoteMode && !readStdin(remote, 0)) remoteMode = false;
     loop.iterate();  // steps 1-4 + idle (waits for an SDL event, at most 16 ms)
     remote.tick();
     if (input.ghostRequested) {

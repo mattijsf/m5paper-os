@@ -40,10 +40,9 @@ void PowerLog::write() {
   uint64_t size = 0;
   int64_t mtime = 0;
   const bool exists = fs::fileInfo(path, size, mtime);
-  if (exists && size > kPowerLogMaxBytes) {
-    fs::rename(path, "/data/power.old.csv");
-  }
-  std::string text = (!exists || size > kPowerLogMaxBytes) ? header() : "";
+  // A full file becomes power.old.csv and a new one starts. If that fails the old file goes on (no second header).
+  const bool rotated = exists && size > kPowerLogMaxBytes && fs::rename(path, "/data/power.old.csv");
+  std::string text = (!exists || rotated) ? header() : "";
   const DisplayManager::Counts& c = os_.displayManager().counts();
   const bool active = p.clock.millis() - os_.lastInputMs() < 60 * 1000 && os_.lastInputMs() != 0;
   Surface* s = os_.surface();

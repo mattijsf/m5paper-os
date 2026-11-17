@@ -69,21 +69,29 @@ void Screen::refreshTitleAccessory() {
   if (shell_ && shell_->top() == this && accessoryFn_) shell_->titleBar().refreshAccessory();
 }
 
+// The queued actions hold the Shell, not this Nav: the Nav is gone once its app closes, and an action queued behind the
+// one that closed it (pop() twice) must find that out instead of running through it (Shell::deferForApp).
 void Nav::pushScreen(std::unique_ptr<Screen> s) {
-  Screen* raw = s.release();
-  shell_.defer([this, raw] { shell_.push(std::unique_ptr<Screen>(raw), false); });
+  Shell* shell = &shell_;
+  // Shared so the action can be copied; a screen whose push never runs is destroyed with it.
+  auto held = std::make_shared<std::unique_ptr<Screen>>(std::move(s));
+  shell->deferForApp([shell, held] { shell->push(std::move(*held), false); });
 }
 void Nav::pop() {
-  shell_.defer([this] {
-    if (shell_.depth() <= shell_.appBase_ + 1) shell_.closeApp();
-    else shell_.popTop(), shell_.showTop();
+  Shell* shell = &shell_;
+  shell->deferForApp([shell] {
+    if (shell->depth() <= shell->appBase_ + 1) {
+      shell->closeApp();
+    } else {
+      shell->popTop();
+      shell->showTop();
+    }
   });
 }
 void Nav::home() {
-  shell_.defer([this] { shell_.closeApp(); });
+  Shell* shell = &shell_;
+  shell->deferForApp([shell] { shell->closeApp(); });
 }
-size_t Nav::depth() const { return shell_.appOpen() ? shell_.depth() - shell_.appBase_ : 0; }
-Screen* Nav::top() const { return shell_.appOpen() ? shell_.top() : nullptr; }
 
 Os& AppContext::os() { return shell_.os(); }
 HaClient AppContext::ha() { return HaClient::fromNet(shell_.os().net(), shell_.os().secrets()); }
@@ -103,17 +111,21 @@ namespace {
 
 struct ClockWait {
   std::function<void(bool, const std::string&)> done;
-  int left = 48;  // x 250 ms = 12 s
+  std::weak_ptr<bool> asker;  // the screen that asked: the wait ends with it, whatever is on top meanwhile
+  int left = 48;              // x 250 ms = 12 s
 };
 
 // After the connect the sync runs as its own worker job (NetService::tick): look at the clock until it lands.
-void pollClock(AppContext* ctx, std::shared_ptr<ClockWait> w) {
+void pollClock(AppContext* ctx, Timers& timers, std::shared_ptr<ClockWait> w) {
+  if (w->asker.expired()) return;  // (the app context may be gone with it: nothing of it is touched before this line)
   if (clockIsSet(ctx->clock.now())) {
     w->done(true, "");
   } else if (w->left-- <= 0) {
     w->done(false, AppContext::kNoNetworkTime);
   } else {
-    ctx->timer(250, [ctx, w] { pollClock(ctx, w); });
+    // Not AppContext::timer(): that one belongs to the screen on top, and a screen pushed over the asker and popped
+    // again would take the wait with it.
+    timers.after(250, [ctx, &timers, w] { pollClock(ctx, timers, w); });
   }
 }
 }  // namespace
@@ -125,10 +137,12 @@ void AppContext::syncClock(std::function<void(bool, const std::string&)> done) {
   }
   auto w = std::make_shared<ClockWait>();
   w->done = std::move(done);
+  w->asker = aliveToken();
   NetService* net = &netService();
-  async([net] { return net->ensureConnected(); }, [this, w](NetService::Result r) {
+  Timers* timers = &shell_.os().timers();
+  async([net] { return net->ensureConnected(); }, [this, timers, w](NetService::Result r) {
     if (!r.ok) w->done(false, r.error.empty() ? std::string("No Wi-Fi") : r.error);
-    else pollClock(this, w);
+    else pollClock(this, *timers, w);
   });
 }
 
@@ -239,6 +253,7 @@ bool Shell::openApp(const std::string& id) {
   nav_.reset(new Nav(*this));
   ctx_.reset(new AppContext(*this, *nav_, *store_, *cache_, os_.platform().clock, os_.config(), os_.secrets(), id));
   appBase_ = stack_.size();
+  ++appRun_;
   app_ = entry->create();
   app_->onStart(*ctx_);
   runDeferred();  // the first screen push
@@ -252,6 +267,7 @@ void Shell::closeApp() {
   store_->save();
   while (stack_.size() > appBase_) popTop(false);
   os_.worker().cancelAll();  // results of this app's jobs are dropped
+  ++appRun_;                 // and so are its queued navigation actions (deferForApp)
   app_.reset();
   ctx_.reset();
   nav_.reset();
@@ -259,12 +275,6 @@ void Shell::closeApp() {
   store_.reset();
   appId_.clear();
   showTop();
-}
-
-Shell::Entry* Shell::entryOf(const Screen* s) {
-  for (auto& e : stack_)
-    if (e.screen.get() == s) return &e;
-  return nullptr;
 }
 
 void Shell::runDeferred() {

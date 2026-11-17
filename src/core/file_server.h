@@ -8,6 +8,7 @@
 // sends no Basic password over plain HTTP: Finder kept asking) or Basic (any browser); ten wrong codes lock it for a minute.
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <mutex>
@@ -48,7 +49,10 @@ class FileServer {
   hal::ServerResponse put(hal::ServerRequest& req, const std::string& path);
   hal::ServerResponse moveOrCopy(hal::ServerRequest& req, const std::string& path, bool move);
   hal::ServerResponse lock(hal::ServerRequest& req, const std::string& path);
+  // The virtual path (core/fs) of a request path: inside the served folder.
   std::string real(const std::string& path) const { return root_ + path; }
+  // A hidden name beside `path` to write to before the rename; never the same twice in one run.
+  std::string tempBeside(const std::string& path, const char* prefix);
 
   static constexpr const char* kRealm = "PaperOS";
   const std::string root_, code_;
@@ -59,6 +63,7 @@ class FileServer {
   uint32_t lastRequestMs_ = 0;
   uint32_t lockedUntilMs_ = 0;
   unsigned tokenCounter_ = 0;
+  std::atomic<unsigned> tempCounter_{0};
 };
 
 // Six random digits.

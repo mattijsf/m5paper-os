@@ -440,7 +440,10 @@ Answers STATUS.md open question 5 with its option a, widened from "upload" to ma
   The Mac's `._name` and `.DS_Store` files are accepted and thrown away.
 - **Protection**: a new six-digit code per start, shown on the panel, as the HTTP password (any name). Digest sign-in (macOS
   sends no Basic password over plain HTTP) and Basic (browsers); ten wrong codes lock the server for a minute. Plain HTTP on the
-  home Wi-Fi: the code exchange (Digest) does not reveal the code, but the files themselves travel unencrypted. Port 80 on the
+  home Wi-Fi: the files travel unencrypted, and the code is no secret from someone who can listen on that Wi-Fi (Basic
+  sends it as it is; a captured Digest exchange gives it away to a try of all million codes, done in a moment). The code
+  keeps other devices on the network out, it does not stand up to a listener: that would take TLS, which the firmware
+  does not have for a server (D31). It lives only while the page is open. Port 80 on the
   device, 8080 in the simulator.
 - **How**: an HTTP/1.1 server on BSD sockets shared by the device (lwIP) and the simulator (`src/platform/posix/http_server`),
   because macOS sends its uploads chunked and ESP-IDF's own server cannot read chunked bodies; the answers come from shared,

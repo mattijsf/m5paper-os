@@ -493,6 +493,8 @@ std::string layoutKey(const ui::TextStyle& s) {
 }
 
 namespace {
+constexpr size_t kPageRecordBytes = 10;  // u16 chapter, u32 paragraph, u32 byte
+
 void putU32(std::string& s, uint32_t v) {
   for (int i = 0; i < 4; ++i) s += static_cast<char>((v >> (8 * i)) & 0xFF);
 }
@@ -518,15 +520,23 @@ std::string encodeIndex(const std::vector<PageRef>& pages) {
 bool decodeIndex(const std::string& data, std::vector<PageRef>& pages) {
   pages.clear();
   if (data.size() < 8 || data.compare(0, 4, "PIX1") != 0) return false;
-  const uint32_t n = getU32(data, 4);
-  if (data.size() != 8 + static_cast<size_t>(n) * 10) return false;
+  // A damaged file from the card must not get far: the count has to match the size (divided, not multiplied: a huge
+  // count cannot wrap around to it), positions are never negative, and pages come in reading order.
+  const size_t n = (data.size() - 8) / kPageRecordBytes;
+  if ((data.size() - 8) % kPageRecordBytes != 0 || getU32(data, 4) != n) return false;
   pages.reserve(n);
-  for (uint32_t i = 0; i < n; ++i) {
-    const size_t at = 8 + static_cast<size_t>(i) * 10;
+  for (size_t i = 0; i < n; ++i) {
+    const size_t at = 8 + i * kPageRecordBytes;
+    const uint32_t para = getU32(data, at + 2), byte = getU32(data, at + 6);
     PageRef r;
     r.chapter = static_cast<uint16_t>(static_cast<unsigned char>(data[at]) | (static_cast<unsigned char>(data[at + 1]) << 8));
-    r.pos.para = static_cast<int>(getU32(data, at + 2));
-    r.pos.byte = static_cast<int>(getU32(data, at + 6));
+    r.pos.para = static_cast<int>(para);
+    r.pos.byte = static_cast<int>(byte);
+    const bool inOrder = pages.empty() || pages.back().chapter < r.chapter || (pages.back().chapter == r.chapter && pages.back().pos < r.pos);
+    if (para > INT32_MAX || byte > INT32_MAX || !inOrder) {
+      pages.clear();
+      return false;
+    }
     pages.push_back(r);
   }
   return true;
@@ -608,7 +618,7 @@ int pageIndexFor(const std::vector<PageRef>& pages, int chapter, ui::TextPos pos
 }
 
 int percentOf(int pageIndex, size_t pageCount) {
-  if (pageCount <= 1) return pageCount == 1 && pageIndex >= 0 ? 0 : 0;
+  if (pageCount <= 1) return 0;
   return std::min(100, std::max(0, pageIndex * 100 / static_cast<int>(pageCount - 1)));
 }
 
@@ -743,7 +753,8 @@ OpenResult openBook(const std::string& fileName, const ui::TextStyle& style, ui:
   r.importMs = cached ? 0 : msSince(t0);
   const std::string key = layoutKey(style);
   std::vector<PageRef> pages;
-  const bool indexCached = cached && readIndex(id, key, pages) && !pages.empty();
+  // A cached index is used only if it fits the book: every page in a chapter the book has.
+  const bool indexCached = cached && readIndex(id, key, pages) && !pages.empty() && pages.back().chapter < meta.chapters.size();
   if (!indexCached) {
     const auto t1 = Clock::now();
     CachedMetrics cm(metrics);

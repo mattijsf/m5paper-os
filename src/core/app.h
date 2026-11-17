@@ -138,8 +138,6 @@ class Nav {
   }
   void pop();   // back; from the first screen it leaves the app
   void home();  // leave the app, show the launcher
-  size_t depth() const;  // screens of this app
-  Screen* top() const;
 
  private:
   friend class Shell;

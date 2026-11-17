@@ -11,6 +11,7 @@
 #include <cerrno>
 #include <climits>
 #include <cstdio>
+#include <mutex>
 
 namespace pos::fs {
 
@@ -35,14 +36,21 @@ bool hasPrefix(const std::string& s, const char* prefix, size_t n) {
   return s.size() >= n && s.compare(0, n, prefix) == 0 && (s.size() == n || s[n] == '/');
 }
 
-bool hasDotDot(const std::string& p) {
-  size_t i = 0;
-  while (i <= p.size()) {
-    size_t j = p.find('/', i);
-    if (j == std::string::npos) j = p.size();
-    if (p.compare(i, j - i, "..") == 0) return true;
-    i = j + 1;
+// Puts the finished file `from` in the place of `to` (real paths). POSIX rename replaces atomically; FAT (the SD card)
+// refuses to overwrite, so there the old file steps aside first and comes back if the new one cannot take its place:
+// a failure never leaves the name without a file.
+bool replaceReal(const std::string& from, const std::string& to) {
+  if (std::rename(from.c_str(), to.c_str()) == 0) return true;
+  struct stat st;
+  if (stat(to.c_str(), &st) != 0 || S_ISDIR(st.st_mode)) return false;  // nothing in the way (the rename failed for another reason), or a folder
+  const std::string aside = to + ".old";
+  std::remove(aside.c_str());
+  if (std::rename(to.c_str(), aside.c_str()) != 0) return false;
+  if (std::rename(from.c_str(), to.c_str()) == 0) {
+    std::remove(aside.c_str());
+    return true;
   }
+  std::rename(aside.c_str(), to.c_str());
   return false;
 }
 
@@ -66,8 +74,22 @@ void setRoots(const std::string& sdRoot, const std::string& dataRoot) {
   gDataRoot = dataRoot;
 }
 
-std::string resolve(const std::string& v) {
-  if (hasDotDot(v)) return "";
+std::string normalize(const std::string& v) {
+  if (v.empty() || v[0] != '/') return "";
+  std::string out;
+  for (size_t i = 1; i <= v.size();) {
+    size_t j = v.find('/', i);
+    if (j == std::string::npos) j = v.size();
+    const std::string part = v.substr(i, j - i);
+    if (part == "..") return "";
+    if (!part.empty() && part != ".") out += "/" + part;
+    i = j + 1;
+  }
+  return out;
+}
+
+std::string resolve(const std::string& virtualPath) {
+  const std::string v = normalize(virtualPath);
   if (hasPrefix(v, "/sd", 3)) return gSdRoot + v.substr(3);
   if (hasPrefix(v, "/data", 5)) return gDataRoot + v.substr(5);
   return "";
@@ -77,6 +99,12 @@ bool exists(const std::string& v) {
   std::string p = resolve(v);
   struct stat st;
   return !p.empty() && stat(p.c_str(), &st) == 0;
+}
+
+bool isDir(const std::string& v) {
+  std::string p = resolve(v);
+  struct stat st;
+  return !p.empty() && stat(p.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
 }
 
 bool readFile(const std::string& v, std::string& out) {
@@ -100,6 +128,9 @@ bool writeFile(const std::string& v, const std::string& data) {
   size_t slash = p.rfind('/');
   if (slash != std::string::npos && slash > 0 && !mkdirsReal(p.substr(0, slash))) return false;
 
+  // One writer at a time: the worker and the UI thread may save the same file (the clipboard), and both would use <path>.tmp.
+  static std::mutex writing;
+  std::lock_guard<std::mutex> lock(writing);
   std::string tmp = p + ".tmp";
   FILE* f = std::fopen(tmp.c_str(), "wb");
   if (!f) return false;
@@ -110,13 +141,9 @@ bool writeFile(const std::string& v, const std::string& data) {
     std::remove(tmp.c_str());
     return false;
   }
-  // POSIX rename replaces atomically. FAT (SD card) may refuse to overwrite: remove, then retry.
-  if (std::rename(tmp.c_str(), p.c_str()) != 0) {
-    std::remove(p.c_str());
-    if (std::rename(tmp.c_str(), p.c_str()) != 0) {
-      std::remove(tmp.c_str());
-      return false;
-    }
+  if (!replaceReal(tmp, p)) {
+    std::remove(tmp.c_str());
+    return false;
   }
   return true;
 }
@@ -175,10 +202,7 @@ bool removeAll(const std::string& v) {
 bool rename(const std::string& from, const std::string& to) {
   std::string a = resolve(from), b = resolve(to);
   noteChange(b);
-  if (a.empty() || b.empty()) return false;
-  if (std::rename(a.c_str(), b.c_str()) == 0) return true;
-  std::remove(b.c_str());  // FAT refuses to overwrite
-  return std::rename(a.c_str(), b.c_str()) == 0;
+  return !a.empty() && !b.empty() && replaceReal(a, b);
 }
 
 bool appendFile(const std::string& v, const std::string& data) {

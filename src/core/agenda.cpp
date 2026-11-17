@@ -135,6 +135,8 @@ bool apply(Agenda& a, const std::string& plain, int64_t now) {
   std::sort(a.days.begin(), a.days.end(), [](const Day& x, const Day& y) { return x.date < y.date; });
   a.received = true;
   a.updated = now > 0 ? now : 0;
+  int today = 0, minute = 0;
+  if (localNow(now, today, minute)) expire(a, today);  // days gone by leave the file with every agenda the phone sends
   return true;
 }
 

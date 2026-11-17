@@ -77,11 +77,14 @@ const char* reason(int code) {
   }
 }
 
+// Sends all of it; false when the connection broke or the client took nothing for the idle limit (a client that stops
+// reading must not hold one of the few connection threads for ever).
 bool sendAll(int fd, const char* p, size_t n) {
+  auto until = std::chrono::steady_clock::now() + std::chrono::seconds(PosixHttpServer::kIdleTimeoutSec);
   while (n > 0) {
     const ssize_t k = ::send(fd, p, n, kSendFlags);
     if (k <= 0) {
-      if (k < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) {
+      if (k < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) && std::chrono::steady_clock::now() < until) {
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
         continue;
       }
@@ -89,6 +92,7 @@ bool sendAll(int fd, const char* p, size_t n) {
     }
     p += k;
     n -= static_cast<size_t>(k);
+    until = std::chrono::steady_clock::now() + std::chrono::seconds(PosixHttpServer::kIdleTimeoutSec);
   }
   return true;
 }
@@ -244,15 +248,19 @@ void PosixHttpServer::serve(int fd) {
     req.target = first.substr(a + 1, b - a - 1);
     const std::string version = first.substr(b + 1);
     size_t headerBytes = 0;
+    bool headersEnded = false;
     for (std::string h; conn->line(h, 8192);) {
-      if (h.empty()) break;
+      if (h.empty()) {
+        headersEnded = true;
+        break;
+      }
       headerBytes += h.size();
       if (headerBytes > 16384 || req.headers.size() > 100) return;
       const auto colon = h.find(':');
       if (colon == std::string::npos) continue;
       req.headers.emplace_back(lowerAscii(trimmed(h.substr(0, colon))), trimmed(h.substr(colon + 1)));
     }
-    if (conn->broken) return;
+    if (!headersEnded) return;  // the connection broke or a header line is too long: a request cut short is not run
     const std::string te = lowerAscii(req.header("transfer-encoding"));
     req.chunked = te.find("chunked") != std::string::npos;
     const std::string cl = req.header("content-length");

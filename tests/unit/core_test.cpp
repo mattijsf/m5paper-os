@@ -85,6 +85,39 @@ TEST_CASE("fs: resolve maps virtual paths and rejects others") {
   CHECK(fs::resolve("/data/../etc/passwd") == "");
   CHECK(fs::resolve("relative") == "");
   CHECK(fs::resolve("") == "");
+  CHECK(fs::resolve("/sd/") == t.base + "/sd");  // one spelling: removeAll("/sd/") is the root too, and refused
+  CHECK(fs::resolve("/sd//books/./a") == t.base + "/sd/books/a");
+}
+
+TEST_CASE("fs: normalize gives a path its one spelling") {
+  CHECK(fs::normalize("/sd/books") == "/sd/books");
+  CHECK(fs::normalize("/sd/books/") == "/sd/books");
+  CHECK(fs::normalize("/sd//books/./x/") == "/sd/books/x");
+  CHECK(fs::normalize("/sd/books/..") == "");
+  CHECK(fs::normalize("/sd/a..b/c") == "/sd/a..b/c");  // dots inside a name are a name
+  CHECK(fs::normalize("books") == "");
+  CHECK(fs::normalize("/") == "");
+  CHECK(fs::normalize("") == "");
+}
+
+TEST_CASE("fs: rename replaces a file, the root folders cannot be removed") {
+  TempRoots t;
+  REQUIRE(fs::writeFile("/sd/a.txt", "new"));
+  REQUIRE(fs::writeFile("/sd/b.txt", "old"));
+  CHECK(fs::rename("/sd/a.txt", "/sd/b.txt"));
+  std::string s;
+  CHECK(fs::readFile("/sd/b.txt", s));
+  CHECK(s == "new");
+  CHECK_FALSE(fs::exists("/sd/a.txt"));
+  CHECK_FALSE(fs::exists("/sd/b.txt.old"));
+  CHECK_FALSE(fs::rename("/sd/none", "/sd/b.txt"));
+  CHECK(fs::readFile("/sd/b.txt", s));  // a failed rename leaves the destination
+  CHECK(s == "new");
+  CHECK(fs::isDir("/sd"));
+  CHECK_FALSE(fs::isDir("/sd/b.txt"));
+  CHECK_FALSE(fs::removeAll("/sd/"));
+  CHECK_FALSE(fs::removeAll("/data/."));
+  CHECK(fs::exists("/sd/b.txt"));
 }
 
 TEST_CASE("fs: atomic write, overwrite, read, list, mkdirs") {

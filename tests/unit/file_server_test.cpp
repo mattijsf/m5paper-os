@@ -218,9 +218,33 @@ TEST_CASE("files: a broken upload leaves nothing behind") {
   };
   CHECK(f.srv.handle(r).status == 500);
   CHECK_FALSE(fs::exists("/sd/books/half.epub"));
-  CHECK_FALSE(fs::exists("/sd/books/.upload-half.epub"));
+  std::vector<fs::DirEntry> left;
+  fs::listDir("/sd/books", left);
+  for (const fs::DirEntry& e : left) CHECK(e.name.rfind(".upload-", 0) != 0);  // no temp file left behind
   CHECK(f.srv.stats().received == 0);
   CHECK_FALSE(f.srv.stats().busy);
+}
+
+TEST_CASE("files: a broken upload over a book keeps the book") {
+  Fixture f;
+  REQUIRE(fs::writeFile("/sd/books/keep.txt", "the old text"));
+  hal::ServerRequest r;
+  r.method = "PUT";
+  r.target = "/keep.txt";
+  r.headers.emplace_back("authorization", f.auth);
+  r.contentLength = 100;
+  int calls = 0;
+  r.read = [&calls](char* dst, size_t) -> long {
+    if (calls++ == 0) {
+      std::memcpy(dst, "new", 3);
+      return 3;
+    }
+    return -1;  // the connection dropped
+  };
+  CHECK(f.srv.handle(r).status == 500);
+  std::string text;
+  CHECK(fs::readFile("/sd/books/keep.txt", text));
+  CHECK(text == "the old text");
 }
 
 TEST_CASE("files: Digest sign-in (what macOS sends over plain HTTP)") {

@@ -290,9 +290,10 @@ std::string percentEncodePath(const std::string& path) {
 std::string base64Decode(const std::string& s, bool& ok) {
   ok = true;
   std::string out;
-  int val = 0, bits = -8;
+  uint32_t val = 0;  // unsigned: the bits shifted out at the top are dropped, not undefined
+  int bits = -8;
   for (char c : s) {
-    int d;
+    uint32_t d;
     if (c >= 'A' && c <= 'Z') d = c - 'A';
     else if (c >= 'a' && c <= 'z') d = c - 'a' + 26;
     else if (c >= '0' && c <= '9') d = c - '0' + 52;
@@ -495,8 +496,8 @@ ServerResponse FileServer::route(ServerRequest& req, const std::string& path, co
   uint64_t size = 0;
   int64_t mtime = 0;
   const bool isFile = fs::fileInfo(real(path), size, mtime);
-  std::vector<fs::DirEntry> probe;
-  const bool isDir = !isFile && (path == "/" ? (fs::mkdirs(root_), true) : fs::listDir(real(path), probe));
+  if (path == "/") fs::mkdirs(root_);  // the books folder exists from the first request on
+  const bool isDir = !isFile && (path == "/" || fs::isDir(real(path)));
 
   if (m == "GET" || m == "HEAD") {
     drain(req);
@@ -561,8 +562,7 @@ ServerResponse FileServer::route(ServerRequest& req, const std::string& path, co
   }
   if (m == "MKCOL") {
     if (isFile || isDir) return status(405);
-    std::vector<fs::DirEntry> parent;
-    if (parentOf(path) != "/" && !fs::listDir(real(parentOf(path)), parent)) return status(409);
+    if (parentOf(path) != "/" && !fs::isDir(real(parentOf(path)))) return status(409);
     if (!fs::mkdirs(real(path))) return status(500, "Could not make the folder\n");
     std::lock_guard<std::mutex> lock(mu_);
     stats_.last = "Made folder " + nameOf(path);
@@ -598,25 +598,30 @@ ServerResponse FileServer::propfind(ServerRequest& req, const std::string& path)
   return multistatus(x);
 }
 
+std::string FileServer::tempBeside(const std::string& path, const char* prefix) {
+  const std::string parent = parentOf(path) == "/" ? "" : parentOf(path);
+  return real(parent) + "/" + prefix + std::to_string(++tempCounter_) + "-" + nameOf(path);
+}
+
 ServerResponse FileServer::put(ServerRequest& req, const std::string& path) {
   if (path == "/") {
     drain(req);
     return status(405);
   }
-  std::vector<fs::DirEntry> probe;
-  if (fs::listDir(real(path), probe)) {
+  if (fs::isDir(real(path))) {
     drain(req);
     return status(405, "That is a folder\n");
   }
-  if (parentOf(path) != "/" && !fs::listDir(real(parentOf(path)), probe)) {
+  if (parentOf(path) != "/" && !fs::isDir(real(parentOf(path)))) {
     drain(req);
     return status(409, "The folder does not exist\n");
   }
   uint64_t oldSize = 0;
   int64_t oldTime = 0;
   const bool existed = fs::fileInfo(real(path), oldSize, oldTime);
-  // Written aside under a hidden name, renamed over the file when complete: a broken upload leaves nothing half.
-  const std::string temp = real(parentOf(path) == "/" ? "" : parentOf(path)) + "/.upload-" + nameOf(path);
+  // Written aside under a hidden name, renamed over the file when complete: a broken upload leaves nothing half and
+  // the file that was there stays. The number keeps two uploads of one name apart.
+  const std::string temp = tempBeside(path, ".upload-");
   fs::Writer out;
   if (!out.open(temp)) {
     drain(req);
@@ -650,8 +655,7 @@ ServerResponse FileServer::put(ServerRequest& req, const std::string& path) {
     lastRequestMs_ = millis_();  // a long upload is use too
   }
   ok = out.close() && ok && (req.contentLength < 0 || got == static_cast<uint64_t>(req.contentLength));
-  if (ok && existed) fs::removeAll(real(path));
-  ok = ok && fs::rename(temp, real(path));
+  ok = ok && fs::rename(temp, real(path));  // replaces the old file; it stays if this fails
   std::lock_guard<std::mutex> lock(mu_);
   stats_.busy = false;
   stats_.receiving.clear();
@@ -685,18 +689,24 @@ ServerResponse FileServer::moveOrCopy(ServerRequest& req, const std::string& pat
   if (to.rfind(path + "/", 0) == 0) return status(409, "Into itself\n");
   uint64_t size = 0;
   int64_t mtime = 0;
-  std::vector<fs::DirEntry> probe;
   const bool srcFile = fs::fileInfo(real(path), size, mtime);
-  if (!srcFile && !fs::listDir(real(path), probe)) return status(404);
-  if (parentOf(to) != "/" && !fs::listDir(real(parentOf(to)), probe)) return status(409);
-  const bool destExists = fs::fileInfo(real(to), size, mtime) || fs::listDir(real(to), probe);
+  if (!srcFile && !fs::isDir(real(path))) return status(404);
+  if (parentOf(to) != "/" && !fs::isDir(real(parentOf(to)))) return status(409);
+  const bool destDir = fs::isDir(real(to));
+  const bool destExists = destDir || fs::fileInfo(real(to), size, mtime);
   const std::string overwrite = req.header("overwrite");
   if (destExists && (overwrite == "F" || overwrite == "f")) return status(412);
-  if (destExists) fs::removeAll(real(to));
+  if (!move && !srcFile) return status(501, "Copying folders is not supported\n");
+  // A file at the destination is replaced by the rename itself (it stays if that fails); only a folder has to go first.
+  if (destDir && !fs::removeAll(real(to))) return status(500);
   bool ok;
-  if (move) ok = fs::rename(real(path), real(to));
-  else if (srcFile) ok = copyFile(real(path), real(to));
-  else return status(501, "Copying folders is not supported\n");
+  if (move) {
+    ok = fs::rename(real(path), real(to));
+  } else {
+    const std::string temp = tempBeside(to, ".copy-");
+    ok = copyFile(real(path), temp) && fs::rename(temp, real(to));
+    if (!ok) fs::removeAll(temp);
+  }
   if (!ok) return status(500);
   std::lock_guard<std::mutex> lock(mu_);
   stats_.last = (move ? "Renamed " : "Copied ") + nameOf(path);
@@ -708,10 +718,9 @@ ServerResponse FileServer::lock(ServerRequest& req, const std::string& path) {
   // Locks are pretended (one writer at a time is the Paper's case anyway): Finder mounts read-only without them.
   uint64_t size = 0;
   int64_t mtime = 0;
-  std::vector<fs::DirEntry> probe;
   bool created = false;
-  if (!fs::fileInfo(real(path), size, mtime) && !(path == "/" || fs::listDir(real(path), probe))) {
-    if (parentOf(path) != "/" && !fs::listDir(real(parentOf(path)), probe)) return status(409);
+  if (!fs::fileInfo(real(path), size, mtime) && !(path == "/" || fs::isDir(real(path)))) {
+    if (parentOf(path) != "/" && !fs::isDir(real(parentOf(path)))) return status(409);
     fs::Writer w;  // RFC 4918: a lock on an unmapped name makes an empty file
     created = w.open(real(path)) && w.close();
   }

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <cstring>
 #include <vector>
 
 #include "core/utf8.h"
@@ -52,6 +53,13 @@ bool lowerEq(const std::string& s, size_t at, const char* what) {
   return true;
 }
 
+// The tag name at h[at] is `name`, the whole name: "head" is not "header", "th" is not "thead".
+bool tagIs(const std::string& h, size_t at, const char* name) {
+  if (!lowerEq(h, at, name)) return false;
+  const size_t after = at + std::strlen(name);
+  return after >= h.size() || h[after] == '>' || h[after] == '/' || std::isspace(static_cast<unsigned char>(h[after]));
+}
+
 // HTML to plain text: tags removed, <br> and block ends become line breaks, <style>/<script> content skipped, entities decoded.
 std::string htmlToText(const std::string& h) {
   std::string out;
@@ -81,33 +89,23 @@ std::string htmlToText(const std::string& h) {
       continue;
     }
     const size_t nameAt = i + 1 + (i + 1 < n && h[i + 1] == '/' ? 1 : 0);
-    if (lowerEq(h, nameAt, "style") || lowerEq(h, nameAt, "script") || lowerEq(h, nameAt, "head")) {
-      const bool closing = h[i + 1] == '/';
-      if (!closing) {
-        const char* close = lowerEq(h, nameAt, "style") ? "</style" : lowerEq(h, nameAt, "script") ? "</script" : "</head";
-        size_t e = i;
-        while ((e = h.find("</", e + 1)) != std::string::npos && !lowerEq(h, e, close)) {}
-        if (e == std::string::npos) {
-          i = n;
-          continue;
-        }
-        const size_t eg = h.find('>', e);
-        i = eg == std::string::npos ? n : eg + 1;
-        continue;
-      }
+    const char* skipped = nullptr;  // an element whose content is not text
+    for (const char* name : {"style", "script", "head"})
+      if (tagIs(h, nameAt, name)) skipped = name;
+    if (skipped && h[i + 1] != '/') {
+      size_t e = i;
+      while ((e = h.find("</", e + 1)) != std::string::npos && !tagIs(h, e + 2, skipped)) {}
+      const size_t eg = e == std::string::npos ? e : h.find('>', e);
+      i = eg == std::string::npos ? n : eg + 1;
+      continue;
     }
-    static const char* kBlocks[] = {"br", "p", "div", "tr", "li", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "table", "ul", "ol", "hr", "pre"};
-    for (const char* b : kBlocks) {
-      if (lowerEq(h, nameAt, b)) {
-        const size_t after = nameAt + std::string(b).size();
-        if (after < n && (h[after] == '>' || h[after] == ' ' || h[after] == '/' || std::isspace(static_cast<unsigned char>(h[after])))) {
-          newline();
-          if (std::string(b) == "p" && h[i + 1] == '/') out += '\n';  // a paragraph end leaves a blank line
-          break;
-        }
-      }
+    for (const char* b : {"br", "p", "div", "tr", "li", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "table", "ul", "ol", "hr", "pre"}) {
+      if (!tagIs(h, nameAt, b)) continue;
+      newline();
+      if (b[0] == 'p' && b[1] == '\0' && h[i + 1] == '/') out += '\n';  // a paragraph end leaves a blank line
+      break;
     }
-    if (lowerEq(h, nameAt, "td") || lowerEq(h, nameAt, "th")) out += ' ';
+    if (tagIs(h, nameAt, "td") || tagIs(h, nameAt, "th")) out += ' ';
     i = gt + 1;
   }
   return out;

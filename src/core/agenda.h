@@ -44,8 +44,9 @@ bool load(Agenda& out);  // false when there is no file or it is unreadable (out
 bool save(const Agenda& a);
 void forget();           // deletes the file (unpairing)
 
-// Applies the plaintext of one `agenda` message: every day of its run is replaced. False (and `a` untouched) if it is
-// not a well-formed `agenda`. `now` is the Paper's clock (unix seconds, 0 = not set).
+// Applies the plaintext of one `agenda` message: every day of its run is replaced, and the days before today go (when
+// the clock is set). False (and `a` untouched) if it is not a well-formed `agenda`. `now` is the Paper's clock (unix
+// seconds, 0 = not set).
 bool apply(Agenda& a, const std::string& plain, int64_t now);
 // Drops the days before `today`; true if something went.
 bool expire(Agenda& a, int today);

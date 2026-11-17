@@ -71,15 +71,21 @@ class Remote {
  public:
   Remote(Os& os, hal::Clock& clock, RemoteHost& host) : os_(os), clock_(clock), host_(host) {}
 
+  // What the transport received (serial port, the simulator's stdin), in any chunking: command lines, and during an
+  // upload the file's bytes. A line longer than kMaxLine is not run: cut short it would be another command
+  // (">rm /sd/books/long name" as ">rm /sd/books/lo"); it is answered "#err line too long".
+  void feed(const uint8_t* data, size_t n);
+  static constexpr size_t kMaxLine = 512;
   // Handles one received line. Lines that do not start with '>' are ignored.
   void handleLine(const std::string& line);
   // Call once per main-loop pass, after Os::loopOnce(): releases timed touch events and runs a
   // pending >shot once the injected touches have been processed.
   void tick();
   bool busy() const { return !timed_.empty() || shotPending_ || put_.active || outPos_ < out_.size(); }
-  // True while an upload is running: the transport must pass incoming bytes to feedRaw(), not to handleLine().
+  // True while an upload is running: feed() takes the incoming bytes as file content.
   bool wantsRaw() const { return put_.active; }
-  void feedRaw(const uint8_t* data, size_t n);
+  // The file bytes of the running upload; returns how many it took (the rest, after the last byte, is a line again).
+  size_t feedRaw(const uint8_t* data, size_t n);
 
  private:
   struct Timed {
@@ -111,6 +117,9 @@ class Remote {
     uint32_t lastByteMs = 0;
   } put_;
   void abortPut(const std::string& why);
+  void finishPut();
+  std::string line_;       // the line being received (feed)
+  bool lineTooLong_ = false;
   bool shotPending_ = false;
   int settle_ = 0;
 };

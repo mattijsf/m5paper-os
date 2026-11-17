@@ -30,7 +30,7 @@ class PosixHttpServer : public hal::HttpServer {
 
   const uint16_t port_;
   std::atomic<bool> running_{false};
-  int listenFd_ = -1;
+  std::atomic<int> listenFd_{-1};  // closed by stop() while the accept thread reads it
   std::thread acceptThread_;
   std::mutex mu_;
   std::vector<int> clients_;
