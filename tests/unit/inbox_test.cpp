@@ -4,6 +4,7 @@
 #include <string>
 
 #include "apps/inbox/inbox_model.h"
+#include "core/companion.h"
 #include "core/timefmt.h"
 
 using namespace pos::inbox;
@@ -40,19 +41,36 @@ TEST_CASE("inbox: feed parsing follows the contract, missing fields default, emp
   CHECK(f.items[0].subject == "Invoice");
 }
 
-TEST_CASE("inbox: feeds are cleaned (emoji, links, HTML mail)") {
-  Feed f;
-  REQUIRE(parseFeed(R"({"attributes":{"items":[{"from":"A\n","text":"hi ☺ see https://www.example.com/x?y=1","ts":1},
-                      {"from":"B","subject":"S\nT","text":"<p>Hello &amp; bye</p><p>Second</p>","ts":2}]}})", f));
-  cleanFeed(f, true);
-  CHECK(f.items[0].from == "A");
-  CHECK(f.items[0].text == "hi \xE2\x98\xBA see example.com");  // the emoji stays (docs/UI.md "Emoji")
-  CHECK(f.items[1].subject == "S T");
-  CHECK(f.items[1].text == "Hello & bye\n\nSecond");
-  Feed g;
-  REQUIRE(parseFeed(R"({"attributes":{"items":[{"from":"B","text":"<b>not html in chat</b>","ts":2}]}})", g));
-  cleanFeed(g, false);
-  CHECK(g.items[0].text == "<b>not html in chat</b>");
+TEST_CASE("inbox: a notification is cleaned once, when it is stored (emoji, links, HTML mail)") {
+  pos::companion::Notif mail;
+  mail.app = "mail";
+  mail.key = "m1";
+  mail.msgs.push_back({"A\n", "", "hi \xE2\x98\xBA see https://www.example.com/x?y=1", 1});
+  mail.msgs.push_back({"B", "S\nT", "<p>Hello &amp; bye</p><p>Second</p>", 2});
+  pos::companion::cleanNotif(mail);
+  CHECK(mail.msgs[0].from == "A");
+  CHECK(mail.msgs[0].text == "hi \xE2\x98\xBA see example.com");  // the emoji stays (docs/UI.md "Emoji")
+  CHECK(mail.msgs[1].subject == "S T");
+  CHECK(mail.msgs[1].text == "Hello & bye\n\nSecond");
+  const pos::companion::Notif once = mail;
+  pos::companion::cleanNotif(mail);  // cleaning clean text changes nothing
+  CHECK(mail.msgs[0].text == once.msgs[0].text);
+  CHECK(mail.msgs[1].text == once.msgs[1].text);
+  CHECK(mail.msgs[1].subject == once.msgs[1].subject);
+
+  pos::companion::Notif chat;
+  chat.app = "whatsapp";
+  chat.key = "c1";
+  chat.chat = "Family \x01group";
+  chat.msgs.push_back({"B", "", "<b>not html in chat</b>", 2});
+  pos::companion::cleanNotif(chat);
+  CHECK(chat.msgs[0].text == "<b>not html in chat</b>");
+  CHECK(chat.chat == "Family group");
+  // The feed the inbox shows takes the store's texts as they are.
+  pos::companion::Notifs store;
+  store.items = {mail, chat};
+  CHECK(feedFromNotifs(store, true).items.size() == 2);
+  CHECK(feedFromNotifs(store, false).items[0].text == "<b>not html in chat</b>");
 }
 
 TEST_CASE("inbox: chats group by key, newest conversation first, new marks follow the seen marker") {

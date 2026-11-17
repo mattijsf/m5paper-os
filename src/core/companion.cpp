@@ -6,6 +6,7 @@
 
 #include "core/agenda.h"
 #include "core/fs.h"
+#include "core/text_clean.h"
 #include "core/utf8.h"
 
 namespace pos::companion {
@@ -59,6 +60,7 @@ void applyPost(Notifs& n, JsonObjectConst o) {
     x.msgs.push_back(std::move(nm));
   }
   if (x.ts <= 0 && !x.msgs.empty()) x.ts = x.msgs.back().ts;
+  cleanNotif(x);  // here, on the worker: the inbox shows what the store holds
   n.items.erase(std::remove_if(n.items.begin(), n.items.end(), [&](const Notif& i) { return i.key == x.key; }), n.items.end());
   if (!x.msgs.empty()) n.items.push_back(std::move(x));
 }
@@ -84,6 +86,19 @@ bool loadPairing(Pairing& out) {
   return out.paired;
 }
 
+bool pairedPhone(std::string* name) {
+  std::string text;
+  if (!fs::readFile(kPairingPath, text)) return false;
+  JsonDocument doc;
+  if (deserializeJson(doc, text)) return false;
+  Pairing p;  // the same fields loadPairing() needs, without the keys derived from them
+  if (!unb64Fixed(doc["pid"].as<std::string>(), p.pid) || !unb64Fixed(doc["sk"].as<std::string>(), p.sk) ||
+      !unb64Fixed(doc["phone_pk"].as<std::string>(), p.phonePk))
+    return false;
+  if (name) *name = str(doc["phone"], 40);
+  return doc["paired"].as<bool>();
+}
+
 bool savePairing(const Pairing& p) {
   JsonDocument doc;
   doc["v"] = 1;
@@ -103,6 +118,26 @@ void forgetPairing() {
   agenda::forget();
 }
 
+void cleanNotif(Notif& n) {
+  CleanOptions plain, html;
+  html.html = true;
+  const auto oneLine = [&plain](std::string& s) {
+    s = cleanText(s, plain);
+    for (char& c : s)
+      if (c == '\n') c = ' ';
+  };
+  n.chat = cleanText(n.chat, plain);
+  for (NotifMsg& m : n.msgs) {
+    // A mail text is HTML when it says so; the notification's excerpt is plain more often than not.
+    const bool looksHtml = n.app == "mail" && (m.text.find("<html") != std::string::npos || m.text.find("<body") != std::string::npos ||
+                                                m.text.find("<p>") != std::string::npos || m.text.find("<div") != std::string::npos ||
+                                                m.text.find("<br") != std::string::npos);
+    m.text = cleanText(m.text, looksHtml ? html : plain);
+    oneLine(m.from);
+    oneLine(m.subject);
+  }
+}
+
 bool loadNotifs(Notifs& out) {
   out = Notifs{};
   std::string text;
@@ -120,12 +155,15 @@ bool loadNotifs(Notifs& out) {
       x.msgs.push_back(NotifMsg{m["from"].as<std::string>(), m["subj"].as<std::string>(), m["text"].as<std::string>(), num(m["ts"])});
     if (!x.key.empty()) out.items.push_back(std::move(x));
   }
+  if (!(doc["clean"] | false))  // written before notifications were cleaned on arrival: once, here
+    for (Notif& x : out.items) cleanNotif(x);
   for (JsonObjectConst o : doc["sent"].as<JsonArrayConst>()) out.sent.push_back(SentReply{o["ref"].as<uint64_t>(), o["name"].as<std::string>()});
   return true;
 }
 
 bool saveNotifs(const Notifs& n) {
   JsonDocument doc;
+  doc["clean"] = true;  // every text in it went through cleanNotif
   JsonArray items = doc["items"].to<JsonArray>();
   for (const Notif& x : n.items) {
     JsonObject o = items.add<JsonObject>();

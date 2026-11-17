@@ -139,6 +139,7 @@ What goes where:
 | saved state in `/data`: `ctx.store`, `ctx.cache`, small files (up to 16 KB) | UI thread, in `build()` | `core/fs` answers them from memory after the first read (a file on the flash costs ~9 ms to open); the first frame already shows the data |
 | the network (`ctx.http`, `ctx.ha()`), the SD card, big files, anything over a few ms of computing | `ctx.async` | it blocks for hundreds of ms to seconds |
 | writing a file after a refresh, switching the radio back, cleaning up | `ctx.background` | a write to the flash is ~35 ms; and it must happen even when the user leaves at that moment |
+| the phone pairing with its keys (`companion::loadPairing`), making or opening envelopes | `ctx.async` | deriving the session keys is ~50 ms; a screen that only asks "is a phone paired?" uses `companion::pairedPhone()` |
 
 **On this panel every extra pass shows** (DISPLAY.md), so the order matters more than on an LCD:
 
@@ -156,7 +157,10 @@ What goes where:
 
 Measured on the device (2026-11-17): leaving an app for the launcher was 134-354 ms before the first pixel because the
 launcher read 16 small files on the UI thread; with those in memory it is 15 ms, tap to panel 137 ms instead of 255-476.
-The shell logs `[perf] close <app> took N ms: ...` when leaving an app costs 30 ms or more.
+The shell logs `[perf] close <app> took N ms: ...` when leaving an app costs 30 ms or more. Opening WhatsApp or Mail
+was 53-54 ms before the first pixel: the screen derived the pairing's keys twice only to know whether a phone is
+paired; with `pairedPhone()` 18-19 ms (tap to panel 179-197 ms instead of 221-238). **Measure before moving work**:
+the first guess there (cleaning the saved messages) cost nothing measurable on the device.
 
 ## Rules for app code
 

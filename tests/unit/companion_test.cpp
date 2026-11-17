@@ -225,8 +225,12 @@ TEST_CASE("companion: pairing from a hello, saved and loaded again") {
   CHECK(back.rx == 9);
   CHECK(back.phoneName == "Pixel 9 Pro");
   CHECK(back.session.p2d == ph.p2d);
+  std::string name;
+  CHECK(pairedPhone(&name));  // the question the screens ask, without deriving keys
+  CHECK(name == "Pixel 9 Pro");
   forgetPairing();
   CHECK_FALSE(loadPairing(back));
+  CHECK_FALSE(pairedPhone());
 }
 
 TEST_CASE("companion: the notification store survives a save and load") {
@@ -243,6 +247,32 @@ TEST_CASE("companion: the notification store survives a save and load") {
   CHECK(back.items[1].msgs[0].subject == "Your order");
   REQUIRE(back.sent.size() == 1);
   CHECK(back.sent[0].ref == 7);
+}
+
+TEST_CASE("companion: a notification is cleaned when it arrives; a store from before that is cleaned when loaded") {
+  Roots roots;
+  Pair pr;
+  Notifs n;
+  const std::string post = R"({"t":"post","k":"m9","app":"mail","ts":1768470000,"msgs":[{"from":"Shop\n","subj":"Your\norder",)"
+                           R"("text":"<p>Hello &amp; welcome</p><p>See https://www.example.com/a?b=1</p>","ts":1768470000}]})";
+  applyQueue(pr.paper, n, state({{1, pr.fromPhone(1, post)}}), kNow);
+  REQUIRE(n.items.size() == 1);
+  CHECK(n.items[0].msgs[0].text == "Hello & welcome\n\nSee example.com");  // already what the panel shows
+  CHECK(n.items[0].msgs[0].from == "Shop");
+  CHECK(n.items[0].msgs[0].subject == "Your order");
+  REQUIRE(saveNotifs(n));
+  std::string file;
+  REQUIRE(fs::readFile("/data/cache/inbox/notifs.json", file));
+  CHECK(file.find("\"clean\":true") != std::string::npos);
+
+  // A file of an older firmware: raw text, no mark.
+  REQUIRE(fs::writeFile("/data/cache/inbox/notifs.json",
+                        R"({"items":[{"k":"old","app":"mail","chat":"","reply":false,"ts":5,)"
+                        R"("msgs":[{"from":"A","subj":"S","text":"<div>Old &lt;raw&gt; text</div>","ts":5}]}],"sent":[]})"));
+  Notifs old;
+  REQUIRE(loadNotifs(old));
+  REQUIRE(old.items.size() == 1);
+  CHECK(old.items[0].msgs[0].text == "Old <raw> text");
 }
 
 TEST_CASE("companion: clip envelopes both ways (D23): the phone's newest clip wins, old or unwanted ones are dropped") {

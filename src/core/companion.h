@@ -30,7 +30,11 @@ struct Pairing {
   uint64_t rx = 0;  // highest counter accepted from the phone
   Session session;  // derived on load, not stored
 };
+// The pairing with its session keys. Deriving them is two curve operations (about 50 ms on the device): for the
+// worker, where the relay is read and envelopes are made. To ask only whether a phone is paired: pairedPhone().
 bool loadPairing(Pairing& out);        // false (and not paired) when there is none or it is unreadable
+// Whether a phone is paired (and its name): reads the stored pairing, derives nothing. For the UI thread.
+bool pairedPhone(std::string* name = nullptr);
 bool savePairing(const Pairing& p);    // atomic
 void forgetPairing();                  // deletes the pairing, the notification store and the agenda
 
@@ -53,8 +57,14 @@ struct Notifs {
   std::vector<Notif> items;
   std::vector<SentReply> sent;  // replies waiting for a result (the newest 10)
 };
+// The store holds text that is ready for the panel: a notification is cleaned once, when it arrives (cleanNotif, on
+// the worker that reads the relay), not every time the inbox opens. A store written before that (no "clean" mark) is
+// cleaned when it is loaded.
 bool loadNotifs(Notifs& out);
 bool saveNotifs(const Notifs& n);
+// Every text of a notification through core/text_clean: what the fonts can show, links as host names, a mail's HTML as
+// text (a chat's text is never read as HTML); names and subjects on one line. Cleaning clean text changes nothing.
+void cleanNotif(Notif& n);
 const Notif* findNotif(const Notifs& n, const std::string& key);
 
 // Reads the body of GET /api/states/sensor.paperos_relay_to_paper and applies every acceptable envelope in counter order

@@ -70,7 +70,10 @@ with `POS_REGISTER_APP`.
 - Seen marker: `ctx.store` key `seen` = newest `ts` shown; dots use the marker as it was when the app started. Badge:
   `/data/cache/<id>/badge` = items newer than the marker; the scheduled refresh (P7-5, POWER.md) reads the relay too and writes both
   badges.
-- No polling. Text through `core/text_clean` (links, stray HTML); emoji stay and are drawn from the emoji atlases on the card
+- No polling: messages come when the Paper reads the relay (the inbox opened or refreshed, Agenda, a scheduled wake,
+  the clipboard menu), always on the worker. Each notification is cleaned there, once, when it is stored
+  (`companion::cleanNotif`; the store's file carries `"clean": true`, an older file is cleaned when loaded): the inbox
+  shows what the store holds. Text through `core/text_clean` (links, stray HTML); emoji stay and are drawn from the emoji atlases on the card
   (UI.md "Emoji"), also in chat and group names.
 
 ## Feed contract

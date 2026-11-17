@@ -146,12 +146,10 @@ class ListScreen : public Screen {
     markAll_ = root.add<ui::Button>("Mark all read", ui::Button::Kind::Secondary);
     markAll_->onClick = [this] { confirmMarkAll(); };
     root.add<ui::Spacer>(ui::s1);
-    companion::Pairing pairing;
-    notPaired_ = !companion::loadPairing(pairing);
+    notPaired_ = !companion::pairedPhone();
     companion::Notifs saved;
     if (!notPaired_ && companion::loadNotifs(saved)) {
-      feed_ = feedFromNotifs(saved, kind_.mail);
-      cleanFeed(feed_, kind_.mail);
+      feed_ = feedFromNotifs(saved, kind_.mail);  // (ready for the panel: cleaned when it arrived, core/companion)
       haveData_ = true;
     }
     rebuild();
@@ -243,8 +241,7 @@ class ListScreen : public Screen {
 
   void refresh(bool announce) {
     if (busy_) return;
-    companion::Pairing pairing;
-    notPaired_ = !companion::loadPairing(pairing);
+    notPaired_ = !companion::pairedPhone();
     if (notPaired_) {
       rebuild();
       return;
@@ -272,7 +269,6 @@ class ListScreen : public Screen {
       }
       if (f.http.ok() && f.applied.parsed) {
         feed_ = feedFromNotifs(f.notifs, kind_.mail);
-        cleanFeed(feed_, kind_.mail);
         haveData_ = true;
         error_ = false;
         status_->setText("Updated " + clockText());

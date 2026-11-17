@@ -40,22 +40,6 @@ bool parseFeed(const std::string& json, Feed& out) {
   return true;
 }
 
-void cleanFeed(Feed& feed, bool mail) {
-  CleanOptions plain, html;
-  html.html = true;
-  for (Msg& m : feed.items) {
-    // A mail text is HTML when it says so; the feed's excerpt is plain more often than not.
-    const bool looksHtml = mail && (m.text.find("<html") != std::string::npos || m.text.find("<body") != std::string::npos ||
-                                    m.text.find("<p>") != std::string::npos || m.text.find("<div") != std::string::npos || m.text.find("<br") != std::string::npos);
-    m.text = cleanText(m.text, looksHtml ? html : plain);
-    m.from = cleanText(m.from, plain);
-    m.chat = cleanText(m.chat, plain);
-    m.subject = cleanText(m.subject, plain);
-    for (char& c : m.from) if (c == '\n') c = ' ';
-    for (char& c : m.subject) if (c == '\n') c = ' ';
-  }
-}
-
 std::vector<Conversation> groupChats(const std::vector<Msg>& items, int64_t seen) {
   std::vector<Conversation> out;
   std::map<std::string, size_t> byKey;

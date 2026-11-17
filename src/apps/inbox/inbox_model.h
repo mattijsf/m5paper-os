@@ -23,14 +23,12 @@ struct Feed {
 };
 
 // The messages of one app ("mail" or "whatsapp") from the phone's notifications, newest first; `key` = the notification key.
+// The texts are ready for the panel: the store cleans a notification when it arrives (companion::cleanNotif).
 Feed feedFromNotifs(const companion::Notifs& notifs, bool mail);
 
 // Parses a state object in the feed contract (the shape of the Home Assistant sensors before D22; kept for fixtures and tests). Missing fields default to empty, unknown fields are ignored; items without
 // text and subject are dropped. False if it is not a state object.
 bool parseFeed(const std::string& json, Feed& out);
-
-// Every text of the feed passed through core/text_clean (chat text is plain, mail text may be HTML).
-void cleanFeed(Feed& feed, bool mail);
 
 // One list row of a chat feed: all messages of a chat (`key`), newest first inside.
 struct Conversation {

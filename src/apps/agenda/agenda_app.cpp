@@ -60,8 +60,7 @@ class AgendaScreen : public Screen {
       ctx().store.set("view", view_);
       rebuild();
     };
-    companion::Pairing pairing;
-    notPaired_ = !companion::loadPairing(pairing);
+    notPaired_ = !companion::pairedPhone();
     if (!notPaired_) load(agenda_);
     rebuild();
     armMinute();
@@ -261,8 +260,7 @@ class AgendaScreen : public Screen {
 
   void refresh() {
     if (busy_) return;
-    companion::Pairing pairing;
-    notPaired_ = !companion::loadPairing(pairing);
+    notPaired_ = !companion::pairedPhone();
     if (notPaired_) {
       agenda_ = Agenda{};
       status_->setText("");

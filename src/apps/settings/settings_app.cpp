@@ -430,11 +430,11 @@ class PhonePage : public Page {
   void show() {
     clear();
     polling_ = false;
-    companion::Pairing p;
+    std::string phoneName;
     holder_->add<ui::Spacer>(ui::s2);
-    if (companion::loadPairing(p)) {
+    if (companion::pairedPhone(&phoneName)) {
       state_ = "paired";
-      holder_->add<ui::ListItem>("Paired phone", p.phoneName, true, ui::Icon::Check);
+      holder_->add<ui::ListItem>("Paired phone", phoneName, true, ui::Icon::Check);
       // D23: a copy on the Paper goes to the phone; what the phone shares arrives before a paste.
       auto* clip = holder_->add<ui::ListItem>("Share the clipboard", "Copy on one, paste on the other", true, ui::Icon::FileText);
       clip->setToggle(cfg().phone.shareClipboard, [this](bool on) {
@@ -636,9 +636,9 @@ class HaPage : public Page {
     root.add<ui::Spacer>(ui::s2);
     root.add<ui::Button>("Test connection", [this] { test(); }, ui::Button::Kind::Secondary);
     root.add<ui::Spacer>(ui::s3);
-    companion::Pairing p;
-    const bool paired = companion::loadPairing(p);
-    auto* phone = root.add<ui::ListItem>("Phone", paired ? "Paired: " + p.phoneName : "Not paired", true, ui::Icon::MessageCircle);
+    std::string phoneName;
+    const bool paired = companion::pairedPhone(&phoneName);
+    auto* phone = root.add<ui::ListItem>("Phone", paired ? "Paired: " + phoneName : "Not paired", true, ui::Icon::MessageCircle);
     phone->setChevron();
     phone->onClick = [this] { ctx().nav.push<PhonePage>(); };
   }
