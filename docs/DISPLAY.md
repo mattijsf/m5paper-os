@@ -289,6 +289,13 @@ Where the time went and what was done:
 5. **One commit per event.** Handle the event, change state, let the loop commit once.
 6. Coalesce: while the panel is busy (`display.busy()`), further commits merge their rects and
    wait, except `Hint::Feedback` which may queue immediately (M5GFX handles overlapping updates).
+7. **Feedback rects that are apart are pushed apart** (2026-11-17; the other hints keep one pending rect each). A finger that is down longer than the
+   120 ms press delay shows the key pressed; on release the key (bottom of the screen) and the new bullet in the field
+   (top) were one Feedback rect: a Fast push of 190x626 px for 3 600 changed pixels, and 0.6 s later a Text settle
+   over the same box, with every key (simulator, `tap X Y 200`). Now rects that touch merge and the rest stay apart
+   (at most 4, then they become one box): the key 48x66, the bullet 16x32, and settles of the same size. The script
+   taps of 40 ms never showed it: they are shorter than the press delay. Not measured on the panel (Pending device
+   checks).
 
 ## Device implementation notes (`platform/device/display.cpp`, task P1-2)
 

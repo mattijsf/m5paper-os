@@ -75,8 +75,13 @@ bool ScriptRunner::command(const std::string& cmd, const std::string& args, std:
       x = n[0];
       y = n[1];
     }
+    int hold = 40;  // "tap X Y MS": the finger stays down that long (a real finger: 150-250 ms, so the pressed look shows)
+    if (cmd == "tap" && (in >> hold) && (hold < 1 || hold > 450)) {
+      error = "'tap X Y MS': 1..450 ms (longer is a long press: use 'long')";
+      return false;
+    }
     touch(hal::TouchEvent::Down, x, y);
-    step(40);
+    step(hold);
     touch(hal::TouchEvent::Up, x, y);
     step(10);
   } else if (cmd == "long") {

@@ -88,6 +88,7 @@ class DisplayManager {
   std::vector<uint8_t> shadowPacked() const;
 
  private:
+  static constexpr size_t kMaxFeedbackRects = 4;  // pending Feedback rects that do not touch (invalidate())
   struct Pending {
     Rect rect;
     Hint hint;

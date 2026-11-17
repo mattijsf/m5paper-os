@@ -133,6 +133,67 @@ TEST_CASE("Feedback on pure black/white needs no settle pass; with grays it gets
   CHECK(f.dm.nextDeadlineMs() == f.clock.ms + 600);
 }
 
+TEST_CASE("Feedback rects that are apart are pushed apart (a key and its letter in the field), touching ones as one") {
+  Fixture f;
+  // A key at the bottom goes back to gray, its letter appears in the field at the top: two small pushes, two small settles.
+  const Rect key{84, 747, 48, 66}, letter{40, 187, 16, 32};
+  f.fill(key, gray(13));
+  f.fill(letter, gray(5));
+  f.dm.invalidate(Rect{81, 744, 54, 72}, Hint::Feedback);
+  f.dm.invalidate(Rect{24, 160, 492, 72}, Hint::Feedback);
+  f.dm.commit();
+  REQUIRE(f.display.pushes.size() == 2);
+  for (const auto& p : f.display.pushes) {
+    CHECK(p.mode == Refresh::Fast);
+    CHECK(p.rect.h <= 66);
+  }
+  f.dm.tick(f.clock.ms + 600);  // one settle per tick
+  f.dm.tick(f.clock.ms + 600);
+  REQUIRE(f.display.pushes.size() == 4);
+  CHECK(f.display.pushes[2].mode == Refresh::Text);
+  CHECK(f.display.pushes[2].rect.h <= 66);
+  CHECK(f.display.pushes[3].rect.h <= 66);
+
+  // Two keys side by side (they share an edge): one push.
+  Fixture g;
+  g.fill(Rect{84, 747, 48, 66}, kBlack);
+  g.fill(Rect{138, 747, 48, 66}, kBlack);
+  g.dm.invalidate(Rect{81, 744, 54, 72}, Hint::Feedback);
+  g.dm.invalidate(Rect{135, 744, 54, 72}, Hint::Feedback);
+  g.dm.commit();
+  REQUIRE(g.display.pushes.size() == 1);
+  CHECK(g.display.pushes[0].rect.w == 102);
+
+  // A third rect that joins two others makes one of the three.
+  Fixture j;
+  j.fill(Rect{10, 10, 20, 20}, kBlack);
+  j.fill(Rect{110, 10, 20, 20}, kBlack);
+  j.dm.invalidate(Rect{10, 10, 20, 20}, Hint::Feedback);
+  j.dm.invalidate(Rect{110, 10, 20, 20}, Hint::Feedback);
+  j.dm.invalidate(Rect{30, 10, 80, 20}, Hint::Feedback);
+  j.dm.commit();
+  REQUIRE(j.display.pushes.size() == 1);
+  CHECK(j.display.pushes[0].rect.w == 120);
+
+  // Many scattered rects: no more pushes than the limit allows (the oldest ones become one box).
+  Fixture h;
+  for (int16_t i = 0; i < 8; ++i) {
+    const Rect r{static_cast<int16_t>(10 + i * 60), static_cast<int16_t>(100 + i * 100), 20, 20};
+    h.fill(r, kBlack);
+    h.dm.invalidate(r, Hint::Feedback);
+  }
+  h.dm.commit();
+  CHECK(h.display.pushes.size() <= 5);
+  int covered = 0;  // every changed square is inside a pushed rect
+  for (int16_t i = 0; i < 8; ++i)
+    for (const auto& p : h.display.pushes)
+      if (10 + i * 60 >= p.rect.x && 30 + i * 60 <= p.rect.x + p.rect.w && 100 + i * 100 >= p.rect.y && 120 + i * 100 <= p.rect.y + p.rect.h) {
+        ++covered;
+        break;
+      }
+  CHECK(covered == 8);
+}
+
 TEST_CASE("Content pushes Fast, then Text after the settle delay") {
   Fixture f;
   f.fill(Rect{50, 60, 200, 100}, gray(5));

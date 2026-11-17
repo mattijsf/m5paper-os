@@ -382,6 +382,13 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Keyboard: slow keys while typing a Wi-Fi password**. Not
+  flashed and not measured: the device was in use by other work, then unplugged. To do: flash, Settings > Wi-Fi >
+  Join a network > a secured network, type a few keys with a finger (an injected tap may be shorter than the 120 ms
+  press delay and then shows no pressed key), then `tools/device.py refresh`: per key Fast pushes of about 48x66 and
+  16x32, no box from the field down to the key;
+  `tools/cam.py around` for how long a key takes on the panel. If keys are still slow there, next suspects: the Wi-Fi scan
+  still running on the worker when the password page opens (up to ~3 s), and the two waveforms per key (pressed, back).
 - **Launcher power button** (flashed 2026-11-17 13:34, below): a tap on the icon itself (480, 92) was not sent to the
   device: it switches off until somebody clicks the side button. For the user's finger.
 - **Launcher 3 x 4**: flashed 2026-11-17 13:10 (below); for a person's fingers: whether 153 x 160 tiles are

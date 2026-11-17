@@ -80,6 +80,37 @@ std::vector<uint8_t> DisplayManager::shadowPacked() const {
 void DisplayManager::invalidate(Rect r, Hint hint) {
   r = clip(r);
   if (r.empty()) return;
+  if (hint == Hint::Feedback) {
+    // Feedback rects that are apart stay apart: a key going up at the bottom of the screen and its letter in the text
+    // field at the top were one box from the field down to the key (190x626 px pushed for 3 600 changed ones, then a
+    // Text settle over the same box, with every key). Rects that touch merge; more than kMaxFeedbackRects become one.
+    size_t count = 0;
+    for (size_t i = 0; i < pending_.size();) {
+      if (pending_[i].hint != hint) {
+        ++i;
+      } else if (touches(pending_[i].rect, r)) {
+        r = unite(r, pending_[i].rect);
+        pending_.erase(pending_.begin() + i);
+        i = 0;  // the grown rect may now touch one that was passed
+        count = 0;
+      } else {
+        ++count;
+        ++i;
+      }
+    }
+    if (count >= kMaxFeedbackRects) {
+      for (size_t i = 0; i < pending_.size();) {
+        if (pending_[i].hint != hint) {
+          ++i;
+          continue;
+        }
+        r = unite(r, pending_[i].rect);
+        pending_.erase(pending_.begin() + i);
+      }
+    }
+    pending_.push_back({r, hint});
+    return;
+  }
   for (auto& p : pending_) {
     if (p.hint == hint) {  // one pending rect per hint: keeps the list short
       p.rect = unite(p.rect, r);
@@ -306,17 +337,20 @@ void DisplayManager::commit() {
   if (pending_.empty()) return;
   const bool busy = display_.busy();
   // Priority order. Later rects diff against the shadow updated by earlier ones. There is at most
-  // one pending rect per hint (invalidate() merges them).
+  // one pending rect per hint (invalidate() merges them), except Feedback: a few rects that do not touch.
   // Page before Content: a page turn also changes the footer (Content); the page must not wait for the footer's push.
   static const Hint order[] = {Hint::Feedback, Hint::Page, Hint::Content, Hint::Screen, Hint::Image};
   for (Hint h : order) {
     if (busy && h != Hint::Feedback) continue;  // coalesce: wait for the panel
-    for (size_t i = 0; i < pending_.size(); ++i) {
-      if (pending_[i].hint != h) continue;
+    for (size_t i = 0; i < pending_.size();) {
+      if (pending_[i].hint != h) {
+        ++i;
+        continue;
+      }
       Rect r = pending_[i].rect;
       pending_.erase(pending_.begin() + i);
       pushPass(r, h);
-      break;
+      if (h != Hint::Feedback) break;
     }
   }
 }

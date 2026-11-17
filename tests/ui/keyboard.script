@@ -16,3 +16,9 @@ shot keyboard-symbols
 long 270 104            # masked field: Paste and Clear only, never Copy
 wait 900
 shot keyboard-menu-masked
+tap 270 100             # outside the sheet: it closes
+wait 900
+shot keyboard-menu-closed
+tap 498 855 200         # backspace with a real finger (200 ms down: the key shows pressed, then goes back, and a bullet
+wait 900                # leaves the field): small pushes at the key and at the field, not one box from the field to the key
+expect-max-pushed 30000

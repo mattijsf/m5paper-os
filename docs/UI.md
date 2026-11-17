@@ -204,7 +204,9 @@ enter. Events through `onKey(Kind, text)`; `bindKeyboard(kb, field, onEnter)` wi
 (72 px, optional masking with bullets, shows the tail of long text, caret). A key's pressed look (ink) appears
 only after a 120 ms hold, and only the key's rectangle is redrawn (`Widget::invalidateRect`): a quick tap
 pushes just the changed text-field pixels (every character key of the 12-character password in
-`keyboard.script` stays under 6000 px; shift / layer switches repaint all keys and are not size-checked).
+`keyboard.script` stays under 6000 px; shift / layer switches repaint all keys and are not size-checked). A finger
+that stays down 200 ms (`tap X Y 200` at the end of the script) pushes the key twice and the field once, each on its own
+(DISPLAY.md rule 7).
 `TextBlock` + pure pagination (`layoutPage`, `paginate`, `pageIndexOf`, `parseMarked`): a position is
 (paragraph, byte offset), so it survives a change of font size or margins. Greedy line breaking at spaces
 (a word is the pieces that touch, so a style change or punctuation in its own run never opens a gap), long
