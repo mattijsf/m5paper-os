@@ -1071,6 +1071,34 @@ def analyse_timing(views, times, pushes, t_input):
     return lines, act
 
 
+def background_flash(views, times, frame_before, frame_after, pushes, t_input):
+    """How much the white that stays white darkens while each push runs: what a refresh does to pixels it does not
+    change (the "flash"). Lines for the report; the unit is % of this video's white-to-ink contrast."""
+    sh, sw = views[0].shape[:2]
+    def small(mask, k):
+        m = cv2.erode(mask.astype(np.uint8), np.ones((k, k), np.uint8))
+        return cv2.resize(m, (sw, sh), interpolation=cv2.INTER_AREA) >= 1
+    white = small((frame_before >= 250) & (frame_after >= 250), 9)  # white before and after, away from ink in both
+    ink = small(frame_before <= 16, 5)
+    pre = [i for i in range(len(times)) if times[i] < t_input][-10:]
+    if white.sum() < 300 or len(pre) < 2:
+        return []
+    level = np.array([float(v[white].mean()) for v in views])
+    base = float(np.median(level[pre]))
+    black = float(np.median([views[i][ink].mean() for i in pre])) if ink.sum() >= 50 else 0.0
+    contrast = max(base - black, 1.0)
+    lines = []
+    for i, (ts, mode, rect, _) in enumerate(pushes):
+        t_end = min([p[0] for p in pushes[i + 1:] if p[0] > ts] + [ts + 1.8, times[-1]])
+        win = [k for k in range(len(times)) if ts <= times[k] <= t_end]
+        if not win:
+            continue
+        k = min(win, key=lambda j: level[j])
+        dip = 100.0 * (base - level[k]) / contrast
+        lines.append(f"white that stays white during push {mode}: darkest {dip:.1f} % of contrast, {1000 * (times[k] - ts):.0f} ms after the push")
+    return lines
+
+
 def draw_timing(times, act, pushes, t_input, path, title):
     Wd, Hd, m = 1200, 420, 50
     img = np.full((Hd, Wd, 3), 255, np.uint8)
@@ -1221,6 +1249,8 @@ def cmd_around(a):
         say(f"  panel registered ({how})")
     views = warped_stack(rec.frames, Hm_small)
     lines, act = analyse_timing(views, times, pushes, t_input)
+    if Hm_small is not None:
+        lines += background_flash(views, times, frame_b, load_frame(after_png), pushes, t_input)
     for l in lines:
         say("  " + l)
     tim = os.path.join(ROOT, "out", "cam-timing.png")

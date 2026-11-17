@@ -143,7 +143,7 @@ can be tuned on the device without rebuilding (task P7-1).
   device wait after each push and log `[epd] ... push+waveform <ms> done t=<ms>` (blocks the UI:
   debug only).
 
-## Unchanged pixels are left alone (2026-11-17, `tools/patch_m5gfx.py` patch 4; **not seen on the panel yet**)
+## Unchanged pixels are left alone (2026-11-17, `tools/patch_m5gfx.py` patch 4; measured on the panel the same day)
 
 Measured in the simulator
 (refresh log of a walk through Settings): every navigation is a Fast pass over 78 % of the screen (the content area,
@@ -167,11 +167,25 @@ there by Text or Quality). Only what changes is driven: the settle touches the a
 navigation the pixels that differ. Quality is untouched (a clean drives everything). `>set epd-keep off` gives the stock
 rule back while the device runs, `on` the patch: for a comparison with the camera.
 
-**Open (Pending device checks in STATUS.md)**: none of this has been on a panel. To look at: the walk through Settings
-with `cam.py around tap` on a row, `epd-keep` off against on (the sweep 0.6 s after the tap should be gone); whether
-white left by Fast next to white driven by Text shows as patches; ghosting after 20 navigations (the settle no longer
-refreshes unchanged pixels, so the score's "a settle takes half back" may be too kind: `ghostLimit` may have to come
-down). Also changed: a toast is a Content update, not a Screen change (it could trigger the full-screen Quality clean).
+**On the panel (2026-11-17, camera locked, 640x480 at 30 fps, `cam.py around tap` on Settings > Display and back; the
+stock rule and the patch in one session, switched with `>set epd-keep`)**. The number is how much the white that stays
+white (white in the frame dump before and after, away from ink) darkens while a push runs, in % of that video's
+white-to-ink contrast (`cam.py around` prints it per push since this day):
+
+| | Fast pass of the navigation | Text settle 0.6 s later |
+|---|---|---|
+| stock rule (`epd-keep off`) | 25-31 % darker, visible 236-241 ms | **66-82 % darker**, visible 327-367 ms |
+| patch 4 (`epd-keep on`) | 0.3-0.4 %, visible 73-106 ms (what changed) | 0.5 % or less, "no visible change in its rect" |
+
+So the background nearly reached ink during the settle and a quarter of the way during the Fast pass, twice per
+navigation; with the patch neither shows. The screen is final about 1.17 s after the tap instead of 1.34 s.
+The settle still does its work: Display lab, Check (a Fast pass) then Ramp (Fast, then the Text settle): the 16 levels read
+the same with the patch as with the stock rule (every level within 0.01: g0 0.03, g7 0.41, g12 0.74, g15 1.02). Ghost after
+20 navigations from a cleaned Settings list, against the same page after a Clean: **0.75 %** with the patch (p95 3.5 %),
+1.09 % with the stock rule (p95 4.3 %): one run each, so "not worse" is what it says; the ghost budget stays as it is.
+`>set epd-selftest on` after the flash: "identical" for Fast and Quality. (In that ramp g11 read 0.49 between g10 0.70 and
+g12 0.74, with and without the patch: not from this change; the set-up was moved since the ramp of 2026-11-16.)
+Also changed: a toast is a Content update, not a Screen change (it could trigger the full-screen Quality clean).
 
 ## Navigation speed (2026-11-15)
 
@@ -382,7 +396,7 @@ Commands (`uv run --script tools/cam.py ...`; every command has a run limit and 
 | `make cam-video SECONDS=5` | `video`: `out/cam.mp4`, 60 fps if the camera offers it, else its best rate. |
 | `make cam-compare` | `device-shot` + `cam-shot` + `compare`: warp to 540x960, residual against the frame dump. Prints the **ghost number** (mean, p95) overall and per region (3 columns x 4 rows), the measured lightness per gray level on flat areas (the Display lab Ramp), and writes `out/cam-diff.png` (camera, frame dump, ghost heat map). |
 | `calibrate` | registers `out/cam.png` against `out/device.png`, saves the outline, draws it into `out/cam-calibrated.png`. |
-| `around tap X Y` / `long X Y` / `swipe X1 Y1 X2 Y2` | frame dump, video, the input through the serial port, the serial log read line by line, `>refresh`, frame dump after. Each push in the refresh log gets a host time (its `[disp] push` line arrives when the push call returns), and the video says per push when its rect starts and stops changing on the panel. Writes `out/cam-timing.png` (change per frame, push markers), `out/cam-frames.png` (frames with the most change), `out/cam-around.mp4`, and `compare` of the last frame against the frame dump after. Refuses a serial port that another process holds. |
+| `around tap X Y` / `long X Y` / `swipe X1 Y1 X2 Y2` | frame dump, video, the input through the serial port, the serial log read line by line, `>refresh`, frame dump after. Per push also "white that stays white ... darkest N % of contrast": the flash a pass shows on pixels it does not change. Each push in the refresh log gets a host time (its `[disp] push` line arrives when the push call returns), and the video says per push when its rect starts and stops changing on the panel. Writes `out/cam-timing.png` (change per frame, push markers), `out/cam-frames.png` (frames with the most change), `out/cam-around.mp4`, and `compare` of the last frame against the frame dump after. Refuses a serial port that another process holds. |
 | `compare --ref IMG` | ghost relative to a camera image of the same page after Clean (Quality) in the same session: the uneven light cancels out. Use this for ghost numbers. |
 | `selftest` | synthetic camera images (perspective, uneven light, blur, noise): registration within 0.5 px, the ghost of Checker under White found in the right region and rising with the amount, timing of a synthetic Fast push within a frame. |
 

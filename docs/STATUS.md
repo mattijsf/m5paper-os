@@ -306,6 +306,31 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   visible, too thin to be usable; S24: yes." Done: `divider` gray(11) -> gray(9), `disabled` gray(7) -> gray(5); `secondary` stays gray(3) (the caption limit). Limits in UI.md.
   Still to look at: the gray(9) dividers in a list, the gray(13) icon wells of the launcher tiles.
 
+## Done on the device 2026-11-17 (firmware f2dda37 + the camera tool's new number; flashed 09:50, 2,428,912 bytes)
+
+The review's refactor, the flash patch and the Wi-Fi page, with injected taps, frame dumps, the serial log and the camera
+(the device had been put back under it: registered afresh, 149-248 SIFT inliers per image, exposure 25 ms, focus 40).
+
+- **Serial path (`Remote::feed`)**: status, frame dumps (CRC ok), a 300 KB upload with `tools/push.py` (124 KB/s) and its
+  delete; a command line of 614 bytes answers `#err line too long` and the next command works; `>rm` of `/sd/paperos/`,
+  `/sd/paperos/.`, `/sd//paperos`, `/sd/paperos_config`, `/sd/paperos/../paperos_config` all refused, the folder's
+  entries unchanged.
+- **Driver**: `epd-selftest`: Fast and Quality identical. Flash patch: DISPLAY.md "Unchanged pixels are left alone" (the
+  white background darkened 66-82 % of contrast in every settle and 25-31 % in every Fast pass; with the patch under
+  0.5 %; grays after the settle unchanged; ghost after 20 navigations 0.75 % against 1.09 %).
+- **Card and flash writes**: six page turns in a book (the reading position is rewritten on the card: FAT, where a file
+  is replaced by stepping the old one aside), `>poweroff 20`: the board came back, the scheduled refresh joined Wi-Fi and
+  read both feeds over HTTPS (3.8 s), the book reopened from its cached index on the same page (frame dump identical,
+  crc e24e472d before and after); no `.old`, `.tmp` or `.part` file left in the reader's cache.
+- **Files over Wi-Fi on the card** (curl from the Mac, 14 checks): upload, upload over the same name, chunked upload,
+  COPY over a file, MOVE over a file (bytes compared by MD5 each time), a request with a 9000-byte header line closed
+  without being run, delete; nothing left behind (`.upload-*`, `.copy-*`, `.old`).
+- **Wi-Fi "Join a network"**: 9 networks after the first scan, 10 after the later ones (one the first scan had missed),
+  two pages, rows stayed in place, the card's network marked "Saved". The reader menu, built with the new sheet helper,
+  opens and "Library" leaves the book.
+- Side effect of the test: "The Time Machine" was opened and turned to page 6 (the book the device reopened; the position
+  of Alice is untouched).
+
 ## To verify with the camera (P7-7)
 
 - **Fast pass = ordered dither: done 2026-11-16.** Confirmed on the panel by the camera session with Display lab "Fast" (firmware 8f221ab): 16 bands of steadily rising lightness (numbers in DISPLAY.md "Fast then settle"). The simulator's Fast emulation (70dba80) stays. "First the text, then the lines" was the old simulator emulation: on the panel a gray divider is in the first pass as a dotted line. Images (local): `out/cam-diff-fastramp.png`, `out/fast-ramp-zoom.png`.
@@ -357,26 +382,10 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
-- **Flashes while navigating (2026-11-17, driver patch 4, not flashed: no device attached).** DISPLAY.md "Unchanged
-  pixels are left alone" has the cause (read from the driver source) and what to look at. After the next flash: the log
-  must show the same pushes as before (`F ... why=screen`, `T ... why=settle`); with the camera, `around tap` on a
-  Settings row with `tools/device.py set epd-keep off` and then `on`: the dark sweep of the settle and the blink of the
-  Fast pass should be gone with it on. If the panel shows patches or more ghost, `epd-keep off` is the old behaviour
-  without a reflash. `tools/device.py set epd-selftest on` still has to say "identical" (patch 1 is untouched).
-- **Wi-Fi "Join a network" (2026-11-17, simulator only)**: on the device, in a place with many networks: all of them
-  listed over the pages, the count growing over the three scans (each a few seconds), rows not moving, the arrows in
-  the title bar starting over; a network that the first scan missed must appear.
-- **Code review and refactor (2026-11-17, commits 4a39887, 812f00c, dad9bbf, 42293ab and the one after): not flashed, no
-  device was attached.** Host only: 303 unit tests, 231 goldens identical (one re-accepted: `inbox-error`), the file server
-  end to end with curl against the simulator (17 checks), `make fw` builds. On the device, after the next flash:
-  (1) the serial path now goes through `Remote::feed`: `tools/device.py status`, a frame dump, `tools/push.py` of a file
-  to `/sd/paperos/` (the upload's bytes and the next command in one stream), `tools/device.py rm` of that file, and a
-  command line over 512 bytes answering `#err line too long`; (2) Files over Wi-Fi: an upload over an existing book, a MOVE
-  over a file, a COPY (the old file must survive a failure: the card's FAT takes the "step aside" branch of
-  `fs.cpp replaceReal`, which the host tests cannot reach: POSIX rename replaces); (3) `/data` writes after the change
-  (settings saved, reading position kept across a power-off); (4) the clock in the status bar, the launcher's date line and
-  the weather hours (`core/timefmt` now feeds them); (5) open a book that was opened before (the cached page index is now
-  checked: it must still be taken, `cached index` in the log, not rebuilt).
+- **After the device run of 2026-11-17** (below, "Done on the device 2026-11-17"), still open: the flash patch for the
+  user's eyes in daily use (the camera says the sweep is gone; whether anything else looks off, e.g. patches of white, is
+  for a look); Finder and a phone on Files over Wi-Fi (curl only so far); the Wi-Fi scan page with a real finger while
+  the list grows.
 - **Size pass (D31)**: with the trimmed firmware, not run yet: the word list fetch from woordscore.nl (its roots are in the
   44-certificate list, but the fetch runs at most once a day), Files over Wi-Fi (the server's sockets are unchanged; TLS server
   and SoftAP code are gone), a Wi-Fi reconnect after sleep, a night of normal use (silent assertions: a crash shows an address
@@ -946,3 +955,8 @@ None of these block Phase 1, Phase 2, or the reader.
   again redraws only the rows that changed. Not on a panel yet. (2) "Wifi networks do not refresh. It only does a scan
   once but it doesn't find/show all": the scan page lists every network (paged), scans three times and adds what is new
   at the end, with a scan-again action; `ScanList` (unit test), `wifi crowd N` in the simulator, goldens `wifi-scan-*`.
+- 2026-11-17: Device run after the review (the owner put the device back on USB under the camera). Flashed; serial path,
+  delete guard, file server on the card, power-off resume, Wi-Fi scan page: all pass ("Done on the device 2026-11-17").
+  The flash patch measured with the camera: the unchanged white background darkened 66-82 % of contrast in every settle
+  pass with the stock driver rule, under 0.5 % with patch 4; grays and ghost not worse. `cam.py around` now prints that
+  number per push.
