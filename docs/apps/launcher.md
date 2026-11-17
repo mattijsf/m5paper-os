@@ -69,3 +69,13 @@ check again until an app was opened and left). On the device (boot): Wi-Fi joine
 log says `[relay] launcher check: read`, and the panel changed only by the Wi-Fi icon (nothing was unread); leaving
 Settings a moment later started no second read. Goldens: `agenda-launcher-page2` (the agenda line and "4 unread" are
 there before any app was opened), `inbox-badges-launcher`.
+
+## Twelve apps to a page (2026-11-17)
+
+The grid is 3 columns x 4 rows of small tiles (`ui::Tile::Size::Small`: 153 x 160, the same 64 px icon and well as the
+large tile, the label in the body size, the badge in the corner), 16 px apart. The nine apps fit one page with a row to
+spare; the page bar comes back with the thirteenth app, and four rows end exactly where it starts, also with the agenda
+line above them. Before: 2 x 3 large tiles, the seventh app on a second page. The Home app keeps the large tiles (they
+hold a value line). Tile centres for scripts and injected taps: x 100 / 270 / 439, y 248 / 424 / 600 / 776 (28 lower
+when the agenda line shows). Goldens: `launcher`, `launcher-summary`, `agenda-launcher`, `wordgame-launcher`,
+`inbox-badges-launcher` and the ones that show the launcher behind something.

@@ -17,7 +17,11 @@ namespace pos::apps::launcher {
 
 namespace {
 
-constexpr int kPerPage = 6;  // 2 columns x 3 rows
+// Three columns of four small tiles: twelve apps to a page (the nine there are fit one page; until 2026-11-17 it was
+// 2 x 3 large tiles, and the seventh app was on a second page). Four rows of 160 with 16 between end where the page bar
+// starts, also with the agenda line above them.
+constexpr int kColumns = 3, kRows = 4;
+constexpr int kPerPage = kColumns * kRows;
 
 std::string dateLine(hal::Clock& clock) {
   const int64_t now = clock.now();
@@ -61,11 +65,11 @@ class LauncherScreen : public Screen {
     auto* pager = root.add<ui::Pager>(pages);
     pager->flex = 1;
     pager->bar()->visible = pages > 1;
-    auto* grid = pager->add<ui::Column>(ui::s3);
-    for (int r = 0; r < 3; ++r) {
-      auto* row = grid->add<ui::Row>(ui::s3, ui::Align::Start);
-      for (int c = 0; c < 2; ++c) {
-        auto* tile = row->add<ui::Tile>();
+    auto* grid = pager->add<ui::Column>(ui::s2);
+    for (int r = 0; r < kRows; ++r) {
+      auto* row = grid->add<ui::Row>(ui::s2, ui::Align::Start);
+      for (int c = 0; c < kColumns; ++c) {
+        auto* tile = row->add<ui::Tile>(ui::Icon::House, "", ui::Tile::Size::Small);
         tile->flex = 1;
         tiles_.push_back(tile);
       }

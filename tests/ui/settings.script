@@ -1,6 +1,6 @@
 # Settings: the list, then every section. Changes are plain Fast passes; "Clean screen now" is the one Quality flash.
 wait 300
-tap 140 700             # launcher: Settings tile
+tap 270 424             # launcher: Settings tile
 wait 300
 shot settings-list
 tap 270 172             # Wi-Fi

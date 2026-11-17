@@ -1,7 +1,7 @@
 # P7-1: Settings > Developer > Display lab. The patterns; Checker and White are Fast passes (the ghost test), Clean is the Quality pass.
 # Fast: the ramp left in its Fast state (a Page push, no settle pass): the emulated panel shows the driver's ordered dither.
 wait 300
-tap 140 700             # launcher: Settings
+tap 270 424             # launcher: Settings tile
 wait 600
 tap 270 748             # Developer
 wait 900

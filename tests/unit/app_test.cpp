@@ -464,14 +464,21 @@ void collectTiles(ui::Widget* w, std::vector<ui::Tile*>& out) {
 
 }  // namespace
 
-TEST_CASE("launcher: tiles come from the registry in order; a tap opens the app; paging beyond six apps") {
+TEST_CASE("launcher: tiles come from the registry in order; a tap opens the app; paging beyond twelve apps") {
+  // Enough apps for a second page, whatever the other tests registered.
+  struct Filler : App {
+    void onStart(AppContext&) override {}
+  };
+  static const char* const kNames[] = {"fill-a", "fill-b", "fill-c", "fill-d", "fill-e", "fill-f"};
+  for (int i = 0; AppRegistry::instance().sorted().size() <= 12 && i < 6; ++i)
+    AppRegistry::instance().add({kNames[i], kNames[i], Icon::Info, 200 + i}, &createApp<Filler>);
   LEnv env;
   std::vector<ui::Tile*> tiles;
   collectTiles(env.shell->root().root(), tiles);
-  REQUIRE(tiles.size() == 6);  // a 2 x 3 grid, reused per page
+  REQUIRE(tiles.size() == 12);  // a 3 x 4 grid, reused per page
   auto apps = AppRegistry::instance().sorted();
-  REQUIRE(apps.size() > 6);  // the apps plus the test apps: more than one page
-  for (int i = 0; i < 6; ++i) CHECK(tiles[i]->label() == apps[i]->info.name);
+  REQUIRE(apps.size() > 12);  // more than one page
+  for (int i = 0; i < 12; ++i) CHECK(tiles[i]->label() == apps[i]->info.name);
   CHECK(tiles[0]->label() == "Read");  // order 10 comes first
 
   // tap the Read tile: the app opens on its library
@@ -494,9 +501,9 @@ TEST_CASE("launcher: tiles come from the registry in order; a tap opens the app;
   ui::Pager* pager = findPager(root);
   REQUIRE(pager != nullptr);
   CHECK(pager->bar()->visible);
-  CHECK(pager->pages() == static_cast<int>((apps.size() + 5) / 6));
+  CHECK(pager->pages() == static_cast<int>((apps.size() + 11) / 12));
   pager->next();
-  CHECK(tiles[0]->label() == apps[6]->info.name);
+  CHECK(tiles[0]->label() == apps[12]->info.name);
 }
 
 // ---- settings

@@ -382,6 +382,8 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Launcher 3 x 4 (2026-11-17, simulator only)**: flash, frame dump against the golden `launcher`, a tap on a tile of
+  each row, badges on a small tile; for a person's fingers: whether 153 x 160 tiles are comfortable to hit.
 - **After the device run of 2026-11-17** (below, "Done on the device 2026-11-17"), still open: the flash patch for the
   user's eyes in daily use (the camera says the sweep is gone; whether anything else looks off, e.g. patches of white, is
   for a look); Finder and a phone on Files over Wi-Fi (curl only so far); the Wi-Fi scan page with a real finger while
@@ -998,3 +1000,7 @@ None of these block Phase 1, Phase 2, or the reader.
   or try is over ten minutes old, 1.5 s later, in the background (apps/launcher.md "Fresh badges"). On the device
   after a boot: Wi-Fi 1.3 s, the read 1.2 s, only the Wi-Fi icon changed on the panel; no second read on the next
   return to the launcher. Golden `agenda-launcher-page2` re-accepted. Not seen with a real unread message yet.
+- 2026-11-17: Launcher redesign: 3 x 4 small tiles, twelve apps to a
+  page, all nine on one page (apps/launcher.md "Twelve apps to a page"). `ui::Tile` has two sizes. Simulator, unit
+  tests (308) and goldens (238; 16 re-accepted, `agenda-launcher` and `wordgame-launcher` replace the two page-2
+  shots). **Not flashed**: the device was not on the USB bus when this was done (Pending device checks).

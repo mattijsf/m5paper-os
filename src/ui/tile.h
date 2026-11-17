@@ -1,5 +1,6 @@
-// Tile: launcher / Home app square with a 64 px icon well, a label, an optional value and badge.
-// Pressed = 4 px border (pure ink and paper). docs/UI.md "Widgets".
+// Tile: an outlined square with a 64 px icon in a well, a label, an optional value and badge. Two sizes: Large (two to
+// a row, 196 high: the Home app's rooms and scenes) and Small (three to a row, 160 high, the label one size down: the
+// launcher, twelve apps to a page). Pressed = 4 px border (pure ink and paper). docs/UI.md "Widgets".
 #pragma once
 
 #include <string>
@@ -10,7 +11,9 @@ namespace pos::ui {
 
 class Tile : public Pressable {
  public:
-  explicit Tile(Icon icon = Icon::House, std::string label = "") : icon_(icon), label_(std::move(label)) {}
+  enum class Size : uint8_t { Large, Small };
+  explicit Tile(Icon icon = Icon::House, std::string label = "", Size size = Size::Large)
+      : icon_(icon), label_(std::move(label)), size_(size) {}
   void setLabel(const std::string& t);
   void setValue(const std::string& t);  // e.g. "21.5 °C": a second line below the label
   void setBadge(int count);             // 0 hides it
@@ -19,7 +22,8 @@ class Tile : public Pressable {
   void setBlank(bool blank);
   const std::string& label() const { return label_; }
 
-  Size measure(int availW) override { return {availW, 196}; }
+  static constexpr int kLargeH = 196, kSmallH = 160;
+  ui::Size measure(int availW) override { return {availW, size_ == Size::Small ? kSmallH : kLargeH}; }
   void draw(Canvas& c) override;
 
  private:
@@ -27,6 +31,7 @@ class Tile : public Pressable {
   std::string label_, value_;
   int badge_ = 0;
   bool blank_ = false;
+  Size size_;
 };
 
 }  // namespace pos::ui

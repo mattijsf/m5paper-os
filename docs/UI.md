@@ -133,7 +133,7 @@ class Widget {
 | `IconView` | icon glyph | 32 or 64 |
 | `Button` | primary (filled ink) / secondary (2 px outline) / text | height 72; pressed = inverted |
 | `IconButton` | 72x72 target with a 32 px icon | |
-| `Tile` | launcher / Home app square: 64 px icon well + label, optional value and badge | pressed = 4 px border |
+| `Tile` | outlined square: 64 px icon in a well + label, optional value and badge. `Size::Large` (two to a row, 196 high, title-size label: Home) and `Size::Small` (three to a row, 160 high, body-size label: the launcher) | pressed = 4 px border |
 | `ListItem` | 96 px row: leading icon, title, subtitle, trailing text / chevron / toggle / badge | divider below |
 | `Toggle` | on/off pill 88x48 | on = filled ink with paper knob; pure black/white |
 | `LevelBar` | 10 segments, tap a segment to set 10..100% | replaces sliders: dragging is poor on e-ink |
@@ -249,7 +249,8 @@ this: the firmware cannot read it (HARDWARE.md). No app may use a swipe up from 
 
 - **Lists**: `ListItem` rows of 96 px, 7 per page with TitleBar and Pager. Never scroll.
 - **Detail**: tap a row to push a detail screen (full text) or open a `Sheet` (quick controls).
-- **Grids**: 2 columns of `Tile`, 3 rows per page (as in the Phase 0 mock, `out/spike.png`).
+- **Grids**: the launcher: 3 columns of small `Tile`, 4 rows per page, 16 px between (twelve apps to a page; until
+  2026-11-17 2 x 3 large tiles). Home: 2 columns of large `Tile`.
 - **Confirmation**: destructive actions use a `Sheet` with a primary and a secondary button: `ui::confirmSheet(from, title,
   body, okText, onOk)`. Any other sheet: `ui::openSheet(from, [](ui::Sheet& s) { ... })`, with `s.addButton(text, action,
   kind)` for buttons that close it first (`s.closing(action)` for a button in a row of its own). Do not build a sheet by hand.

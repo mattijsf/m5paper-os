@@ -1,7 +1,7 @@
 # Wi-Fi settings in the fake Wi-Fi world (HomeNet and Office/Guest 2.4 are on the card; Neighbour and CafeFree are
 # strangers). Data: tests/ui/data/wifi/sd/paperos_config.
 wait 300
-tap 140 700             # Settings tile
+tap 270 424             # launcher: Settings tile
 wait 300
 tap 270 172             # Wi-Fi
 wait 900

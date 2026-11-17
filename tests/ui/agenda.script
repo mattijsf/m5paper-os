@@ -1,12 +1,10 @@
 # P7-10: the Agenda app (docs/apps/agenda.md, D28). The phone's calendar comes through the encrypted relay (fixture
-# ha-agenda.example.test, tests/fixtures/make-inbox-fixtures.py): two `agenda` runs after two chats. Opened from launcher page 2;
+# ha-agenda.example.test, tests/fixtures/make-inbox-fixtures.py): two `agenda` runs after two chats. Opened from its launcher tile;
 # today is Thursday 15 January 2026, 13:34. Day view first (time blocks, the now line), then the list, then the line on the
 # launcher and on the sleep screen.
-wait 800
-tap 480 922             # launcher: next page
-wait 900                # (1.5 s after the launcher came up it read the relay itself: the agenda line and "4 unread" are there)
-shot agenda-launcher-page2
-tap 400 266             # the Agenda tile
+wait 1700               # (1.5 s after the launcher came up it read the relay itself: the agenda line and "4 unread" are there)
+shot agenda-launcher
+tap 270 628             # the Agenda tile (third row, under the agenda line)
 wait 1500
 shot agenda-day
 expect-state view=day|date=2026-01-15

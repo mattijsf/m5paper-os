@@ -1,7 +1,7 @@
 # The home screen and opening / closing apps. Navigation is a Screen change: Fast passes, no Quality flash.
 wait 300
 shot launcher
-tap 140 260             # Read tile
+tap 100 248             # Read tile
 wait 300
 expect-no-quality
 shot launcher-read
@@ -12,7 +12,7 @@ shot launcher-back-first  # the first push already shows the gray icon wells (on
 wait 800
 expect-no-quality
 shot launcher-back      # same as the settled launcher
-tap 400 480             # Mail tile
+tap 100 424             # Mail tile
 wait 300
 expect-no-quality
 shot launcher-mail
@@ -27,7 +27,7 @@ expect-no-quality
 tap 140 900             # Clean screen: the one Quality refresh
 wait 2500
 shot quick-panel-cleaned
-tap 140 700             # an app open: the panel opens there too
+tap 270 424             # an app (Settings) open: the panel opens there too
 wait 900
 swipe 270 20 270 400
 wait 700

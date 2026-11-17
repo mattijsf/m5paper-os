@@ -1,10 +1,9 @@
 # time: 2028-01-20T09:00:00
-# Word game is the seventh app: the launcher gets a second page (2 x 3 tiles per page). Page 2, then the game opened from its tile.
+# The word game is the seventh app: third row of the launcher (3 x 4 small tiles; it was on a second page of 2 x 3
+# large ones until 2026-11-17). The launcher, then the game opened from its tile.
 wait 800
-tap 480 922             # next page
-wait 900
-shot wordgame-launcher-page2
-tap 140 266             # the the word game tile
+shot wordgame-launcher
+tap 100 600             # the word game tile
 wait 900
 shot wordgame-from-launcher
 expect-state view=play

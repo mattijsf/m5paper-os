@@ -18,6 +18,16 @@ void Tile::draw(Canvas& c) {
   if (blank_) return;
   strokeRound(c, frame, kRadius, pressed_ ? 4 : kStroke, ink);
   const int cx = frame.x + frame.w / 2;
+  if (size_ == Size::Small) {
+    // The same icon and well as the large tile (a smaller well shows the corners of the icon's own square), the label
+    // in the body size (it has 137 px: "WhatsApp" fits).
+    const int iconY = frame.y + 62;
+    c.fillCircle(cx, iconY, 44, fill);
+    drawIcon(c, icon_, cx, iconY, 64, ink, fill);
+    drawText(c, ellipsize(c, label_, Type::BodyStrong, frame.w - 2 * s1), cx, frame.y + 132, Type::BodyStrong, ink, Anchor::MiddleCenter, bg());
+    if (badge_ > 0) drawBadge(c, frame.x + frame.w - s1 - 4, frame.y + s1 + 18, badge_, bg());
+    return;
+  }
   const bool hasValue = !value_.empty();
   const int iconY = frame.y + (hasValue ? 60 : 72);
   c.fillCircle(cx, iconY, 44, fill);
