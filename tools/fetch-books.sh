@@ -21,6 +21,7 @@ books=(
   "35|The Time Machine - H. G. Wells.txt|txt.utf-8"
 )
 
+failed=0
 for entry in "${books[@]}"; do
   IFS='|' read -r id name suffix <<<"$entry"
   out="$dest/$name"
@@ -34,8 +35,10 @@ for entry in "${books[@]}"; do
   else
     rm -f "$out.part"
     echo "FAILED $name (id $id)" >&2
+    failed=1
   fi
   sleep 2
 done
 
 ls -lh "$dest"
+exit "$failed"   # make books must not push and report success when a download failed

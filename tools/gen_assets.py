@@ -41,6 +41,8 @@ def patch_cmap(data, name):
     off = 0
     while off < len(b):
         size, = struct.unpack_from("<I", b, off)
+        if size < 8:  # a table is at least its size and name: anything less would never advance
+            sys.exit(f"{name}: bad table size {size} at offset {off}")
         if bytes(b[off + 4:off + 8]) == b"cmap":
             n, = struct.unpack_from("<I", b, off + 8)
             for i in range(n):

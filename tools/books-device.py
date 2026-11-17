@@ -41,11 +41,6 @@ class Dev:
             time.sleep(1.5)
         raise TimeoutError(pattern)
 
-    def shot(self, path):
-        _, payload, header = self.cmd(">shot")
-        pixels = device.unpack4(payload) if hasattr(device, "unpack4") else None
-        return header, payload
-
     def tap(self, x, y):
         self.cmd(f">tap {x} {y}")
 

@@ -6,7 +6,8 @@
 #   tools/books-check.sh PATTERN    only books whose file name contains PATTERN
 set -u
 cd "$(dirname "$0")/.."
-SIM=.pio/build/sim/program
+SIM_LIMIT=${SIM_LIMIT:-900}   # a long novel paged to its end takes minutes
+. tools/sim-run.sh            # SIM, run_sim (bounded)
 [ -x "$SIM" ] || { echo "books-check: $SIM missing: run make sim"; exit 2; }
 OUT=out/books-check
 rm -rf "$OUT"; mkdir -p "$OUT"
@@ -21,21 +22,21 @@ for book in sim-data/sd/books/*.epub sim-data/sd/books/*.txt; do
   mkdir -p "$data/sd/books"
   cp "$book" "$data/sd/books/"
   start=$(date +%s)
-  if "$SIM" --headless --app read --script tests/books/open-and-page.script --out "$OUT/$slug" --data "$data" --time 2026-01-15T12:34:00 >"$OUT/$slug.log" 2>&1; then
+  if run_sim tests/books/open-and-page.script "$OUT/$slug" "$data" --app read >"$OUT/$slug.log" 2>&1; then
     pages=$(grep -o 'reached page [0-9]*/[0-9]*' "$OUT/$slug.log" | head -1)
     opened=$(grep -o "opened '.*'" "$OUT/$slug.log" | head -1)
     printf 'ok   %-62s %s, %s (%ss)\n' "$name" "$opened" "$pages" "$(( $(date +%s) - start ))"
     cp "$OUT/$slug/first-page.png" "$OUT/$slug-first.png"; cp "$OUT/$slug/last-page.png" "$OUT/$slug-last.png"
     case "$name" in "Pride and Prejudice"*)   # the same page in every text size, and the menu
       mkdir -p "$OUT/$slug-data3/sd/books"; cp "$book" "$OUT/$slug-data3/sd/books/"
-      if "$SIM" --headless --app read --script tests/books/sizes.script --out "$OUT/$slug" --data "$OUT/$slug-data3" --time 2026-01-15T12:34:00 >"$OUT/$slug-sizes.log" 2>&1; then
+      if run_sim tests/books/sizes.script "$OUT/$slug" "$OUT/$slug-data3" --app read >"$OUT/$slug-sizes.log" 2>&1; then
         for a in menu size-s size-m size-l size-xl; do cp "$OUT/$slug/$a.png" "$OUT/$slug-$a.png"; done
         echo "ok   $name: text sizes ($OUT/$slug-size-*.png)"
       else echo "FAIL $name sizes:"; tail -3 "$OUT/$slug-sizes.log" | sed 's/^/    /'; fail=1; fi ;;
     esac
     case "$name" in "Max Havelaar"*)   # Dutch with accents: look at pages that have them
       mkdir -p "$OUT/$slug-data2/sd/books"; cp "$book" "$OUT/$slug-data2/sd/books/"   # a fresh card: nothing opened yet
-      if "$SIM" --headless --app read --script tests/books/accents.script --out "$OUT/$slug" --data "$OUT/$slug-data2" --time 2026-01-15T12:34:00 >"$OUT/$slug-accents.log" 2>&1; then
+      if run_sim tests/books/accents.script "$OUT/$slug" "$OUT/$slug-data2" --app read >"$OUT/$slug-accents.log" 2>&1; then
         for a in "$OUT/$slug"/accent-*.png; do cp "$a" "$OUT/$slug-$(basename "$a")"; done
         echo "ok   $name: pages with accents rendered ($OUT/$slug-accent-*.png)"
       else echo "FAIL $name accents:"; tail -3 "$OUT/$slug-accents.log" | sed 's/^/    /'; fail=1; fi ;;

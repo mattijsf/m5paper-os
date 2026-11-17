@@ -21,17 +21,20 @@ if ! printf '%s' "$id" | grep -Eq '^[a-z][a-z0-9_]*$'; then
   echo "new-app: id may only contain a-z, 0-9 and _" >&2
   exit 2
 fi
-if [ -e "src/apps/$id" ]; then
-  echo "new-app: src/apps/$id already exists" >&2
-  exit 1
-fi
+for target in "src/apps/$id" "tests/ui/$id.script" "docs/apps/$id.md"; do   # nothing that exists is overwritten
+  if [ -e "$target" ]; then
+    echo "new-app: $target already exists" >&2
+    exit 1
+  fi
+done
 if ! grep -Eq "^  $icon,\$" src/gen/icons.h; then
   echo "new-app: icon '$icon' is not in src/gen/icons.h." >&2
   echo "         Add its Lucide name to assets/icons.txt and run tools/gen-assets.sh." >&2
   exit 1
 fi
-if printf '%s' "$name" | grep -q '[\\"]'; then
-  echo "new-app: the name may not contain a quote or backslash" >&2
+# The name goes into C++ source and a sed replacement: no quote or backslash, and none of sed's own characters.
+if printf '%s' "$name" | grep -q '[\\"&/]' || [ "$(printf '%s' "$name" | wc -l)" -ne 0 ]; then
+  echo "new-app: the name may not contain a quote, backslash, & or /, or a line break" >&2
   exit 2
 fi
 

@@ -119,8 +119,8 @@ The page index file is `"PIX1"`, a u32 page count, then per page u16 chapter, u3
   deflated chapters, %20 in an href; `fixture2.epub`: EPUB 2 with NCX, stored chapter), damaged zips (cut, bit flips, wrong sizes and CRC, random damage); XHTML tokenizer (entities, nested
   tags, malformed input must not crash); pagination (no line wider than the column, page offsets
   strictly increasing, last page ends at chapter end, re-pagination keeps position).
-- UI: `tests/ui/reader.script` runs against a **generated** fixture book (built by a script in
-  `tests/unit/fixtures/`, committed), so goldens never depend on downloads. Shots: library,
+- UI: `tests/ui/reader.script` runs against a **generated** fixture book (built by
+  `tests/fixtures/make-book-txt.py` into `tests/ui/data/reader/sd/books/`, committed), so goldens never depend on downloads. Shots: library,
   first page, after 3 turns, menu.
 - Real books for manual testing: `tools/fetch-books.sh` downloads five public-domain EPUBs and
   one TXT from Project Gutenberg into `sim-data/sd/books/` (not committed): Pride and

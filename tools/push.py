@@ -94,6 +94,7 @@ def main():
         for f in a.files:
             if not os.path.isfile(f):
                 print(f"skip   {f}: not a file")
+                ok = False  # asked for and not pushed: the run did not do what it was told
                 continue
             total += os.path.getsize(f)
             ok = push_one(link, f, a.to, a.force) and ok

@@ -129,10 +129,14 @@ To hand text to any app instead, use the clipboard: `clipboard::set(text, "<your
    Change widget state and `invalidate()` with the right hint (`DISPLAY.md`).
 3. Use theme tokens and existing widgets (`UI.md`). A new widget goes in `src/ui/` if a second
    app could use it, with a line in the widget table of `UI.md`.
-4. Lists paginate with `ui::Pager`. No scrolling, no animation.
+4. Lists paginate with `ui::PagedList` (or `ui::Pager` when a page is more than rows). No scrolling, no animation.
 5. Show cached data immediately, then refresh: `ctx.cache.read` in `onShow`, then `ctx.http`.
-6. Handle failure visibly: `EmptyState` with a Retry button on first load, `Toast` otherwise.
+6. Handle failure visibly: `EmptyState` with a Retry button on first load, `Toast` otherwise. For Home Assistant the
+   screen is `apps::addHaErrorState(holder, error, retry)` (`apps/common/ha_error_state.h`): the same words in every app,
+   and a missing or refused token is told apart from "cannot reach".
 7. Shared code only: no `Arduino.h`, `M5Unified.h`, `SDL.h` (see `ARCHITECTURE.md`).
+8. No private copies of helpers: text, dates, paths, sheets, badges are in the table of `ARCHITECTURE.md` "Code
+   conventions". The launcher badge is `setAppBadge(ctx.appId(), n)`.
 
 ## Checklist for a new app
 

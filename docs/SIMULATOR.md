@@ -91,7 +91,9 @@ Exit code is non-zero if an `expect-*` fails or the app crashed.
 
 `tools/ui-test.sh` (task P1-5) runs every `tests/ui/*.script` headless into `out/ui/`, then
 compares each PNG byte-for-byte with `tests/ui/golden/<name>.png` (rendering is deterministic:
-fixed fonts, fake clock, fixtures).
+fixed fonts, fake clock, fixtures). The simulator is started through `run_sim` (`tools/sim-run.sh`, also used by
+`tools/books-check.sh`): a run that hangs is killed after `SIM_LIMIT` seconds (120; exit code 142) and shows as a failed
+script instead of blocking `make check`.
 
 ```bash
 make ui-test            # run all, list mismatches, exit 1 on any

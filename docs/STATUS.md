@@ -154,8 +154,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Simulator build | `make sim` | OK (first build ~3 min, then seconds) |
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
-| Firmware build | `make fw` | OK, 2,424,592 bytes = 2.31 MB (46.2% of the 5 MB slot; 721 KB under the 3 MB budget) after the size pass of D31, 2026-11-16 night (2.85 MB before it) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 258 tests; 206 goldens (2026-11-16, P7-11; the agenda work adds its own); `out/gallery.html` |
+| Firmware build | `make fw` | OK, 2,425,920 bytes = 2.31 MB (46.3% of the 5 MB slot; 720 KB under the 3 MB budget) after the code review of 2026-11-17 (2,424,592 after the size pass of D31; 2.85 MB before that) |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 303 tests; 231 goldens (2026-11-17, after the code review); `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Live view in a browser | `make view` (`ARGS=--sim`, `ARGS=--lan`) | `tools/view.py`: the device's frame on `http://127.0.0.1:8137/`, click = tap, hold = long press, drag = swipe; ~760 ms from click to new frame; holds the serial port (other device tools refuse to start meanwhile) |
@@ -357,6 +357,17 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Code review and refactor (2026-11-17, commits 4a39887, 812f00c, dad9bbf, 42293ab and the one after): not flashed, no
+  device was attached.** Host only: 303 unit tests, 231 goldens identical (one re-accepted: `inbox-error`), the file server
+  end to end with curl against the simulator (17 checks), `make fw` builds. On the device, after the next flash:
+  (1) the serial path now goes through `Remote::feed`: `tools/device.py status`, a frame dump, `tools/push.py` of a file
+  to `/sd/paperos/` (the upload's bytes and the next command in one stream), `tools/device.py rm` of that file, and a
+  command line over 512 bytes answering `#err line too long`; (2) Files over Wi-Fi: an upload over an existing book, a MOVE
+  over a file, a COPY (the old file must survive a failure: the card's FAT takes the "step aside" branch of
+  `fs.cpp replaceReal`, which the host tests cannot reach: POSIX rename replaces); (3) `/data` writes after the change
+  (settings saved, reading position kept across a power-off); (4) the clock in the status bar, the launcher's date line and
+  the weather hours (`core/timefmt` now feeds them); (5) open a book that was opened before (the cached page index is now
+  checked: it must still be taken, `cached index` in the log, not rebuilt).
 - **Size pass (D31)**: with the trimmed firmware, not run yet: the word list fetch from woordscore.nl (its roots are in the
   44-certificate list, but the fetch runs at most once a day), Files over Wi-Fi (the server's sockets are unchanged; TLS server
   and SoftAP code are gone), a Wi-Fi reconnect after sleep, a night of normal use (silent assertions: a crash shows an address
@@ -900,3 +911,21 @@ None of these block Phase 1, Phase 2, or the reader.
   (ESP-IDF and `-fno-exceptions`), common certificate bundle, TLS client only, no SoftAP (stub for Arduino's WiFi library), no
   WPA Enterprise, `CORE_DEBUG_LEVEL=1`, no mbedTLS error texts, silent assertions; `CONFIG_LWIP_IPV6=n` does not compile; our
   `-O2` never had an effect (the build script's `-Os` wins). Flashed: boot, HTTPS to Home Assistant, latency unchanged.
+- 2026-11-17: Code review of the whole code base (six reviewers in parallel, then verified by hand) and refactor, on the
+  user's "review code, refactor where needed. Good quality, no copy-paste, good api's. solid". Five commits. (1) One copy
+  of the helpers: `core/utf8`, `core/strings`, `core/crc32`, dates and their text in `core/timefmt`. (2) Bugs in core and
+  platform: `>rm /sd/books/` deleted the library (path spellings), a serial line over 128 bytes ran cut short, a failed
+  upload or MOVE lost the old file, `<header>` was skipped as `<head>`, navigation ran through a closed app's Nav, a
+  damaged page index was trusted, the log ring raced. (3) UI kit: `openSheet` / `confirmSheet`, `PagedList`,
+  `Widget::removeAll`; badge layout, Pager clamp, toast timer, emoji glyph cache. (4) Apps: launcher badges after a page
+  turn, one Home Assistant error screen, the daily games' shared module, dead code out. (5) Tools: failures give a failing
+  exit code (`push.py`, `fetch-books.sh`, `device.py rm/status/log`), `new-app.sh` refuses names that break sed and never
+  overwrites, simulator runs of the test scripts are bounded (`tools/sim-run.sh`). **Left from the review, not done**
+  (judged lower value or needing a decision): splitting `settings_app.cpp` (1040 lines), `book.cpp` and
+  `wordgame_app.cpp` by concern; one shared serial module for the Python tools (`device.py` is imported by five of them,
+  each with its own `ok()` / tap helpers); shared fake HAL and temp-card fixtures for the unit tests (17 and 5 copies);
+  file reads and JSON parsing on the UI thread in Home, the inbox and the launcher (APPS.md rule 1); `HaError` derived
+  from message text (`core/ha.cpp`); the unix-time "seen" marker stored as an `int` (2038); a reply of 900 non-ASCII
+  characters does not fit the 1000-byte envelope and is refused ("does not fit") instead of counted in bytes while typing;
+  `device.py` resends input commands (a slow device can run a tap twice); the inbox's "Clear caches" also deletes the
+  decrypted notifications. Not flashed (no device attached): Pending device checks.

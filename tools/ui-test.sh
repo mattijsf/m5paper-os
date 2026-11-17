@@ -5,7 +5,7 @@
 #   tools/ui-test.sh --accept  run, then copy out/ui/*.png over the goldens
 set -u
 cd "$(dirname "$0")/.."
-SIM=.pio/build/sim/program
+. tools/sim-run.sh   # SIM, run_sim (bounded)
 OUT=out/ui
 GOLD=tests/ui/golden
 ACCEPT=0
@@ -28,9 +28,9 @@ for s in "${scripts[@]}"; do
   app=$(sed -n 's/^# app: *//p' "$s" | head -1)   # optional "# app: NAME" header line
   time=$(sed -n 's/^# time: *//p' "$s" | head -1)  # optional "# time: 2026-11-16T09:00:00" header line (default below)
   rtc=$(sed -n 's/^# rtc: *//p' "$s" | head -1)    # optional "# rtc: unset": the clock was never set (--no-rtc) until a time sync
-  if ! "$SIM" --headless ${app:+--app "$app"} --script "$s" --out "$OUT" --data "out/ui-data/$(basename "$s" .script)" --time "${time:-2026-01-15T12:34:00}" ${rtc:+--no-rtc} >"$OUT/$(basename "$s").log" 2>&1; then
+  if ! run_sim "$s" "$OUT" "out/ui-data/$name" ${app:+--app "$app"} ${time:+--time "$time"} ${rtc:+--no-rtc} >"$OUT/$name.script.log" 2>&1; then
     echo "FAIL script $s:"
-    tail -n 8 "$OUT/$(basename "$s").log" | sed 's/^/    /'
+    tail -n 8 "$OUT/$name.script.log" | sed 's/^/    /'
     fail=1
   fi
 done

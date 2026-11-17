@@ -17,6 +17,7 @@ what the panel physically shows (no ghosting, no half-played waveforms).
 import argparse
 import glob
 import os
+import re
 import struct
 import subprocess
 import sys
@@ -342,7 +343,7 @@ def run_script(link, path, out_dir, golden_dir, verbose=False):
                 done = False
                 for _ in range(max_taps):
                     s = state()
-                    m = __import__("re").search(r"page=(\d+)/(\d+)", s)
+                    m = re.search(r"page=(\d+)/(\d+)", s)
                     if not m:
                         time.sleep(0.3)
                         continue
@@ -444,6 +445,8 @@ def main():
         elif a.cmd == "status":
             status, payload, _ = request(link, ">status", a.verbose)
             sys.stdout.write((payload or b"").decode(errors="replace"))
+            if not status.startswith("#ok"):
+                sys.exit(status)
         elif a.cmd == "ls":
             status, payload, _ = request(link, ">ls " + (a.args[0] if a.args else "/sd/books"), a.verbose)
             if not status.startswith("#ok"):
@@ -465,9 +468,13 @@ def main():
                 sys.exit("usage: rm PATH")
             status, _, _ = request(link, ">rm " + a.args[0], a.verbose)
             print(status)
+            if not status.startswith("#ok"):
+                sys.exit(1)
         elif a.cmd == "refresh":
             status, payload, _ = request(link, ">refresh", a.verbose)
             sys.stdout.write((payload or b"").decode(errors="replace"))
+            if not status.startswith("#ok"):
+                sys.exit(status)
         elif a.cmd == "set":
             if len(a.args) != 2:
                 sys.exit("usage: set KEY VALUE")
@@ -489,6 +496,8 @@ def main():
         elif a.cmd == "log":
             status, payload, _ = request(link, ">log", a.verbose)
             sys.stdout.write((payload or b"").decode(errors="replace"))
+            if not status.startswith("#ok"):
+                sys.exit(status)
         elif a.cmd == "wait-boot":
             limit = float(a.args[0]) if a.args else 30
             t0 = time.time()

@@ -43,6 +43,7 @@ src/
   core/               gfx.h (types), app framework, display manager, services
   ui/                 widget kit
   apps/<name>/        one folder per app
+  apps/common/        what several apps share: the Home Assistant error screen, the daily games' clock and score helpers
   hal/                abstract interfaces (headers only)
   platform/device/    main.cpp + HAL implementations on M5Unified
   platform/sim/       main.cpp + HAL implementations on SDL/host
@@ -262,5 +263,20 @@ Pin exact versions in `platformio.ini`. Do not add a library without an entry in
 - Colours are `pos::Color` (`uint32_t` 0xRRGGBB) and only the 16 grays from `gray(0..15)`.
   Passing a `uint8_t` or `uint16_t` colour to LovyanGFX silently selects RGB332 / RGB565.
 - Logging: `POS_LOG("tag", "fmt", ...)` (core/log.h): serial on the device, stderr in the sim.
+- **One copy of every helper** (2026-11-17, after a review found thirteen UTF-8 walkers and five date routines). Before
+  writing a small helper, look here; a second app that needs one moves it here instead of copying it:
+
+  | Need | Where |
+  |---|---|
+  | UTF-8: decode (strict), append, valid, length, prefix (first n characters), truncate (bytes, at a boundary) | `core/utf8.h` |
+  | trim, lower case, starts/ends with, split and join (also of numbers) | `core/strings.h` |
+  | day numbers and dates, "14:05", weekday and month names, "is the clock set" | `core/timefmt.h` |
+  | CRC-32 | `core/crc32.h` |
+  | paths: one spelling (`normalize`), `isDir`, a write or rename that keeps the old file until the new one is there | `core/fs.h` |
+  | "owed since" marks in a file | `core/time_mark.h` |
+  | an app's launcher badge | `appBadge` / `setAppBadge` in `core/store.h` |
+  | sheets (`openSheet`, `confirmSheet`, `Sheet::addButton`), a paged list (`PagedList`), `Widget::removeAll` | `ui/panels.h`, `ui/list.h`, `ui/widget.h` |
+  | the screen for "Home Assistant could not be read" | `apps/common/ha_error_state.h` |
+  | daily games: today's date, "Klok zetten", copy the score | `apps/common/daily_game.h` |
 - Strings shown to the user are English, kept in the app that shows them. Text from Home
   Assistant (entity names in `home.json`) is shown as-is, in Dutch.
