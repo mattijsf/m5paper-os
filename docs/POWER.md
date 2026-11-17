@@ -13,7 +13,7 @@ touch can wake the ESP32 from **light sleep** only, not from deep sleep or power
 |---|---|---|---|---|
 | **Active** | CPU, maybe Wi-Fi | input, worker job running, display busy | nothing left to do | 40-160 mA |
 | **Idle** (light sleep) | RAM kept, touch controller, RTC | UI thread has nothing to do | touch (GPIO 48), next timer, max 60 s tick | est. 1-5 mA, **measure** (P3-5) |
-| **Off** (PMS power-off) | RTC only | auto-off timeout, quick panel "Power off", battery below 3.3 V | side button; RTC alarm if a wake time was set | ~9 uA (docs) |
+| **Off** (PMS power-off) | RTC only | auto-off timeout, the launcher's power button, quick panel "Sleep now", battery below 3.3 V | side button; RTC alarm if a wake time was set | ~9 uA (docs) |
 
 There is no separate "deep sleep" state: power-off is lower and wakes on the same sources.
 
@@ -69,8 +69,11 @@ Shell writes `lastApp` to `/data/system.json` and closes the app so it saves), t
 ### Sleep screen
 
 A full-screen image drawn before power-off (Quality mode, it stays for hours): large clock-less
-layout with the current book cover and progress, or the PaperOS mark, plus "Press the side
-button to wake". Task P3-6 (simulator part done): `Shell::prepareForPowerOff()` asks the open app for `App::sleepInfo()`
+layout with the current book cover and progress, or the PaperOS mark, and at the bottom the state in words: the power
+icon with "Powered off" (title size, ink) and under it "Press the side button to start". The panel keeps its picture
+without power, so this line is the only thing that tells off from on. It is there only when the firmware switched the device off (auto-off, the launcher's power button,
+"Sleep now"): **a double click on the side button cuts the power outside the firmware** (HARDWARE.md), and the panel
+then keeps whatever was on it. Task P3-6 (simulator part done): `Shell::prepareForPowerOff()` asks the open app for `App::sleepInfo()`
 (title, subtitle, percent, cover path; the reader keeps these in its store while a book is open), closes the app, draws
 `core/sleep_screen` into the canvas and calls `forceClean()` (one Quality pass); the Shell draws nothing after that.
 One caption-sized line above the hint shows the cached unread count (and the time of the last scheduled refresh, see below);

@@ -1,5 +1,5 @@
 # P3-6 (simulator): power-off with Settings open: the PaperOS mark as sleep screen; the next boot opens Settings again. A second
-# power-off from the launcher resumes to the launcher.
+# power-off, with the power button of the launcher, resumes to the launcher.
 wait 300
 tap 270 424             # launcher: Settings tile
 wait 900
@@ -12,7 +12,11 @@ shot sleep-settings-resumed
 expect-shot-equal sleep-settings-before sleep-settings-resumed
 back                    # leave Settings: the launcher
 wait 900
-power-off
+tap 480 92              # the launcher's power button: the sleep screen, then off until the side button
+wait 3000
+expect-off 0
+shot sleep-launcher-button
+expect-shot-equal sleep-plain sleep-launcher-button
 restart
 wait 900
 shot sleep-launcher-resumed

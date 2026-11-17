@@ -48,7 +48,8 @@ display, touch, RTC, IMU, power and SD pins. Our device HAL calls M5Unified.
 
 - **Side button**: owned by the PMS150G, not a normal GPIO. One click powers on (or resets when
   on); double click powers off; hold while plugging USB = download mode (red LED blinks).
-  Whether the ESP32 can read a click while running is **not verified** (task P3-1).
+  The ESP32 cannot read a click while running ("Measured in P3-1" below): the firmware cannot react to the button, and a
+  double click leaves the last picture on the panel (the sleep screen comes only with a power-off from software: POWER.md).
 - **Power off from software**: `M5.Power.powerOff()` sends 5 pulses on GPIO 44. In this state the
   board draws ~9 uA (docs). Only the side button, or an RTC alarm (`M5.Power.timerSleep(sec)`),
   brings it back, and that is a full boot.

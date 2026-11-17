@@ -382,6 +382,10 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Launcher power button and the "Powered off" sleep screen** (2026-11-17): not flashed (other work was testing on
+  the device). After a flash: a frame dump of the launcher (the icon at 480, 92); an injected tap there must log
+  `power off, wake after 0s` with the sleep screen in the last frame, and then **somebody has to click the side button**
+  (nothing else starts the device again; with Settings > Power > refresh on, the RTC alarm does).
 - **Launcher 3 x 4**: flashed 2026-11-17 13:10 (below); for a person's fingers: whether 153 x 160 tiles are
   comfortable to hit.
 - **After the device run of 2026-11-17** (below, "Done on the device 2026-11-17"), still open: the flash patch for the
@@ -1013,3 +1017,8 @@ None of these block Phase 1, Phase 2, or the reader.
   launcher's gray icon wells made it a Text pass: three pulses over 366 ms on the camera. The wells are gone from the
   small tiles: one Fast pulse of 144 ms and a faint settle. 14 launcher goldens re-accepted. `>set gray-pass off` is a
   device switch for the comparison. Flashed. The Home app's tiles still have wells.
+- 2026-11-17: "wat doet de power button nu? Ik zie geen duidelijk verschil tussen uit/aan" (the user). The side button
+  belongs to the power chip: the firmware cannot see it, and its double click leaves the last picture on the panel. Now
+  the launcher has a power button in the header's corner (a tap: sleep screen, off), and the sleep screen says "Powered
+  off" with the power icon above "Press the side button to start". 19 goldens re-accepted (header, sleep screens), one
+  new (`sleep-launcher-button`); the grid did not move. Simulator only: Pending device checks.

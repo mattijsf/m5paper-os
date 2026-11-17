@@ -1,5 +1,6 @@
 // The screen left on the panel at power-off (docs/POWER.md "Sleep screen"): the book being read with its cover and progress, or the
-// PaperOS mark; "Press the side button to wake". No clock: it stays for hours.
+// PaperOS mark; under it the state in words, "Powered off" with the power icon, and "Press the side button to start" (the panel
+// keeps its picture without power: nothing else tells off from on). No clock: it stays for hours.
 #pragma once
 
 #include "core/app.h"

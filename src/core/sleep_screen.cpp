@@ -86,7 +86,13 @@ void drawSleepScreen(Canvas& c, const SleepInfo* info, Canvas* image, const std:
     ui::drawText(c, ui::ellipsize(c, agenda, Type::Body, 492), cx, note.empty() ? 800 : 756, Type::Body, ui::ink, Anchor::MiddleCenter, kWhite);
   }
   if (!note.empty()) ui::drawText(c, ui::ellipsize(c, note, Type::Body, 492), cx, 800, Type::Body, ui::ink, Anchor::MiddleCenter, kWhite);  // content: ink
-  ui::drawText(c, "Press the side button to wake", cx, 860, Type::Body, ui::secondary, Anchor::MiddleCenter, kWhite);
+  // The state, in words: the panel keeps its picture without power, so nothing else tells off from on.
+  const std::string state = "Powered off";
+  const int iconW = 32, gap = 12, textW = ui::measureText(c, state, Type::Title);
+  const int left = cx - (iconW + gap + textW) / 2;
+  ui::drawIcon(c, Icon::Power, left + iconW / 2, 852, iconW, ui::ink, kWhite);
+  ui::drawText(c, state, left + iconW + gap, 852, Type::Title, ui::ink, Anchor::MiddleLeft, kWhite);
+  ui::drawText(c, "Press the side button to start", cx, 898, Type::Body, ui::secondary, Anchor::MiddleCenter, kWhite);
 }
 
 }  // namespace pos

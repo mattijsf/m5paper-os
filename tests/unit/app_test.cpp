@@ -688,6 +688,20 @@ TEST_CASE("clean gesture: a swipe up from the bottom edge is one full-screen Qua
   CHECK(env.os.displayManager().ghostScore() == doctest::Approx(0.0f));
 }
 
+TEST_CASE("launcher: the power button switches the device off through the sleep screen") {
+  LEnv env;
+  env.shell->render(env.os.canvas(), env.os.displayManager());
+  CHECK(env.power.offs.empty());
+  env.tapAt(100, 248);  // a tile: an app opens, nothing switches off
+  CHECK(env.power.offs.empty());
+  LEnv again;
+  again.shell->render(again.os.canvas(), again.os.displayManager());
+  again.tapAt(480, 92);  // the power icon in the header's corner
+  REQUIRE(again.power.offs.size() == 1);
+  CHECK(again.power.offs[0] == 0);       // until the side button (no scheduled refresh configured)
+  CHECK_FALSE(again.shell->dirty());     // the sleep screen is on the panel: nothing draws over it
+}
+
 TEST_CASE("launcher: the summary line leaves out what is not there") {
   using pos::apps::launcher::summaryLine;
   CHECK(summaryLine(0, "", -1) == "");

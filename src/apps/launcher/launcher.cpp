@@ -22,6 +22,9 @@ namespace {
 // starts, also with the agenda line above them.
 constexpr int kColumns = 3, kRows = 4;
 constexpr int kPerPage = kColumns * kRows;
+// Between the header lines and the grid. The header row is as high as its power button (72), 12 more than the 24 + 36 the
+// date alone took: this much less than s3 here keeps the grid where it was (four rows end where the page bar starts).
+constexpr int kGridGap = ui::s3 - 12;
 
 std::string dateLine(hal::Clock& clock) {
   const int64_t now = clock.now();
@@ -53,13 +56,20 @@ class LauncherScreen : public Screen {
   explicit LauncherScreen(Shell& shell) : shell_(shell), apps_(AppRegistry::instance().sorted()) {}
 
   void build(ui::Column& root) override {
-    root.add<ui::Spacer>(ui::s3);
-    date_ = root.add<ui::Label>(dateLine(shell_.os().platform().clock), ui::Type::Title);
+    // The date, and the power button in the corner: a tap switches the device
+    // off through the sleep screen, which says so. The side button cannot: the firmware does not see it (HARDWARE.md), and
+    // its double click cuts the power with whatever was on the panel still there.
+    auto* head = root.add<ui::Row>(ui::s2);
+    date_ = head->add<ui::Label>(dateLine(shell_.os().platform().clock), ui::Type::Title);
+    date_->flex = 1;
+    date_->maxLines = 1;
+    auto* power = head->add<ui::IconButton>(ui::Icon::Power);
+    power->onClick = [this] { shell_.sleepNow(); };
     agenda_ = root.add<ui::Label>("", ui::Type::Body);  // content (the next event): ink, body size, one line
     agenda_->maxLines = 1;
     showAgenda();
     summary_ = root.add<ui::Label>(computeSummary(apps_), ui::Type::Body);  // content (unread, the book being read): ink, body size
-    root.add<ui::Spacer>(ui::s3);
+    root.add<ui::Spacer>(kGridGap);
 
     const int pages = std::max(1, (static_cast<int>(apps_.size()) + kPerPage - 1) / kPerPage);
     auto* pager = root.add<ui::Pager>(pages);

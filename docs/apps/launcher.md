@@ -70,6 +70,17 @@ log says `[relay] launcher check: read`, and the panel changed only by the Wi-Fi
 Settings a moment later started no second read. Goldens: `agenda-launcher-page2` (the agenda line and "4 unread" are
 there before any app was opened), `inbox-badges-launcher`.
 
+## Power button (2026-11-17)
+
+The header is a row: the date, and in the right corner a `ui::IconButton` with the power icon (72 x 72, centre 480, 92).
+A tap is `Shell::sleepNow()`, the same as "Sleep now" in the quick panel: state saved, the sleep screen on the panel
+("Powered off", POWER.md "Sleep screen"), power off; no confirmation (one click on the side button starts the device
+again, on the launcher). Why: the firmware cannot see the side button, and its double click leaves the last picture on
+the panel, so off looked like on. The row is 72 high where the date took 24 + 36: the date sits 7 px higher, the gap
+above the grid is 12 instead of 24 (`kGridGap`), and the grid is where it was. Test: `launcher: the power button
+switches the device off through the sleep screen`; `tests/ui/sleep.script` taps it (`expect-off 0`, golden
+`sleep-launcher-button` equal to `sleep-plain`).
+
 ## Twelve apps to a page (2026-11-17)
 
 The grid is 3 columns x 4 rows of small tiles (`ui::Tile::Size::Small`: 153 x 160, the same 64 px icon and well as the
