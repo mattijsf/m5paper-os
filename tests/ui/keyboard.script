@@ -20,5 +20,5 @@ tap 270 100             # outside the sheet: it closes
 wait 900
 shot keyboard-menu-closed
 tap 498 855 200         # backspace with a real finger (200 ms down: the key shows pressed, then goes back, and a bullet
-wait 900                # leaves the field): small pushes at the key and at the field, not one box from the field to the key
-expect-max-pushed 30000
+wait 900                # leaves the field): pushes at the key and at the field with its counter (42 000 px with their
+expect-max-pushed 60000 # settles), not one box from the field down to the key (it was 560 000)

@@ -289,13 +289,18 @@ Where the time went and what was done:
 5. **One commit per event.** Handle the event, change state, let the loop commit once.
 6. Coalesce: while the panel is busy (`display.busy()`), further commits merge their rects and
    wait, except `Hint::Feedback` which may queue immediately (M5GFX handles overlapping updates).
-7. **Feedback rects that are apart are pushed apart** (2026-11-17; the other hints keep one pending rect each). A finger that is down longer than the
-   120 ms press delay shows the key pressed; on release the key (bottom of the screen) and the new bullet in the field
-   (top) were one Feedback rect: a Fast push of 190x626 px for 3 600 changed pixels, and 0.6 s later a Text settle
-   over the same box, with every key (simulator, `tap X Y 200`). Now rects that touch merge and the rest stay apart
-   (at most 4, then they become one box): the key 48x66, the bullet 16x32, and settles of the same size. The script
-   taps of 40 ms never showed it: they are shorter than the press delay. Not measured on the panel (Pending device
-   checks).
+7. **Feedback and Content: one push per band of changed rows** (2026-11-17, `DisplayManager::pushPass`; a screen, a page and
+   an image stay one pass). There is one pending
+   rect per hint, so what one event changes became one box: a key going up at the bottom of the screen and its bullet in
+   the field at the top were a Fast push of 190x626 px for 3 600 changed pixels and, 0.6 s later, a Text settle over the
+   same box, with every key; a status bar icon and a label below it 190x948 for 1 310. Fast shows everything in its box in
+   black and white until the settle, so unchanged gray text and dividers between the two spots lost their grays for that
+   time (11 goldens showed it and were re-accepted). Now the diff ends a band after `kBandGap` = 48 unchanged rows and the
+   next band is pushed on its own (at most `kMaxBands` = 4, the last takes the rest), each with its own settle: the key
+   48x66, the bullet 16x32. The 40 ms taps of the UI scripts never showed a pressed key (press delay 120 ms):
+   `tap X Y 200` and `PAPEROS_TAP_MS=200` hold the finger; `tools/push-audit.py` lists pushes that are large for what
+   changed in them. Still whole: Shift and 123 redraw every key (the letters of all four rows change). Not measured on the
+   panel (STATUS "Pending device checks").
 
 ## Device implementation notes (`platform/device/display.cpp`, task P1-2)
 

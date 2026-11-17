@@ -1,5 +1,6 @@
 #include "platform/sim/script.h"
 
+#include <cstdlib>
 #include <chrono>
 #include <cstdio>
 #include <algorithm>
@@ -75,7 +76,14 @@ bool ScriptRunner::command(const std::string& cmd, const std::string& args, std:
       x = n[0];
       y = n[1];
     }
-    int hold = 40;  // "tap X Y MS": the finger stays down that long (a real finger: 150-250 ms, so the pressed look shows)
+    // "tap X Y MS": the finger stays down that long (a real finger: 150-250 ms, so the pressed look shows). PAPEROS_TAP_MS
+    // in the environment changes the 40 ms of every other tap: a whole test run with real-finger taps (tools/push-audit.py).
+    static const int kDefaultHold = [] {
+      const char* e = std::getenv("PAPEROS_TAP_MS");
+      const int v = e ? std::atoi(e) : 0;
+      return v >= 1 && v <= 450 ? v : 40;
+    }();
+    int hold = kDefaultHold;
     if (cmd == "tap" && (in >> hold) && (hold < 1 || hold > 450)) {
       error = "'tap X Y MS': 1..450 ms (longer is a long press: use 'long')";
       return false;

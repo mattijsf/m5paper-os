@@ -133,7 +133,7 @@ TEST_CASE("Feedback on pure black/white needs no settle pass; with grays it gets
   CHECK(f.dm.nextDeadlineMs() == f.clock.ms + 600);
 }
 
-TEST_CASE("Feedback rects that are apart are pushed apart (a key and its letter in the field), touching ones as one") {
+TEST_CASE("Feedback and Content: changes that are rows apart are pushed apart (a key and its letter in the field), close ones as one") {
   Fixture f;
   // A key at the bottom goes back to gray, its letter appears in the field at the top: two small pushes, two small settles.
   const Rect key{84, 747, 48, 66}, letter{40, 187, 16, 32};
@@ -175,7 +175,32 @@ TEST_CASE("Feedback rects that are apart are pushed apart (a key and its letter 
   REQUIRE(j.display.pushes.size() == 1);
   CHECK(j.display.pushes[0].rect.w == 120);
 
-  // Many scattered rects: no more pushes than the limit allows (the oldest ones become one box).
+  // Content the same way (a status bar icon and a label far below it), each band with its own settle.
+  Fixture c;
+  c.fill(Rect{400, 11, 30, 30}, gray(5));
+  c.fill(Rect{230, 900, 190, 20}, gray(5));
+  c.dm.invalidate(Rect{0, 0, 540, 56}, Hint::Content);
+  c.dm.invalidate(Rect{24, 880, 492, 60}, Hint::Content);
+  c.dm.commit();
+  REQUIRE(c.display.pushes.size() == 2);
+  CHECK(c.display.pushes[0].rect.h == 30);
+  CHECK(c.display.pushes[1].rect.h == 20);
+  c.dm.tick(c.clock.ms + 600);
+  c.dm.tick(c.clock.ms + 600);
+  REQUIRE(c.display.pushes.size() == 4);
+  CHECK(c.display.pushes[2].rect.h <= 30);
+  CHECK(c.display.pushes[3].rect.h <= 30);
+
+  // A screen change stays one pass, whatever is between its parts.
+  Fixture sc;
+  sc.fill(Rect{400, 11, 30, 30}, kBlack);
+  sc.fill(Rect{230, 900, 190, 20}, kBlack);
+  sc.dm.invalidateAll(Hint::Screen);
+  sc.dm.commit();
+  REQUIRE(sc.display.pushes.size() == 1);
+  CHECK(sc.display.pushes[0].rect.h == 909);
+
+  // Many scattered changes: no more pushes than the limit allows (the last band takes the rest).
   Fixture h;
   for (int16_t i = 0; i < 8; ++i) {
     const Rect r{static_cast<int16_t>(10 + i * 60), static_cast<int16_t>(100 + i * 100), 20, 20};
@@ -183,7 +208,7 @@ TEST_CASE("Feedback rects that are apart are pushed apart (a key and its letter 
     h.dm.invalidate(r, Hint::Feedback);
   }
   h.dm.commit();
-  CHECK(h.display.pushes.size() <= 5);
+  CHECK(h.display.pushes.size() == 4);
   int covered = 0;  // every changed square is inside a pushed rect
   for (int16_t i = 0; i < 8; ++i)
     for (const auto& p : h.display.pushes)

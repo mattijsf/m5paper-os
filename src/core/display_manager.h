@@ -88,7 +88,8 @@ class DisplayManager {
   std::vector<uint8_t> shadowPacked() const;
 
  private:
-  static constexpr size_t kMaxFeedbackRects = 4;  // pending Feedback rects that do not touch (invalidate())
+  static constexpr int kBandGap = 48;  // unchanged rows that end a band of a Feedback / Content push (pushPass)
+  static constexpr int kMaxBands = 4;  // the last band takes what is left
   struct Pending {
     Rect rect;
     Hint hint;
@@ -100,12 +101,15 @@ class DisplayManager {
   };
 
   void pushPass(Rect r, Hint hint);
+  void pushBand(Rect r, Hint hint, int* restY);
   void push(Rect r, Refresh mode, uint32_t changed, const char* why, uint32_t diffMs = 0);
   // Diff `r` against the shadow: returns the bounding box of changed pixels (empty if none). With `grayArea` it also
   // counts changed pixels of flat gray (see DisplayParams::grayAreaMin), stopping at grayAreaMin.
   // Also brings the shadow up to date for `r` (each row's raw changed span is copied as soon as it is measured): every push
   // path used to copy the box in a second pass over the same PSRAM (DISPLAY.md "Tap latency").
-  Rect diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool wantBw, uint32_t* grayArea = nullptr);
+  // With `restY` the scan stops after kBandGap unchanged rows below a changed one and says where the next band starts
+  // (the end of `r` when nothing is left).
+  Rect diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool wantBw, uint32_t* grayArea = nullptr, int* restY = nullptr);
   bool flatGray(int x, int y, uint8_t q) const;
   void updateShadow(Rect r);
   void addSettle(Rect r, float added, uint32_t nowMs);

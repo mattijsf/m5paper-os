@@ -80,37 +80,6 @@ std::vector<uint8_t> DisplayManager::shadowPacked() const {
 void DisplayManager::invalidate(Rect r, Hint hint) {
   r = clip(r);
   if (r.empty()) return;
-  if (hint == Hint::Feedback) {
-    // Feedback rects that are apart stay apart: a key going up at the bottom of the screen and its letter in the text
-    // field at the top were one box from the field down to the key (190x626 px pushed for 3 600 changed ones, then a
-    // Text settle over the same box, with every key). Rects that touch merge; more than kMaxFeedbackRects become one.
-    size_t count = 0;
-    for (size_t i = 0; i < pending_.size();) {
-      if (pending_[i].hint != hint) {
-        ++i;
-      } else if (touches(pending_[i].rect, r)) {
-        r = unite(r, pending_[i].rect);
-        pending_.erase(pending_.begin() + i);
-        i = 0;  // the grown rect may now touch one that was passed
-        count = 0;
-      } else {
-        ++count;
-        ++i;
-      }
-    }
-    if (count >= kMaxFeedbackRects) {
-      for (size_t i = 0; i < pending_.size();) {
-        if (pending_[i].hint != hint) {
-          ++i;
-          continue;
-        }
-        r = unite(r, pending_[i].rect);
-        pending_.erase(pending_.begin() + i);
-      }
-    }
-    pending_.push_back({r, hint});
-    return;
-  }
   for (auto& p : pending_) {
     if (p.hint == hint) {  // one pending rect per hint: keeps the list short
       p.rect = unite(p.rect, r);
@@ -129,14 +98,19 @@ bool DisplayManager::flatGray(int x, int y, uint8_t q) const {
          kQuant.q[src[i + 2 * kScreenW]] == q;
 }
 
-Rect DisplayManager::diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool wantBw, uint32_t* grayArea) {
+Rect DisplayManager::diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool wantBw, uint32_t* grayArea, int* restY) {
   const auto* src = static_cast<const uint8_t*>(canvas_.getBuffer());
   uint8_t* old = shadow_.data();
   int minX = r.x + r.w, minY = r.y + r.h, maxX = -1, maxY = -1;
   changed = 0;
   if (grayArea) *grayArea = 0;
   onlyBlackWhite = true;
+  if (restY) *restY = r.y + r.h;
   for (int y = r.y; y < r.y + r.h; ++y) {
+    if (restY && maxY >= 0 && y - maxY > kBandGap) {  // a band ends here: the rows from y on are for the next call
+      *restY = y;
+      break;
+    }
     const size_t base = static_cast<size_t>(y) * kScreenW;
     const uint8_t* row = src + r.x + base;
     uint8_t* orow = old + r.x + base;
@@ -250,6 +224,19 @@ void DisplayManager::addSettle(Rect r, float added, uint32_t nowMs) {
 }
 
 void DisplayManager::pushPass(Rect r, Hint hint) {
+  // Feedback and Content: one push per band of changed rows. What an event changes is often far apart (a key going up at
+  // the bottom of the screen and its letter in the text field at the top; a status bar icon and a label below): as one box
+  // that was a Fast push of 190x626 px for 3 600 changed ones and a Text settle over the same box. A screen, a page and an
+  // image stay one pass.
+  const bool bands = hint == Hint::Feedback || hint == Hint::Content;
+  for (int n = 1; !r.empty(); ++n) {
+    int restY = r.y + r.h;
+    pushBand(r, hint, bands && n < kMaxBands ? &restY : nullptr);
+    r = Rect{r.x, static_cast<int16_t>(restY), r.w, static_cast<int16_t>(r.y + r.h - restY)};
+  }
+}
+
+void DisplayManager::pushBand(Rect r, Hint hint, int* restY) {
   uint32_t changed = 0;
   bool bw = true;
   uint32_t grayArea = 0;
@@ -257,7 +244,7 @@ void DisplayManager::pushPass(Rect r, Hint hint) {
   const bool wantGray = hint == Hint::Screen && params_.grayAreaMin > 0 && score_ < params_.ghostLimit;
   // Page too: skipping this diff (~25 ms) was tried, but a page turned under the open menu sheet then pushed the sheet's
   // unchanged gray text again in Fast mode, black/white on the panel (golden menu-goto-60, 2026-11-16).
-  Rect box = diff(r, changed, bw, hint == Hint::Feedback, wantGray ? &grayArea : nullptr);
+  Rect box = diff(r, changed, bw, hint == Hint::Feedback, wantGray ? &grayArea : nullptr, restY);
   if (box.empty()) return;
   const uint32_t now = clock_.millis();
   const uint32_t dms = now - t0;
@@ -337,20 +324,17 @@ void DisplayManager::commit() {
   if (pending_.empty()) return;
   const bool busy = display_.busy();
   // Priority order. Later rects diff against the shadow updated by earlier ones. There is at most
-  // one pending rect per hint (invalidate() merges them), except Feedback: a few rects that do not touch.
+  // one pending rect per hint (invalidate() merges them); pushPass() splits it again where nothing changed.
   // Page before Content: a page turn also changes the footer (Content); the page must not wait for the footer's push.
   static const Hint order[] = {Hint::Feedback, Hint::Page, Hint::Content, Hint::Screen, Hint::Image};
   for (Hint h : order) {
     if (busy && h != Hint::Feedback) continue;  // coalesce: wait for the panel
-    for (size_t i = 0; i < pending_.size();) {
-      if (pending_[i].hint != h) {
-        ++i;
-        continue;
-      }
+    for (size_t i = 0; i < pending_.size(); ++i) {
+      if (pending_[i].hint != h) continue;
       Rect r = pending_[i].rect;
       pending_.erase(pending_.begin() + i);
       pushPass(r, h);
-      if (h != Hint::Feedback) break;
+      break;
     }
   }
 }
