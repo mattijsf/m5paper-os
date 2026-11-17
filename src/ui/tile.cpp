@@ -19,11 +19,11 @@ void Tile::draw(Canvas& c) {
   strokeRound(c, frame, kRadius, pressed_ ? 4 : kStroke, ink);
   const int cx = frame.x + frame.w / 2;
   if (size_ == Size::Small) {
-    // The same icon and well as the large tile (a smaller well shows the corners of the icon's own square), the label
-    // in the body size (it has 137 px: "WhatsApp" fits).
+    // The same 64 px icon, straight on the paper: no gray well. A screen with gray areas needs the Text waveform, which
+    // draws in three visible steps (camera, 2026-11-17: Settings to the launcher flickered for 370 ms), and gray(13) reads as almost white on the panel anyway. Ink and paper only: the
+    // launcher changes in one Fast pass. The label in the body size (it has 137 px: "WhatsApp" fits).
     const int iconY = frame.y + 62;
-    c.fillCircle(cx, iconY, 44, fill);
-    drawIcon(c, icon_, cx, iconY, 64, ink, fill);
+    drawIcon(c, icon_, cx, iconY, 64, ink, bg());
     drawText(c, ellipsize(c, label_, Type::BodyStrong, frame.w - 2 * s1), cx, frame.y + 132, Type::BodyStrong, ink, Anchor::MiddleCenter, bg());
     if (badge_ > 0) drawBadge(c, frame.x + frame.w - s1 - 4, frame.y + s1 + 18, badge_, bg());
     return;

@@ -307,6 +307,13 @@ class SerialRemoteHost : public RemoteHost {
       gDisplay.setTiming(value == "on");
       return true;
     }
+    if (key == "gray-pass") {  // "off": a screen with gray areas (the launcher's icon wells) goes out Fast then settle, not as
+                               // one Text pass (DisplayParams::grayAreaMin = 0): to compare the two by eye
+      DisplayParams p = gOs.displayManager().params();
+      p.grayAreaMin = value == "off" ? 0 : DisplayParams{}.grayAreaMin;
+      gOs.displayManager().setParams(p);
+      return true;
+    }
     if (key == "epd-keep") {  // tools/patch_m5gfx.py patch 4: off = the stock rule, for a comparison on the panel
       gDisplay.setKeepUnchanged(value != "off");
       return true;

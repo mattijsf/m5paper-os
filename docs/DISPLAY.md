@@ -187,6 +187,12 @@ the same with the patch as with the stock rule (every level within 0.01: g0 0.03
 g12 0.74, with and without the patch: not from this change; the set-up was moved since the ramp of 2026-11-16.)
 Also changed: a toast is a Content update, not a Screen change (it could trigger the full-screen Quality clean).
 
+**Gray areas cost a flicker (2026-11-17)**: a Text pass shows as three pulses of change (camera: Settings to the launcher
+with its gray icon wells, 366 ms), a Fast pass as one (144-170 ms). Fast then settle on the same screen is one pulse
+and, a second later, three more where the gray is. Without gray (ink, paper, anti-aliased edges) the settle is a
+ripple of about a sixth of the Fast pulse. So: flat gray on a screen that is navigated to often is paid for on every
+visit; the launcher's wells went for that reason (apps/launcher.md "No gray on the launcher").
+
 ## Navigation speed (2026-11-15)
 
 Measured on the device with `tools/device.py tap` and `refresh` (injected taps, so Down and Up are

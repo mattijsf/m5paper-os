@@ -79,3 +79,19 @@ line above them. Before: 2 x 3 large tiles, the seventh app on a second page. Th
 hold a value line). Tile centres for scripts and injected taps: x 100 / 270 / 439, y 248 / 424 / 600 / 776 (28 lower
 when the agenda line shows). Goldens: `launcher`, `launcher-summary`, `agenda-launcher`, `wordgame-launcher`,
 `inbox-badges-launcher` and the ones that show the launcher behind something.
+
+## No gray on the launcher (2026-11-17)
+
+The small tiles have no gray well behind the icon. With the wells the launcher was a screen with flat gray areas, which
+goes out as one Text pass (DISPLAY.md `screen-gray`), and the Text waveform draws in steps. Camera, Settings to the
+launcher (`cam.py around tap 36 92`, one session):
+
+| | on the panel |
+|---|---|
+| with wells, one Text pass (as it was) | three pulses of change over 366 ms: the flicker |
+| with wells, Fast then settle (`>set gray-pass off`) | one pulse of 170 ms, then about a second later three more where the wells and edges are |
+| **without wells** (Fast then settle by itself: nothing gray) | **one pulse of 144 ms**, then a ripple of about a sixth of it (the anti-aliased edges) |
+
+Gray(13) read as 0.96-0.98 of white on the panel (DISPLAY.md): the wells were hardly there to the eye. The Home app's
+large tiles still have theirs (its screens are Text passes): the same change would be the next step there.
+`>set gray-pass off` (device only) switches the one-Text-pass rule off for a comparison.

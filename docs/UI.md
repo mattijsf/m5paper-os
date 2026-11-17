@@ -133,7 +133,7 @@ class Widget {
 | `IconView` | icon glyph | 32 or 64 |
 | `Button` | primary (filled ink) / secondary (2 px outline) / text | height 72; pressed = inverted |
 | `IconButton` | 72x72 target with a 32 px icon | |
-| `Tile` | outlined square: 64 px icon in a well + label, optional value and badge. `Size::Large` (two to a row, 196 high, title-size label: Home) and `Size::Small` (three to a row, 160 high, body-size label: the launcher) | pressed = 4 px border |
+| `Tile` | outlined square: 64 px icon in a well + label, optional value and badge. `Size::Large` (two to a row, 196 high, title-size label: Home) and `Size::Small` (three to a row, 160 high, body-size label, the icon on the paper without a well: the launcher) | pressed = 4 px border |
 | `ListItem` | 96 px row: leading icon, title, subtitle, trailing text / chevron / toggle / badge | divider below |
 | `Toggle` | on/off pill 88x48 | on = filled ink with paper knob; pure black/white |
 | `LevelBar` | 10 segments, tap a segment to set 10..100% | replaces sliders: dragging is poor on e-ink |

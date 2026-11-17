@@ -1009,3 +1009,7 @@ None of these block Phase 1, Phase 2, or the reader.
   read of the relay after the boot, and the badge fix, with real messages; WhatsApp was not opened, so the badge stays
   for the user to see). Injected taps on a tile of each row (Home, Settings, Weather) each brought a screen change of
   that app's size (492 x 872, 492 x 824, 494 x 874); back returned to the launcher. `out/dev-review/launcher-new.png`.
+- 2026-11-17: "waarom flicker van settings naar home?" (the user, device in hand; then back under the camera). The
+  launcher's gray icon wells made it a Text pass: three pulses over 366 ms on the camera. The wells are gone from the
+  small tiles: one Fast pulse of 144 ms and a faint settle. 14 launcher goldens re-accepted. `>set gray-pass off` is a
+  device switch for the comparison. Flashed. The Home app's tiles still have wells.
