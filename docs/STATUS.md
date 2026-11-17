@@ -382,10 +382,8 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
-- **Launcher power button and the "Powered off" sleep screen** (2026-11-17): not flashed (other work was testing on
-  the device). After a flash: a frame dump of the launcher (the icon at 480, 92); an injected tap there must log
-  `power off, wake after 0s` with the sleep screen in the last frame, and then **somebody has to click the side button**
-  (nothing else starts the device again; with Settings > Power > refresh on, the RTC alarm does).
+- **Launcher power button** (flashed 2026-11-17 13:34, below): a tap on the icon itself (480, 92) was not sent to the
+  device: it switches off until somebody clicks the side button. For the user's finger.
 - **Launcher 3 x 4**: flashed 2026-11-17 13:10 (below); for a person's fingers: whether 153 x 160 tiles are
   comfortable to hit.
 - **After the device run of 2026-11-17** (below, "Done on the device 2026-11-17"), still open: the flash patch for the
@@ -1026,3 +1024,10 @@ None of these block Phase 1, Phase 2, or the reader.
   pass visible 397 ms before, a Fast pass of 195 ms and no visible settle after. Back to the launcher from any app is
   a Fast pass now (measured from Settings and Home). Still Text passes: Agenda's day view, screens with the keyboard,
   a book cover (DISPLAY.md "Gray areas cost a flicker"). 5 goldens re-accepted (`home-climate*`, `widgets2*`).
+
+- 2026-11-17 13:34: the power button and the "Powered off" sleep screen on the device (2,433,920 bytes, with bf7a1cd).
+  Frame dump: the power icon in the header's corner, the grid where it was (`out/power/device-launcher.png`).
+  `>poweroff 25`: the port went away, the camera shows the sleep screen on the panel with the power icon, "Powered off"
+  and "Press the side button to start" under the agenda line and "4 unread" (`out/power/cam-sleep.png`); the RTC alarm
+  booted it, scheduled refresh 5.9 s, and the panel shows the launcher again (`out/power/cam-after-wake.png`). The tap
+  on the icon itself: Pending device checks.
