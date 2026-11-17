@@ -132,8 +132,11 @@ bool looksLikeHeading(const std::string& line) {
 bool isEpubFile(const std::string& name) { return !name.empty() && name[0] != '.' && endsWith(lower(name), ".epub"); }
 bool isBookFile(const std::string& name) { return !name.empty() && name[0] != '.' && (endsWith(lower(name), ".epub") || endsWith(lower(name), ".txt")); }
 
+// The name without its folder: a book moved into a folder (Files over Wi-Fi) keeps its id, so its cache and reading position.
+static std::string baseName(const std::string& path) { return path.substr(path.rfind('/') == std::string::npos ? 0 : path.rfind('/') + 1); }
+
 std::string bookId(const std::string& fileName, uint64_t size, int64_t mtime) {
-  const std::string key = fileName + "|" + std::to_string(size) + "|" + std::to_string(mtime);
+  const std::string key = baseName(fileName) + "|" + std::to_string(size) + "|" + std::to_string(mtime);
   uint64_t h = 1469598103934665603ull;
   for (unsigned char c : key) {
     h ^= c;
@@ -650,18 +653,38 @@ int percentOf(int pageIndex, size_t pageCount) {
 
 std::vector<LibraryEntry> scanLibrary() {
   std::vector<LibraryEntry> out;
-  std::vector<fs::DirEntry> files;
-  if (!fs::listDir(kBooksDir, files)) return out;
-  for (const fs::DirEntry& f : files) {
-    if (f.isDir || !isBookFile(f.name)) continue;
+  // The books folder and its folders (Files over Wi-Fi can make them), three levels deep; names starting with a dot are not
+  // looked into (the reader's own .paperos cache, uploads in progress). One flat list: `file` is the path inside the folder.
+  struct Pending {
+    std::string rel;
+    int depth;
+  };
+  std::vector<Pending> todo{{"", 0}};
+  std::vector<std::pair<std::string, std::string>> books;  // relative path, name
+  while (!todo.empty()) {
+    const Pending d = todo.back();
+    todo.pop_back();
+    std::vector<fs::DirEntry> files;
+    if (!fs::listDir(std::string(kBooksDir) + (d.rel.empty() ? "" : "/" + d.rel), files)) continue;
+    for (const fs::DirEntry& f : files) {
+      if (f.name.empty() || f.name[0] == '.') continue;
+      const std::string rel = d.rel.empty() ? f.name : d.rel + "/" + f.name;
+      if (f.isDir) {
+        if (d.depth < 3) todo.push_back({rel, d.depth + 1});
+      } else if (isBookFile(f.name)) {
+        books.emplace_back(rel, f.name);
+      }
+    }
+  }
+  for (const auto& b : books) {
     uint64_t size = 0;
     int64_t mtime = 0;
-    if (!fs::fileInfo(std::string(kBooksDir) + "/" + f.name, size, mtime)) continue;
+    if (!fs::fileInfo(std::string(kBooksDir) + "/" + b.first, size, mtime)) continue;
     LibraryEntry e;
-    e.file = f.name;
-    e.id = bookId(f.name, size, mtime);
-    e.epub = isEpubFile(f.name);
-    titleFromFileName(f.name, e.title, e.author);
+    e.file = b.first;
+    e.id = bookId(b.first, size, mtime);
+    e.epub = isEpubFile(b.second);
+    titleFromFileName(b.second, e.title, e.author);
     BookMeta meta;
     if (readMeta(e.id, meta)) {
       if (!meta.title.empty()) e.title = meta.title;
@@ -700,6 +723,7 @@ OpenResult openBook(const std::string& fileName, const ui::TextStyle& style, ui:
   const std::string id = bookId(fileName, size, mtime);
   BookMeta meta;
   const bool cached = readMeta(id, meta);
+  if (cached) meta.file = fileName;  // moved into or out of a folder since: the cache is the book's, the place is new
   int stepBase = 0, stepTotal = 1;
   std::vector<std::string> fresh;  // chapter texts just converted: paginated from memory instead of read back
   auto report = [&](int done) { return !step || step(stepBase + done, stepTotal); };
@@ -711,7 +735,7 @@ OpenResult openBook(const std::string& fileName, const ui::TextStyle& style, ui:
     meta.id = id;
     meta.file = fileName;
     meta.epub = isEpubFile(fileName);
-    titleFromFileName(fileName, meta.title, meta.author);
+    titleFromFileName(baseName(fileName), meta.title, meta.author);
     if (meta.epub) {
       auto ts = TimerClock::now();
       const bool structureOk = epubMeta(path, meta, r.error);
@@ -728,7 +752,7 @@ OpenResult openBook(const std::string& fileName, const ui::TextStyle& style, ui:
       }
       TxtImport imp = importTxt(txtToUtf8(raw));
       raw.clear();
-      if (fileName.find(" - ") == std::string::npos) {  // no "Title - Author" in the name: use the file's own header
+      if (baseName(fileName).find(" - ") == std::string::npos) {  // no "Title - Author" in the name: use the file's own header
         if (!imp.title.empty()) meta.title = imp.title;
         if (!imp.author.empty()) meta.author = imp.author;
       }

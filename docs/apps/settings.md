@@ -116,6 +116,7 @@ arrives before a paste) and "Unpair"
 The page joins Wi-Fi, starts the file server (`core/file_server` on `hal::HttpServer`) and shows the address
 (`http://192.168.1.69`, `:8080` in the simulator) and a new six-digit code. Mac: Finder > Go > Connect to Server, the address,
 name `paper` (any), password the code. Phone or any browser: open the address; the page lists the books folder, uploads with
-progress and deletes. Below, what arrived ("Received Alice.epub", "3 files, 4.1 MB received", "Receiving x, 1.2 MB" during an
+progress, opens folders, makes a folder (New folder), and renames, moves (to a folder by its path, empty for the top) and deletes
+any file or folder. Checked in headless Chrome (Playwright) against the simulator: every action, at phone width. Below, what arrived ("Received Alice.epub", "3 files, 4.1 MB received", "Receiving x, 1.2 MB" during an
 upload). Stop (or back) ends it; ten minutes without a request end it too ("Stopped after 10 minutes without use", Start again).
 Golden `files-storage`, `files-wifi` (UI script `files-wifi`, a fake Wi-Fi network on its test card).

@@ -280,6 +280,39 @@ TEST_CASE("reader: library scan reads names, cached meta and progress, and sorts
   CHECK(lib[1].title == "alpha Tales");
 }
 
+TEST_CASE("reader: books in folders are found, and a book moved into a folder keeps its cache and position") {
+  Card card;
+  fs::writeFile("/sd/books/Top - A.txt", "t\n");
+  fs::writeFile("/sd/books/Classics/Dutch/Deep - B.txt", "d\n");
+  fs::writeFile("/sd/books/a/b/c/d/Too deep - C.txt", "x\n");  // more than three folders down: left out
+  fs::writeFile("/sd/books/.paperos/x/Cache - D.txt", "x\n");
+  auto lib = scanLibrary();
+  REQUIRE(lib.size() == 2);
+  CHECK(lib[0].title == "Deep");
+  CHECK(lib[0].file == "Classics/Dutch/Deep - B.txt");
+  CHECK(lib[0].author == "B");
+
+  // Read a bit, then move the book into a folder (as Files over Wi-Fi does: a rename keeps size and time).
+  FakeMetrics m;
+  OpenResult o = openBook("Top - A.txt", smallPage(), m);
+  REQUIRE(o.ok);
+  Progress p;
+  p.percent = 30;
+  p.opened = 1700000000;
+  writeProgress(o.meta.id, p);
+  REQUIRE(fs::rename("/sd/books/Top - A.txt", "/sd/books/Classics/Top - A.txt"));
+  lib = scanLibrary();
+  const LibraryEntry* moved = nullptr;
+  for (const LibraryEntry& e : lib)
+    if (e.file == "Classics/Top - A.txt") moved = &e;
+  REQUIRE(moved);
+  CHECK(moved->id == o.meta.id);
+  CHECK(moved->percent == 30);
+  OpenResult again = openBook("Classics/Top - A.txt", smallPage(), m);
+  REQUIRE(again.ok);
+  CHECK(again.meta.file == "Classics/Top - A.txt");  // the cached meta follows the book to its new place
+}
+
 TEST_CASE("reader: EPUB structure becomes book meta and survives meta.json") {
   Card card;
   std::string epub;

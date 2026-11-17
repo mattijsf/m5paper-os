@@ -448,7 +448,10 @@ Answers STATUS.md open question 5 with its option a, widened from "upload" to ma
 - **Found on the device**: with Wi-Fi receiving, the card now and then refused a write (EIO), in 5 of 6 one-megabyte uploads;
   `fs::Writer` now reopens the file and writes the piece again at its place (up to three tries). Afterwards 9 of 9 arrived
   byte-identical, a few needing a retry. Speed: about 70-100 KB/s (the card's write speed).
-- **Cost**: firmware +57 KB (2.97 MB of the 3 MB budget).
+- **Cost**: firmware +57 KB at the time (2.97 MB; 2.42 MB after the size pass of D31).
+- **Later the same night**: the
+  browser page gained New folder, Rename and Move (WebDAV MKCOL and MOVE from the page's own script), so a phone needs no
+  WebDAV app; the reader's library finds books in folders and a moved book keeps its position (apps/reader.md).
 
 ## D31. Firmware size: no C++ exceptions, no iostreams, a trimmed ESP-IDF
 

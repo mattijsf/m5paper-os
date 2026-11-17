@@ -646,7 +646,11 @@ class FilesPage : public Page {
     if (!running_ && !starting_) start();
   }
   void onHide() override { stopServer(""); }
-  ~FilesPage() override { stopServer(""); }
+  // A screen can also go without onHide (the whole app replaced, `>set screen`): then the app's context may already be gone, so
+  // the server is stopped through the pointer kept at start, nothing else.
+  ~FilesPage() override {
+    if (running_ && http_) http_->stop();
+  }
 
   std::string debugState() const override {
     return std::string(running_ ? "running" : "stopped") + "|" + state_->text() + "|" + activity_->text();
@@ -682,6 +686,7 @@ class FilesPage : public Page {
       code_text_ = files::newCode();
       server_ = std::make_shared<files::FileServer>("/sd/books", code_text_, [clock] { return clock->millis(); });
       auto srv = server_;
+      http_ = http;
       if (!http->start([srv](hal::ServerRequest& q) { return srv->handle(q); })) {
         state_->setText("Could not start the file server");
         showRunning(false);
@@ -723,7 +728,7 @@ class FilesPage : public Page {
   void stopServer(const std::string& why) {
     if (!running_) return;
     running_ = false;
-    if (hal::HttpServer* http = ctx().os().platform().http) http->stop();
+    if (http_) http_->stop();
     server_.reset();
     if (!why.empty()) {
       state_->setText(why);
@@ -735,6 +740,7 @@ class FilesPage : public Page {
             *activity_ = nullptr;
   ui::Button* button_ = nullptr;
   std::shared_ptr<files::FileServer> server_;
+  hal::HttpServer* http_ = nullptr;
   std::string code_text_;
   bool running_ = false, starting_ = false;
 };

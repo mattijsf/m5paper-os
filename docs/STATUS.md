@@ -132,6 +132,11 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   One run of `make check` failed in `wifi_test.cpp:396` ("Wi-Fi goes off after the linger time"), code this pass did not
   touch; two runs before and two after passed (286 tests, 231 screenshots): not explained, watch for it. What is left to
   take: D31 "Not done" (fonts 473 KB first); the user stops here (2026-11-17: "I think it is fine like this").
+- **Files over Wi-Fi, the page manages too (2026-11-17)**: New folder, Rename, Move and Delete on the browser page (Chrome,
+  headless, at phone width, against the simulator: every action); the library finds books in folders. On the device: a test
+  book uploaded into a folder showed in the library (page 2), the folder was deleted again. Found: the page's cleanup used the
+  app context after the app was gone when a screen switch skipped onHide; it now keeps its own pointer to the server. One
+  unexplained restart happened during the test (no reason in the log; not seen again in the steps that followed).
 - **Files over Wi-Fi (P7-4, D30), 2026-11-16 night**: Settings > Storage > Files over Wi-Fi serves the books folder as WebDAV
   and an upload page while the page is open, behind a one-time code. **On the device** (192.168.1.69, port 80), tested from
   the Mac: OPTIONS, PROPFIND, PUT with a length and chunked, GET, MOVE, COPY, MKCOL, DELETE, Digest and Basic sign-in, a wrong code

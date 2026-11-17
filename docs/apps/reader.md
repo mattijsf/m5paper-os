@@ -143,3 +143,10 @@ The page index file is `"PIX1"`, a u32 page count, then per page u16 chapter, u3
 
 Hyphenation, images in chapters, bookmarks and highlights, Wi-Fi book upload page (task P7-4),
 dictionary lookup, reading statistics.
+
+## Books in folders (2026-11-16, Files over Wi-Fi)
+
+The library looks into the folders inside `/sd/books`, three levels deep (names starting with a dot are skipped), and shows
+one flat list; a book's `file` is its path inside the books folder ("Classics/Alice.epub"). A book's id comes from its name
+without the folder (and its size and time), so a book moved into or out of a folder keeps its cache and reading position; the
+cached meta takes the new place when it opens. Unit test "books in folders are found ...".

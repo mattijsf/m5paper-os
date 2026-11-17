@@ -21,8 +21,8 @@ using hal::ServerResponse;
 
 const char* kAllow = "OPTIONS, GET, HEAD, PUT, DELETE, MKCOL, MOVE, COPY, PROPFIND, PROPPATCH, LOCK, UNLOCK";
 
-// The upload page for a browser (GET on a folder): lists the folder, uploads with progress (PUT per file), deletes, opens
-// subfolders. Plain HTML and JS, no outside resources: it works with no internet.
+// The page for a browser (GET on a folder): lists the folder, uploads with progress (PUT per file), opens subfolders, makes a
+// folder (MKCOL), renames and moves (MOVE), deletes. Plain HTML and JS, no outside resources: it works with no internet.
 const char* kPage = R"HTML(<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PaperOS files</title>
@@ -37,13 +37,15 @@ h1{font-size:24px;margin:8px 0 2px}p{margin:4px 0;color:var(--muted)}
 button,label.btn{display:inline-block;font:inherit;padding:10px 16px;border-radius:10px;border:2px solid var(--ink);
 background:var(--ink);color:var(--paper);cursor:pointer}
 button.quiet{background:none;color:var(--ink);padding:6px 10px;border-width:1px}
-ul{list-style:none;padding:0;margin:8px 0}li{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
-li .n{flex:1;overflow-wrap:anywhere}li .s{color:var(--muted);font-size:14px;white-space:nowrap}a{color:var(--ink)}
+ul{list-style:none;padding:0;margin:8px 0}
+li{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 8px;padding:10px 0;border-bottom:1px solid var(--line)}
+li .n{flex:1;overflow-wrap:anywhere}li .acts{flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap}li .s{color:var(--muted);font-size:14px;white-space:nowrap}a{color:var(--ink)}
 #status{min-height:1.4em}
 </style></head><body><main>
 <h1>PaperOS</h1><p id="where"></p>
 <div class="drop" id="drop"><p>Drop books here, or</p>
 <label class="btn">Choose files<input id="pick" type="file" multiple hidden></label></div>
+<p><button class="quiet" id="mkdir">New folder</button></p>
 <p id="status"></p><ul id="list"></ul>
 </main><script>
 const base = location.pathname.endsWith('/') ? location.pathname : location.pathname + '/';
@@ -62,9 +64,21 @@ function load() {
       li.appendChild(n);
       if (!it.up) {
         if (!it.dir) { const s = document.createElement('span'); s.className = 's'; s.textContent = size(it.size); li.appendChild(s); }
-        const d = document.createElement('button'); d.className = 'quiet'; d.textContent = 'Delete';
-        d.onclick = () => { if (confirm('Delete ' + it.name + '?')) fetch(base + encodeURIComponent(it.name) + (it.dir ? '/' : ''), {method: 'DELETE'}).then(load); };
-        li.appendChild(d);
+        const acts = document.createElement('span'); acts.className = 'acts';
+        const btn = (label, fn) => { const b = document.createElement('button'); b.className = 'quiet'; b.textContent = label; b.onclick = fn; acts.appendChild(b); };
+        const self = base + encodeURIComponent(it.name) + (it.dir ? '/' : '');
+        btn('Rename', () => {
+          const to = prompt('New name', it.name);
+          if (to && to !== it.name && !to.includes('/')) move(self, base + encodeURIComponent(to) + (it.dir ? '/' : ''));
+        });
+        btn('Move', () => {
+          const to = prompt('Move to which folder? Its path from the top, for example Classics or Classics/Dutch; empty for the top.', '');
+          if (to === null) return;
+          const parts = to.split('/').filter(p => p && p !== '.' && p !== '..');
+          move(self, '/' + parts.map(encodeURIComponent).join('/') + (parts.length ? '/' : '') + encodeURIComponent(it.name) + (it.dir ? '/' : ''));
+        });
+        btn('Delete', () => { if (confirm('Delete ' + it.name + (it.dir ? ' and everything in it' : '') + '?')) fetch(self, {method: 'DELETE'}).then(load); });
+        li.appendChild(acts);
       }
       ul.appendChild(li);
     }
@@ -80,6 +94,20 @@ function send(files, i) {
   x.onerror = () => { $('status').textContent = f.name + ': not sent (connection lost)'; };
   x.send(f);
 }
+function move(from, to) {
+  fetch(from, {method: 'MOVE', headers: {Destination: location.origin + to, Overwrite: 'F'}}).then(r => {
+    $('status').textContent = r.ok ? 'Done' : r.status === 412 ? 'There is already something with that name' :
+      r.status === 409 ? 'That folder does not exist' : 'Not done (' + r.status + ')';
+    load();
+  });
+}
+$('mkdir').onclick = () => {
+  const name = prompt('Name of the new folder', '');
+  if (name && !name.includes('/')) fetch(base + encodeURIComponent(name) + '/', {method: 'MKCOL'}).then(r => {
+    $('status').textContent = r.ok ? 'Folder made' : 'Not made (' + r.status + ')';
+    load();
+  });
+};
 $('pick').onchange = e => send([...e.target.files], 0);
 const drop = $('drop');
 drop.ondragover = e => { e.preventDefault(); drop.classList.add('on'); };
