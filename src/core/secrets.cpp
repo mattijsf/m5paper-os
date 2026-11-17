@@ -1,17 +1,9 @@
 #include "core/secrets.h"
 
 #include "core/fs.h"
+#include "core/strings.h"
 
 namespace pos {
-
-namespace {
-std::string trim(const std::string& s) {
-  size_t a = 0, b = s.size();
-  while (a < b && (s[a] == ' ' || s[a] == '\t' || s[a] == '\r')) ++a;
-  while (b > a && (s[b - 1] == ' ' || s[b - 1] == '\t' || s[b - 1] == '\r')) --b;
-  return s.substr(a, b - a);
-}
-}  // namespace
 
 bool Secrets::load() {
   items_.clear();
@@ -23,14 +15,14 @@ bool Secrets::load() {
   while (pos <= text.size()) {
     size_t end = text.find('\n', pos);
     if (end == std::string::npos) end = text.size();
-    std::string line = trim(text.substr(pos, end - pos));
+    std::string line = trimmed(text.substr(pos, end - pos));
     pos = end + 1;
     if (line.empty() || line[0] == '#') continue;
     size_t eq = line.find('=');
     if (eq == std::string::npos || eq == 0) continue;
-    std::string key = trim(line.substr(0, eq));
+    std::string key = trimmed(line.substr(0, eq));
     if (key.empty()) continue;
-    items_.emplace_back(key, trim(line.substr(eq + 1)));
+    items_.emplace_back(key, trimmed(line.substr(eq + 1)));
   }
   return true;
 }

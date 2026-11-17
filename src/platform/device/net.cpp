@@ -6,6 +6,7 @@
 
 #include <ctime>
 
+#include "core/timefmt.h"
 #include "core/log.h"
 #include "platform/device/device.h"
 
@@ -212,7 +213,7 @@ int64_t Net::syncTime(uint32_t timeoutMs) {
   const uint32_t t0 = millis();
   while (millis() - t0 < timeoutMs) {
     const time_t now = time(nullptr);
-    if (now > 1700000000) return now;
+    if (clockIsSet(now)) return now;
     delay(100);
   }
   return 0;

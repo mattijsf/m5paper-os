@@ -93,20 +93,13 @@ std::string relativeTime(int64_t ts, int64_t now) {
   if (ts <= 0 || now <= 0 || ts > now + 24 * 3600) return "";
   struct tm t, n;
   if (!localTime(ts, t) || !localTime(now, n)) return "";
-  char buf[16];
-  if (t.tm_year == n.tm_year && t.tm_yday == n.tm_yday) {
-    std::snprintf(buf, sizeof buf, "%02d:%02d", t.tm_hour, t.tm_min);
-    return buf;
-  }
+  if (t.tm_year == n.tm_year && t.tm_yday == n.tm_yday) return hhmm(t.tm_hour * 60 + t.tm_min);
   const int64_t days = (now - ts) / 86400;
   struct tm y;
   if (!localTime(now - 86400, y)) return "";
   if (t.tm_year == y.tm_year && t.tm_yday == y.tm_yday) return "Yesterday";
-  static const char* kDays[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-  static const char* kMonths[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-  if (days < 6) return kDays[t.tm_wday];
-  std::snprintf(buf, sizeof buf, "%d %s", t.tm_mday, kMonths[t.tm_mon]);
-  return buf;
+  if (days < 6) return weekdayShort(t.tm_wday);
+  return std::to_string(t.tm_mday) + " " + monthShort(t.tm_mon);
 }
 
 int newCount(const std::vector<Msg>& items, int64_t seen) {

@@ -59,6 +59,4 @@ class Archive {
   std::string error_;
 };
 
-uint32_t crc32(uint32_t crc, const uint8_t* data, size_t n);  // zip's CRC-32 (init 0, chainable)
-
 }  // namespace pos::zip

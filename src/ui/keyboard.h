@@ -76,7 +76,7 @@ class TextField : public Widget {
   // Most characters (code points) the field takes, 0 = no limit. Typing and pasting stop there.
   void setMaxChars(size_t n) { maxChars_ = n; }
   size_t maxChars() const { return maxChars_; }
-  void append(const std::string& utf8);  // cut to fit maxChars, at a character boundary
+  void append(const std::string& text);  // cut to fit maxChars, at a character boundary
   void backspace();  // removes the last character (UTF-8 aware)
   // Appends the clipboard (cut to fit). False if the clipboard is empty or nothing fitted.
   bool paste();
@@ -90,11 +90,11 @@ class TextField : public Widget {
   void draw(Canvas& c) override;
   bool onTouch(const Gesture& g) override;
 
-  static size_t charCount(const std::string& utf8);  // code points
+  static size_t charCount(const std::string& text);  // code points
 
  private:
   std::string shown() const;
-  std::string fitted(const std::string& utf8) const;  // the part of `utf8` that still fits
+  std::string fitted(const std::string& text) const;  // the part of `text` that still fits
   std::string text_, placeholder_;
   bool masked_ = false;
   int lines_ = 1;

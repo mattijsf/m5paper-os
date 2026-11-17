@@ -4,6 +4,7 @@
 #include <map>
 
 #include "apps/reader/xml.h"
+#include "core/strings.h"
 
 namespace pos::reader {
 
@@ -30,14 +31,10 @@ std::string percentDecode(const std::string& s) {
   return out;
 }
 
-std::string trim(const std::string& s) {
-  size_t a = 0, b = s.size();
-  while (a < b && std::isspace(static_cast<unsigned char>(s[a]))) ++a;
-  while (b > a && std::isspace(static_cast<unsigned char>(s[b - 1]))) --b;
-  std::string t = s.substr(a, b - a);
-  // Titles and names: runs of white space become one space.
+std::string oneLine(const std::string& s) {
+  // Titles and names: no white space at the ends, runs of it inside become one space.
   std::string out;
-  for (char c : t) {
+  for (char c : trimmed(s)) {
     if (std::isspace(static_cast<unsigned char>(c))) {
       if (out.empty() || out.back() != ' ') out += ' ';
     } else {
@@ -73,7 +70,7 @@ struct TitleMap {
 
 void addTitle(TitleMap& m, const std::string& baseDir, const std::string& href, const std::string& title) {
   const std::string path = resolveHref(baseDir, href);
-  const std::string t = trim(title);
+  const std::string t = oneLine(title);
   if (path.empty() || t.empty()) return;
   m.first.emplace(path, t);  // the first one wins
   const size_t hash = href.find('#');
@@ -245,9 +242,9 @@ bool parseEpub(zip::Archive& zip, EpubInfo& out, std::string& error) {
       } else if (e.type == Event::Text && !field.empty()) {
         text += e.text;
       } else if (e.type == Event::End && !field.empty() && xml::localName(e.name) == field) {
-        if (field == "title" && title.empty()) title = trim(text);
+        if (field == "title" && title.empty()) title = oneLine(text);
         else if (field == "creator" && creatorIsAuthor) {
-          const std::string c = trim(text);
+          const std::string c = oneLine(text);
           if (!c.empty()) creators.push_back(c);
         }
         field.clear();

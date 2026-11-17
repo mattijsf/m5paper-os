@@ -312,12 +312,7 @@ class ListScreen : public Screen {
 
   std::string clockText() {
     const int64_t t = now();
-    if (t <= 0) return "just now";
-    struct tm tmv;
-    localTime(t, tmv);
-    char buf[8];
-    std::snprintf(buf, sizeof buf, "%02d:%02d", tmv.tm_hour, tmv.tm_min);
-    return buf;
+    return t > 0 ? pos::clockText(t) : "just now";
   }
 
   // The seen marker is the newest message shown; the launcher badge is what is newer than it (nothing, right after a look).

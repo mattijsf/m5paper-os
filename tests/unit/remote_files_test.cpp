@@ -40,11 +40,11 @@ TEST_CASE("remote: only /sd/books and /sd/paperos, never paperos_config or ..") 
   CHECK_FALSE(remotePathAllowed("/sd/books\\..\\x"));
 }
 
-TEST_CASE("crc32Update chains") {
+TEST_CASE("crc32 chains") {
   const char* s = "123456789";
   const uint8_t* p = reinterpret_cast<const uint8_t*>(s);
   CHECK(crc32(p, 9) == 0xCBF43926u);
-  CHECK(crc32Update(crc32Update(0, p, 4), p + 4, 5) == 0xCBF43926u);
+  CHECK(crc32(p + 4, 5, crc32(p, 4)) == 0xCBF43926u);
 }
 
 namespace {

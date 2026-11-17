@@ -2,16 +2,11 @@
 
 #include <algorithm>
 
+#include "core/utf8.h"
+
 namespace pos::ui {
 
 namespace {
-
-// Length in bytes of the UTF-8 sequence starting at s[i].
-size_t cpLen(const std::string& s, size_t i) {
-  unsigned char b = static_cast<unsigned char>(s[i]);
-  size_t n = b < 0x80 ? 1 : (b >> 5) == 6 ? 2 : (b >> 4) == 14 ? 3 : (b >> 3) == 30 ? 4 : 1;
-  return std::min(n, s.size() - i);
-}
 
 // Word-wraps one paragraph (already sanitized) into `out`.
 void wrapInto(Canvas& c, const std::string& s, Type type, int width, std::vector<std::string>& out) {
@@ -25,7 +20,7 @@ void wrapInto(Canvas& c, const std::string& s, Type type, int width, std::vector
     }
     // next word
     size_t j = i;
-    while (j < s.size() && s[j] != ' ') j += cpLen(s, j);
+    while (j < s.size() && s[j] != ' ') j += utf8::span(s, j);
     std::string word = s.substr(i, j - i);
     std::string trial = line.empty() ? word : line + " " + word;
     if (fits(trial)) {
@@ -42,7 +37,7 @@ void wrapInto(Canvas& c, const std::string& s, Type type, int width, std::vector
     std::string part;
     size_t k = 0;
     while (k < word.size()) {
-      size_t n = cpLen(word, k);
+      size_t n = utf8::span(word, k);
       if (!part.empty() && !fits(part + word.substr(k, n))) break;
       part += word.substr(k, n);
       k += n;

@@ -42,7 +42,5 @@ class Tokenizer {
 std::string decodeEntities(const std::string& s);
 // Local part of a prefixed name ("dc:title" -> "title").
 std::string localName(const std::string& n);
-// Appends a code point as UTF-8.
-void appendUtf8(std::string& out, unsigned cp);
 
 }  // namespace pos::reader::xml

@@ -5,6 +5,8 @@
 #include <cstdlib>
 #include <vector>
 
+#include "core/utf8.h"
+
 namespace pos {
 
 namespace {
@@ -43,31 +45,6 @@ struct Emoji {
 const Emoji kEmoji[] = {{0x1F600, ":)"}, {0x1F603, ":)"}, {0x1F604, ":)"}, {0x1F601, ":)"}, {0x1F642, ":)"}, {0x1F60A, ":)"}, {0x263A, ":)"},
                         {0x1F602, ":D"}, {0x1F923, ":D"}, {0x1F609, ";)"}, {0x1F61B, ":P"}, {0x1F622, ":("}, {0x1F62D, ":("}, {0x1F641, ":("},
                         {0x2639, ":("},  {0x1F620, ">:("}, {0x2764, "<3"},  {0x1F496, "<3"},  {0x1F44D, "(+1)"}, {0x1F44E, "(-1)"}, {0x1F64F, "(thanks)"}};
-
-// Decodes one code point at s[i]; returns the bytes used (>= 1). cp = 0xFFFFFFFF if the bytes are not valid UTF-8.
-size_t decodeAt(const std::string& s, size_t i, unsigned& cp) {
-  const unsigned char b = static_cast<unsigned char>(s[i]);
-  const size_t need = b < 0x80 ? 0 : (b >> 5) == 6 ? 1 : (b >> 4) == 14 ? 2 : (b >> 3) == 30 ? 3 : 99;
-  if (need == 0) {
-    cp = b;
-    return 1;
-  }
-  if (need == 99 || i + need >= s.size()) {
-    cp = 0xFFFFFFFFu;
-    return 1;
-  }
-  cp = b & (0xFF >> (need + 2));
-  for (size_t k = 1; k <= need; ++k) {
-    const unsigned char n = static_cast<unsigned char>(s[i + k]);
-    if ((n & 0xC0) != 0x80) {
-      cp = 0xFFFFFFFFu;
-      return 1;
-    }
-    cp = (cp << 6) | (n & 0x3F);
-  }
-  if ((need == 1 && cp < 0x80) || (need == 2 && cp < 0x800) || (need == 3 && cp < 0x10000) || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) cp = 0xFFFFFFFFu;
-  return need + 1;
-}
 
 bool lowerEq(const std::string& s, size_t at, const char* what) {
   for (size_t i = 0; what[i]; ++i)
@@ -138,24 +115,6 @@ std::string htmlToText(const std::string& h) {
 
 }  // namespace
 
-void appendUtf8(std::string& out, unsigned cp) {
-  if (cp == 0 || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) cp = 0xFFFD;
-  if (cp < 0x80) out += static_cast<char>(cp);
-  else if (cp < 0x800) {
-    out += static_cast<char>(0xC0 | (cp >> 6));
-    out += static_cast<char>(0x80 | (cp & 0x3F));
-  } else if (cp < 0x10000) {
-    out += static_cast<char>(0xE0 | (cp >> 12));
-    out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
-    out += static_cast<char>(0x80 | (cp & 0x3F));
-  } else {
-    out += static_cast<char>(0xF0 | (cp >> 18));
-    out += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
-    out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
-    out += static_cast<char>(0x80 | (cp & 0x3F));
-  }
-}
-
 std::string decodeEntities(const std::string& s) {
   if (s.find('&') == std::string::npos) return s;
   std::string out;
@@ -188,7 +147,7 @@ std::string decodeEntities(const std::string& s) {
         }
     }
     if (ok) {
-      appendUtf8(out, cp);
+      utf8::append(out, cp);
       i = semi;
     } else {
       out += '&';
@@ -235,10 +194,9 @@ std::string cleanText(const std::string& inRaw, const CleanOptions& opt) {
   std::string chars;
   chars.reserve(in.size());
   for (size_t i = 0; i < in.size();) {
-    unsigned cp;
-    const size_t n = decodeAt(in, i, cp);
-    i += n;
-    if (cp == 0xFFFFFFFFu) continue;
+    uint32_t cp;
+    i += utf8::decode(in, i, cp);
+    if (cp == utf8::kInvalid) continue;
     if (cp == '\r') {
       if (i < in.size() && in[i] == '\n') ++i;
       cp = '\n';
@@ -252,16 +210,16 @@ std::string cleanText(const std::string& inRaw, const CleanOptions& opt) {
       continue;
     }
     if (cp == 0x200D || isEmojiModifier(cp)) {  // sequences stay whole: ui/text draws 👩‍💻, 🇳🇱, keycaps from the atlas
-      appendUtf8(chars, cp);
+      utf8::append(chars, cp);
       continue;
     }
     if (cp < 0x20 || cp == 0x7F || (cp >= 0x80 && cp < 0xA0) || cp == 0x200B || cp == 0x200C || cp == 0xFEFF) continue;
     if (cp == 0xAD) continue;  // soft hyphen
     if (hasGlyph(cp)) {
-      appendUtf8(chars, cp);
+      utf8::append(chars, cp);
       continue;
     }
-    if (isEmojiRange(cp)) appendUtf8(chars, cp);  // drawn from the emoji atlas, or as emojiFallback() / dropped without one
+    if (isEmojiRange(cp)) utf8::append(chars, cp);  // drawn from the emoji atlas, or as emojiFallback() / dropped without one
   }
   // 2. links to host names; long words cut
   std::string words;
@@ -294,9 +252,7 @@ std::string cleanText(const std::string& inRaw, const CleanOptions& opt) {
       w = head + (host.empty() ? w : host) + tail;
     }
     if (opt.maxWord > 3 && w.size() > opt.maxWord) {
-      size_t cut = opt.maxWord - 1;
-      while (cut > 0 && (static_cast<unsigned char>(w[cut]) & 0xC0) == 0x80) --cut;  // not inside a character
-      w = w.substr(0, cut) + "\xE2\x80\xA6";
+      w = utf8::truncate(w, opt.maxWord - 1) + "\xE2\x80\xA6";
     }
     words += w;
   }

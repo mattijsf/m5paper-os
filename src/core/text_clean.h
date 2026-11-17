@@ -8,8 +8,6 @@ namespace pos {
 
 // &amp; &#8217; &#x2019; &eacute; ... Unknown entities stay as written.
 std::string decodeEntities(const std::string& s);
-// Appends a code point as UTF-8 (0, surrogates and out-of-range become U+FFFD).
-void appendUtf8(std::string& out, unsigned cp);
 
 // "https://www.example.com/a/b?x=1" -> "example.com" (scheme, "www.", port, path, query and fragment dropped); "" if `url` is not a URL.
 std::string hostOfUrl(const std::string& url);

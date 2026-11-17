@@ -6,6 +6,7 @@
 
 #include "core/agenda.h"
 #include "core/fs.h"
+#include "core/utf8.h"
 
 namespace pos::companion {
 
@@ -14,23 +15,7 @@ namespace {
 const char* kPairingPath = "/data/companion.json";
 const char* kNotifsPath = "/data/cache/inbox/notifs.json";
 
-std::string cut(const std::string& s, size_t chars) {
-  size_t i = 0, n = 0;
-  while (i < s.size() && n < chars) {
-    const unsigned char c = static_cast<unsigned char>(s[i]);
-    i += c < 0x80 ? 1 : (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : 4;
-    ++n;
-  }
-  return s.substr(0, std::min(i, s.size()));
-}
-
-size_t charCount(const std::string& s) {
-  size_t n = 0;
-  for (char c : s) n += (static_cast<unsigned char>(c) & 0xC0) != 0x80;
-  return n;
-}
-
-std::string str(JsonVariantConst v, size_t chars) { return v.is<const char*>() ? cut(v.as<std::string>(), chars) : std::string(); }
+std::string str(JsonVariantConst v, size_t chars) { return v.is<const char*>() ? utf8::prefix(v.as<std::string>(), chars) : std::string(); }
 
 int64_t num(JsonVariantConst v) { return v.is<int64_t>() ? v.as<int64_t>() : v.is<double>() ? static_cast<int64_t>(v.as<double>()) : 0; }
 
@@ -282,7 +267,7 @@ std::string replyEnvelope(Pairing& p, const std::string& key, const std::string&
   JsonDocument d;
   d["t"] = "reply";
   d["k"] = key;
-  d["text"] = cut(text, kMaxReplyChars);
+  d["text"] = utf8::prefix(text, kMaxReplyChars);
   d["ts"] = now;
   return push(p, d);
 }
@@ -301,14 +286,14 @@ std::string dismissEnvelope(Pairing& p, const std::vector<std::string>& keys) {
 }
 
 std::string clipEnvelope(Pairing& p, const std::string& text, int64_t now) {
-  std::string t = cut(text, kMaxClipChars);
+  std::string t = utf8::prefix(text, kMaxClipChars);
   while (!t.empty()) {
     JsonDocument d;
     d["t"] = "clip";
     d["text"] = t;
     d["ts"] = now;
     if (measureJson(d) <= kMaxPlain) return push(p, d);
-    t = cut(t, charCount(t) * 3 / 4);  // escapes (quotes, line feeds) made it too long
+    t = utf8::prefix(t, utf8::length(t) * 3 / 4);  // escapes (quotes, line feeds) made it too long
   }
   return "";
 }

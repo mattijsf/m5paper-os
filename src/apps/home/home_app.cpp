@@ -386,13 +386,8 @@ class HomeScreen : public Screen {
   }
 
   std::string clockText() {
-    const int64_t now = ctx().clock.now();
-    if (now <= 0) return "just now";
-    struct tm tmv;
-    localTime(now, tmv);
-    char buf[8];
-    std::snprintf(buf, sizeof buf, "%02d:%02d", tmv.tm_hour, tmv.tm_min);
-    return buf;
+    const int64_t t = ctx().clock.now();
+    return t > 0 ? pos::clockText(t) : "just now";
   }
 
   // ---- acting

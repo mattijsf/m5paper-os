@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "core/text_clean.h"
+#include "core/utf8.h"
 #include "gen/fonts.h"
 #include "ui/emoji.h"
 
@@ -74,51 +75,6 @@ int fontPx(FontId id) {
   return kPx[static_cast<int>(id)];
 }
 
-bool hasGlyph(uint32_t cp) {  // the baked ranges (tools/gen-assets.sh RANGES)
-  return (cp >= 0x20 && cp <= 0x7E) || (cp >= 0xA0 && cp <= 0x17F) || (cp >= 0x2010 && cp <= 0x2027) || cp == 0x20AC;
-}
-
-// Decodes one UTF-8 code point; returns the number of bytes used (>= 1). cp = 0xFFFFFFFF if invalid.
-size_t decode(const std::string& s, size_t i, uint32_t& cp) {
-  unsigned char b = static_cast<unsigned char>(s[i]);
-  size_t need = b < 0x80 ? 0 : (b >> 5) == 6 ? 1 : (b >> 4) == 14 ? 2 : (b >> 3) == 30 ? 3 : 99;
-  if (need == 0) {
-    cp = b;
-    return 1;
-  }
-  if (need == 99 || i + need >= s.size()) {
-    cp = 0xFFFFFFFFu;
-    return 1;
-  }
-  cp = b & (0xFF >> (need + 2));
-  for (size_t k = 1; k <= need; ++k) {
-    unsigned char n = static_cast<unsigned char>(s[i + k]);
-    if ((n & 0xC0) != 0x80) {
-      cp = 0xFFFFFFFFu;
-      return 1;
-    }
-    cp = (cp << 6) | (n & 0x3F);
-  }
-  return need + 1;
-}
-
-void append(std::string& out, uint32_t cp) {
-  if (cp < 0x80) out += static_cast<char>(cp);
-  else if (cp < 0x800) {
-    out += static_cast<char>(0xC0 | (cp >> 6));
-    out += static_cast<char>(0x80 | (cp & 0x3F));
-  } else if (cp < 0x10000) {
-    out += static_cast<char>(0xE0 | (cp >> 12));
-    out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
-    out += static_cast<char>(0x80 | (cp & 0x3F));
-  } else {
-    out += static_cast<char>(0xF0 | (cp >> 18));
-    out += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
-    out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
-    out += static_cast<char>(0x80 | (cp & 0x3F));
-  }
-}
-
 textdatum_t datum(Anchor a) {
   switch (a) {
     case Anchor::TopLeft: return textdatum_t::top_left;
@@ -150,7 +106,7 @@ Square squareKind(uint32_t cp) {
 bool hasSquares(const std::string& s) {
   for (size_t i = 0; i < s.size();) {
     uint32_t cp;
-    i += decode(s, i, cp);
+    i += utf8::decode(s, i, cp);
     if (squareKind(cp) != Square::None) return true;
   }
   return false;
@@ -335,7 +291,7 @@ bool isEmoji(uint32_t cp) { return cp >= 0x2000 && !hasGlyph(cp) && squareKind(c
 bool hasEmoji(const std::string& s) {
   for (size_t i = 0; i < s.size();) {
     uint32_t cp;
-    i += decode(s, i, cp);
+    i += utf8::decode(s, i, cp);
     if (cp >= 0x2000 && isEmoji(cp)) return true;
   }
   return false;
@@ -390,7 +346,7 @@ bool fastDraw(Canvas& c, FontId id, const std::string& text, int x, int y, textd
   bool anyEmoji = false;
   for (size_t i = 0; i < text.size();) {
     uint32_t cp;
-    i += decode(text, i, cp);
+    i += utf8::decode(text, i, cp);
     if (cp < 0x20 || (cp >= 0xFE00 && cp < 0xFE10)) continue;
     if (n == 256) return false;
     const bool emo = cp >= 0x2000 && isEmoji(cp);
@@ -478,7 +434,7 @@ int widthSpecial(Canvas& c, FontId id, const std::string& s) {
   std::string run;
   for (size_t i = 0; i < s.size();) {
     uint32_t cp;
-    const size_t n = decode(s, i, cp);
+    const size_t n = utf8::decode(s, i, cp);
     if (squareKind(cp) != Square::None) {
       if (!run.empty()) w += c.textWidth(run.c_str());
       run.clear();
@@ -531,20 +487,20 @@ size_t familySpan(const std::string& s, size_t i) {
   size_t end = i;
   for (size_t at = i; at < s.size();) {
     uint32_t cp;
-    const size_t n = decode(s, at, cp);
+    const size_t n = utf8::decode(s, at, cp);
     if (!person(cp)) break;
     ++people;
     kid = kid || child(cp);
     at += n;
     while (at < s.size()) {  // skin tones and selectors after a person
       uint32_t m;
-      const size_t k = decode(s, at, m);
+      const size_t k = utf8::decode(s, at, m);
       if (!isEmojiModifier(m)) break;
       at += k;
     }
     end = at;
     uint32_t zwj;
-    if (at >= s.size() || (decode(s, at, zwj), zwj != 0x200D)) break;
+    if (at >= s.size() || (utf8::decode(s, at, zwj), zwj != 0x200D)) break;
     at += 3;
   }
   return people >= 3 || (people == 2 && kid) ? end - i : 0;
@@ -556,7 +512,7 @@ std::string sanitize(const std::string& s) {
   for (size_t i = 0; i < s.size();) {
     uint32_t cp;
     const size_t at = i;
-    i += decode(s, i, cp);
+    i += utf8::decode(s, i, cp);
     if (cp == '\n' || cp == '\t') cp = ' ';
     // A sequence (👩‍💻, 🇳🇱, a keycap) becomes its atlas id. A digit, # or * can only start a keycap: the next bytes must be
     // U+FE0F or U+20E3, so ordinary numbers cost no lookup.
@@ -565,28 +521,28 @@ std::string sanitize(const std::string& s) {
     if (keycap || cp >= 0x2000) {
       uint32_t id;
       if (const size_t n = emoji::matchSequence(s, at, id)) {
-        append(out, id);
+        utf8::append(out, id);
         i = at + n;
         continue;
       }
       if (const size_t n = cp >= 0x1F466 && cp <= 0x1F9D2 ? familySpan(s, at) : 0) {
-        if (isEmoji(0x1F46A)) append(out, 0x1F46A);  // 👪
+        if (isEmoji(0x1F46A)) utf8::append(out, 0x1F46A);  // 👪
         i = at + n;
         continue;
       }
     }
     if (hasGlyph(cp) || squareKind(cp) != Square::None) {
-      append(out, cp);
+      utf8::append(out, cp);
     } else if (cp == 0x200D) {  // a ZWJ sequence shows its first emoji: the joined one is skipped
-      if (i < s.size()) i += decode(s, i, cp);
+      if (i < s.size()) i += utf8::decode(s, i, cp);
     } else if (isEmojiModifier(cp)) {
       // variation selectors, skin tones, the keycap mark, tags: nothing of their own
     } else if (isEmoji(cp)) {
-      append(out, cp);
+      utf8::append(out, cp);
     } else if (isEmojiRange(cp)) {
       if (const char* t = emojiFallback(cp)) out += t;  // no atlas on the card: ":)" for a few, nothing for the rest
     } else {
-      append(out, '?');
+      utf8::append(out, '?');
     }
   }
   return out;
@@ -622,7 +578,7 @@ void drawText(Canvas& c, const std::string& utf8, int x, int y, Type type, Color
   };
   for (size_t i = 0; i < text.size();) {
     uint32_t cp;
-    const size_t n = decode(text, i, cp);
+    const size_t n = utf8::decode(text, i, cp);
     const Square kind = squareKind(cp);
     if (kind != Square::None) {
       flush();
@@ -659,7 +615,7 @@ std::string ellipsize(Canvas& c, const std::string& utf8, Type type, int maxWidt
   std::string prefix;
   for (size_t i = 0; i < s.size();) {
     uint32_t cp;
-    size_t n = decode(s, i, cp);
+    size_t n = utf8::decode(s, i, cp);
     std::string next = prefix + s.substr(i, n);
     if (measureText(c, next + "\xE2\x80\xA6", type) > maxWidth) break;
     prefix = next;
@@ -671,7 +627,7 @@ std::string ellipsize(Canvas& c, const std::string& utf8, Type type, int maxWidt
 void drawIcon(Canvas& c, Icon icon, int cx, int cy, int size, Color color, Color bg) {
   useFont(c, size >= 64 ? FontId::Lucide64 : FontId::Lucide32);
   std::string s;
-  append(s, gen::kIconCodepoint[static_cast<size_t>(icon)]);
+  utf8::append(s, gen::kIconCodepoint[static_cast<size_t>(icon)]);
   c.setTextColor(color, bg);
   if (fastDraw(c, size >= 64 ? FontId::Lucide64 : FontId::Lucide32, s, cx, cy, textdatum_t::middle_center, color, bg)) return;
   c.setTextDatum(textdatum_t::middle_center);

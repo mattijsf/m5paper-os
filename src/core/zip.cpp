@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <memory>
 
+#include "core/crc32.h"
 #include "core/fs.h"
 #include "tinfl.h"
 
@@ -17,22 +18,6 @@ constexpr uint32_t kEocdSig = 0x06054b50u, kCentralSig = 0x02014b50u, kLocalSig 
 constexpr size_t kMaxEntries = 20000;
 
 }  // namespace
-
-uint32_t crc32(uint32_t crc, const uint8_t* data, size_t n) {
-  static uint32_t table[256];
-  static bool ready = false;
-  if (!ready) {
-    for (uint32_t i = 0; i < 256; ++i) {
-      uint32_t c = i;
-      for (int k = 0; k < 8; ++k) c = (c & 1) ? 0xEDB88320u ^ (c >> 1) : c >> 1;
-      table[i] = c;
-    }
-    ready = true;
-  }
-  crc = ~crc;
-  for (size_t i = 0; i < n; ++i) crc = table[(crc ^ data[i]) & 0xFF] ^ (crc >> 8);
-  return ~crc;
-}
 
 void Archive::close() {
   if (f_) std::fclose(f_);
@@ -125,7 +110,7 @@ bool Archive::extract(const Entry& e, const Sink& sink, size_t maxBytes) {
     while (remaining > 0) {
       const size_t n = std::min(remaining, in.size());
       if (std::fread(in.data(), 1, n, f_) != n) return fail("cannot read entry");
-      crc = crc32(crc, in.data(), n);
+      crc = crc32(in.data(), n, crc);
       total += n;
       remaining -= n;
       if (!sink(in.data(), n)) return fail("stopped");
@@ -151,7 +136,7 @@ bool Archive::extract(const Entry& e, const Sink& sink, size_t maxBytes) {
       if (outN) {
         total += outN;
         if (total > maxBytes || total > e.size) return fail("corrupt entry (too much data)");
-        crc = crc32(crc, dict.data() + dictOfs, outN);
+        crc = crc32(dict.data() + dictOfs, outN, crc);
         if (!sink(dict.data() + dictOfs, outN)) return fail("stopped");
       }
       dictOfs = (dictOfs + outN) & (dict.size() - 1);

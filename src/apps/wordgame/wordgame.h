@@ -11,6 +11,8 @@
 #include <string>
 #include <vector>
 
+#include "core/timefmt.h"
+
 namespace pos::wordgame {
 
 constexpr int kLen = 5;
@@ -26,9 +28,7 @@ constexpr char kUnused = ' ';  // a key that was not tried yet
 // "No day". An int on purpose: INT32_MIN is a long on the ESP32, and Store::get has no overload for long.
 constexpr int kNoDay = INT_MIN;
 
-struct Date {
-  int year = 0, month = 0, day = 0;
-};
+using Date = pos::Date;
 
 // Whole days from the first puzzle (2026-11-16 = day 0) to `date`; negative before it.
 int dayOf(const Date& date);

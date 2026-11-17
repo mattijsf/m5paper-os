@@ -70,15 +70,8 @@ class RefreshSurface : public Surface {
     const bool have = loadSleepInfo(info);
     std::shared_ptr<Canvas> image;
     if (have && !info.image.empty()) image = ui::loadImageFit(info.image, kSleepImageW, kSleepImageH);
-    std::string updated;
     const int64_t now = p.clock.now();
-    if (r.feedsOk > 0 && now > 0) {
-      struct tm tmv;
-      localTime(now, tmv);
-      char buf[8];
-      std::snprintf(buf, sizeof buf, "%02d:%02d", tmv.tm_hour, tmv.tm_min);
-      updated = buf;
-    }
+    const std::string updated = r.feedsOk > 0 ? clockText(now) : std::string();
     if (r.feedsOk > 0) {  // nothing answered: the panel keeps what it shows (no flash, less time awake)
       drawSleepScreen(os_.canvas(), have ? &info : nullptr, image.get(), sleepNote(cachedUnread(), updated), sleepAgendaLine(now));
       os_.displayManager().forceClean();

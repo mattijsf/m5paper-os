@@ -3,25 +3,11 @@
 #include <cstdio>
 #include <vector>
 
+#include "core/crc32.h"
+
 namespace pos::sim {
 
 namespace {
-
-uint32_t crc32(const uint8_t* data, size_t len, uint32_t crc = 0) {
-  static uint32_t table[256];
-  static bool init = false;
-  if (!init) {
-    for (uint32_t n = 0; n < 256; ++n) {
-      uint32_t c = n;
-      for (int k = 0; k < 8; ++k) c = (c & 1) ? 0xEDB88320u ^ (c >> 1) : c >> 1;
-      table[n] = c;
-    }
-    init = true;
-  }
-  crc = ~crc;
-  for (size_t i = 0; i < len; ++i) crc = table[(crc ^ data[i]) & 0xFF] ^ (crc >> 8);
-  return ~crc;
-}
 
 void put32(std::vector<uint8_t>& v, uint32_t x) {
   v.push_back(x >> 24);

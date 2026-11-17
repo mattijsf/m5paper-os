@@ -18,16 +18,6 @@ namespace {
 double num(JsonVariantConst v) { return v.is<double>() ? v.as<double>() : kNone; }
 std::string str(JsonVariantConst v) { return v.is<const char*>() ? std::string(v.as<const char*>()) : std::string(); }
 
-// Days since 1970-01-01 of a civil date (Howard Hinnant's days_from_civil).
-int64_t daysFromCivil(int64_t y, unsigned m, unsigned d) {
-  y -= m <= 2;
-  const int64_t era = (y >= 0 ? y : y - 399) / 400;
-  const unsigned yoe = static_cast<unsigned>(y - era * 400);
-  const unsigned doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
-  const unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-  return era * 146097 + static_cast<int64_t>(doe) - 719468;
-}
-
 bool parseStep(JsonObjectConst o, Step& s) {
   if (!parseIsoTime(str(o["datetime"]), s.time)) return false;
   s.condition = str(o["condition"]);
@@ -96,7 +86,7 @@ bool parseIsoTime(const std::string& s, int64_t& out) {
     if (std::sscanf(s.c_str() + p + 1, "%2d:%2d", &oh, &om) < 1) return false;
     offset = (s[p] == '-' ? -1 : 1) * (oh * 3600 + om * 60);
   }
-  out = daysFromCivil(y, static_cast<unsigned>(mo), static_cast<unsigned>(d)) * 86400 + h * 3600 + mi * 60 + sec - offset;
+  out = static_cast<int64_t>(daysFromCivil(y, mo, d)) * 86400 + h * 3600 + mi * 60 + sec - offset;
   return true;
 }
 
@@ -175,14 +165,8 @@ RainSummary rainSummary(const std::vector<RainBlock>& blocks, int64_t now) {
   r.known = current != nullptr;
   if (!r.known) return r;
   r.wet = firstWet != nullptr;
-  auto clock = [](int64_t t) {
-    struct tm tmv;
-    char buf[8] = "";
-    if (localTime(t, tmv)) std::snprintf(buf, sizeof buf, "%02d:%02d", tmv.tm_hour, tmv.tm_min);
-    return std::string(buf);
-  };
-  if (current->rate >= kWetRate) r.headline = firstDryAfter ? "Rain until " + clock(firstDryAfter->start) : "Rain for the next 2 hours";
-  else r.headline = firstWet ? "Rain from " + clock(firstWet->start) : "Dry for the next 2 hours";
+  if (current->rate >= kWetRate) r.headline = firstDryAfter ? "Rain until " + clockText(firstDryAfter->start) : "Rain for the next 2 hours";
+  else r.headline = firstWet ? "Rain from " + clockText(firstWet->start) : "Dry for the next 2 hours";
   return r;
 }
 
@@ -357,9 +341,8 @@ std::string amount(double v, const std::string& unit) {
 }
 
 int localDay(int64_t t) {
-  struct tm tmv;
-  if (!localTime(t, tmv)) return static_cast<int>(t / 86400);
-  return static_cast<int>(daysFromCivil(tmv.tm_year + 1900, static_cast<unsigned>(tmv.tm_mon + 1), static_cast<unsigned>(tmv.tm_mday)));
+  int days = 0;
+  return pos::localDay(t, days) ? days : static_cast<int>(t / 86400);
 }
 
 std::vector<Step> nextHours(const std::vector<Step>& hourly, int64_t now, int count, int stride) {

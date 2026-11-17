@@ -7,6 +7,7 @@
 
 #include "core/fs.h"
 #include "core/timefmt.h"
+#include "core/utf8.h"
 
 namespace pos::agenda {
 
@@ -15,27 +16,7 @@ namespace {
 const char* kDir = "/data/cache/agenda";
 const char* kPath = "/data/cache/agenda/agenda.json";
 
-const char* kDays[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
-const char* kMonths[] = {"January", "February", "March", "April", "May", "June",
-                         "July", "August", "September", "October", "November", "December"};
-
-std::string cut(const std::string& s, size_t chars) {
-  size_t i = 0, n = 0;
-  while (i < s.size() && n < chars) {
-    const unsigned char c = static_cast<unsigned char>(s[i]);
-    i += c < 0x80 ? 1 : (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : 4;
-    ++n;
-  }
-  return s.substr(0, std::min(i, s.size()));
-}
-
-std::string str(JsonVariantConst v, size_t chars) { return v.is<const char*>() ? cut(v.as<std::string>(), chars) : std::string(); }
-
-std::string hhmm(int minutes) {
-  char buf[8];
-  std::snprintf(buf, sizeof buf, "%02d:%02d", (minutes / 60) % 24, minutes % 60);
-  return buf;
-}
+std::string str(JsonVariantConst v, size_t chars) { return v.is<const char*>() ? utf8::prefix(v.as<std::string>(), chars) : std::string(); }
 
 const std::string& titleOf(const Event& e) {
   static const std::string kNone = "(No title)";
@@ -84,30 +65,6 @@ void writeDay(JsonArray days, const Day& day) {
 
 }  // namespace
 
-// Howard Hinnant's civil-date algorithms.
-int daysFromCivil(int y, int m, int d) {
-  y -= m <= 2;
-  const int era = (y >= 0 ? y : y - 399) / 400;
-  const unsigned yoe = static_cast<unsigned>(y - era * 400);
-  const unsigned doy = (153 * static_cast<unsigned>(m + (m > 2 ? -3 : 9)) + 2) / 5 + static_cast<unsigned>(d) - 1;
-  const unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-  return era * 146097 + static_cast<int>(doe) - 719468;
-}
-
-void civilFromDays(int days, int& y, int& m, int& d) {
-  days += 719468;
-  const int era = (days >= 0 ? days : days - 146096) / 146097;
-  const unsigned doe = static_cast<unsigned>(days - era * 146097);
-  const unsigned yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-  const unsigned doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-  const unsigned mp = (5 * doy + 2) / 153;
-  d = static_cast<int>(doy - (153 * mp + 2) / 5 + 1);
-  m = static_cast<int>(mp < 10 ? mp + 3 : mp - 9);
-  y = static_cast<int>(yoe) + era * 400 + (m <= 2);
-}
-
-int weekday(int days) { return ((days % 7) + 11) % 7; }  // 1970-01-01 was a Thursday
-
 bool parseDate(const std::string& text, int& days) {
   if (text.size() != 10 || text[4] != '-' || text[7] != '-') return false;
   for (size_t i = 0; i < text.size(); ++i)
@@ -115,18 +72,10 @@ bool parseDate(const std::string& text, int& days) {
   const int y = std::atoi(text.substr(0, 4).c_str()), m = std::atoi(text.substr(5, 2).c_str()), d = std::atoi(text.substr(8, 2).c_str());
   if (y < 1970 || m < 1 || m > 12 || d < 1 || d > 31) return false;
   days = daysFromCivil(y, m, d);
-  int y2, m2, d2;
-  civilFromDays(days, y2, m2, d2);
-  return y2 == y && m2 == m && d2 == d;  // no 31 February
+  return civilFromDays(days) == Date{y, m, d};  // no 31 February
 }
 
-std::string formatDate(int days) {
-  int y, m, d;
-  civilFromDays(days, y, m, d);
-  char buf[16];
-  std::snprintf(buf, sizeof buf, "%04d-%02d-%02d", y, m, d);
-  return buf;
-}
+std::string formatDate(int days) { return isoDate(days); }
 
 bool load(Agenda& out) {
   out = Agenda{};
@@ -214,9 +163,8 @@ std::string timeText(const Event& e) {
 std::string dayTitle(int date, int today) {
   if (date == today) return "Today";
   if (date == today + 1) return "Tomorrow";
-  int y, m, d;
-  civilFromDays(date, y, m, d);
-  return std::string(kDays[weekday(date)]) + " " + std::to_string(d) + " " + kMonths[m - 1];
+  const Date d = civilFromDays(date);
+  return std::string(weekdayName(weekdayOf(date))) + " " + std::to_string(d.day) + " " + monthName(d.month - 1);
 }
 
 std::string nextLine(const Agenda& a, int today, int minute) {
@@ -243,9 +191,8 @@ std::string nextLine(const Agenda& a, int today, int minute) {
     if (day.date == today + 1) {
       label = "Tomorrow";
     } else {
-      int y, m, d;
-      civilFromDays(day.date, y, m, d);
-      label = std::string(kDays[weekday(day.date)]).substr(0, 3) + " " + std::to_string(d) + " " + std::string(kMonths[m - 1]).substr(0, 3);
+      const Date d = civilFromDays(day.date);
+      label = weekdayShort(weekdayOf(day.date)) + " " + std::to_string(d.day) + " " + monthShort(d.month - 1);
     }
     return e.start < 0 ? label + ": " + titleOf(e) : label + " " + hhmm(e.start) + " " + titleOf(e);
   }

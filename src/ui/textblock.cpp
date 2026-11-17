@@ -4,6 +4,7 @@
 
 #include <algorithm>
 
+#include "core/utf8.h"
 #include "ui/root.h"
 
 namespace pos::ui {
@@ -88,12 +89,6 @@ Type typeFor(const Paragraph& p, const TextStyle& st, bool& bold) {
     case 2: return Type::ReadL;
     default: return Type::ReadM;
   }
-}
-
-size_t cpLen(const std::string& s, size_t i) {
-  unsigned char b = static_cast<unsigned char>(s[i]);
-  size_t n = b < 0x80 ? 1 : (b >> 5) == 6 ? 2 : (b >> 4) == 14 ? 3 : (b >> 3) == 30 ? 4 : 1;
-  return std::min(n, s.size() - i);
 }
 
 struct Piece {
@@ -224,7 +219,7 @@ Page layoutPage(const std::vector<Paragraph>& paras, TextPos start, const TextSt
           size_t k = 0;
           std::string part;
           while (k < word.size()) {
-            const size_t n = cpLen(word, k);
+            const size_t n = utf8::span(word, k);
             if (!part.empty() && x + m.width(part + word.substr(k, n), base, bold, r0.italic) > st.width) break;
             part += word.substr(k, n);
             k += n;

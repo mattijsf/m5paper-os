@@ -8,6 +8,7 @@
 #include <string>
 
 #include "core/fs.h"
+#include "core/utf8.h"
 
 namespace pos::ui::emoji {
 
@@ -132,26 +133,6 @@ const Entry* find(const Atlas& a, uint32_t cp) {
   return it != a.index.end() && it->cp == cp ? &*it : nullptr;
 }
 
-// One UTF-8 code point at s[i]; returns the bytes used (>= 1), cp = 0xFFFFFFFF if invalid.
-size_t decode(const std::string& s, size_t i, uint32_t& cp) {
-  const unsigned char b = static_cast<unsigned char>(s[i]);
-  const size_t need = b < 0x80 ? 0 : (b >> 5) == 6 ? 1 : (b >> 4) == 14 ? 2 : (b >> 3) == 30 ? 3 : 9;
-  if (need == 9 || i + need >= s.size() + (need == 0 ? 1 : 0)) {
-    cp = need == 0 ? b : 0xFFFFFFFFu;
-    return 1;
-  }
-  cp = need == 0 ? b : b & (0xFF >> (need + 2));
-  for (size_t k = 1; k <= need; ++k) {
-    const unsigned char c = static_cast<unsigned char>(s[i + k]);
-    if ((c & 0xC0) != 0x80) {
-      cp = 0xFFFFFFFFu;
-      return 1;
-    }
-    cp = (cp << 6) | (c & 0x3F);
-  }
-  return need + 1;
-}
-
 // Skipped while matching a sequence: variation selectors and skin tones.
 bool ignorable(uint32_t cp) { return cp == 0xFE0E || cp == 0xFE0F || (cp >= 0x1F3FB && cp <= 0x1F3FF); }
 
@@ -163,12 +144,12 @@ size_t matchSequence(const std::string& s, size_t i, uint32_t& id) {
   const Atlas* a = atlas(22);
   if (!a || a->seqs.empty()) return 0;
   uint32_t cp;
-  size_t at = i + decode(s, i, cp);
+  size_t at = i + utf8::decode(s, i, cp);
   if (!std::binary_search(a->firsts.begin(), a->firsts.end(), cp)) return 0;
   std::vector<uint32_t> got{cp};
   std::vector<size_t> ends{at};  // the byte after each gathered code point (and the ignorables after it)
   while (got.size() < a->longest && at < s.size()) {
-    size_t n = decode(s, at, cp);
+    size_t n = utf8::decode(s, at, cp);
     if (ignorable(cp)) {
       at += n;
       ends.back() = at;

@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 
+#include "core/crc32.h"
 #include "core/fs.h"
 #include "core/os.h"
 #include "hal/clock.h"
@@ -63,9 +64,6 @@ struct RemoteCommand {
 // Pure parser: "tap 10 20" (with or without the leading '>') -> command. No side effects.
 RemoteCommand parseRemoteCommand(const std::string& line);
 
-uint32_t crc32(const uint8_t* data, size_t len);
-// Continues a CRC-32: crc32Update(crc32Update(0, a), b) == crc32(a + b).
-uint32_t crc32Update(uint32_t crc, const uint8_t* data, size_t len);
 // Paths a remote file command may touch: /sd/books/... and /sd/paperos/..., no "..", never paperos_config.
 bool remotePathAllowed(const std::string& virtualPath);
 

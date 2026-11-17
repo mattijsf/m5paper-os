@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "core/clipboard.h"
+#include "core/utf8.h"
 #include "ui/controls.h"
 #include "ui/label.h"
 #include "ui/panels.h"
@@ -238,38 +239,23 @@ void TextField::setText(const std::string& t) {
   if (onChange) onChange();
 }
 
-size_t TextField::charCount(const std::string& utf8) {
-  size_t n = 0;
-  for (unsigned char c : utf8)
-    if ((c & 0xC0) != 0x80) ++n;
-  return n;
-}
+size_t TextField::charCount(const std::string& text) { return utf8::length(text); }
 
-std::string TextField::fitted(const std::string& utf8) const {
-  if (maxChars_ == 0) return utf8;
+std::string TextField::fitted(const std::string& text) const {
+  if (maxChars_ == 0) return text;
   const size_t have = charCount(text_);
   if (have >= maxChars_) return "";
-  size_t room = maxChars_ - have, i = 0;
-  while (i < utf8.size()) {
-    if ((static_cast<unsigned char>(utf8[i]) & 0xC0) != 0x80) {
-      if (room == 0) break;
-      --room;
-    }
-    ++i;
-  }
-  return utf8.substr(0, i);
+  return utf8::prefix(text, maxChars_ - have);
 }
 
-void TextField::append(const std::string& utf8) {
-  const std::string add = fitted(utf8);
+void TextField::append(const std::string& text) {
+  const std::string add = fitted(text);
   if (!add.empty()) setText(text_ + add);
 }
 
 void TextField::backspace() {
   if (text_.empty()) return;
-  size_t i = text_.size() - 1;
-  while (i > 0 && (static_cast<unsigned char>(text_[i]) & 0xC0) == 0x80) --i;
-  setText(text_.substr(0, i));
+  setText(text_.substr(0, utf8::lastStart(text_)));
 }
 
 bool TextField::paste() {
@@ -350,8 +336,7 @@ bool TextField::onTouch(const Gesture& g) {
 std::string TextField::shown() const {
   if (!masked_) return text_;
   std::string out;
-  for (unsigned char c : text_)
-    if ((c & 0xC0) != 0x80) out += "\xE2\x80\xA2";  // bullet
+  for (size_t n = utf8::length(text_); n > 0; --n) out += "\xE2\x80\xA2";  // bullet
   return out;
 }
 
@@ -404,9 +389,7 @@ void TextField::draw(Canvas& c) {
   }
   // Show the tail that fits.
   while (!s.empty() && measureText(c, s, Type::Title) > maxW) {
-    size_t n = 1;
-    while (n < s.size() && (static_cast<unsigned char>(s[n]) & 0xC0) == 0x80) ++n;
-    s.erase(0, n);
+    s.erase(0, utf8::span(s, 0));
   }
   drawText(c, s, frame.x + pad, cy, Type::Title, ink, Anchor::MiddleLeft, bg());
   c.fillRect(frame.x + pad + measureText(c, s, Type::Title) + 2, cy - 16, 2, 32, ink);

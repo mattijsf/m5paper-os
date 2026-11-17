@@ -53,7 +53,5 @@ bool unsent(int64_t now, int64_t maxAge, std::string& text, int64_t& ts);
 // What set() stores: invalid UTF-8 and control characters dropped (line feeds stay, CR LF becomes LF, a tab becomes a space),
 // then cut to `maxBytes` at a character boundary.
 std::string clean(const std::string& text, size_t maxBytes = kMaxBytes);
-// The longest prefix of valid UTF-8 `s` that is at most `maxBytes` long and ends at a character boundary.
-std::string truncateUtf8(const std::string& s, size_t maxBytes);
 
 }  // namespace pos::clipboard

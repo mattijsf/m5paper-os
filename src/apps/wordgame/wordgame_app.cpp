@@ -19,6 +19,7 @@
 #include "core/app.h"
 #include "core/clipboard.h"
 #include "core/fs.h"
+#include "core/strings.h"
 #include "core/timefmt.h"
 #include "ui/root.h"
 #include "ui/theme.h"
@@ -31,24 +32,6 @@ using game::kLen;
 using game::kTries;
 
 namespace {
-
-std::string join(const std::vector<std::string>& v) {
-  std::string s;
-  for (size_t i = 0; i < v.size(); ++i) s += (i ? "," : "") + v[i];
-  return s;
-}
-
-std::vector<std::string> split(const std::string& s) {
-  std::vector<std::string> out;
-  size_t i = 0;
-  while (i < s.size()) {
-    size_t j = s.find(',', i);
-    if (j == std::string::npos) j = s.size();
-    if (j > i) out.push_back(s.substr(i, j - i));
-    i = j + 1;
-  }
-  return out;
-}
 
 std::string upper(char c) { return std::string(1, c >= 'a' && c <= 'z' ? static_cast<char>(c - 'a' + 'A') : c); }
 
@@ -69,7 +52,7 @@ std::string daysText(int n) { return std::to_string(n) + (n == 1 ? " dag" : " da
 bool today(hal::Clock& clock, int* day) {
   const int64_t now = clock.now();
   struct tm t{};
-  if (now <= 1700000000 || !localTime(now, t)) return false;
+  if (!clockIsSet(now) || !localTime(now, t)) return false;
   *day = game::dayOf({t.tm_year + 1900, t.tm_mon + 1, t.tm_mday});
   return true;
 }
@@ -81,7 +64,7 @@ game::Stats loadStats(const Store& st) {
   s.streak = st.get("streak", 0);
   s.maxStreak = st.get("maxStreak", 0);
   s.lastWonDay = st.get("lastWon", game::kNoDay);
-  const std::vector<std::string> turns = split(st.get("turns", std::string()));
+  const std::vector<std::string> turns = split(st.get("turns", std::string()), ',');
   for (size_t i = 0; i < turns.size() && i < s.turns.size(); ++i) s.turns[i] = std::atoi(turns[i].c_str());
   return s;
 }
@@ -94,7 +77,7 @@ void saveStats(Store& st, const game::Stats& s) {
   st.set("lastWon", s.lastWonDay);
   std::vector<std::string> turns;
   for (int n : s.turns) turns.push_back(std::to_string(n));
-  st.set("turns", join(turns));
+  st.set("turns", join(turns, ","));
 }
 
 // Fetches the word list from the web and puts its accepted guesses in the app's cache (wordgame.h "More accepted words").
@@ -430,7 +413,7 @@ class StatsScreen : public Screen {
     // Today's finished game is the solid bar.
     if (clock && ctx().store.get("recorded", false) && ctx().store.get("day", game::kNoDay) == day) {
       const std::string answer = ctx().store.get("answer", std::string());
-      const std::vector<std::string> guesses = split(ctx().store.get("guesses", std::string()));
+      const std::vector<std::string> guesses = split(ctx().store.get("guesses", std::string()), ',');
       bars->mark = game::solved(answer, guesses) ? static_cast<int>(guesses.size()) - 1 : kTries;
     }
     col->add<ui::Spacer>(4);
@@ -547,7 +530,7 @@ class GameScreen : public Screen {
     for (const std::string& g : guesses_) marks += (marks.empty() ? "" : ",") + game::marksOf(answer_, g);
     std::string s = std::string("view=") + (!hasDay_ ? "noclock" : over() ? "done" : "play") + " day=" + std::to_string(day_) +
                     " number=" + std::to_string(game::puzzleNumber(day_)) + " tries=" + std::to_string(guesses_.size()) +
-                    " guesses=" + join(guesses_) + "; typed=" + typed_ + "; marks=" + marks + "; list=" + std::to_string(extra_.size() / kLen) + ";";
+                    " guesses=" + join(guesses_, ",") + "; typed=" + typed_ + "; marks=" + marks + "; list=" + std::to_string(extra_.size() / kLen) + ";";
     // Where the keys are: UI scripts tap them.
     if (keys_ && keys_->visible) {
       s += " keys=";
@@ -589,7 +572,7 @@ class GameScreen : public Screen {
     answer_ = game::answerOf(day_);
     Store& st = ctx().store;
     if (st.get("day", game::kNoDay) == day_ && st.get("answer", std::string()) == answer_) {
-      for (const std::string& g : split(st.get("guesses", std::string()))) {
+      for (const std::string& g : split(st.get("guesses", std::string()), ',')) {
         // Checked against the lists when it was played; the fetched list may not be loaded yet, so only the shape here.
         if (game::finished(answer_, guesses_) || g.size() != static_cast<size_t>(kLen)) break;
         guesses_.push_back(g);
@@ -604,7 +587,7 @@ class GameScreen : public Screen {
     Store& st = ctx().store;
     st.set("day", day_);
     st.set("answer", answer_);
-    st.set("guesses", join(guesses_));
+    st.set("guesses", join(guesses_, ","));
     st.save();
   }
 

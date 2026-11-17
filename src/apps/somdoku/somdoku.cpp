@@ -5,6 +5,8 @@
 #include <cstdio>
 #include <map>
 
+#include "core/utf8.h"
+
 namespace pos::somdoku {
 
 const char* const kGreen = "\xF0\x9F\x9F\xA9";   // U+1F7E9 large green square
@@ -19,39 +21,6 @@ double Rng::next() {
 }
 
 namespace {
-
-// UTF-8 to UTF-16 code units, as JavaScript strings hold text. Invalid bytes count as U+FFFD.
-std::vector<uint16_t> utf16(const std::string& s) {
-  std::vector<uint16_t> out;
-  for (size_t i = 0; i < s.size();) {
-    const auto b = static_cast<unsigned char>(s[i]);
-    uint32_t cp = 0xFFFD;
-    size_t len = 1;
-    if (b < 0x80) {
-      cp = b;
-    } else if ((b >> 5) == 0x6 && i + 1 < s.size()) {
-      cp = ((b & 0x1Fu) << 6) | (static_cast<unsigned char>(s[i + 1]) & 0x3Fu);
-      len = 2;
-    } else if ((b >> 4) == 0xE && i + 2 < s.size()) {
-      cp = ((b & 0x0Fu) << 12) | ((static_cast<unsigned char>(s[i + 1]) & 0x3Fu) << 6) |
-           (static_cast<unsigned char>(s[i + 2]) & 0x3Fu);
-      len = 3;
-    } else if ((b >> 3) == 0x1E && i + 3 < s.size()) {
-      cp = ((b & 0x07u) << 18) | ((static_cast<unsigned char>(s[i + 1]) & 0x3Fu) << 12) |
-           ((static_cast<unsigned char>(s[i + 2]) & 0x3Fu) << 6) | (static_cast<unsigned char>(s[i + 3]) & 0x3Fu);
-      len = 4;
-    }
-    if (cp >= 0x10000) {
-      cp -= 0x10000;
-      out.push_back(static_cast<uint16_t>(0xD800 + (cp >> 10)));
-      out.push_back(static_cast<uint16_t>(0xDC00 + (cp & 0x3FF)));
-    } else {
-      out.push_back(static_cast<uint16_t>(cp));
-    }
-    i += len;
-  }
-  return out;
-}
 
 std::string key(const Clue& clue) {
   std::string k;
@@ -132,39 +101,27 @@ std::vector<int> randomGrid(Rng& random, int n, int k) {
   return grid;
 }
 
-// Days since 1970-01-01 for a proleptic Gregorian date (Howard Hinnant's days_from_civil).
-long daysFromCivil(int y, int m, int d) {
-  y -= m <= 2;
-  const long era = (y >= 0 ? y : y - 399) / 400;
-  const long yoe = y - era * 400;
-  const long doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
-  const long doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-  return era * 146097 + doe - 719468;
-}
-
-Date civilFromDays(long z) {
-  z += 719468;
-  const long era = (z >= 0 ? z : z - 146096) / 146097;
-  const long doe = z - era * 146097;
-  const long yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-  const long doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-  const long mp = (5 * doy + 2) / 153;
-  Date out;
-  out.d = static_cast<int>(doy - (153 * mp + 2) / 5 + 1);
-  out.m = static_cast<int>(mp < 10 ? mp + 3 : mp - 9);
-  out.y = static_cast<int>(yoe + era * 400 + (out.m <= 2));
-  return out;
-}
-
 const int kLevels[] = {3, 4, 5};
 
 }  // namespace
 
-uint32_t hash(const std::string& utf8) {
+// FNV-1a over the UTF-16 code units, as JavaScript strings hold text. Bytes that are not UTF-8 count as U+FFFD.
+uint32_t hash(const std::string& text) {
   uint32_t h = 0x811c9dc5u;
-  for (uint16_t unit : utf16(utf8)) {
+  const auto mix = [&h](uint32_t unit) {
     h ^= unit;
     h *= 0x01000193u;
+  };
+  for (size_t i = 0; i < text.size();) {
+    uint32_t cp;
+    i += utf8::decode(text, i, cp);
+    if (cp == utf8::kInvalid) cp = utf8::kReplacement;
+    if (cp >= 0x10000) {  // a surrogate pair
+      mix(0xD800 + ((cp - 0x10000) >> 10));
+      mix(0xDC00 + ((cp - 0x10000) & 0x3FF));
+    } else {
+      mix(cp);
+    }
   }
   return h;
 }
@@ -272,15 +229,11 @@ Puzzle generate(uint32_t seed, int n, int k, int minPasses, int maxPasses) {
   return p;
 }
 
-std::string dayString(const Date& date) {
-  char buf[16];
-  std::snprintf(buf, sizeof buf, "%04d-%02d-%02d", date.y, date.m, date.d);
-  return buf;
-}
+std::string dayString(const Date& date) { return isoDate(date); }
 
 bool parseDay(const std::string& day, Date* out) {
   Date d;
-  if (std::sscanf(day.c_str(), "%d-%d-%d", &d.y, &d.m, &d.d) != 3 || d.m < 1 || d.m > 12 || d.d < 1 || d.d > 31) return false;
+  if (std::sscanf(day.c_str(), "%d-%d-%d", &d.year, &d.month, &d.day) != 3 || d.month < 1 || d.month > 12 || d.day < 1 || d.day > 31) return false;
   if (out) *out = d;
   return true;
 }
@@ -288,13 +241,13 @@ bool parseDay(const std::string& day, Date* out) {
 int puzzleNumber(const std::string& day) {
   Date a, b;
   if (!parseDay(day, &a) || !parseDay(kFirstDay, &b)) return 0;
-  return static_cast<int>(daysFromCivil(a.y, a.m, a.d) - daysFromCivil(b.y, b.m, b.d)) + 1;
+  return daysFromCivil(a) - daysFromCivil(b) + 1;
 }
 
 std::string dayBefore(const std::string& day) {
   Date a;
   if (!parseDay(day, &a)) return day;
-  return dayString(civilFromDays(daysFromCivil(a.y, a.m, a.d) - 1));
+  return dayString(civilFromDays(daysFromCivil(a) - 1));
 }
 
 int levelOf(const std::string& day) {

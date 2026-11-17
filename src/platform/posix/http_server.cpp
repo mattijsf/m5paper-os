@@ -25,6 +25,7 @@
 
 #include "core/fs.h"
 #include "core/log.h"
+#include "core/strings.h"
 
 #if defined(ESP_PLATFORM)
 #include "esp_pthread.h"
@@ -144,18 +145,6 @@ struct Conn {
   }
 };
 
-std::string lower(std::string s) {
-  std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-  return s;
-}
-
-std::string trim(const std::string& s) {
-  size_t a = 0, b = s.size();
-  while (a < b && (s[a] == ' ' || s[a] == '\t')) ++a;
-  while (b > a && (s[b - 1] == ' ' || s[b - 1] == '\t')) --b;
-  return s.substr(a, b - a);
-}
-
 }  // namespace
 
 bool PosixHttpServer::start(hal::ServerHandler handler) {
@@ -261,14 +250,14 @@ void PosixHttpServer::serve(int fd) {
       if (headerBytes > 16384 || req.headers.size() > 100) return;
       const auto colon = h.find(':');
       if (colon == std::string::npos) continue;
-      req.headers.emplace_back(lower(trim(h.substr(0, colon))), trim(h.substr(colon + 1)));
+      req.headers.emplace_back(lowerAscii(trimmed(h.substr(0, colon))), trimmed(h.substr(colon + 1)));
     }
     if (conn->broken) return;
-    const std::string te = lower(req.header("transfer-encoding"));
+    const std::string te = lowerAscii(req.header("transfer-encoding"));
     req.chunked = te.find("chunked") != std::string::npos;
     const std::string cl = req.header("content-length");
     if (!req.chunked && !cl.empty()) req.contentLength = std::strtoll(cl.c_str(), nullptr, 10);
-    if (lower(req.header("expect")) == "100-continue") {
+    if (lowerAscii(req.header("expect")) == "100-continue") {
       static const char kContinue[] = "HTTP/1.1 100 Continue\r\n\r\n";
       if (!sendAll(fd, kContinue, sizeof kContinue - 1)) return;
     }
@@ -311,7 +300,7 @@ void PosixHttpServer::serve(int fd) {
     char sink[1024];
     while (req.read(sink, sizeof sink) > 0) {  // what the handler left unread
     }
-    const bool keep = !bodyBroken && version == "HTTP/1.1" && lower(req.header("connection")) != "close" && running_;
+    const bool keep = !bodyBroken && version == "HTTP/1.1" && lowerAscii(req.header("connection")) != "close" && running_;
 
     const uint64_t length = res.file.empty() ? res.body.size() : res.fileSize;
     std::string head = "HTTP/1.1 " + std::to_string(res.status) + " " + reason(res.status) + "\r\n";

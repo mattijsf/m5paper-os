@@ -6,6 +6,8 @@
 #include <vector>
 
 #include "apps/reader/xml.h"
+#include "core/strings.h"
+#include "core/utf8.h"
 
 namespace pos::reader {
 
@@ -27,8 +29,7 @@ bool isBlock(const std::string& n) {
 
 // Alt text that says something: at least two letters in a row and not one of the generic words.
 bool realAlt(const std::string& alt) {
-  std::string low;
-  for (char c : alt) low += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  std::string low = lowerAscii(alt);
   while (!low.empty() && low.back() == ' ') low.pop_back();
   static const char* kGeneric[] = {"", "image", "img", "cover", "cover image", "cover page", "picture", "photo", "illustration", "logo", "decoration", "ornament", "figure", "frontispiece", "titlepage", "title page"};
   for (const char* g : kGeneric)
@@ -195,8 +196,7 @@ class Converter {
           std::string plain;
           for (char ch : cur_)
             if (static_cast<unsigned char>(ch) >= 0x20) plain += ch;
-          if (plain.size() > 120) plain.resize(120);
-          res_.firstHeading = plain;
+          res_.firstHeading = utf8::truncate(plain, 120);
         }
       }
       line += cur_;

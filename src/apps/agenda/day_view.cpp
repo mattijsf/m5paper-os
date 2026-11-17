@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdio>
 
+#include "core/timefmt.h"
 #include "ui/text.h"
 #include "ui/theme.h"
 
@@ -18,12 +19,6 @@ constexpr Color kBlockFill = gray(12);  // an event still to come: a light block
 constexpr int kBar = 6;                 // the ink bar on a block's left edge
 constexpr int kMinBlock = 34;           // a short event still gets one line
 constexpr int kPad = 10;
-
-std::string hhmm(int minutes) {
-  char buf[8];
-  std::snprintf(buf, sizeof buf, "%02d:%02d", (minutes / 60) % 24, minutes % 60);
-  return buf;
-}
 
 bool inside(const Rect& r, int x, int y) { return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; }
 
@@ -147,7 +142,7 @@ void DayView::draw(Canvas& c) {
     const int ly = g.y + rowOf(m, w, g.h);
     if (((m - w.from) / 60) % step != 0 && m != w.to) continue;
     c.drawFastHLine(g.x, ly, g.w, ui::divider);
-    ui::drawText(c, hhmm(m == 24 * 60 ? 0 : m), g.x - 12, ly, Type::Caption, ui::secondary, Anchor::MiddleRight, ui::paper);
+    ui::drawText(c, hhmm(m % (24 * 60)), g.x - 12, ly, Type::Caption, ui::secondary, Anchor::MiddleRight, ui::paper);
   }
 
   // Now: an ink line across the grid with a dot on the left (today only; blocks are drawn over it).

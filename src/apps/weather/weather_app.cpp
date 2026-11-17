@@ -33,22 +33,13 @@ constexpr int kBlockHours = 3, kBlockDays = 2;           // the Hours page: toda
 constexpr int kPages = 3;                                // now, hours, days
 constexpr int64_t kOldNowSec = 90 * 60;                  // a saved "now" older than this gives way to the hour's forecast
 
-std::string hourText(int64_t t) {
-  struct tm tmv;
-  if (!localTime(t, tmv)) return "";
-  char buf[8];
-  std::snprintf(buf, sizeof buf, "%02d:%02d", tmv.tm_hour, tmv.tm_min);
-  return buf;
-}
-
 std::string dayText(int64_t t, int64_t now) {
-  static const char* kDays[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
   const int d = localDay(t);
   if (now > 0 && d == localDay(now)) return "Today";
   if (now > 0 && d == localDay(now) + 1) return "Tomorrow";
   struct tm tmv;
   if (!localTime(t, tmv)) return "";
-  return std::string(kDays[tmv.tm_wday]) + " " + std::to_string(tmv.tm_mday);
+  return weekdayShort(tmv.tm_wday) + " " + std::to_string(tmv.tm_mday);
 }
 
 std::string percent(double v) { return v == kNone ? "" : std::to_string(std::lround(v)) + "%"; }
@@ -56,8 +47,8 @@ std::string percent(double v) { return v == kNone ? "" : std::to_string(std::lro
 // "13:34" today, "Wed 13:34" on another day.
 std::string whenText(int64_t t, int64_t now) {
   if (t <= 0) return "";
-  if (now > 0 && localDay(t) == localDay(now)) return hourText(t);
-  return dayText(t, 0) + " " + hourText(t);
+  if (now > 0 && localDay(t) == localDay(now)) return clockText(t);
+  return dayText(t, 0) + " " + clockText(t);
 }
 
 // The forecast drawn in one widget, one page at a time (docs/apps/weather.md "Screen"): 0 now with the next hours and
@@ -110,7 +101,7 @@ class WeatherView : public ui::Widget {
     ui::drawIcon(c, conditionIcon(condition, night), x + 32, y + 52, 64, ui::ink);
     ui::drawText(c, temp == kNone ? "--" : tempText(temp), x + 84, y + 8, Type::Headline, ui::ink);
     ui::drawText(c, ui::ellipsize(c, conditionText(condition), Type::BodyStrong, 276 - 84), x + 84, y + 66, Type::BodyStrong, ui::ink);
-    if (old) ui::drawText(c, "Forecast for " + hourText(hour->time), x + 84, y + 100, Type::Body, ui::secondary);
+    if (old) ui::drawText(c, "Forecast for " + clockText(hour->time), x + 84, y + 100, Type::Body, ui::secondary);
     else if (n.apparent != kNone) ui::drawText(c, "Feels like " + tempText(n.apparent), x + 84, y + 100, Type::Body, ui::ink);
     // Right column: wind, humidity (left out when they are old), rain in the coming hour.
     const int rx = x + 280;  // 168 px of text: "100%  9.9 mm" fits
@@ -161,7 +152,7 @@ class WeatherView : public ui::Widget {
     for (int64_t t = (from / 1800 + 1) * 1800; t <= to; t += 1800) {
       const int tx = xAt(t);
       c.drawFastVLine(tx, base, 5, ui::divider);
-      const std::string text = hourText(t);
+      const std::string text = clockText(t);
       const int half = ui::measureText(c, text, Type::Caption) / 2;
       ui::drawText(c, text, std::max(x + half, std::min(tx, x + w - half)), base + 6, Type::Caption, ui::secondary, Anchor::TopCenter);
     }
@@ -178,7 +169,7 @@ class WeatherView : public ui::Widget {
     for (int i = 0; i < static_cast<int>(hours_.size()); ++i) {
       const Step& s = hours_[i];
       const int cx = x + (2 * i + 1) * w / (2 * n);
-      ui::drawText(c, i == 0 ? "Now" : hourText(s.time), cx, y + 36, Type::Caption, ui::secondary, Anchor::TopCenter);
+      ui::drawText(c, i == 0 ? "Now" : clockText(s.time), cx, y + 36, Type::Caption, ui::secondary, Anchor::TopCenter);
       ui::drawIcon(c, conditionIcon(s.condition, isNight(s)), cx, y + 88, 32, ui::ink);
       ui::drawText(c, tempText(s.temperature), cx, y + 112, Type::Body, ui::ink, Anchor::TopCenter);
       if (s.precipProbability >= 1) ui::drawText(c, percent(s.precipProbability), cx, y + 144, Type::Caption, ui::ink, Anchor::TopCenter);
@@ -206,7 +197,7 @@ class WeatherView : public ui::Widget {
       const int today = localDay(day.time);
       auto sun = [&](Icon icon, int64_t t) {
         if (t <= 0 || localDay(t) != today) return;
-        const std::string text = hourText(t);
+        const std::string text = clockText(t);
         const int tw = ui::measureText(c, text, Type::Body);
         ui::drawText(c, text, right, top + kHeader / 2 - 2, Type::Body, ui::ink, Anchor::MiddleRight);
         ui::drawIcon(c, icon, right - tw - 24, top + kHeader / 2 - 2, 32, ui::ink);

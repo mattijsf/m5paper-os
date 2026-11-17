@@ -9,6 +9,7 @@
 #include "core/agenda.h"
 #include "core/companion.h"
 #include "core/fs.h"
+#include "core/timefmt.h"
 
 using namespace pos;
 using namespace pos::agenda;
@@ -48,7 +49,7 @@ Event ev(int s, int e, const char* n = "x") {
 TEST_CASE("agenda: civil dates round-trip, weekdays, parsing rejects bad dates") {
   CHECK(daysFromCivil(1970, 1, 1) == 0);
   CHECK(formatDate(kThu) == "2026-01-15");
-  CHECK(weekday(kThu) == 4);
+  CHECK(weekdayOf(kThu) == 4);
   int d = 0;
   CHECK(parseDate("2028-02-29", d));
   CHECK(formatDate(d) == "2028-02-29");
@@ -56,9 +57,7 @@ TEST_CASE("agenda: civil dates round-trip, weekdays, parsing rejects bad dates")
   CHECK_FALSE(parseDate("2026-1-15", d));
   CHECK_FALSE(parseDate("2026-13-01", d));
   for (int x = -1000; x < 100000; x += 37) {
-    int y, m, dd;
-    civilFromDays(x, y, m, dd);
-    CHECK(daysFromCivil(y, m, dd) == x);
+    CHECK(daysFromCivil(civilFromDays(x)) == x);
   }
 }
 

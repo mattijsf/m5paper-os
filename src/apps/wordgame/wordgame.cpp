@@ -7,23 +7,13 @@ namespace pos::wordgame {
 
 namespace {
 
-// Days since 1970-01-01 of a civil date (proleptic Gregorian).
-long daysFromCivil(int y, int m, int d) {
-  y -= m <= 2;
-  const long era = (y >= 0 ? y : y - 399) / 400;
-  const long yoe = y - era * 400;
-  const long doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
-  const long doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-  return era * 146097 + doe - 719468;
-}
-
-const long kFirstDay = 20773;  // 2026-11-16
+const int kFirstDay = 20773;  // 2026-11-16 as a day number (core/timefmt.h)
 
 int rank(char mark) { return mark == kRight ? 3 : mark == kOther ? 2 : mark == kAbsent ? 1 : 0; }
 
 }  // namespace
 
-int dayOf(const Date& date) { return static_cast<int>(daysFromCivil(date.year, date.month, date.day) - kFirstDay); }
+int dayOf(const Date& date) { return daysFromCivil(date) - kFirstDay; }
 
 int puzzleNumber(int day) { return day + 1; }
 
@@ -194,7 +184,7 @@ bool inPacked(const std::string& packed, const std::string& word) {
 }
 
 bool listDue(int64_t now, int64_t fetchedAt, int64_t triedAt) {
-  if (now <= 1700000000) return fetchedAt == 0;  // no clock: once, so the game gets its words (the connection sets the clock)
+  if (!clockIsSet(now)) return fetchedAt == 0;  // no clock: once, so the game gets its words (the connection sets the clock)
   if (triedAt != 0 && now >= triedAt && now - triedAt < kListRetryS) return false;
   return fetchedAt == 0 || now < fetchedAt || now - fetchedAt >= kListMaxAgeS;
 }

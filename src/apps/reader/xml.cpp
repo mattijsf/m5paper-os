@@ -18,8 +18,6 @@ bool nameChar(char c) {
 
 }  // namespace
 
-void appendUtf8(std::string& out, unsigned cp) { pos::appendUtf8(out, cp); }
-
 std::string decodeEntities(const std::string& s) { return pos::decodeEntities(s); }
 
 std::string localName(const std::string& n) {

@@ -11,6 +11,7 @@
 #include "apps/somdoku/somdoku.h"
 #include "core/app.h"
 #include "core/clipboard.h"
+#include "core/strings.h"
 #include "core/timefmt.h"
 #include "ui/root.h"
 #include "ui/theme.h"
@@ -29,24 +30,6 @@ constexpr int kN = 5;
 const char* const kDays[] = {"zondag", "maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag"};
 const char* const kMonths[] = {"januari", "februari", "maart", "april", "mei", "juni",
                                "juli", "augustus", "september", "oktober", "november", "december"};
-
-std::string joinInts(const std::vector<int>& v) {
-  std::string s;
-  for (size_t i = 0; i < v.size(); ++i) s += (i ? "," : "") + std::to_string(v[i]);
-  return s;
-}
-
-std::vector<int> splitInts(const std::string& s) {
-  std::vector<int> out;
-  size_t i = 0;
-  while (i < s.size()) {
-    size_t j = s.find(',', i);
-    if (j == std::string::npos) j = s.size();
-    if (j > i) out.push_back(std::atoi(s.substr(i, j - i).c_str()));
-    i = j + 1;
-  }
-  return out;
-}
 
 // Which puzzle a saved game belongs to: the sums. A changed generator gives other sums, and the saved game is dropped.
 std::string sumsKey(const game::Puzzle& p) {
@@ -296,7 +279,7 @@ class GameScreen : public Screen {
   void openDay() {
     const int64_t now = ctx().clock.now();
     struct tm t{};
-    if (now > 1700000000 && localTime(now, t)) {
+    if (clockIsSet(now) && localTime(now, t)) {
       day_ = game::dayString({t.tm_year + 1900, t.tm_mon + 1, t.tm_mday});
       longDay_ = std::string(kDays[t.tm_wday]) + " " + std::to_string(t.tm_mday) + " " + kMonths[t.tm_mon];
     }
@@ -506,18 +489,7 @@ class GameScreen : public Screen {
 
   // --- the store ------------------------------------------------------------------------------------------------------
 
-  std::vector<std::string> solvedDays() const {
-    std::vector<std::string> out;
-    const std::string s = ctx().store.get("solved", std::string());
-    size_t i = 0;
-    while (i < s.size()) {
-      size_t j = s.find(',', i);
-      if (j == std::string::npos) j = s.size();
-      if (j > i) out.push_back(s.substr(i, j - i));
-      i = j + 1;
-    }
-    return out;
-  }
+  std::vector<std::string> solvedDays() const { return split(ctx().store.get("solved", std::string()), ','); }
 
   int streakNow() const {
     const std::vector<std::string> days = solvedDays();

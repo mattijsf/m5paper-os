@@ -11,6 +11,8 @@
 #include "apps/reader/epub.h"
 #include "apps/reader/xhtml.h"
 #include "core/fs.h"
+#include "core/strings.h"
+#include "core/utf8.h"
 #include "core/zip.h"
 
 namespace pos::reader {
@@ -37,51 +39,10 @@ void cooperate() {
   }
 }
 
-std::string lower(std::string s) {
-  for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-  return s;
-}
-
-bool endsWith(const std::string& s, const std::string& suf) {
-  return s.size() >= suf.size() && s.compare(s.size() - suf.size(), suf.size(), suf) == 0;
-}
-
-bool validUtf8(const std::string& s) {
-  size_t i = 0;
-  while (i < s.size()) {
-    const unsigned char b = static_cast<unsigned char>(s[i]);
-    const size_t need = b < 0x80 ? 0 : (b >> 5) == 6 ? 1 : (b >> 4) == 14 ? 2 : (b >> 3) == 30 ? 3 : 99;
-    if (need == 99 || i + need >= s.size() + (need == 0 ? 1 : 0)) return false;
-    for (size_t k = 1; k <= need; ++k)
-      if ((static_cast<unsigned char>(s[i + k]) & 0xC0) != 0x80) return false;
-    i += need + 1;
-  }
-  return true;
-}
-
-void appendUtf8(std::string& out, uint32_t cp) {
-  if (cp < 0x80) out += static_cast<char>(cp);
-  else if (cp < 0x800) {
-    out += static_cast<char>(0xC0 | (cp >> 6));
-    out += static_cast<char>(0x80 | (cp & 0x3F));
-  } else {
-    out += static_cast<char>(0xE0 | (cp >> 12));
-    out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
-    out += static_cast<char>(0x80 | (cp & 0x3F));
-  }
-}
-
 // Windows-1252 for 0x80..0x9F, identical to Latin-1 elsewhere.
 const uint16_t kCp1252[32] = {0x20AC, 0x81,   0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160,
                               0x2039, 0x0152, 0x8D,   0x017D, 0x8F,   0x90,   0x2018, 0x2019, 0x201C, 0x201D, 0x2022,
                               0x2013, 0x2014, 0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x9D,   0x017E, 0x0178};
-
-std::string trim(const std::string& s) {
-  size_t a = 0, b = s.size();
-  while (a < b && (s[a] == ' ' || s[a] == '\t' || s[a] == '\r')) ++a;
-  while (b > a && (s[b - 1] == ' ' || s[b - 1] == '\t' || s[b - 1] == '\r')) --b;
-  return s.substr(a, b - a);
-}
 
 std::string headerValue(const std::string& text, const char* key) {
   const std::string k = std::string("\n") + key + ": ";
@@ -89,7 +50,7 @@ std::string headerValue(const std::string& text, const char* key) {
   if (p == std::string::npos || p > 8000) return "";
   p += k.size();
   size_t e = text.find('\n', p);
-  return trim(text.substr(p, e == std::string::npos ? std::string::npos : e - p));
+  return trimmed(text.substr(p, e == std::string::npos ? std::string::npos : e - p));
 }
 
 // _word_ and _two words_ -> italic marks. Only pairs inside one paragraph; an odd underscore stays a character.
@@ -129,8 +90,8 @@ bool looksLikeHeading(const std::string& line) {
 
 }  // namespace
 
-bool isEpubFile(const std::string& name) { return !name.empty() && name[0] != '.' && endsWith(lower(name), ".epub"); }
-bool isBookFile(const std::string& name) { return !name.empty() && name[0] != '.' && (endsWith(lower(name), ".epub") || endsWith(lower(name), ".txt")); }
+bool isEpubFile(const std::string& name) { return !name.empty() && name[0] != '.' && endsWith(lowerAscii(name), ".epub"); }
+bool isBookFile(const std::string& name) { return !name.empty() && name[0] != '.' && (endsWith(lowerAscii(name), ".epub") || endsWith(lowerAscii(name), ".txt")); }
 
 // The name without its folder: a book moved into a folder (Files over Wi-Fi) keeps its id, so its cache and reading position.
 static std::string baseName(const std::string& path) { return path.substr(path.rfind('/') == std::string::npos ? 0 : path.rfind('/') + 1); }
@@ -155,10 +116,10 @@ void titleFromFileName(const std::string& file, std::string& title, std::string&
   if (dot != std::string::npos && dot > 0) base = base.substr(0, dot);
   const size_t dash = base.rfind(" - ");
   if (dash != std::string::npos && dash > 0) {
-    title = trim(base.substr(0, dash));
-    author = trim(base.substr(dash + 3));
+    title = trimmed(base.substr(0, dash));
+    author = trimmed(base.substr(dash + 3));
   } else {
-    title = trim(base);
+    title = trimmed(base);
     author.clear();
   }
 }
@@ -170,13 +131,13 @@ std::string txtToUtf8(const std::string& rawIn) {
   if (raw.size() >= 3 && raw.compare(0, 3, "\xEF\xBB\xBF") == 0) raw.erase(0, 3);
   std::string out;
   out.reserve(raw.size());
-  if (validUtf8(raw)) {
+  if (utf8::valid(raw)) {
     out = raw;
   } else {
     for (unsigned char c : raw) {
       if (c < 0x80) out += static_cast<char>(c);
-      else if (c >= 0x80 && c < 0xA0) appendUtf8(out, kCp1252[c - 0x80]);
-      else appendUtf8(out, c);
+      else if (c >= 0x80 && c < 0xA0) utf8::append(out, kCp1252[c - 0x80]);
+      else utf8::append(out, c);
     }
   }
   // CRLF and lone CR -> LF
@@ -232,7 +193,7 @@ TxtImport importTxt(const std::string& textIn, size_t maxChapterBytes) {
       if (c == '\t') clean += ' ';
       else if (u >= 0x20 || u >= 0x80) clean += c;
     }
-    line = trim(clean);
+    line = trimmed(clean);
     if (line.empty()) {
       flush();
     } else {
@@ -417,7 +378,7 @@ bool ChapterLoader::load(int n, std::string& marked) {
 
 namespace {
 const char* coverExt(const std::string& zipPath) {
-  const std::string l = lower(zipPath);
+  const std::string l = lowerAscii(zipPath);
   if (endsWith(l, ".png")) return "png";
   if (endsWith(l, ".jpg") || endsWith(l, ".jpeg")) return "jpg";
   return nullptr;
@@ -705,7 +666,7 @@ std::vector<LibraryEntry> scanLibrary() {
 void sortLibrary(std::vector<LibraryEntry>& entries) {
   std::stable_sort(entries.begin(), entries.end(), [](const LibraryEntry& a, const LibraryEntry& b) {
     if (a.opened != b.opened) return a.opened > b.opened;
-    return lower(a.title) < lower(b.title);
+    return lowerAscii(a.title) < lowerAscii(b.title);
   });
 }
 

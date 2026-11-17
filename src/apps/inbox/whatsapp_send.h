@@ -6,6 +6,7 @@
 
 #include <string>
 
+#include "core/strings.h"  // trimmed(): what a reply is sent as
 #include "core/companion.h"
 #include "core/ha.h"
 
@@ -26,8 +27,6 @@ std::string chatName(const companion::Notif& n);
 bool replyTarget(const companion::Notifs& notifs, const std::string& key, Target& out);
 // A WhatsApp notification with a reply action whose chat name is `name` (a game's "send score"); the newest wins.
 bool findByName(const companion::Notifs& notifs, const std::string& name, Target& out);
-// Spaces, tabs and line feeds removed at both ends.
-std::string trimmed(const std::string& text);
 
 // What became of the push of a reply to the relay (script.paperos_relay_push).
 struct SendOutcome {

@@ -1,30 +1,16 @@
 #include "apps/inbox/whatsapp_send.h"
 
+#include "core/strings.h"
+#include "core/utf8.h"
+
 namespace pos::whatsapp {
-
-namespace {
-
-// The first `n` characters (code points) of valid UTF-8.
-std::string firstChars(const std::string& s, size_t n) {
-  size_t i = 0;
-  while (i < s.size()) {
-    if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) {
-      if (n == 0) break;
-      --n;
-    }
-    ++i;
-  }
-  return s.substr(0, i);
-}
-
-}  // namespace
 
 std::string chatName(const companion::Notif& n) {
   std::string name = !n.chat.empty() ? n.chat : (n.msgs.empty() ? std::string() : n.msgs.back().from);
   for (char& c : name)
     if (c == '\n' || c == '\r' || c == '\t') c = ' ';
   name = trimmed(name);
-  return firstChars(name.empty() ? std::string("WhatsApp chat") : name, kMaxNameChars);
+  return utf8::prefix(name.empty() ? std::string("WhatsApp chat") : name, kMaxNameChars);
 }
 
 bool replyTarget(const companion::Notifs& notifs, const std::string& key, Target& out) {
@@ -37,17 +23,10 @@ bool replyTarget(const companion::Notifs& notifs, const std::string& key, Target
 bool findByName(const companion::Notifs& notifs, const std::string& name, Target& out) {
   const companion::Notif* best = nullptr;
   for (const companion::Notif& n : notifs.items)
-    if (n.app == "whatsapp" && n.reply && chatName(n) == firstChars(trimmed(name), kMaxNameChars) && (!best || n.ts > best->ts)) best = &n;
+    if (n.app == "whatsapp" && n.reply && chatName(n) == utf8::prefix(trimmed(name), kMaxNameChars) && (!best || n.ts > best->ts)) best = &n;
   if (!best) return false;
   out = Target{chatName(*best), best->key};
   return true;
-}
-
-std::string trimmed(const std::string& text) {
-  const char* ws = " \t\n\r\v\f";
-  const size_t b = text.find_first_not_of(ws);
-  if (b == std::string::npos) return "";
-  return text.substr(b, text.find_last_not_of(ws) - b + 1);
 }
 
 SendOutcome pushOutcome(const HaResult& r) {

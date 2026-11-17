@@ -100,7 +100,6 @@ Timers::Id AppContext::timer(uint32_t ms, std::function<void()> fn) {
   return id;
 }
 namespace {
-constexpr int64_t kClockSet = 1700000000;  // any earlier time is an unset clock
 
 struct ClockWait {
   std::function<void(bool, const std::string&)> done;
@@ -109,7 +108,7 @@ struct ClockWait {
 
 // After the connect the sync runs as its own worker job (NetService::tick): look at the clock until it lands.
 void pollClock(AppContext* ctx, std::shared_ptr<ClockWait> w) {
-  if (ctx->clock.now() > kClockSet) {
+  if (clockIsSet(ctx->clock.now())) {
     w->done(true, "");
   } else if (w->left-- <= 0) {
     w->done(false, AppContext::kNoNetworkTime);
@@ -120,7 +119,7 @@ void pollClock(AppContext* ctx, std::shared_ptr<ClockWait> w) {
 }  // namespace
 
 void AppContext::syncClock(std::function<void(bool, const std::string&)> done) {
-  if (clock.now() > kClockSet) {
+  if (clockIsSet(clock.now())) {
     done(true, "");
     return;
   }
@@ -177,15 +176,7 @@ Shell::~Shell() {
 void Shell::updateStatus() {
   hal::Platform& p = os_.platform();
   const int64_t now = p.clock.now();
-  if (now <= 0) {
-    status_->setTime("--:--");
-  } else {
-    struct tm tmv;
-    localTime(now, tmv);  // net.timezone
-    char buf[8];
-    std::snprintf(buf, sizeof buf, "%02d:%02d", tmv.tm_hour, tmv.tm_min);
-    status_->setTime(buf);
-  }
+  status_->setTime(now > 0 ? clockText(now) : "--:--");  // local time (net.timezone)
   status_->setBattery(p.power.batteryPercent(), p.power.charging());
   status_->setWifi(os_.net().online());
 }

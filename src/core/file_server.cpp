@@ -10,6 +10,8 @@
 #include "core/fs.h"
 #include "core/md5.h"
 #include "core/log.h"
+#include "core/strings.h"
+#include "core/timefmt.h"
 #include "hal/system.h"
 
 namespace pos::files {
@@ -164,7 +166,7 @@ std::string isoDate(int64_t t) {
 std::string contentType(const std::string& path) {
   const auto dot = path.rfind('.');
   std::string ext = dot == std::string::npos ? "" : path.substr(dot + 1);
-  std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  ext = lowerAscii(ext);
   if (ext == "epub") return "application/epub+zip";
   if (ext == "txt") return "text/plain; charset=utf-8";
   if (ext == "pdf") return "application/pdf";
@@ -315,10 +317,8 @@ std::string httpDate(int64_t t) {
   const time_t tt = static_cast<time_t>(t);
   struct tm g;
   gmtime_r(&tt, &g);
-  static const char* kDays[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-  static const char* kMonths[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
   char b[40];
-  std::snprintf(b, sizeof b, "%s, %02d %s %04d %02d:%02d:%02d GMT", kDays[g.tm_wday], g.tm_mday, kMonths[g.tm_mon], g.tm_year + 1900,
+  std::snprintf(b, sizeof b, "%s, %02d %s %04d %02d:%02d:%02d GMT", weekdayShort(g.tm_wday).c_str(), g.tm_mday, monthShort(g.tm_mon).c_str(), g.tm_year + 1900,
                 g.tm_hour, g.tm_min, g.tm_sec);
   return b;
 }
@@ -417,7 +417,7 @@ bool FileServer::authorised(const ServerRequest& req) {
     const std::string want = qop.empty() ? md5Hex(ha1 + ":" + nonce_ + ":" + ha2)
                                          : md5Hex(ha1 + ":" + nonce_ + ":" + get("nc") + ":" + get("cnonce") + ":" + qop + ":" + ha2);
     std::string got = get("response");
-    std::transform(got.begin(), got.end(), got.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    got = lowerAscii(got);
     return got == want;
   }
   if (h.rfind("Basic ", 0) != 0) return false;

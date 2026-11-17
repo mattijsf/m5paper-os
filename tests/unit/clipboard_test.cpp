@@ -79,15 +79,7 @@ TEST_CASE("clipboard: at most 4 KB, cut at a character boundary") {
   CHECK(clipboard::get() == emoji.substr(0, 4096));
 }
 
-TEST_CASE("clipboard::truncateUtf8 and clean") {
-  CHECK(clipboard::truncateUtf8("abc", 10) == "abc");
-  CHECK(clipboard::truncateUtf8("abc", 2) == "ab");
-  CHECK(clipboard::truncateUtf8("a\xE2\x82\xAC", 1) == "a");
-  CHECK(clipboard::truncateUtf8("a\xE2\x82\xAC", 2) == "a");
-  CHECK(clipboard::truncateUtf8("a\xE2\x82\xAC", 3) == "a");
-  CHECK(clipboard::truncateUtf8("a\xE2\x82\xAC", 4) == "a\xE2\x82\xAC");
-  CHECK(clipboard::truncateUtf8("\xE2\x82\xAC", 0) == "");
-
+TEST_CASE("clipboard::clean") {
   CHECK(clipboard::clean("a\r\nb\tc") == "a\nb c");
   CHECK(clipboard::clean(std::string("a\0b\x01" "c\x7F", 6)) == "abc");
   CHECK(clipboard::clean("ok \xFF\xFE bad") == "ok  bad");                 // not UTF-8

@@ -171,24 +171,6 @@ RemoteCommand parseRemoteCommand(const std::string& raw) {
   return c;
 }
 
-uint32_t crc32Update(uint32_t prev, const uint8_t* data, size_t len) {
-  static uint32_t table[256];
-  static bool init = false;
-  if (!init) {
-    for (uint32_t n = 0; n < 256; ++n) {
-      uint32_t c = n;
-      for (int k = 0; k < 8; ++k) c = (c & 1) ? 0xEDB88320u ^ (c >> 1) : c >> 1;
-      table[n] = c;
-    }
-    init = true;
-  }
-  uint32_t crc = ~prev;
-  for (size_t i = 0; i < len; ++i) crc = table[(crc ^ data[i]) & 0xFF] ^ (crc >> 8);
-  return ~crc;
-}
-
-uint32_t crc32(const uint8_t* data, size_t len) { return crc32Update(0, data, len); }
-
 bool remotePathAllowed(const std::string& p) {
   if (p.find("..") != std::string::npos || p.find('\\') != std::string::npos) return false;
   const bool ok = p.rfind("/sd/books/", 0) == 0 || p == "/sd/books" || p.rfind("/sd/paperos/", 0) == 0 || p == "/sd/paperos";
@@ -410,7 +392,7 @@ void Remote::feedRaw(const uint8_t* data, size_t n) {
       abortPut("write failed");
       return;
     }
-    put_.crc = crc32Update(put_.crc, data, take);
+    put_.crc = crc32(data, take, put_.crc);
     put_.got += take;
     data += take;
     n -= take;

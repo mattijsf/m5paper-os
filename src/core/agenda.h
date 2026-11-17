@@ -36,11 +36,8 @@ struct Agenda {
   bool sameContent(const Agenda& o) const { return received == o.received && days == o.days; }
 };
 
-// Calendar dates as day numbers (proleptic Gregorian, 1970-01-01 = 0).
-int daysFromCivil(int y, int m, int d);
-void civilFromDays(int days, int& y, int& m, int& d);
-int weekday(int days);  // 0 = Sunday
-bool parseDate(const std::string& text, int& days);  // "2026-11-16"
+// Dates are day numbers (core/timefmt.h: daysFromCivil, civilFromDays, weekdayOf).
+bool parseDate(const std::string& text, int& days);  // "2026-11-16"; false for anything else, 31 February included
 std::string formatDate(int days);
 
 bool load(Agenda& out);  // false when there is no file or it is unreadable (out is then empty)

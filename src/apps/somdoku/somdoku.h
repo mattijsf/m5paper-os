@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 
+#include "core/timefmt.h"
+
 namespace pos::somdoku {
 
 constexpr int kBlack = 0;   // a black cell
@@ -30,7 +32,7 @@ class Rng {
 };
 
 // FNV-1a over the UTF-16 code units of `utf8` (JavaScript's charCodeAt), to seed Rng with a date.
-uint32_t hash(const std::string& utf8);
+uint32_t hash(const std::string& text);
 
 using Clue = std::vector<int>;
 Clue clueOf(const std::vector<int>& line);
@@ -54,9 +56,7 @@ Puzzle generate(uint32_t seed, int n = 5, int k = 4, int minPasses = 3, int maxP
 
 constexpr const char* kFirstDay = "2026-11-11";
 
-struct Date {
-  int y = 0, m = 0, d = 0;
-};
+using Date = pos::Date;
 std::string dayString(const Date& date);          // "2026-11-11"
 bool parseDay(const std::string& day, Date* out);  // inverse of dayString
 int puzzleNumber(const std::string& day);           // 1 for kFirstDay

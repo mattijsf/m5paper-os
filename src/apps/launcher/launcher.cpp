@@ -18,12 +18,9 @@ constexpr int kPerPage = 6;  // 2 columns x 3 rows
 std::string dateLine(hal::Clock& clock) {
   const int64_t now = clock.now();
   if (now <= 0) return "PaperOS";  // the RTC is not set yet
-  static const char* kDays[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
-  static const char* kMonths[] = {"January", "February", "March", "April", "May", "June",
-                                  "July", "August", "September", "October", "November", "December"};
   struct tm tmv;
   localTime(now, tmv);  // net.timezone
-  return std::string(kDays[tmv.tm_wday]) + " " + std::to_string(tmv.tm_mday) + " " + kMonths[tmv.tm_mon];
+  return std::string(weekdayName(tmv.tm_wday)) + " " + std::to_string(tmv.tm_mday) + " " + monthName(tmv.tm_mon);
 }
 
 // What the summary line is made of: the badges the apps cached (never the network) and the reader's last book.

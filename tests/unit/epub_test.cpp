@@ -9,6 +9,7 @@
 
 #include "apps/reader/epub.h"
 #include "apps/reader/xml.h"
+#include "core/crc32.h"
 #include "core/fs.h"
 #include "core/zip.h"
 
@@ -142,7 +143,7 @@ TEST_CASE("zip: directory, stored and deflated entries, checksums") {
   REQUIRE(z.read(*ch2, s));
   CHECK(s.size() == ch2->size);
   CHECK(s.find("<h2 id=\"top\">Second chapter</h2>") != std::string::npos);
-  CHECK(zip::crc32(0, reinterpret_cast<const uint8_t*>(s.data()), s.size()) == ch2->crc);
+  CHECK(crc32(reinterpret_cast<const uint8_t*>(s.data()), s.size()) == ch2->crc);
   CHECK(z.find("/mimetype") == mt);  // leading slash tolerated
   CHECK(z.find("nope") == nullptr);
   CHECK_FALSE(z.read("nope", s));
