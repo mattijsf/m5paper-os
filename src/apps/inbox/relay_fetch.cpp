@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "apps/inbox/scheduled_refresh.h"
 #include "core/agenda.h"
 #include "core/clipboard.h"
 #include "core/log.h"
@@ -41,6 +42,9 @@ RelayFetch fetchRelay(HaClient& ha, int64_t now, bool takeClip) {
   if (f.applied.accepted > 0 || f.applied.rejected > 0) POS_LOG("relay", "accepted %d, dropped %d", f.applied.accepted, f.applied.rejected);
   saveRx(pairing);
   companion::saveNotifs(f.notifs);
+  // Whoever read the relay (WhatsApp, Mail, Agenda, the clipboard menu, a scheduled wake): both apps' launcher badges
+  // follow. Until 2026-11-17 an app wrote only its own, right after marking everything seen: a badge never showed.
+  writeBadges(f.notifs);
   if (!f.applied.agenda.empty()) {  // the phone's calendar (one way, D28)
     agenda::Agenda a;
     agenda::load(a);

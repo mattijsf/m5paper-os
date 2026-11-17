@@ -276,7 +276,6 @@ class AgendaScreen : public Screen {
         [ha, now, clip]() mutable {
           Fetched f;
           f.relay = inbox::fetchRelay(ha, now, clip);
-          if (f.relay.paired && f.relay.http.ok() && f.relay.applied.parsed) inbox::writeBadges(f.relay.notifs);  // the queue was read for the inbox too
           load(f.agenda);
           return f;
         },

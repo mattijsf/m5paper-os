@@ -1,0 +1,5 @@
+# Fake values for the inbox UI tests.
+HA_TOKEN=fake-token-for-tests-only
+HA_URL=https://ha.example.test
+WIFI_SSID=HomeNet
+WIFI_PASSWORD=home-password

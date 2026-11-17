@@ -79,6 +79,11 @@ bool Cache::write(const std::string& name, const std::string& text) const { retu
 bool Cache::exists(const std::string& name) const { return fs::exists(dir_ + "/" + name); }
 
 int appBadge(const std::string& appId) { return std::max(0, std::atoi(Cache(appId).read("badge").c_str())); }
-void setAppBadge(const std::string& appId, int count) { Cache(appId).write("badge", std::to_string(std::max(0, count))); }
+void setAppBadge(const std::string& appId, int count) {
+  count = std::max(0, count);
+  const Cache cache(appId);
+  if (cache.exists("badge") && appBadge(appId) == count) return;  // nothing new: no write to the flash
+  cache.write("badge", std::to_string(count));
+}
 
 }  // namespace pos

@@ -1,0 +1,8 @@
+# app: whatsapp
+# The launcher badges after reading the relay in one app (fixtures of inbox.script: chats and mails). WhatsApp was just
+# looked at: no badge. The mails that came with the same read were not: Mail shows how many.
+wait 1500
+expect-state rows=7
+back
+wait 900
+shot inbox-badges-launcher

@@ -8,7 +8,9 @@
 #include <unistd.h>
 
 #include "core/companion.h"
+#include "apps/inbox/scheduled_refresh.h"
 #include "core/fs.h"
+#include "core/store.h"
 
 using namespace pos;
 using namespace pos::companion;
@@ -247,6 +249,30 @@ TEST_CASE("companion: the notification store survives a save and load") {
   CHECK(back.items[1].msgs[0].subject == "Your order");
   REQUIRE(back.sent.size() == 1);
   CHECK(back.sent[0].ref == 7);
+}
+
+TEST_CASE("inbox: the launcher badges of both apps follow the store: what is newer than each app's seen marker") {
+  Roots roots;
+  Notifs n;
+  n.items.push_back(Notif{"w1", "whatsapp", "Family", true, 200, {NotifMsg{"Anna", "", "Hi", 150}, NotifMsg{"Anna", "", "There?", 200}}});
+  n.items.push_back(Notif{"m1", "mail", "", false, 300, {NotifMsg{"Shop", "Order", "Ready", 300}}});
+  // Nobody has looked yet: everything counts.
+  CHECK(pos::inbox::writeBadges(n) == 3);
+  CHECK(appBadge("whatsapp") == 2);
+  CHECK(appBadge("mail") == 1);
+  // WhatsApp was opened (its seen marker is its newest message); the mail is still unread. Whoever reads the relay
+  // next (here: again the same store) leaves WhatsApp at 0 and Mail at 1: the badge on the launcher.
+  Store whatsapp("/data/apps/whatsapp.json");
+  whatsapp.set("seen", 200);
+  REQUIRE(whatsapp.save());
+  CHECK(pos::inbox::writeBadges(n) == 1);
+  CHECK(appBadge("whatsapp") == 0);
+  CHECK(appBadge("mail") == 1);
+  n.items[0].msgs.push_back(NotifMsg{"Anna", "", "Hello?", 250});  // a new message while Mail was open
+  CHECK(pos::inbox::writeBadges(n) == 2);
+  CHECK(appBadge("whatsapp") == 1);
+  CHECK(pos::inbox::writeBadges(n, true) == 0);  // no feed can exist (unpaired): nothing to show
+  CHECK(appBadge("mail") == 0);
 }
 
 TEST_CASE("companion: a notification is cleaned when it arrives; a store from before that is cleaned when loaded") {

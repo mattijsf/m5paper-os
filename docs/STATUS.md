@@ -155,7 +155,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
 | Firmware build | `make fw` | OK, 2,431,376 bytes = 2.32 MB (46.4% of the 5 MB slot; 715 KB under the 3 MB budget) after the code review, the camera target and the file memory of 2026-11-17 (2,424,592 after the size pass of D31; 2.85 MB before that) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 307 tests; 237 goldens (2026-11-17, after the code review, the Wi-Fi scan page, the camera target and the file memory); `out/gallery.html` |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 308 tests; 238 goldens (2026-11-17, after the code review, the Wi-Fi scan page, the camera target and the file memory); `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Live view in a browser | `make view` (`ARGS=--sim`, `ARGS=--lan`) | `tools/view.py`: the device's frame on `http://127.0.0.1:8137/`, click = tap, hold = long press, drag = swipe; ~760 ms from click to new frame; holds the serial port (other device tools refuse to start meanwhile) |
@@ -988,3 +988,9 @@ None of these block Phase 1, Phase 2, or the reader.
   reads the stored pairing only; used by the inbox, Agenda and Settings. On the device: WhatsApp and Mail 18-19 ms
   before the first pixel, tap to panel 179-197 ms (was 221-238). Still with keys on the UI thread, on a tap: "Mark all
   read", sending a reply, the clipboard push.
+- 2026-11-17: Launcher badges. On the device: the phone is paired, Mail held three
+  messages, no badge. An app wrote only its own badge, and only after marking everything seen, so it was always 0;
+  the other app's badge was never touched. Now every read of the relay writes both (`fetchRelay`), and a badge that
+  does not change is not written to the flash again. Simulator: after WhatsApp read the relay, Mail shows 5 and the
+  launcher "5 unread" (golden `inbox-badges-launcher`). Flashed; not seen on the device (no unread message at hand).
+  Open: nothing reads the relay while the device is on and idle (the scheduled wake is off on the user's device).
