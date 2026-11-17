@@ -2,6 +2,7 @@
 // notification store, save the pairing and the store, ack what was read. Blocking: run it on the worker (ctx.async); the inbox apps,
 // the scheduled refresh and the clipboard sync share it. A `clip` from the phone replaces the Paper's clipboard here (when
 // `takeClip`, i.e. Settings shares the clipboard); an `agenda` from the phone replaces the days it covers in the saved agenda (D28).
+// New unread messages sound the chime here, whoever reads (core/sound.h: the setting, not at night).
 #pragma once
 
 #include <functional>
@@ -21,6 +22,7 @@ struct RelayFetch {
   companion::Notifs notifs;  // the store after applying (also when the GET failed: what was saved before)
   bool clipFromPhone = false;  // the clipboard now holds what the phone sent
   bool agendaChanged = false;  // the phone sent its calendar: /data/cache/agenda/agenda.json is new (core/agenda.h)
+  int fresh = 0;               // messages this read brought that are unread and were not there before (the sound, core/sound.h)
 };
 RelayFetch fetchRelay(HaClient& ha, int64_t now, bool takeClip);
 

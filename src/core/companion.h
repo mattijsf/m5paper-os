@@ -56,7 +56,12 @@ struct SentReply {
 struct Notifs {
   std::vector<Notif> items;
   std::vector<SentReply> sent;  // replies waiting for a result (the newest 10)
+  // The time of the newest message a sound was considered for (core/sound.h): a message is new once. A store saved
+  // before this existed loads with the time of its newest message.
+  int64_t heard = 0;
 };
+// The time of the newest message in the store, 0 when it is empty.
+int64_t newestMsgTs(const Notifs& n);
 // The store holds text that is ready for the panel: a notification is cleaned once, when it arrives (cleanNotif, on
 // the worker that reads the relay), not every time the inbox opens. A store written before that (no "clean" mark) is
 // cleaned when it is loaded.

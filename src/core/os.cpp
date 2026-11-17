@@ -6,6 +6,7 @@
 
 #include "core/demo.h"
 #include "core/log.h"
+#include "core/sound.h"
 #include "core/store.h"
 #include "hal/system.h"
 #include "core/timefmt.h"
@@ -43,6 +44,7 @@ void Os::loadConfig() {
   net_.load();
   applyDisplayConfig();
   applyTimezone(config_.net.timezone);
+  sound::setNewMessages(config_.phone.sound);
 }
 
 void Os::applyDisplayConfig() {

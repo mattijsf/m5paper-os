@@ -26,6 +26,7 @@
 #include "core/loop.h"
 #include "core/os.h"
 #include "core/remote.h"
+#include "core/sound.h"
 #include "ui/text.h"
 
 #include "hal/platform.h"
@@ -316,6 +317,10 @@ class SerialRemoteHost : public RemoteHost {
     }
     if (key == "epd-keep") {  // tools/patch_m5gfx.py patch 4: off = the stock rule, for a comparison on the panel
       gDisplay.setKeepUnchanged(value != "off");
+      return true;
+    }
+    if (key == "chime") {  // ">set chime 1": the sound for new messages, whatever the setting (core/sound.h)
+      sound::play();
       return true;
     }
     if (key == "memreport") {  // ">set memreport": one "[mem]" line (tools/memory.py), D27

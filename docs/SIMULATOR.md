@@ -29,7 +29,8 @@ script line `# rtc: unset` passes it); `--fixtures` is ignored until P5. Script 
 `tap X Y [MS]` (the finger is down 40 ms, or MS up to 450: a real finger is 150-250 ms, long enough for the pressed look to show;
 `PAPEROS_TAP_MS=200` in the environment holds every tap that long, for `tools/push-audit.py`: screenshots then differ in timing),
 `long`, `swipe`, `back` (taps (36, 92), the back-arrow target), `expect-no-quality`,
-`expect-max-pushed N` (sum of pushed rectangle areas since the last `shot`). `type TEXT` and `type-max N TEXT` (tap the keys of the visible
+`expect-max-pushed N` (sum of pushed rectangle areas since the last `shot`), `expect-chimes N` (how often the sound for new messages
+played since the start: the simulator has no sound, `core/sound.h` counts). `type TEXT` and `type-max N TEXT` (tap the keys of the visible
 on-screen keyboard; with a limit every character key may push at most N pixels), `battery`, `wifi` wait for their features. `--time` takes `YYYY-MM-DDTHH:MM:SS` (UTC). In `--headless` runs the clock
 is fake; `tools/ui-test.sh` runs every script with `--data out/ui-data` (empty, never `sim-data/`) and
 `--time 2026-01-15T12:34:00` (UTC; the status bar shows 13:34 in the default zone CET). Every script gets its own empty data root

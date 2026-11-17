@@ -86,4 +86,8 @@ struct StorageInfo {
 // (formatted on first boot), logs the sizes. A missing card is logged ("no SD card"), not fatal.
 StorageInfo mountStorage();
 
+// Returns when no chime is playing (hal::chime, sound.cpp), after a second at most: before light sleep and power-off.
+void waitForSound();
+void chime();  // hal::chime
+
 }  // namespace pos::device

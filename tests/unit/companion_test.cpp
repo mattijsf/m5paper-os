@@ -344,3 +344,40 @@ TEST_CASE("companion: clip envelopes both ways (D23): the phone's newest clip wi
   CHECK(!quotes.empty());
   CHECK(clipEnvelope(pr.paper, "", kNow).empty());
 }
+
+TEST_CASE("inbox: a message is new for the sound once: unread, and later than what an earlier read brought") {
+  Roots roots;
+  Pair pr;
+  Notifs n;
+  // The first read after pairing: two chat messages and a mail nobody saw.
+  applyQueue(pr.paper, n, state({{1, pr.fromPhone(1, kPostA)}, {2, pr.fromPhone(2, kPostMail)}}), kNow);
+  CHECK(pos::inbox::freshMessages(n) == 3);
+  n.heard = newestMsgTs(n);  // what relay_fetch does after every read
+  CHECK(n.heard == 1768480000);
+  CHECK(pos::inbox::freshMessages(n) == 0);  // the next read brings nothing
+  // The marker survives the store; a store from before it existed starts at its newest message (no sound for old mail).
+  REQUIRE(saveNotifs(n));
+  Notifs back;
+  REQUIRE(loadNotifs(back));
+  CHECK(back.heard == 1768480000);
+  std::string text;
+  REQUIRE(fs::readFile("/data/cache/inbox/notifs.json", text));
+  const size_t at = text.find("\"heard\":1768480000");
+  REQUIRE(at != std::string::npos);
+  text.replace(at, 18, "\"x\":1");
+  REQUIRE(fs::writeFile("/data/cache/inbox/notifs.json", text));
+  REQUIRE(loadNotifs(back));
+  CHECK(back.heard == 1768480000);
+  // The phone removes the chat and posts it again unchanged (its notification was rebuilt): nothing new.
+  applyQueue(pr.paper, n, state({{3, pr.fromPhone(3, R"({"t":"remove","k":"wa-1"})")}, {4, pr.fromPhone(4, kPostA)}}), kNow);
+  CHECK(pos::inbox::freshMessages(n) == 0);
+  // One more message in that chat: one.
+  const std::string more = R"({"t":"post","k":"wa-1","app":"whatsapp","chat":"Family","reply":true,"ts":1768480050,"msgs":[{"from":"Bram","text":"Yes","ts":1768480000},{"from":"Anna","text":"Good","ts":1768480050}]})";
+  applyQueue(pr.paper, n, state({{5, pr.fromPhone(5, more)}}), kNow);
+  CHECK(pos::inbox::freshMessages(n) == 1);
+  // WhatsApp is open and saw it (its seen marker): no sound for what is on the screen.
+  Store whatsapp("/data/apps/whatsapp.json");
+  whatsapp.set("seen", 1768480050);
+  REQUIRE(whatsapp.save());
+  CHECK(pos::inbox::freshMessages(n) == 0);
+}

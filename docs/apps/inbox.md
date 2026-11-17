@@ -80,6 +80,28 @@ with `POS_REGISTER_APP`.
   shows what the store holds. Text through `core/text_clean` (links, stray HTML); emoji stay and are drawn from the emoji atlases on the card
   (UI.md "Emoji"), also in chat and group names.
 
+## Sound
+
+Option: Settings > Home Assistant > Phone > "Sound for
+new messages" (`phone.sound`, off by default). On: a read of the relay that brings new messages plays one chime on the
+buzzer (two short rising notes, a quarter of a second; `hal::chime()`, `core/sound.h`), however many messages came.
+
+- **New** = unread (newer than its app's seen marker, as for the badge) and later than the newest message any earlier read
+  brought (`heard` in `notifs.json`, set after every read; `inbox::freshMessages`). A notification the phone posts again,
+  or a message that is on the screen in the open app, makes no sound. A store saved before the marker existed starts at
+  its newest message.
+- **Whoever reads** sounds it (`fetchRelay`): the launcher's check, an inbox app, Agenda, the clipboard menu, a scheduled
+  refresh. So the sound comes when the Paper looks, not when the phone gets the message: the Paper is not on Wi-Fi in
+  between (POWER.md). With "wake to check the inbox" (Settings > Power) a switched-off Paper chimes at its next wake.
+- **Night**: nothing from 22:00 to 07:00 local time (`sound::quiet`; a scheduled refresh also runs then). A clock that
+  was never set counts as day.
+- Switching the option on plays the chime once (also at night): that is what it sounds like. `>set chime 1`
+  (`tools/device.py set chime 1`) plays it whatever the setting.
+- Device: the passive buzzer on GPIO 21 as a square wave from the LEDC timer, on a short-lived task; the pin is released
+  afterwards. Light sleep and power-off wait for a playing chime (at most a second): light sleep stops the PWM clock.
+  Simulator: a log line, and a count for the scripts (`expect-chimes N`).
+- Not heard on the device yet (STATUS.md "Pending device checks").
+
 ## Feed contract
 
 The decrypted notifications are turned into the feed items the list, grouping and badge code always used (`inbox::feedFromNotifs`,
@@ -90,9 +112,11 @@ BACKEND.md "Inbox feeds"): `id` = key + "#" + index, `from`, `chat`, `subject` (
 
 - Unit: `companion_crypto_test.cpp` (RFC 7748 and the shared vectors of `tests/fixtures/companion/vectors.json`, rejections),
   `companion_test.cpp` (queue order, replay, forgeries, results, unpair, expiry, envelopes to the phone, pairing, the store),
-  `inbox_test.cpp` (grouping, times, `feedFromNotifs`), `whatsapp_send_test.cpp` (targets, names, push outcome).
+  `inbox_test.cpp` (grouping, times, `feedFromNotifs`), `whatsapp_send_test.cpp` (targets, names, push outcome),
+  `sound_test.cpp` (the setting, the night, one chime per read; what counts as new is in `companion_test.cpp`).
 - UI: `inbox`, `inbox-mail`, `inbox-empty`, `inbox-error`, `inbox-wifi`, `inbox-unpaired`, `inbox-gone`, `inbox-gone-mail`,
-  `whatsapp-send`, `whatsapp-send-missing`, `whatsapp-reply-result`, `phone-pair` (Settings), `somdoku` (the score as a reply).
+  `whatsapp-send`, `whatsapp-send-missing`, `whatsapp-reply-result`, `phone-pair` (Settings), `somdoku` (the score as a reply),
+  `inbox-sound` (the option on: one chime for the launcher's read, the switch in Settings).
   Fixtures: `tests/fixtures/make-inbox-fixtures.py` encrypts fake notifications with pyca/cryptography for hosts `ha`, `ha-down`,
   `ha-empty`, `ha-gone` (.example.test) and writes the presets' paired state (`companion.json`). UI scripts run with
   `setTestRandom(1)`, so the pairing QR code and its hello are fixed.

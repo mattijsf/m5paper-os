@@ -29,6 +29,7 @@ bool Power::usbConnected() { return HWCDC::isPlugged(); }  // SOF seen on the US
 
 hal::Wake Power::lightSleep(uint32_t maxMs) {
   if (maxMs == 0) return hal::Wake::Timer;
+  waitForSound();  // light sleep stops the PWM clock: a chime would be cut, or hang on one note
   Serial.flush();
   M5.Display.waitDisplay();  // never sleep with a waveform half played
   const uint32_t t0 = millis();
@@ -51,6 +52,7 @@ hal::Wake Power::lightSleep(uint32_t maxMs) {
 
 void Power::powerOff(uint32_t wakeAfterSec) {
   POS_LOG("power", "power off, wake after %us (0 = side button only)", static_cast<unsigned>(wakeAfterSec));
+  waitForSound();  // a scheduled refresh switches off right after it read the relay
   Serial.flush();
   M5.Display.waitDisplay();  // the image stays on the panel with no power, but only if it is finished
   if (wakeAfterSec > 0) {

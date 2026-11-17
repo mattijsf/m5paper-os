@@ -21,6 +21,8 @@ struct RefreshResult {
 // `gone`: no feed can exist (not paired, no relay), the badges become 0. Returns the unread total. For every reader of the
 // relay queue that is not an inbox app (the scheduled refresh, the Agenda app).
 int writeBadges(const companion::Notifs& notifs, bool gone = false);
+// The messages a sound is for: unread (newer than their app's seen marker) and newer than `notifs.heard`.
+int freshMessages(const companion::Notifs& notifs);
 // Reads the companion relay (relay_fetch.h) and writes both inbox badges. Blocking (worker thread).
 RefreshResult refreshFeeds(HaClient ha, int64_t now, bool takeClip);
 

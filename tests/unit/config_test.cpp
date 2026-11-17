@@ -38,6 +38,7 @@ TEST_CASE("config: defaults when there is no file") {
   CHECK(c.reader.fontSize == "M");
   CHECK(c.reader.lineSpacing == doctest::Approx(1.35f));
   CHECK(c.launcher.resumeLastApp);
+  CHECK_FALSE(c.phone.sound);  // the buzzer is silent until Settings switches it on
 }
 
 TEST_CASE("config: save and load round trip") {
@@ -52,6 +53,7 @@ TEST_CASE("config: save and load round trip") {
   a.ha.baseUrl = "http://192.168.1.5:8123";
   a.launcher.resumeLastApp = false;
   a.net.timezone = "UTC0";
+  a.phone.sound = true;
   REQUIRE(a.save());
   Config b;
   REQUIRE(b.load());
@@ -64,6 +66,7 @@ TEST_CASE("config: save and load round trip") {
   CHECK(b.ha.baseUrl == "http://192.168.1.5:8123");
   CHECK_FALSE(b.launcher.resumeLastApp);
   CHECK(b.net.timezone == "UTC0");
+  CHECK(b.phone.sound);
 }
 
 TEST_CASE("config: missing keys, wrong types and out-of-range values never crash") {

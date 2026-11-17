@@ -138,6 +138,13 @@ void cleanNotif(Notif& n) {
   }
 }
 
+int64_t newestMsgTs(const Notifs& n) {
+  int64_t t = 0;
+  for (const Notif& x : n.items)
+    for (const NotifMsg& m : x.msgs) t = std::max(t, m.ts);
+  return t;
+}
+
 bool loadNotifs(Notifs& out) {
   out = Notifs{};
   std::string text;
@@ -158,12 +165,14 @@ bool loadNotifs(Notifs& out) {
   if (!(doc["clean"] | false))  // written before notifications were cleaned on arrival: once, here
     for (Notif& x : out.items) cleanNotif(x);
   for (JsonObjectConst o : doc["sent"].as<JsonArrayConst>()) out.sent.push_back(SentReply{o["ref"].as<uint64_t>(), o["name"].as<std::string>()});
+  out.heard = doc["heard"].is<int64_t>() ? num(doc["heard"]) : newestMsgTs(out);
   return true;
 }
 
 bool saveNotifs(const Notifs& n) {
   JsonDocument doc;
   doc["clean"] = true;  // every text in it went through cleanNotif
+  doc["heard"] = n.heard;
   JsonArray items = doc["items"].to<JsonArray>();
   for (const Notif& x : n.items) {
     JsonObject o = items.add<JsonObject>();

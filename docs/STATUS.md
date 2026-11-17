@@ -382,6 +382,14 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Sound for new messages**.
+  Simulator only: nothing was flashed, the device was unplugged, and the buzzer has never sounded under this firmware.
+  To do: flash, `tools/device.py set chime 1` and listen (the webcam's microphone can record it: `tools/cam.py` lists
+  audio devices) or ask the owner: is it audible, is the pitch right (2093 Hz then 2794 Hz, `kChime` in
+  `platform/device/sound.cpp`; a piezo is loudest near its resonance, often 2.7 or 4 kHz), does the pin stay quiet
+  afterwards. Then Settings > Home Assistant > Phone > Sound on, a message on the phone, open the launcher after ten
+  minutes or refresh WhatsApp: the log says `[sound] N new message(s)`. And a scheduled refresh (`>poweroff 30`) with a new
+  message: the chime ends before the power goes. 312 unit tests, 243 screenshots; firmware 2,436,736 bytes (+2,608).
 - **Keyboard: slow keys and a too large update area while typing a Wi-Fi password**. Not
   flashed and not measured: the device was in use by other work, then unplugged. To do: flash, Settings > Wi-Fi >
   Join a network > a secured network, type a few keys with a finger (an injected tap may be shorter than the 120 ms

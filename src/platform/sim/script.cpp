@@ -9,6 +9,8 @@
 #include <sstream>
 #include <thread>
 
+#include "core/sound.h"
+
 namespace pos::sim {
 
 namespace {
@@ -286,6 +288,13 @@ bool ScriptRunner::command(const std::string& cmd, const std::string& args, std:
     if (display_.counters().area > static_cast<uint64_t>(n[0])) {
       error = "expect-max-pushed " + std::to_string(n[0]) + ": " + std::to_string(display_.counters().area) +
               " pixels pushed since the last shot";
+      return false;
+    }
+  } else if (cmd == "expect-chimes") {  // how often the sound for new messages played since the start (core/sound.h)
+    if (!ints(1)) return false;
+    step(0);
+    if (sound::chimes() != n[0]) {
+      error = "expect-chimes " + std::to_string(n[0]) + ": " + std::to_string(sound::chimes()) + " played";
       return false;
     }
   } else {

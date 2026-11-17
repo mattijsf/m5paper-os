@@ -3,6 +3,7 @@
 # looked at: no badge. The mails that came with the same read were not: Mail shows how many.
 wait 1500
 expect-state rows=7
+expect-chimes 0         # the sound for new messages is off unless Settings switches it on
 back
 wait 900
 shot inbox-badges-launcher

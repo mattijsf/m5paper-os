@@ -60,6 +60,7 @@ StorageInfo storageInfo(const char* which) {
 }
 MemoryInfo memoryInfo() { return MemoryInfo{250000, 330000, 6400000, 8388608}; }
 void restart() { std::exit(0); }
+void chime() { POS_LOG("sound", "chime"); }  // nothing to hear: core/sound.h counts them (the script's expect-chimes)
 std::string boardName() { return "simulator"; }
 std::string macAddress() { return ""; }
 }  // namespace pos::hal

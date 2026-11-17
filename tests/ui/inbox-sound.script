@@ -1,0 +1,19 @@
+# Sound for new messages (docs/apps/inbox.md "Sound"): `phone.sound` is on in this test's config.json. The launcher reads the
+# relay (fixtures of inbox.script: chats and mails nobody saw): one chime for all of them.
+wait 2500
+expect-chimes 1
+shot inbox-sound-launcher
+tap 270 424             # Settings
+wait 900
+tap 270 556             # Home Assistant
+wait 900
+tap 270 678             # Phone
+wait 900
+shot inbox-sound-phone
+tap 470 408             # the switch off: silent
+wait 900
+expect-chimes 1
+shot inbox-sound-phone-off
+tap 470 408             # on again: it plays once, so the user hears what it is
+wait 900
+expect-chimes 2

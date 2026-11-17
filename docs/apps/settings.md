@@ -61,7 +61,7 @@ the token and the Authorization header are never shown or logged. Developer > "H
   "reader":   { "fontSize": "M", "margins": "normal", "lineSpacing": 1.35 },
   "ha":       { "baseUrl": "http://homeassistant.local:8123" },
   "launcher": { "resumeLastApp": true },
-  "phone":    { "clipboard": true }
+  "phone":    { "clipboard": true, "sound": false }
 }
 ```
 
@@ -113,8 +113,9 @@ Settings list is full (eight rows). Not paired: "Pair phone" makes new keys and 
 the phone's hello arrives: the phone name and a six-digit code to compare with the phone; "Codes match" saves the pairing to
 `/data/companion.json` (secret: never shown, logged or readable over USB) and sends `paired`. Paired: the phone name, the switch
 "Share the clipboard" (`phone.clipboard`, default on; DECISIONS.md D23: a copy on the Paper goes to the phone, what the phone shares
-arrives before a paste) and "Unpair"
-(with a confirmation; sends `unpair`, best effort, and deletes the pairing and the saved notifications). UI script `phone-pair`.
+arrives before a paste), the switch "Sound for new messages" (`phone.sound`, default off: a chime on the buzzer when a read of the
+relay brings new messages, not from 22:00 to 07:00; switching it on plays it once; apps/inbox.md "Sound") and "Unpair"
+(with a confirmation; sends `unpair`, best effort, and deletes the pairing and the saved notifications). UI scripts `phone-pair`, `inbox-sound`.
 
 ## Files over Wi-Fi (Settings > Storage, P7-4, D30)
 

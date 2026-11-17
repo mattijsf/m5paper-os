@@ -8,6 +8,7 @@
 #include "core/agenda.h"
 #include "core/clipboard.h"
 #include "core/log.h"
+#include "core/sound.h"
 
 namespace pos::inbox {
 
@@ -70,8 +71,13 @@ RelayFetch fetchRelay(HaClient& ha, int64_t now, bool takeClip) {
     return f;
   }
   if (f.applied.accepted > 0 || f.applied.rejected > 0) POS_LOG("relay", "accepted %d, dropped %d", f.applied.accepted, f.applied.rejected);
+  // What is new for the sound: unread and later than anything a read brought before (a notification the phone posts
+  // again, or one that was read here, is not).
+  f.fresh = freshMessages(f.notifs);
+  f.notifs.heard = std::max(f.notifs.heard, companion::newestMsgTs(f.notifs));
   saveRx(pairing);
   companion::saveNotifs(f.notifs);
+  sound::arrived(f.fresh, now);
   // Whoever read the relay (WhatsApp, Mail, Agenda, the clipboard menu, a scheduled wake): both apps' launcher badges
   // follow. Until 2026-11-17 an app wrote only its own, right after marking everything seen: a badge never showed.
   writeBadges(f.notifs);

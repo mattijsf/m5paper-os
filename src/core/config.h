@@ -41,6 +41,7 @@ struct LauncherConfig {
 };
 struct PhoneConfig {
   bool shareClipboard = true;  // the clipboard goes to and comes from the paired phone (DECISIONS.md D23)
+  bool sound = false;          // a chime when a read of the relay brings new messages (core/sound.h)
 };
 
 class Config {

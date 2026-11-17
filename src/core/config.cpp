@@ -76,6 +76,7 @@ bool Config::load() {
 
   if (doc["launcher"]["resumeLastApp"].is<bool>()) launcher.resumeLastApp = doc["launcher"]["resumeLastApp"].as<bool>();
   if (doc["phone"]["clipboard"].is<bool>()) phone.shareClipboard = doc["phone"]["clipboard"].as<bool>();
+  if (doc["phone"]["sound"].is<bool>()) phone.sound = doc["phone"]["sound"].as<bool>();
   return true;
 }
 
@@ -98,6 +99,7 @@ bool Config::save() const {
   doc["ha"]["baseUrl"] = ha.baseUrl;
   doc["launcher"]["resumeLastApp"] = launcher.resumeLastApp;
   doc["phone"]["clipboard"] = phone.shareClipboard;
+  doc["phone"]["sound"] = phone.sound;
   std::string out;
   serializeJsonPretty(doc, out);
   return fs::writeFile(path_, out + "\n");

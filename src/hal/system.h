@@ -26,4 +26,8 @@ void restart();
 std::string boardName();
 std::string macAddress();
 
+// The one sound: two short notes for "something new" (device: the buzzer; the simulator only logs it). Does not block and
+// may be called from any thread; a call while it plays is dropped. Use core/sound.h, which holds the setting.
+void chime();
+
 }  // namespace pos::hal

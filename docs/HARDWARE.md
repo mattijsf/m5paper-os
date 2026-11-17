@@ -18,7 +18,7 @@ version 0.3.0 (in `.pio/libdeps/papers3/`), **measured** = read from our own dev
 | IMU | BMI270, I2C 0x68 | docs |
 | Battery | 3.7 V 1800 mAh LiPo, charger LGS4056H (~330 mA), no fuel gauge: voltage via ADC only | docs |
 | Storage | microSD slot (SPI). The 64 GB card in the device mounts with Arduino `SD.begin(47, SPI, 25000000, "/sd")` after `SPI.begin(39, 40, 38, 47)` | docs, measured |
-| Sound | passive buzzer | docs |
+| Sound | passive buzzer (used for the new-message chime, apps/inbox.md "Sound"; not heard yet) | docs |
 | Power controller | PMS150G microcontroller: handles the side button, power on/off, download mode | docs |
 | USB | USB-C, native USB serial/JTAG (shows up as `/dev/cu.usbmodem*`, VID:PID 303A:1001) | measured |
 | Size | 121.5 x 67.7 x 7.7 mm, 89 g | docs |
@@ -42,7 +42,9 @@ version 0.3.0 (in `.pio/libdeps/papers3/`), **measured** = read from our own dev
 | Grove port (yellow / white) | 1 / 2 | docs |
 
 We never drive these pins by hand: M5Unified (`M5.begin()`) detects the board and configures the
-display, touch, RTC, IMU, power and SD pins. Our device HAL calls M5Unified.
+display, touch, RTC, IMU, power and SD pins. Our device HAL calls M5Unified. One exception: the buzzer
+(`platform/device/sound.cpp`) is a square wave from the Arduino LEDC timer on GPIO 21 (`ledcAttach`, `ledcWriteTone`,
+`ledcDetach`). M5Unified's speaker class would drive the same pin through I2S with a task that stays; it is never started.
 
 ## Power behaviour (important for the power design, see POWER.md)
 

@@ -10,6 +10,7 @@
 #include "core/fs.h"
 #include "core/os.h"
 #include "core/paired_owed.h"
+#include "core/sound.h"
 #include "core/version.h"
 #include "hal/system.h"
 #include "ui/qr.h"
@@ -440,6 +441,14 @@ class PhonePage : public Page {
       clip->setToggle(cfg().phone.shareClipboard, [this](bool on) {
         cfg().phone.shareClipboard = on;
         save();
+      });
+      // The buzzer when a read of the relay brings new messages (core/sound.h); switching it on plays it once.
+      auto* snd = holder_->add<ui::ListItem>("Sound for new messages", "A short beep, not from 22:00 to 07:00", true, ui::Icon::MessageCircle);
+      snd->setToggle(cfg().phone.sound, [this](bool on) {
+        cfg().phone.sound = on;
+        save();
+        sound::setNewMessages(on);
+        if (on) sound::play();
       });
       holder_->add<ui::Spacer>(ui::s2);
       text("WhatsApp and Proton Mail notifications from this phone come here end-to-end encrypted. Home Assistant only relays them.",

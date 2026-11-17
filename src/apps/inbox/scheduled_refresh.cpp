@@ -1,5 +1,6 @@
 #include "apps/inbox/scheduled_refresh.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <ctime>
 
@@ -115,6 +116,16 @@ int writeBadges(const companion::Notifs& notifs, bool gone) {
     setAppBadge(d.id, n);
   }
   return unread;
+}
+
+int freshMessages(const companion::Notifs& notifs) {
+  int fresh = 0;
+  for (const FeedDef& d : kFeeds) {
+    const Feed feed = feedFromNotifs(notifs, std::string(d.id) == "mail");
+    Store app(std::string("/data/apps/") + d.id + ".json");
+    fresh += newCount(feed.items, std::max<int64_t>(app.get("seen", 0), notifs.heard));
+  }
+  return fresh;
 }
 
 RefreshResult refreshFeeds(HaClient ha, int64_t now, bool takeClip) {
