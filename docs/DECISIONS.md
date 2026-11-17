@@ -485,7 +485,8 @@ What this costs, and the rules that follow:
 - **Tried and dropped**: `CONFIG_LWIP_IPV6=n` (ESP-IDF's lwIP port and the esp-modbus component do not compile without it).
   `-Os` for our code: it already was (the build script's `-Os` came after our `-O2`, which never had an effect).
 
-Not done, each needs a choice (sizes from the linker map):
+Not done, and not wanted for now; do not ask again unless
+the budget runs short (sizes from the linker map):
 
 - **Fonts and icons, 473 KB** (11 text fonts at 4 bits per pixel, two icon sizes): the largest block left. On the card like the
   emoji atlases (the firmware then needs the card to show text), 2 bits per pixel (about half, coarser edges), or without

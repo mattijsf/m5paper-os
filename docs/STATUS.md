@@ -131,7 +131,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   flashed image also holds other uncommitted work of that moment (`reader/book.cpp`, `core/file_server.cpp`).
   One run of `make check` failed in `wifi_test.cpp:396` ("Wi-Fi goes off after the linger time"), code this pass did not
   touch; two runs before and two after passed (286 tests, 231 screenshots): not explained, watch for it. What is left to
-  take: D31 "Not done" (fonts 473 KB first).
+  take: D31 "Not done" (fonts 473 KB first); the user stops here (2026-11-17: "I think it is fine like this").
 - **Files over Wi-Fi (P7-4, D30), 2026-11-16 night**: Settings > Storage > Files over Wi-Fi serves the books folder as WebDAV
   and an upload page while the page is open, behind a one-time code. **On the device** (192.168.1.69, port 80), tested from
   the Mac: OPTIONS, PROPFIND, PUT with a length and chunked, GET, MOVE, COPY, MKCOL, DELETE, Digest and Basic sign-in, a wrong code
