@@ -154,8 +154,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Simulator build | `make sim` | OK (first build ~3 min, then seconds) |
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
-| Firmware build | `make fw` | OK, 2,430,224 bytes = 2.32 MB (46.4% of the 5 MB slot; 716 KB under the 3 MB budget) after the code review and the camera target of 2026-11-17 (2,424,592 after the size pass of D31; 2.85 MB before that) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 304 tests; 237 goldens (2026-11-17, after the code review, the Wi-Fi scan page and the camera target); `out/gallery.html` |
+| Firmware build | `make fw` | OK, 2,431,376 bytes = 2.32 MB (46.4% of the 5 MB slot; 715 KB under the 3 MB budget) after the code review, the camera target and the file memory of 2026-11-17 (2,424,592 after the size pass of D31; 2.85 MB before that) |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 306 tests; 237 goldens (2026-11-17, after the code review, the Wi-Fi scan page, the camera target and the file memory); `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Live view in a browser | `make view` (`ARGS=--sim`, `ARGS=--lan`) | `tools/view.py`: the device's frame on `http://127.0.0.1:8137/`, click = tap, hold = long press, drag = swipe; ~760 ms from click to new frame; holds the serial port (other device tools refuse to start meanwhile) |
@@ -971,3 +971,12 @@ None of these block Phase 1, Phase 2, or the reader.
   (28-67 % of the local white: a reflection on the left edge); `compare` and `around` use it for gray levels for an hour.
   A single gray patch is good to about 0.06, the mean of the target's three places to 0.02 (DISPLAY.md "Calibration
   target"). Start of a camera session: `cam.py lock`, then `make cam-target`.
+- 2026-11-17: File reads on the UI thread (the review's item). Measured first: opening an app cost 65-114 ms before
+  the first pixel, leaving one for the launcher 134-354 ms: the launcher read 16 small files (badges twice, the reader's
+  store, the agenda), ~9 ms each on the internal flash. Not made asynchronous (that is a second pass on the panel):
+  `core/fs` keeps small `/data` files in memory, every write, append, delete and rename through it keeps that true.
+  On the device: launcher 15 ms before the first pixel, tap to panel 137 ms (was 255-476); opening WhatsApp 54-88 ms,
+  Mail 64 ms. `ctx.background(job)` / `Worker::post` for work that must run even when the app closes (it was queued
+  with `ctx.async` and skipped then: Wi-Fi power save after Files over Wi-Fi, Home's saved copy, the book cover).
+  APPS.md "Threads: what an app has to know". Still on the UI thread: the inbox parses and cleans its saved
+  notifications when it opens (part of those 54-88 ms).

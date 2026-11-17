@@ -28,6 +28,9 @@ std::string resolve(const std::string& virtualPath);
 // Override the real root folders (the defaults depend on the platform). For tests.
 void setRoots(const std::string& sdRoot, const std::string& dataRoot);
 
+// Small files of /data (up to 16 KB) are kept in memory after the first read or write: opening one on the internal
+// flash costs about 9 ms, found or not. Everything that changes /data goes through this header, so the memory stays
+// true; a file changed behind it (a test writing with the host's own calls) needs setRoots() again.
 bool exists(const std::string& virtualPath);
 bool isDir(const std::string& virtualPath);  // an existing folder (one stat; listDir reads the whole folder)
 bool readFile(const std::string& virtualPath, std::string& out);
@@ -61,6 +64,7 @@ class Writer {
   FILE* f_ = nullptr;
   bool ok_ = true;
   std::string path_;  // the real path, for a reopen
+  std::string virtual_;  // as it was opened (fs.cpp keeps small /data files in memory: a finished write drops this one)
   uint64_t pos_ = 0;  // bytes written so far
   unsigned retries_ = 0;
 };

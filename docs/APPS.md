@@ -104,6 +104,7 @@ keep (`ctx.store`) in `onStop()`/`onHide()`. Power-off calls `onStop()` first.
 |---|---|
 | `ctx.nav` | `push<S>(args...)`, `pop()`, `home()` |
 | `ctx.async(job, onDone)` | run `job` on the worker thread, deliver its result to `onDone` on the UI thread; dropped if the screen is gone |
+| `ctx.background(job)` | run `job` on the worker thread, nothing comes back; it runs even if the screen or the app closes first (save a file, switch something off) |
 | `ctx.http(request, onDone)` | convenience over `async`: brings Wi-Fi up, performs the request, applies the Wi-Fi linger policy |
 | `ctx.store` | per-app key/value JSON persisted at `/data/apps/<id>.json`: `get<T>(key, default)`, `set(key, value)`, `save()` |
 | `ctx.config` | read-only system settings (`config.json`) |
@@ -121,10 +122,46 @@ keep (`ctx.store`) in `onStop()`/`onHide()`. Power-off calls `onStop()` first.
 screen is pushed onto your app's stack, the user confirms before anything is sent, back returns to your screen (apps/inbox.md "Sending").
 To hand text to any app instead, use the clipboard: `clipboard::set(text, "<your app id>")` (`core/clipboard.h`, D21).
 
+## Threads: what an app has to know
+
+Two threads, and an app only ever writes code for the first:
+
+- **The UI thread** runs everything of a screen: `build`, `onShow`, widget handlers, timers, and the `onDone` of
+  `ctx.async`. Widgets and the screen's members are touched here and nowhere else, so an app needs no locks.
+- **The worker** runs what takes time, one job after the other: `ctx.async(job, onDone)` when the screen wants the
+  result, `ctx.background(job)` when nobody waits for it. A job gets copies (capture by value) and touches no widget,
+  no `this`, no `ctx`.
+
+What goes where:
+
+| Work | Where | Why |
+|---|---|---|
+| saved state in `/data`: `ctx.store`, `ctx.cache`, small files (up to 16 KB) | UI thread, in `build()` | `core/fs` answers them from memory after the first read (a file on the flash costs ~9 ms to open); the first frame already shows the data |
+| the network (`ctx.http`, `ctx.ha()`), the SD card, big files, anything over a few ms of computing | `ctx.async` | it blocks for hundreds of ms to seconds |
+| writing a file after a refresh, switching the radio back, cleaning up | `ctx.background` | a write to the flash is ~35 ms; and it must happen even when the user leaves at that moment |
+
+**On this panel every extra pass shows** (DISPLAY.md), so the order matters more than on an LCD:
+
+1. **Read what is saved before the first frame, not after it.** "Draw empty, load in the background, draw again" is two
+   passes over the screen; reading the saved copy in `build()` is one. This is why small `/data` files are kept in
+   memory instead of being made asynchronous.
+2. **One result, one change.** In `onDone`, set the new values on the widgets that exist; their setters compare and a
+   widget whose text did not change is not drawn again (`Label::setText`, `ListItem::set*`, `PagedList::refill`). Do not
+   rebuild the screen for a result that changed two values.
+3. **`relayout()` only when sizes change** (rows came or went, a bar appeared). It is a whole-screen pass.
+4. **Several results at once, not one after the other**: one job that fetches everything a screen needs (`HaClient::
+   getMany`, one relay read) gives one update; three jobs give three.
+5. A result for a screen that is gone is dropped by itself (`ctx.async`); a job nobody waits for any more is not even
+   started when the app closes. What must happen all the same goes to `ctx.background`.
+
+Measured on the device (2026-11-17): leaving an app for the launcher was 134-354 ms before the first pixel because the
+launcher read 16 small files on the UI thread; with those in memory it is 15 ms, tap to panel 137 ms instead of 255-476.
+The shell logs `[perf] close <app> took N ms: ...` when leaving an app costs 30 ms or more.
+
 ## Rules for app code
 
-1. Never block: no `delay`, no file parsing of more than a few KB, no HTTP on the UI thread.
-   Use `ctx.async` / `ctx.http`.
+1. Never block: no `delay`, no HTTP, no SD card, no file of more than a few KB on the UI thread: `ctx.async` /
+   `ctx.http` / `ctx.background` ("Threads" above says what goes where).
 2. Never draw directly to the canvas outside a widget's `draw()`; never call the display.
    Change widget state and `invalidate()` with the right hint (`DISPLAY.md`).
 3. Use theme tokens and existing widgets (`UI.md`). A new widget goes in `src/ui/` if a second

@@ -178,6 +178,28 @@ TEST_CASE("worker: a cancelled generation drops the callback") {
   CHECK(w.pending() == 0);
 }
 
+TEST_CASE("worker: a posted job runs even when everything else was cancelled") {
+  Worker w;
+  w.start();
+  std::atomic<bool> release{false};
+  std::atomic<bool> skipped{false}, saved{false};
+  bool delivered = false;
+  // A job blocks the queue; behind it one whose result a screen waits for, and one that must happen all the same.
+  w.async([&] { while (!release) std::this_thread::sleep_for(std::chrono::milliseconds(1)); }, [] {});
+  w.async([&] { skipped = true; return 1; }, [&](int) { delivered = true; });
+  w.post([&] { saved = true; });
+  w.cancelAll();  // the app closed
+  release = true;
+  for (int i = 0; i < 500 && w.pending() > 0; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    w.runCompleted();
+  }
+  CHECK(saved);          // the file is written, the radio is switched back
+  CHECK_FALSE(skipped);  // what only the closed screen wanted is not even started
+  CHECK_FALSE(delivered);
+  CHECK(w.pending() == 0);
+}
+
 TEST_CASE("worker: wakeup is called from the worker thread when a result is ready") {
   Worker w;
   std::atomic<int> wakes{0};

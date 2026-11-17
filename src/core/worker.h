@@ -42,6 +42,14 @@ class Worker {
     }
   }
 
+  // Runs `job` on the worker whatever happens meanwhile: cancelAll() does not skip it, and nothing comes back. For work
+  // that must be done even if the one who asked is gone by then (a file to save, something to switch off again).
+  // Capture by value, and nothing that dies with a screen or an app.
+  template <class Job>
+  void post(Job job) {
+    enqueue([job = std::move(job)]() mutable { job(); }, nullptr);
+  }
+
   // UI thread: runs the callbacks of finished jobs, oldest first. Returns how many ran.
   int runCompleted();
   // Drops everything not yet delivered: queued jobs are skipped, finished results are discarded.
@@ -56,7 +64,7 @@ class Worker {
   struct Task {
     uint32_t generation;
     std::function<void()> run;
-    std::function<void()> deliver;
+    std::function<void()> deliver;  // none: a post(), which cancelAll() leaves alone
   };
   void enqueue(std::function<void()> run, std::function<void()> deliver);
   void loop();

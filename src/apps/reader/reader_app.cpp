@@ -273,7 +273,7 @@ class PageScreen : public Screen {
           // Queued before it, the page came 1.9 s after the book was ready and taps were dropped meanwhile (device, 2026-11-16).
           if (meta_.epub && !meta_.cover.empty() && coverFile(meta_).empty()) {
             const BookMeta m = meta_;
-            ctx().async([m] { return extractCover(m); }, [](bool) {});
+            ctx().background([m] { extractCover(m); });
           }
         });
   }

@@ -272,7 +272,8 @@ Pin exact versions in `platformio.ini`. Do not add a library without an entry in
   | trim, lower case, starts/ends with, split and join (also of numbers) | `core/strings.h` |
   | day numbers and dates, "14:05", weekday and month names, "is the clock set" | `core/timefmt.h` |
   | CRC-32 | `core/crc32.h` |
-  | paths: one spelling (`normalize`), `isDir`, a write or rename that keeps the old file until the new one is there | `core/fs.h` |
+  | paths: one spelling (`normalize`), `isDir`, a write or rename that keeps the old file until the new one is there; small `/data` files answered from memory | `core/fs.h` |
+  | work off the UI thread: `ctx.async` (the screen wants the result), `ctx.background` (must happen, nothing comes back) | `core/app.h`, APPS.md "Threads" |
   | "owed since" marks in a file | `core/time_mark.h` |
   | an app's launcher badge | `appBadge` / `setAppBadge` in `core/store.h` |
   | sheets (`openSheet`, `confirmSheet`, `Sheet::addButton`), a paged list (`PagedList`), `Widget::removeAll` | `ui/panels.h`, `ui/list.h`, `ui/widget.h` |

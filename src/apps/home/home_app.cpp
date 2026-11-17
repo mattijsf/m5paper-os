@@ -362,7 +362,9 @@ class HomeScreen : public Screen {
                   }
                   if (ok > 0) {
                     haveCache_ = true;
-                    fs::writeFile(kCacheFile, statesToJson(states_));
+                    // The saved copy: put together here (the states live on this thread), written on the worker (a
+                    // write to the flash is ~35 ms, and this runs after every read while the app is in use).
+                    ctx().background([json = statesToJson(states_)] { fs::writeFile(kCacheFile, json); });
                     applyAll();
                     if (body_->host()) body_->host()->relayout();
                   }

@@ -165,6 +165,13 @@ class AppContext {
       onDone(std::forward<decltype(r)>(r)...);
     });
   }
+  // Runs `job` on the worker thread and expects nothing back. Unlike async() it runs even if the screen or the whole
+  // app is closed before its turn: for what must happen all the same (save a file, switch something off again).
+  // Capture by value; nothing of the screen (`this`, widgets, `ctx`) may be used in it.
+  template <class Job>
+  void background(Job job) {
+    worker().post(std::move(job));
+  }
   // async over NetService::perform: brings Wi-Fi up if needed (known networks, one fast attempt + one scan), sends the
   // request, keeps Wi-Fi up for net.lingerSec. `onDone(hal::HttpResponse)`: status 0 and error "No Wi-Fi: ..." if offline.
   template <class Done>

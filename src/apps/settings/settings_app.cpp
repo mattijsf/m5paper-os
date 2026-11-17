@@ -775,7 +775,7 @@ class FilesPage : public Page {
     running_ = false;
     if (http_) http_->stop();
     hal::Net* radio = &ctx().os().platform().net;
-    ctx().async([radio] { radio->setPowerSave(true); return 0; }, [](int) {});
+    ctx().background([radio] { radio->setPowerSave(true); });  // also when the whole app closes right after
     server_.reset();
     if (!why.empty()) {
       state_->setText(why);

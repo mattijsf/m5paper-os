@@ -262,9 +262,13 @@ bool Shell::openApp(const std::string& id) {
 
 void Shell::closeApp() {
   if (!app_) return;
+  hal::Clock& clock = os_.platform().clock;
+  const uint32_t t0 = clock.millis();
   if (stack_.size() > appBase_) stack_.back().screen->onHide();  // lifecycle: onHide, then onStop
   app_->onStop();
+  const uint32_t t1 = clock.millis();
   store_->save();
+  const uint32_t t2 = clock.millis();
   while (stack_.size() > appBase_) popTop(false);
   os_.worker().cancelAll();  // results of this app's jobs are dropped
   ++appRun_;                 // and so are its queued navigation actions (deferForApp)
@@ -273,8 +277,15 @@ void Shell::closeApp() {
   nav_.reset();
   cache_.reset();
   store_.reset();
+  const std::string closed = appId_;
   appId_.clear();
+  const uint32_t t3 = clock.millis();
   showTop();
+  const uint32_t t4 = clock.millis();
+  // Leaving an app is on the UI thread from the tap to the launcher's first pixel: say where a slow one went.
+  if (t4 - t0 >= 30)
+    POS_LOG("perf", "close %s took %ums: hide+stop %u, store %u, destroy %u, launcher %u", closed.c_str(), static_cast<unsigned>(t4 - t0),
+            static_cast<unsigned>(t1 - t0), static_cast<unsigned>(t2 - t1), static_cast<unsigned>(t3 - t2), static_cast<unsigned>(t4 - t3));
 }
 
 void Shell::runDeferred() {

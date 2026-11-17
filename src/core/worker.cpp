@@ -34,11 +34,16 @@ void Worker::loop() {
       task = std::move(queue_.front());
       queue_.pop_front();
     }
-    if (task.generation != generation_.load()) {  // cancelled while queued
+    if (task.deliver && task.generation != generation_.load()) {  // cancelled while queued
       --pending_;
       continue;
     }
     task.run();
+    if (!task.deliver) {  // a post(): nothing to hand to the UI thread
+      --pending_;
+      if (wakeup_) wakeup_();
+      continue;
+    }
     {
       std::lock_guard<std::mutex> lock(mutex_);
       done_.push_back(std::move(task));

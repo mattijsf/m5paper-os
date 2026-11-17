@@ -5,6 +5,7 @@
 
 #include "core/agenda.h"
 #include "core/fs.h"
+#include "core/log.h"
 #include "core/store.h"
 #include "core/timefmt.h"
 #include "ui/widgets.h"
@@ -71,9 +72,17 @@ class LauncherScreen : public Screen {
   }
 
   void onShow() override {
+    hal::Clock& clock = shell_.os().platform().clock;
+    const uint32_t t0 = clock.millis();
     showAgenda();
+    const uint32_t t1 = clock.millis();
     summary_->setText(computeSummary(apps_));  // the layout that follows makes room for it
+    const uint32_t t2 = clock.millis();
     showBadges();
+    const uint32_t t3 = clock.millis();
+    if (t3 - t0 >= 20)
+      POS_LOG("perf", "launcher shown in %ums: agenda %u, summary %u, badges %u", static_cast<unsigned>(t3 - t0), static_cast<unsigned>(t1 - t0),
+              static_cast<unsigned>(t2 - t1), static_cast<unsigned>(t3 - t2));
   }
 
  private:

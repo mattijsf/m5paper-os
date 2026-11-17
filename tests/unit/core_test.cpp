@@ -100,6 +100,62 @@ TEST_CASE("fs: normalize gives a path its one spelling") {
   CHECK(fs::normalize("") == "");
 }
 
+TEST_CASE("fs: small /data files are answered from memory, and every change through fs keeps that true") {
+  TempRoots t;
+  const std::string real = t.base + "/data/cache/app/badge";
+  auto behind = [&real](const char* text) {  // changes the file without fs knowing: only memory can still say the old text
+    FILE* f = std::fopen(real.c_str(), "wb");
+    REQUIRE(f != nullptr);
+    std::fputs(text, f);
+    std::fclose(f);
+  };
+  std::string s;
+  CHECK_FALSE(fs::readFile("/data/cache/app/badge", s));  // "no such file" is remembered too
+  CHECK_FALSE(fs::exists("/data/cache/app/badge"));
+  REQUIRE(fs::writeFile("/data/cache/app/badge", "3"));    // a write is known at once
+  CHECK(fs::exists("/data/cache/app/badge"));
+  CHECK(fs::readFile("/data/cache/app/badge", s));
+  CHECK(s == "3");
+  behind("7");
+  CHECK(fs::readFile("/data/cache//app/./badge", s));      // from memory, whatever the spelling
+  CHECK(s == "3");
+  REQUIRE(fs::appendFile("/data/cache/app/badge", "1"));   // an append: the flash is asked again
+  CHECK(fs::readFile("/data/cache/app/badge", s));
+  CHECK(s == "71");
+  REQUIRE(fs::writeFile("/data/cache/app.old/badge", "9"));  // a neighbour whose name starts the same
+  CHECK(fs::removeAll("/data/cache/app"));                 // a folder: everything in it is forgotten
+  CHECK_FALSE(fs::readFile("/data/cache/app/badge", s));
+  CHECK(fs::readFile("/data/cache/app.old/badge", s));
+  CHECK(s == "9");
+  REQUIRE(fs::mkdirs("/data/cache/app"));
+  REQUIRE(fs::rename("/data/cache/app.old/badge", "/data/cache/app/badge"));
+  CHECK_FALSE(fs::exists("/data/cache/app.old/badge"));
+  CHECK(fs::readFile("/data/cache/app/badge", s));
+  CHECK(s == "9");
+  {
+    fs::Writer w;
+    REQUIRE(w.open("/data/cache/app/badge"));
+    REQUIRE(w.write("12", 2));
+    REQUIRE(w.close());
+  }
+  CHECK(fs::readFile("/data/cache/app/badge", s));
+  CHECK(s == "12");
+  // A big file is not kept: it is read from the flash each time.
+  REQUIRE(fs::writeFile("/data/big", std::string(20000, 'x')));
+  FILE* f = std::fopen((t.base + "/data/big").c_str(), "wb");
+  std::fputs("small now", f);
+  std::fclose(f);
+  CHECK(fs::readFile("/data/big", s));
+  CHECK(s == "small now");
+  // The card is not kept in memory at all (it can be changed elsewhere).
+  REQUIRE(fs::writeFile("/sd/note", "a"));
+  f = std::fopen((t.base + "/sd/note").c_str(), "wb");
+  std::fputs("b", f);
+  std::fclose(f);
+  CHECK(fs::readFile("/sd/note", s));
+  CHECK(s == "b");
+}
+
 TEST_CASE("fs: rename replaces a file, the root folders cannot be removed") {
   TempRoots t;
   REQUIRE(fs::writeFile("/sd/a.txt", "new"));

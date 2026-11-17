@@ -11,6 +11,7 @@
 #include <cerrno>
 #include <climits>
 #include <cstdio>
+#include <map>
 #include <mutex>
 
 namespace pos::fs {
@@ -67,11 +68,78 @@ bool mkdirsReal(const std::string& path) {
   return mkdir(path.c_str(), 0775) == 0 || errno == EEXIST;
 }
 
+// ---- small files of /data kept in memory
+//
+// Opening a file on the internal flash costs about 9 ms on the device, found or not (the launcher read 16 of them, two
+// JSON files among them, every time an app closed: 170-190 ms before its first pixel, 2026-11-17). Everything that
+// writes /data goes through this file, so what was read or written last is what the file holds: readFile() answers
+// from memory, and every write, append, delete and rename here keeps that memory true. Only /data (the card can be
+// taken out and changed elsewhere), only files up to kCachedFileMax, and "there is no such file" is remembered too.
+constexpr size_t kCachedFileMax = 16 * 1024, kCachedTotalMax = 128 * 1024;
+
+struct Cached {
+  bool exists = false;
+  std::string data;
+};
+std::mutex gCacheMutex;  // the worker reads and writes files too
+std::map<std::string, Cached> gCached;  // by normalized virtual path
+size_t gCachedBytes = 0;
+
+bool cacheable(const std::string& key) { return key.compare(0, 6, "/data/") == 0; }
+
+void cacheDropLocked(const std::string& key) {
+  // The path itself and, when it is a folder, everything in it.
+  for (auto it = gCached.lower_bound(key); it != gCached.end();) {
+    const bool inside = it->first.size() > key.size() && it->first.compare(0, key.size(), key) == 0 && it->first[key.size()] == '/';
+    if (it->first != key && !inside) {
+      // Names like "/data/a.b" sort between "/data/a" and "/data/a/": look on while the prefix matches at all.
+      if (it->first.compare(0, key.size(), key) != 0) break;
+      ++it;
+      continue;
+    }
+    gCachedBytes -= it->second.data.size();
+    it = gCached.erase(it);
+  }
+}
+
+void cacheDrop(const std::string& virtualPath) {
+  const std::string key = normalize(virtualPath);
+  if (!cacheable(key) && key != "/data") return;
+  std::lock_guard<std::mutex> lock(gCacheMutex);
+  cacheDropLocked(key);
+}
+
+void cachePut(const std::string& key, bool exists, const std::string& data) {
+  if (!cacheable(key)) return;
+  std::lock_guard<std::mutex> lock(gCacheMutex);
+  cacheDropLocked(key);
+  if (data.size() > kCachedFileMax) return;  // a big file is read from the flash each time
+  if (gCachedBytes + data.size() > kCachedTotalMax) {  // full: start over (simple, and rare: /data holds little)
+    gCached.clear();
+    gCachedBytes = 0;
+  }
+  gCached[key] = Cached{exists, data};
+  gCachedBytes += data.size();
+}
+
+// 1: the file is known and `out` holds it; 0: known to be missing; -1: not known.
+int cacheGet(const std::string& key, std::string* out) {
+  if (!cacheable(key)) return -1;
+  std::lock_guard<std::mutex> lock(gCacheMutex);
+  auto it = gCached.find(key);
+  if (it == gCached.end()) return -1;
+  if (it->second.exists && out) *out = it->second.data;
+  return it->second.exists ? 1 : 0;
+}
+
 }  // namespace
 
 void setRoots(const std::string& sdRoot, const std::string& dataRoot) {
   gSdRoot = sdRoot;
   gDataRoot = dataRoot;
+  std::lock_guard<std::mutex> lock(gCacheMutex);  // other files now: nothing remembered is theirs
+  gCached.clear();
+  gCachedBytes = 0;
 }
 
 std::string normalize(const std::string& v) {
@@ -96,6 +164,8 @@ std::string resolve(const std::string& virtualPath) {
 }
 
 bool exists(const std::string& v) {
+  const int known = cacheGet(normalize(v), nullptr);
+  if (known >= 0) return known == 1;
   std::string p = resolve(v);
   struct stat st;
   return !p.empty() && stat(p.c_str(), &st) == 0;
@@ -108,16 +178,23 @@ bool isDir(const std::string& v) {
 }
 
 bool readFile(const std::string& v, std::string& out) {
+  const std::string key = normalize(v);
+  const int known = cacheGet(key, &out);
+  if (known >= 0) return known == 1;
   std::string p = resolve(v);
   if (p.empty()) return false;
   FILE* f = std::fopen(p.c_str(), "rb");
-  if (!f) return false;
+  if (!f) {
+    if (errno == ENOENT) cachePut(key, false, "");  // (any other failure may pass: ask the flash again next time)
+    return false;
+  }
   out.clear();
   char buf[1024];
   size_t n;
   while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) out.append(buf, n);
   bool ok = !std::ferror(f);
   std::fclose(f);
+  if (ok) cachePut(key, true, out);
   return ok;
 }
 
@@ -143,8 +220,10 @@ bool writeFile(const std::string& v, const std::string& data) {
   }
   if (!replaceReal(tmp, p)) {
     std::remove(tmp.c_str());
+    cacheDrop(v);  // whatever is there now: ask the flash
     return false;
   }
+  cachePut(normalize(v), true, data);  // what the file holds from here on
   return true;
 }
 
@@ -195,12 +274,15 @@ unsigned changes() { return gChanges.load(); }
 
 bool removeAll(const std::string& v) {
   std::string p = resolve(v);
+  cacheDrop(v);
   noteChange(p);
   return !p.empty() && p != gSdRoot && p != gDataRoot && removeReal(p);
 }
 
 bool rename(const std::string& from, const std::string& to) {
   std::string a = resolve(from), b = resolve(to);
+  cacheDrop(from);
+  cacheDrop(to);
   noteChange(b);
   return !a.empty() && !b.empty() && replaceReal(a, b);
 }
@@ -208,6 +290,7 @@ bool rename(const std::string& from, const std::string& to) {
 bool appendFile(const std::string& v, const std::string& data) {
   const std::string p = resolve(v);
   if (p.empty()) return false;
+  cacheDrop(v);
   const size_t slash = p.rfind('/');
   if (slash != std::string::npos && slash > 0) mkdirsReal(p.substr(0, slash));
   FILE* f = std::fopen(p.c_str(), "ab");
@@ -232,6 +315,8 @@ bool Writer::open(const std::string& v) {
   size_t slash = p.rfind('/');
   if (slash != std::string::npos && slash > 0 && !mkdirsReal(p.substr(0, slash))) return false;
   noteChange(p);
+  cacheDrop(v);
+  virtual_ = v;
   f_ = std::fopen(p.c_str(), "wb");
   ok_ = f_ != nullptr;
   path_ = p;
@@ -269,6 +354,7 @@ bool Writer::close() {
   if (!f_) return ok_;
   ok_ = (std::fclose(f_) == 0) && ok_;
   f_ = nullptr;
+  cacheDrop(virtual_);  // (someone may have read the half-written file meanwhile)
   return ok_;
 }
 
