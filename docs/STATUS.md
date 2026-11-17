@@ -154,8 +154,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
 | Simulator build | `make sim` | OK (first build ~3 min, then seconds) |
 | Headless screenshot | `make shot` | `out/shot.png`, 540x960, 16 grays |
 | Simulator window | `make run` | mouse = touch, S screenshot, G ghost overlay, L refresh log |
-| Firmware build | `make fw` | OK, 2,428,912 bytes = 2.32 MB (46.3% of the 5 MB slot; 717 KB under the 3 MB budget) after the code review of 2026-11-17 (2,424,592 after the size pass of D31; 2.85 MB before that) |
-| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 304 tests; 236 goldens (2026-11-17, after the code review and the Wi-Fi scan page); `out/gallery.html` |
+| Firmware build | `make fw` | OK, 2,430,224 bytes = 2.32 MB (46.4% of the 5 MB slot; 716 KB under the 3 MB budget) after the code review and the camera target of 2026-11-17 (2,424,592 after the size pass of D31; 2.85 MB before that) |
+| Unit tests / UI goldens / gallery | `make test` / `make ui-test` / `make gallery` | 304 tests; 237 goldens (2026-11-17, after the code review, the Wi-Fi scan page and the camera target); `out/gallery.html` |
 | Flash | `make flash` | OK over `/dev/cu.usbmodem101`, ~18 s |
 | Device frame dump | `make device-shot` | `out/device.png`, pixel-identical to the simulator's frame |
 | Live view in a browser | `make view` (`ARGS=--sim`, `ARGS=--lan`) | `tools/view.py`: the device's frame on `http://127.0.0.1:8137/`, click = tap, hold = long press, drag = swipe; ~760 ms from click to new frame; holds the serial port (other device tools refuse to start meanwhile) |
@@ -960,3 +960,8 @@ None of these block Phase 1, Phase 2, or the reader.
   The flash patch measured with the camera: the unchanged white background darkened 66-82 % of contrast in every settle
   pass with the stock driver rule, under 0.5 % with patch 4; grays and ghost not worse. `cam.py around` now prints that
   number per push.
+- 2026-11-17: Camera calibration target: screen `camcal` and `tools/cam.py target`
+  (`make cam-target`), DISPLAY.md "Calibration target". Flashed and run under the camera: panel found to 0.21 px, no lens
+  correction needed; it showed that the picture is dark (white at 44-63 of 255) and that a reflection lies on the left
+  edge of the panel (ink reads up to 0.28 there). Both are for the set-up (more light, move what is mirrored), then
+  `make cam-target` again; gray numbers were worth about 0.11 in that light.

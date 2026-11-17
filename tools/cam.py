@@ -13,6 +13,8 @@
     uv run --script tools/cam.py around tap X Y | long X Y | swipe X1 Y1 X2 Y2 [--before 1] [--after 4]
     uv run --script tools/cam.py lock [--focus auto|N]   exposure, white balance, focus fixed for this session (uvc-util)
     uv run --script tools/cam.py unlock
+    uv run --script tools/cam.py target [--keep]         the calibration screen on the device: where the panel is, how much
+                                                         the lens bends, how even the light is, the 16 grays, sharpness
     uv run --script tools/cam.py selftest              synthetic camera images: registration, ghost number, timing
 
 The camera set-up is NOT stable over days (it can be moved, daylight changes): nothing here is a golden.
@@ -796,7 +798,7 @@ def compare_images(cam_gray, frame, Hm):
     R = (Nb - (a + b * Eb)) / b
     ghost = np.where(far > 0, np.clip(-R, 0, None), np.nan)
     lightness = np.clip((N - a) / b, -0.2, 1.2)  # 0 = black ink, 1 = white, in this image's own scale
-    return {"view": lightness, "R": R, "ghost": ghost, "far": far, "a": float(a), "b": float(b)}
+    return {"view": lightness, "R": R, "ghost": ghost, "far": far, "a": float(a), "b": float(b), "field": field}
 
 
 def region_table(ghost, cols=3, rows=4):
@@ -1284,6 +1286,244 @@ def dump(dev, link, path):
     dev.write_png(path, dev.unpack4(payload), w, h)
 
 
+# ---------------------------------------------------------------- target: the calibration screen
+
+TARGET = os.path.join(ROOT, "out", "cam-target.json")
+# The screen `camcal` (src/apps/uitest/uitest.cpp, CalibrationTarget). Only two things of its layout are known here, the
+# rest is read from the frame dump: the dots are ink circles of radius 6 (a 13 x 13 blob), and band 5 holds eight blocks
+# of line pairs (lines 1, 2, 3, 4 px wide running down, then the same running across).
+TARGET_DOT = 13
+TARGET_LINES = [(32 + 60 * b, 340, 56, 40, b % 4 + 1, "down" if b < 4 else "across") for b in range(8)]
+
+
+def target_dots(frame):
+    """Centres (x, y) of the target's dots in the frame dump: ink blobs of exactly the dot's size."""
+    n, _, stats, cent = cv2.connectedComponentsWithStats((frame <= 16).astype(np.uint8), connectivity=8)
+    out = []
+    for i in range(1, n):
+        x, y, w, h, area = stats[i]
+        if w == TARGET_DOT and h == TARGET_DOT and 100 <= area <= 140:
+            out.append(cent[i])
+    return np.float32(out)
+
+
+def refine_dots(cam_gray, guess, half):
+    """Where the camera sees each dot: the centre of darkness in a window around the guess. (points, found mask)."""
+    img = cam_gray.astype(np.float32)
+    pts, ok = [], []
+    for gx, gy in guess:
+        cx, cy = float(gx), float(gy)
+        good = False
+        for _ in range(3):  # the window follows the centre it found
+            x0, y0 = int(round(cx)) - half, int(round(cy)) - half
+            if x0 < 0 or y0 < 0 or x0 + 2 * half + 1 > img.shape[1] or y0 + 2 * half + 1 > img.shape[0]:
+                good = False
+                break
+            win = img[y0:y0 + 2 * half + 1, x0:x0 + 2 * half + 1]
+            bg = np.percentile(win, 85)
+            wgt = np.clip(bg - win - 0.25 * (bg - win.min()), 0, None)  # the dot, without the soft slope of the light
+            if wgt.sum() < 1e-3 or bg - win.min() < 12:
+                good = False
+                break
+            yy, xx = np.mgrid[0:win.shape[0], 0:win.shape[1]]
+            cx, cy = x0 + float((wgt * xx).sum() / wgt.sum()), y0 + float((wgt * yy).sum() / wgt.sum())
+            good = True
+        pts.append((cx, cy))
+        ok.append(good)
+    return np.float32(pts), np.array(ok, bool)
+
+
+def undistort_points(pts, k1, size):
+    """One radial term about the image centre: p' = c + (p - c)(1 + k1 r^2), r in half diagonals."""
+    c = np.float32([size[0] / 2, size[1] / 2])
+    d = (pts - c) / (0.5 * float(np.hypot(*size)))
+    return c + (pts - c) * (1 + k1 * (d * d).sum(axis=1, keepdims=True))
+
+
+def fit_target(panel_pts, cam_pts, size):
+    """Homography panel -> camera by least squares, without and with the lens term. Errors in panel pixels."""
+    def fit(k1):
+        und = undistort_points(cam_pts, k1, size)
+        Hm, _ = cv2.findHomography(panel_pts, und, 0)
+        back = cv2.perspectiveTransform(und.reshape(-1, 1, 2), np.linalg.inv(Hm)).reshape(-1, 2)
+        err = np.hypot(*(back - panel_pts).T)
+        return Hm, err
+    H0, e0 = fit(0.0)
+    lo, hi = -0.3, 0.3
+    for _ in range(40):  # the error has one minimum in k1: narrow the interval
+        a, b = lo + (hi - lo) / 3, hi - (hi - lo) / 3
+        if np.sqrt((fit(a)[1] ** 2).mean()) < np.sqrt((fit(b)[1] ** 2).mean()):
+            hi = b
+        else:
+            lo = a
+    k1 = (lo + hi) / 2
+    H1, e1 = fit(k1)
+    return {"H": H0, "err": e0, "k1": float(k1), "H_lens": H1, "err_lens": e1}
+
+
+def analyse_target(cam_gray, frame):
+    """Everything the target tells: (result dict, report lines). Raises ValueError when it is not the target or not seen."""
+    dots = target_dots(frame)
+    if len(dots) < 60:
+        raise ValueError(f"the frame dump shows {len(dots)} dots: not the target screen (tools/device.py set screen camcal)")
+    H0, info = register_sift(cam_gray, frame)
+    if H0 is None:
+        raise ValueError(f"the panel was not found in the camera image: {info}")
+    quad = panel_quad(H0)
+    scale = float(np.sqrt(cv2.contourArea(quad.astype(np.float32)) / (W * H)))  # camera pixels per panel pixel
+    guess = cv2.perspectiveTransform(dots.reshape(-1, 1, 2), H0).reshape(-1, 2)
+    seen, ok = refine_dots(cam_gray, guess, max(3, int(round(9 * scale))))
+    if ok.sum() < 40:
+        raise ValueError(f"only {int(ok.sum())} of {len(dots)} dots found in the camera image (focus, glare?)")
+    size = (cam_gray.shape[1], cam_gray.shape[0])
+    fit = fit_target(dots[ok], seen[ok], size)
+    rms = lambda e: float(np.sqrt((e ** 2).mean()))
+    e_sift = np.hypot(*(cv2.perspectiveTransform(seen[ok].reshape(-1, 1, 2), np.linalg.inv(H0)).reshape(-1, 2) - dots[ok]).T)
+    lines = [f"panel: {scale:.2f} camera pixels per panel pixel; {int(ok.sum())} of {len(dots)} dots found",
+             f"where the panel is, error over the dots in panel pixels (rms / worst): the feature match {rms(e_sift):.2f} / {e_sift.max():.2f}, "
+             f"fitted to the dots {rms(fit['err']):.2f} / {fit['err'].max():.2f}",
+             f"lens: with one radial term (k1 {fit['k1']:+.4f}) {rms(fit['err_lens']):.2f} / {fit['err_lens'].max():.2f}"]
+    gain = rms(fit["err"]) - rms(fit["err_lens"])
+    lines.append("  the lens bends the picture by less than the dots can show: no correction needed" if gain < 0.15 else
+                 f"  the lens term takes {gain:.2f} px off: the picture is bent, numbers near the panel's edge are less sure")
+    Hm = fit["H"]
+    res = compare_images(cam_gray, frame, Hm)
+    view = res["view"]
+    # Light: how uneven it is over the panel (the white field that every number is divided by).
+    lo, hi = float(res["field"].min()), float(res["field"].max())
+    lines.append(f"light: the darkest part of the panel gets {100 * lo / hi:.0f} % of the brightest (white reads {lo:.0f} to {hi:.0f} of the camera's 255)")
+    if hi > 240:
+        lines.append("  white is close to the camera's limit: lower the exposure (`cam.py lock --exposure N`)")
+    elif hi < 110:
+        lines.append(f"  the picture is dark: white uses {100 * hi / 255:.0f} % of the camera's range, so every number is noisier than it has to be: "
+                     "more light on the panel, or a longer exposure (`cam.py lock --exposure 330` is the most at 30 fps)")
+    # Stray light: what ink reads at each dot. The light is divided out, so ink that reads lighter in one part of the panel
+    # is light lying on top of the picture there (a reflection): it lifts the dark end and leaves white alone. The dots
+    # are a lattice, so their readings are a map of it, and the map takes it out of the gray readings below.
+    ink = np.array([float(view[max(0, int(y) - 2):int(y) + 3, max(0, int(x) - 2):int(x) + 3].mean()) for x, y in dots])
+    floor = float(np.median(ink))
+    xs, ys = np.unique(np.round(dots[:, 0])), np.unique(np.round(dots[:, 1]))
+    stray_map = None
+    if len(xs) * len(ys) == len(dots):  # every dot of the lattice is there
+        grid = np.zeros((len(ys), len(xs)), np.float32)
+        for (x, y), v in zip(dots, ink):
+            grid[int(np.searchsorted(ys, round(float(y)))), int(np.searchsorted(xs, round(float(x))))] = v
+        stray_map = cv2.resize(cv2.blur(grid, (3, 3), borderType=cv2.BORDER_REPLICATE), (W, H), interpolation=cv2.INTER_LINEAR)
+        j, i = np.unravel_index(int(np.argmax(grid)), grid.shape)
+        where = ["top", "upper middle", "lower middle", "bottom"][min(3, 4 * j // len(ys))] + ", " + ["left", "centre", "right"][min(2, 3 * i // len(xs))]
+        over = 100.0 * float((grid > floor + 0.05).mean())
+        lines.append(f"ink at the dots reads {floor:.2f} for most of the panel"
+                     + (": no stray light to speak of" if grid.max() - floor < 0.05 else
+                        f", but up to {grid.max():.2f} ({where}): a reflection lies on {over:.0f} % of the panel and lifts dark grays there by that much "
+                        "(white and ghost numbers are not touched). Move the lamp or screen that it mirrors, or shade the panel"))
+    # Tone: every gray patch on its own (each level is on the target three times, in three places).
+    levels, raw_spread = {}, 0.0
+    # With the stray light taken out: ink at a dot is 0 everywhere, white stays 1.
+    clean = view if stray_map is None else (view - stray_map) / np.maximum(1.0 - stray_map, 0.2)
+    for lvl in range(15):  # (white, level 15, is what 1.0 means: the page around the patches)
+        m = cv2.erode((frame == lvl * 17).astype(np.uint8), np.ones((9, 9), np.uint8))
+        n, lab, stats, _ = cv2.connectedComponentsWithStats(m, connectivity=8)
+        vals = [float(np.median(clean[lab == i])) for i in range(1, n) if 150 <= stats[i][4] <= 1200]  # a 30 x 40 patch, eroded
+        raw = [float(np.median(view[lab == i])) for i in range(1, n) if 150 <= stats[i][4] <= 1200]
+        if len(raw) > 1:
+            raw_spread = max(raw_spread, max(raw) - min(raw))
+        if vals:
+            levels[lvl] = vals
+    if len(levels) >= 12:
+        mean = {k: float(np.mean(v)) for k, v in levels.items()}
+        spread = max(max(v) - min(v) for v in levels.values() if len(v) > 1)
+        lines.append("grays (0 = ink, 1 = white; mean of the places a level is shown" + ("" if stray_map is None else ", stray light taken out") + "): "
+                     + ", ".join(f"g{k}={mean[k]:.2f}" for k in sorted(mean)))
+        lines.append(f"  the same level in different places differs by at most {spread:.2f}"
+                     + ("" if stray_map is None else f" ({raw_spread:.2f} before the stray light was taken out)") + ": "
+                     + ("light and reflections are taken out well" if spread < 0.05 else "trust gray numbers to about that"))
+        order = sorted(mean)
+        bad = [f"g{b} ({mean[b]:.2f}) is darker than g{a} ({mean[a]:.2f})" for a, b in zip(order, order[1:]) if mean[b] < mean[a] - 0.02]
+        same = [f"g{a}/g{b}" for a, b in zip(order, order[1:]) if abs(mean[b] - mean[a]) <= 0.02]
+        lines.append("  levels rise in order" if not bad else "  out of order: " + "; ".join(bad))
+        if same:
+            lines.append("  not told apart (within 0.02): " + ", ".join(same))
+        big = max(zip(order, order[1:]), key=lambda ab: mean[ab[1]] - mean[ab[0]])
+        lines.append(f"  largest step g{big[0]} to g{big[1]}: {mean[big[1]] - mean[big[0]]:.2f} (even steps would be {1 / 15:.2f})")
+    # Sharpness: what is left of full contrast in the line pairs.
+    mod = {}
+    for x, y, w, h, px, way in TARGET_LINES:
+        f, v = frame[y:y + h, x:x + w], view[y:y + h, x:x + w]
+        if (f == 0).sum() > 50 and (f == 255).sum() > 50:
+            mod[(way, px)] = float(v[f == 255].mean() - v[f == 0].mean())
+    if mod:
+        for way in ("down", "across"):
+            lines.append(f"lines running {way}, contrast left (1 = full): " + ", ".join(f"{px} px {mod[(way, px)]:.2f}" for px in (4, 3, 2, 1) if (way, px) in mod))
+        fine = [px for px in (1, 2, 3, 4) if min(mod.get(("down", px), 0), mod.get(("across", px), 0)) >= 0.5]
+        lines.append(f"  the camera shows details from {fine[0]} panel pixels on at half contrast or better" if fine else
+                     "  no line width keeps half its contrast: out of focus, or the camera is too far away")
+    result = {"time": time.time(), "when": time.strftime("%Y-%m-%d %H:%M:%S"), "camera_size": list(size), "scale": scale,
+              "dots": int(ok.sum()), "rms_px": rms(fit["err"]), "worst_px": float(fit["err"].max()), "k1": fit["k1"],
+              "rms_lens_px": rms(fit["err_lens"]), "light_min_over_max": lo / hi, "white_camera_value": hi, "ink_floor": floor, "ink_max": float(ink.max()),
+              "grays": {str(k): v for k, v in levels.items()}, "line_contrast": {f"{way} {px}": v for (way, px), v in mod.items()}}
+    return {"H": Hm, "fit": fit, "dots": dots[ok], "seen": seen[ok], "result": result, "view": view}, lines
+
+
+def draw_target(cam_bgr, an, path):
+    """The camera image with the fitted outline and each dot's error as a line 30 times its length."""
+    out = cam_bgr.copy()
+    cv2.polylines(out, [np.int32(panel_quad(an["H"]))], True, (0, 0, 255), 2)
+    fitted = cv2.perspectiveTransform(an["dots"].reshape(-1, 1, 2), an["H"]).reshape(-1, 2)
+    for (fx, fy), (sx, sy) in zip(fitted, an["seen"]):
+        cv2.circle(out, (int(round(sx)), int(round(sy))), 4, (0, 160, 0), 1)
+        cv2.line(out, (int(round(fx)), int(round(fy))), (int(round(fx + 30 * (sx - fx))), int(round(fy + 30 * (sy - fy)))), (0, 0, 255), 1)
+    cv2.imwrite(path, out)
+
+
+def cmd_target(a):
+    """Shows the calibration target on the device, photographs it and says what the camera set-up is worth."""
+    out_dir = os.path.join(ROOT, "out")
+    os.makedirs(out_dir, exist_ok=True)
+    image, frame_png = a.image or os.path.join(out_dir, "cam-target.png"), a.frame or os.path.join(out_dir, "cam-target-frame.png")
+    if not a.image:
+        dev = load_device_module()
+        port = a.port or (sorted(glob.glob("/dev/cu.usbmodem*")) or [None])[0]
+        if not port:
+            sys.exit("no device: /dev/cu.usbmodem* not found")
+        busy = port_in_use(port)
+        if busy:
+            sys.exit(f"{port} is open by process {', '.join(busy)} (another tool or `make monitor`?): not touching it")
+        link = dev.Link(port)
+        try:
+            say("target: showing the calibration screen on the device (one Quality pass) ...")
+            status = dev.request(link, ">set screen camcal")[0]
+            if not status.startswith("#ok"):
+                sys.exit(f"the device does not know the screen (flash the current firmware): {status}")
+            time.sleep(3.0)  # the Quality waveform
+            dump(dev, link, frame_png)
+            cmd_shot(argparse.Namespace(out=image, warmup=2.0, source=a.source, camera=a.camera, size=a.size))
+        finally:
+            if not a.keep:
+                try:
+                    dev.request(link, ">set screen launcher")
+                    say("  the launcher is back on the device (--keep leaves the target)")
+                except Exception as e:  # the report matters more than the way back
+                    say(f"  could not go back to the launcher: {e}")
+            link.close()
+    cam = cv2.imread(image)
+    if cam is None:
+        sys.exit(f"{image}: cannot read")
+    frame = load_frame(frame_png)
+    say(f"target: {image} against {frame_png}")
+    try:
+        an, lines = analyse_target(gray(cam), frame)
+    except ValueError as e:
+        sys.exit(f"target: {e}")
+    for l in lines:
+        say("  " + l)
+    save_corners(an["H"], gray(cam), "target")  # the outline other commands fall back to on pages without features
+    with open(TARGET, "w") as f:
+        json.dump(an["result"], f, indent=1)
+    marked = os.path.join(out_dir, "cam-target-marked.png")
+    draw_target(cam, an, marked)
+    say(f"wrote {TARGET}, {marked} (outline and every dot's error, drawn 30 times its length), {CORNERS}")
+
+
 # ---------------------------------------------------------------- selftest (no camera, no device)
 
 def synth_camera(frame, ghost_frame, ghost_box, ghost_amount, seed=1, size=(1920, 1080)):
@@ -1382,6 +1622,32 @@ def cmd_selftest(a):
         ok = False
         say(f"  FAIL: expected visible +0 .. +{1000 * want1:.0f} ms")
     draw_timing(times, act, [(t_push, "F", rect, 87)], t_input, os.path.join(ROOT, "out", "cam-selftest-timing.png"), "selftest: synthetic Fast push")
+    say("selftest 3: the calibration target (golden camcal.png) seen by a synthetic camera, without and with a bent lens")
+    target = load_frame(os.path.join(gold, "camcal.png"))
+    flat, _ = synth_camera(target, None, None, 0.0)
+    size = (flat.shape[1], flat.shape[0])
+    # A lens that bends: every output pixel takes its value from where the straight picture has it (k1 = 0.04).
+    yy, xx = np.mgrid[0:size[1], 0:size[0]].astype(np.float32)
+    und = undistort_points(np.stack([xx.ravel(), yy.ravel()], 1), 0.04, size)
+    bent = cv2.remap(flat, und[:, 0].reshape(size[1], size[0]), und[:, 1].reshape(size[1], size[0]), cv2.INTER_LINEAR)
+    for name, img, want_lens in (("straight", flat, False), ("bent", bent, True)):
+        try:
+            an, lines = analyse_target(img, target)
+        except ValueError as e:
+            say(f"  FAIL ({name}): {e}")
+            ok = False
+            continue
+        r = an["result"]
+        grays = [float(np.mean(r["grays"][str(k)])) for k in range(15)] if len(r["grays"]) == 15 else []
+        say(f"  {name}: {r['dots']} dots, rms {r['rms_px']:.2f} px, with the lens term {r['rms_lens_px']:.2f} px (k1 {r['k1']:+.3f}), "
+            f"grays {'in order' if grays == sorted(grays) and grays else 'NOT in order'}, 4 px lines {r['line_contrast'].get('down 4', 0):.2f}")
+        found_lens = r["rms_px"] - r["rms_lens_px"] >= 0.15
+        if r["dots"] < 130 or r["rms_lens_px"] > 0.35 or found_lens != want_lens or not grays or grays != sorted(grays):
+            ok = False
+            say(f"  FAIL ({name}): dots, the fit, the lens term or the grays are not what the synthetic camera was given")
+        if want_lens and abs(r["k1"] - 0.04) > 0.015:
+            ok = False
+            say(f"  FAIL: lens term {r['k1']:+.3f}, the picture was bent with +0.040")
     say("selftest " + ("passed" if ok else "FAILED") + " (images: out/cam-selftest-*.png)")
     return 0 if ok else 1
 
@@ -1431,6 +1697,11 @@ def main():
     p.add_argument("--frame", default="out/device.png")
     p.add_argument("--max-age", type=float, default=60)
     sub.add_parser("unlock", help="automatic exposure, white balance and focus again")
+    p = sub.add_parser("target", help="the calibration screen: where the panel is, lens, light, grays, sharpness")
+    p.add_argument("--port")
+    p.add_argument("--keep", action="store_true", help="leave the target on the panel")
+    p.add_argument("--image", help="analyse this camera image instead of taking one (with --frame)")
+    p.add_argument("--frame", help="the frame dump that belongs to --image")
     sub.add_parser("selftest")
     sub.add_parser("serve", help="capture server; started by itself in Terminal.app when needed")
     a = ap.parse_args()
@@ -1441,11 +1712,11 @@ def main():
     sys.stdout.reconfigure(line_buffering=True)
     os.chdir(ROOT)
     limit = a.limit or {"devices": 60, "shot": 60, "video": int(getattr(a, "seconds", 0)) + 60, "calibrate": 60, "compare": 60,
-                        "around": int(getattr(a, "before", 0) + getattr(a, "after", 0)) + 150, "selftest": 300, "serve": 0, "lock": 120, "unlock": 30}[a.cmd]
+                        "around": int(getattr(a, "before", 0) + getattr(a, "after", 0)) + 150, "selftest": 300, "serve": 0, "lock": 120, "unlock": 30, "target": 120}[a.cmd]
     if limit:
         arm_limit(limit)
     fn = {"serve": cmd_serve, "lock": cmd_lock, "unlock": cmd_unlock, "devices": cmd_devices, "shot": cmd_shot, "video": cmd_video, "calibrate": cmd_calibrate, "compare": cmd_compare,
-          "around": cmd_around, "selftest": cmd_selftest}[a.cmd]
+          "around": cmd_around, "selftest": cmd_selftest, "target": cmd_target}[a.cmd]
     sys.exit(fn(a) or 0)
 
 

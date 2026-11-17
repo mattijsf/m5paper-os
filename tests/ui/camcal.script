@@ -1,0 +1,5 @@
+# app: camcal
+# The camera's calibration target (tools/cam.py target; docs/DISPLAY.md "Calibration target"): dots, three gray ramps,
+# line pairs, checkerboards. One Quality pass.
+wait 300
+shot camcal

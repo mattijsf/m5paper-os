@@ -5,7 +5,7 @@ PIO   ?= $(shell command -v pio || echo $(HOME)/.local/bin/pio)
 SIM   := .pio/build/sim/program
 PORT  ?= $(firstword $(wildcard /dev/cu.usbmodem*))
 
-.PHONY: help emoji sim run shot test ui-test ui-accept gallery fw flash monitor device-shot view cam-shot cam-video cam-compare backup books clean check
+.PHONY: help emoji sim run shot test ui-test ui-accept gallery fw flash monitor device-shot view cam-shot cam-video cam-compare cam-target backup books clean check
 
 help:
 	@echo "make sim      build the simulator"
@@ -23,6 +23,7 @@ help:
 	@echo "make cam-shot     webcam still of the panel to out/cam.png (tools/cam.py; CAMERA=name or index)"
 	@echo "make cam-video    webcam video to out/cam.mp4 (SECONDS=5, 60 fps if the camera can)"
 	@echo "make cam-compare  device-shot + cam-shot, then the ghosting number and out/cam-diff.png"
+	@echo "make cam-target   the calibration screen on the device + a still: where the panel is, lens, light, grays, sharpness"
 	@echo "make backup   read the whole device flash to backup/flash-16MB.bin"
 	@echo "make emoji    copy the emoji atlases to sim-data/ and push them to the device's card (tools/push.py)"
 	@echo "make books    download public-domain test books into sim-data/sd/books/ and push them to the device (tools/push.py)"
@@ -68,6 +69,11 @@ cam-video:
 
 cam-compare: device-shot cam-shot
 	$(CAM) compare --image out/cam.png --frame out/device.png
+
+# What the camera set-up is worth today (docs/DISPLAY.md "Calibration target"): run it after `cam.py lock`.
+cam-target:
+	@mkdir -p out
+	$(CAM) target
 
 backup:
 	@mkdir -p backup

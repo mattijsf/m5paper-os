@@ -1,5 +1,7 @@
 #include "apps/uitest/uitest.h"
 
+#include <algorithm>
+
 #include "ui/controls.h"
 #include "ui/inputs.h"
 #include "ui/keyboard.h"
@@ -305,6 +307,82 @@ std::unique_ptr<Widget> emojiScreen() {
   return root;
 }
 
+// camcal (2026-11-17): the target the camera is calibrated on (`tools/cam.py target`, docs/DISPLAY.md "Calibration
+// target"). Everything the tool needs it finds in the frame dump of this screen, so the geometry is only here:
+//   - a lattice of ink dots (radius 6) every 60 px over the whole panel: where the camera sees each of them tells how
+//     well the panel is found and how much the lens bends the picture;
+//   - between the rows of dots, bands of 40 px: the 16 grays three times (rising, falling, and shifted by eight, so a
+//     level is seen in three places and the light is told apart from the level), black and white bars, line pairs of
+//     1 to 4 px across and along (what the camera resolves, and its focus), checkerboards, and lines of text (they give
+//     the first match of the picture its unique features);
+//   - a 2 px frame on the panel's outermost pixels.
+// tools/cam.py mirrors two things: the dots (radius 6: a 13 x 13 blob) and the line-pair blocks of band 5.
+class CalibrationTarget : public Widget {
+ public:
+  static constexpr int kPitch = 60, kFirst = 30, kDot = 6;  // dots at kFirst + kPitch * i
+  static constexpr int kBandInset = 10, kBandH = 40;        // a band: from 10 px under a row of dots, 40 px high
+  static constexpr int kLeft = 30, kWidth = 480;            // the bands' x range (16 patches of 30 px)
+
+  Size measure(int availW) override { return {availW, kScreenH}; }
+
+  void draw(Canvas& c) override {
+    c.drawRect(0, 0, kScreenW, kScreenH, ink);
+    c.drawRect(1, 1, kScreenW - 2, kScreenH - 2, ink);
+    for (int y = kFirst; y < kScreenH; y += kPitch)
+      for (int x = kFirst; x < kScreenW; x += kPitch) c.fillCircle(x, y, kDot, ink);
+
+    text(c, 0, "PaperOS camera target", Type::BodyStrong);
+    text(c, 1, "caption 18: Hamburgefonstiv 0123456789", Type::Caption);
+    ramp(c, 2, [](int i) { return i; });
+    c.fillRect(kLeft, bandTop(4), kWidth / 2, kBandH, ink);
+    linePairs(c, 5);
+    text(c, 6, "The quick brown fox jumps over the lazy dog", Type::Body);
+    ramp(c, 7, [](int i) { return 15 - i; });
+    checkers(c, 9);
+    c.fillRect(kLeft + kWidth / 2, bandTop(10), kWidth / 2, kBandH, ink);
+    text(c, 11, "read 24: wijze lynx bezag het aquaduct", Type::ReadS);
+    ramp(c, 12, [](int i) { return (i + 8) % 16; });
+    text(c, 14, "the 2 px frame is the panel's outermost pixels", Type::Caption);
+  }
+
+ private:
+  static int bandTop(int band) { return kFirst + kPitch * band + kBandInset; }
+
+  void text(Canvas& c, int band, const char* t, Type type) {
+    drawText(c, t, kLeft, bandTop(band) + kBandH / 2, type, ink, Anchor::MiddleLeft, paper);
+  }
+
+  template <class LevelAt>
+  void ramp(Canvas& c, int band, LevelAt levelAt) {
+    for (int i = 0; i < 16; ++i) c.fillRect(kLeft + i * (kWidth / 16), bandTop(band), kWidth / 16, kBandH, gray(levelAt(i)));
+  }
+
+  // Eight blocks of 56 px, 4 px apart: lines 1, 2, 3 and 4 px wide (as far apart as they are wide) running down, then
+  // the same running across.
+  void linePairs(Canvas& c, int band) {
+    const int top = bandTop(band);
+    for (int b = 0; b < 8; ++b) {
+      const int x0 = kLeft + 2 + b * 60, period = b % 4 + 1;
+      for (int k = 0; k < 56; k += 2 * period) {
+        const int len = std::min(period, 56 - k);
+        if (b < 4) c.fillRect(x0 + k, top, len, kBandH, ink);                       // lines running down
+        else if (k < kBandH) c.fillRect(x0, top + k, 56, std::min(period, kBandH - k), ink);  // lines running across
+      }
+    }
+  }
+
+  // Three boards of 150 px with squares of 2, 4 and 8 px.
+  void checkers(Canvas& c, int band) {
+    const int top = bandTop(band);
+    for (int b = 0; b < 3; ++b) {
+      const int x0 = kLeft + b * 165, size = 2 << b;
+      for (int y = 0; y < kBandH; y += size)
+        for (int x = (y / size % 2) * size; x < 150; x += 2 * size)
+          c.fillRect(x0 + x, top + y, std::min(size, 150 - x), std::min(size, kBandH - y), ink);
+    }
+  }
+};
+
 }  // namespace
 
 std::unique_ptr<Root> create(const std::string& name, Os& os) {
@@ -318,9 +396,13 @@ std::unique_ptr<Root> create(const std::string& name, Os& os) {
   if (name == "widgets6") root = widgets6();
   if (name == "widgets2list") root = widgets2list();
   if (name == "emoji") root = emojiScreen();
+  const bool target = name == "camcal";
+  if (target) root = std::make_unique<CalibrationTarget>();
   if (!root) return nullptr;
   auto screen = std::make_unique<Root>(os.canvas(), os.displayManager(), &os.timers());
   screen->setRoot(std::move(root));
+  // The target is measured, not read: it goes out as one Quality pass (16 true grays, nothing left of the screen before).
+  if (target) screen->root()->invalidate(Hint::Image);
   return screen;
 }
 

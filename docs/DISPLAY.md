@@ -398,7 +398,37 @@ Commands (`uv run --script tools/cam.py ...`; every command has a run limit and 
 | `calibrate` | registers `out/cam.png` against `out/device.png`, saves the outline, draws it into `out/cam-calibrated.png`. |
 | `around tap X Y` / `long X Y` / `swipe X1 Y1 X2 Y2` | frame dump, video, the input through the serial port, the serial log read line by line, `>refresh`, frame dump after. Per push also "white that stays white ... darkest N % of contrast": the flash a pass shows on pixels it does not change. Each push in the refresh log gets a host time (its `[disp] push` line arrives when the push call returns), and the video says per push when its rect starts and stops changing on the panel. Writes `out/cam-timing.png` (change per frame, push markers), `out/cam-frames.png` (frames with the most change), `out/cam-around.mp4`, and `compare` of the last frame against the frame dump after. Refuses a serial port that another process holds. |
 | `compare --ref IMG` | ghost relative to a camera image of the same page after Clean (Quality) in the same session: the uneven light cancels out. Use this for ghost numbers. |
+| `make cam-target` (`target [--keep]`) | shows the calibration screen (`>set screen camcal`), takes a still, reports what the set-up is worth (below), saves the outline for pages without features, puts the launcher back. `--image` / `--frame` analyse saved files. |
 | `selftest` | synthetic camera images (perspective, uneven light, blur, noise): registration within 0.5 px, the ghost of Checker under White found in the right region and rising with the amount, timing of a synthetic Fast push within a frame. |
+
+**Calibration target (2026-11-17)**. The screen `camcal` (`apps/uitest`, golden `camcal`; one Quality pass): a lattice of ink
+dots every 60 px over the whole panel, between its rows the 16 grays three times (rising, falling, shifted by eight: each
+level in three places), black and white bars, line pairs of 1 to 4 px running down and across, checkerboards, lines of
+text (the unique features for the first match), a 2 px frame on the outermost pixels. `cam.py target` reads the layout
+from the frame dump (it knows only the dot size and where the line pairs are) and reports:
+
+- **where the panel is**: the feature match, then a least-squares fit to where the camera sees the 144 dots, error in panel
+  pixels; the fitted outline is saved (`out/cam-corners.json`, used within the hour for pages without features);
+- **lens**: the same fit with one radial term; it says whether the picture is bent enough to matter;
+- **light**: how uneven it is, and whether the picture is too dark or near the camera's limit;
+- **reflections**: what ink reads at every dot is a map of stray light (the light is divided out, so ink that reads
+  lighter somewhere is light lying on top of the picture); the map is taken out of the gray readings;
+- **grays**: each level's lightness as the mean of its three places, how far the places differ (what a gray number is
+  worth), which neighbours are not told apart, the largest step;
+- **sharpness**: the contrast left in the line pairs: from which line width on the camera shows detail.
+
+Self-test 3 (`cam.py selftest`) runs the analysis on the golden through a synthetic camera, straight and with a bent
+lens (k1 0.04 found as 0.039). **First run on the panel (2026-11-17, exposure 25 ms, focus 40)**: 144 of 144 dots, 1.14
+camera pixels per panel pixel, the panel found to 0.57 px by the feature match and 0.21 px (worst 0.46) by the dots; the
+lens term takes 0.06 px off: no correction needed. The light falls to 70 % across the panel, and **the picture is
+dark**: white reads 44-63 of 255. **A reflection lies on the lower middle of the left edge**: ink reads up to 0.28
+there against 0.02 elsewhere (17 % of the panel). Grays with the reflection taken out: g0 0.00, g1 -0.01, g2 0.03, g3
+0.08, g4 0.13, g5 0.19, g6 0.23, g7 0.41, g8 0.48, g9 0.55, g10 0.61, g11 0.74, g12 0.91, g13 0.98, g14 1.03: in
+order, g0 and g1 not told apart, the largest step g6 to g7 (0.18); the same level differs by up to 0.11 between its
+three places (dark levels read lighter toward the top), which is what a single gray number was worth in that light.
+The g11 = 0.49 of the Display lab ramp earlier that day was such a place effect, not the panel. Lines: 4 px 0.82 / 0.73
+(down / across), 3 px 0.81 / 0.68, 2 px 0.63 / 0.26, 1 px 0: detail from 3 panel pixels on. Not done: the stray-light
+map and the dark-picture warning are in the report only; `compare` and `around` do not use them yet.
 
 What "ghost" measures: pixels the frame dump says are white and at least 3 px away from any ink, and how much darker than expected the
 camera sees them. The known page for it is the Display lab: Checker, then White (one Fast pass each), then `make cam-compare`; "Clean
