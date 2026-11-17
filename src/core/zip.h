@@ -32,7 +32,6 @@ class Archive {
   // missing or is not a usable zip.
   bool open(const std::string& virtualPath);
   void close();
-  bool isOpen() const { return f_ != nullptr; }
 
   const std::vector<Entry>& entries() const { return entries_; }
   // Exact name; also tries the name without a leading "/". nullptr if absent.

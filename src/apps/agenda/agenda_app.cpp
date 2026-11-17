@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "apps/agenda/day_view.h"
+#include "apps/common/ha_error_state.h"
 #include "apps/inbox/inbox_model.h"
 #include "apps/inbox/relay_fetch.h"
 #include "apps/inbox/scheduled_refresh.h"
@@ -78,10 +79,9 @@ class AgendaScreen : public Screen {
   }
 
  private:
-  void empty(Icon icon, const std::string& title, const std::string& hint, bool retry = false) {
+  void empty(Icon icon, const std::string& title, const std::string& hint) {
     tabs_->visible = false;
-    if (retry) holder_->add<ui::EmptyState>(icon, title, hint, "Retry", [this] { refresh(); })->flex = 1;
-    else holder_->add<ui::EmptyState>(icon, title, hint)->flex = 1;
+    holder_->add<ui::EmptyState>(icon, title, hint)->flex = 1;
     holder_->host()->relayout();
   }
 
@@ -141,7 +141,12 @@ class AgendaScreen : public Screen {
                    "The agenda comes from the PaperOS app on your phone. Pair it in Settings > Home Assistant > Phone.");
     }
     if (notSetUp_) return empty(Icon::Calendar, "Not set up yet", "The relay for your phone is missing in Home Assistant.");
-    if (error_ && !agenda_.received) return empty(Icon::WifiOff, "Cannot reach Home Assistant", "Check Wi-Fi and the address, then try again.", true);
+    if (error_ && !agenda_.received) {
+      tabs_->visible = false;
+      apps::addHaErrorState(*holder_, failure_, [this] { refresh(); });
+      holder_->host()->relayout();
+      return;
+    }
     if (!agenda_.received) return empty(Icon::Calendar, "No agenda yet", "Switch on \"Share the agenda\" in the PaperOS app on your phone.");
     tabs_->visible = true;
     if (view_ == 0) return buildDay();
@@ -288,6 +293,7 @@ class AgendaScreen : public Screen {
           notPaired_ = !f.relay.paired;
           notSetUp_ = f.relay.http.error == HaError::NotFound;
           error_ = !notPaired_ && !notSetUp_ && !(f.relay.http.ok() && f.relay.applied.parsed);
+          failure_ = !error_ ? HaError::None : f.relay.http.ok() ? HaError::Other : f.relay.http.error;
           agenda_ = notPaired_ ? Agenda{} : f.agenda;
           if (notPaired_ && f.relay.applied.unpaired) ctx().toast("Your phone ended the pairing");
           if (error_ && agenda_.received) ctx().toast(f.relay.http.ok() ? "Unexpected answer from Home Assistant" : haErrorText(f.relay.http.error));
@@ -313,6 +319,7 @@ class AgendaScreen : public Screen {
   bool rebuilt_ = false;  // set by rebuild(): the views exist
   int skipped_ = 0;       // reads that changed nothing on screen (debugState: UI tests check the skip)
   bool busy_ = false, error_ = false, notSetUp_ = false, notPaired_ = false, fetchedOnce_ = false;
+  HaError failure_ = HaError::None;  // why the last read failed (while error_)
   uint32_t lastFetchMs_ = 0;
   ui::Column* holder_ = nullptr;
   ui::Pager* pager_ = nullptr;

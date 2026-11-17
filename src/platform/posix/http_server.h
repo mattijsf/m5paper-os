@@ -18,7 +18,6 @@ class PosixHttpServer : public hal::HttpServer {
   ~PosixHttpServer() override { stop(); }
   bool start(hal::ServerHandler handler) override;
   void stop() override;
-  bool running() const override { return running_; }
   uint16_t port() const override { return port_; }
 
   static constexpr int kMaxConnections = 4;    // Finder opens two or three at once

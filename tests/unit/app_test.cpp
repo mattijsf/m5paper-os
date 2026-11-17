@@ -470,7 +470,7 @@ TEST_CASE("launcher: tiles come from the registry in order; a tap opens the app;
   collectTiles(env.shell->root().root(), tiles);
   REQUIRE(tiles.size() == 6);  // a 2 x 3 grid, reused per page
   auto apps = AppRegistry::instance().sorted();
-  REQUIRE(apps.size() > 6);  // the placeholders plus the test apps: more than one page
+  REQUIRE(apps.size() > 6);  // the apps plus the test apps: more than one page
   for (int i = 0; i < 6; ++i) CHECK(tiles[i]->label() == apps[i]->info.name);
   CHECK(tiles[0]->label() == "Read");  // order 10 comes first
 

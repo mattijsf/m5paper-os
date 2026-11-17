@@ -112,8 +112,7 @@ int writeBadges(const companion::Notifs& notifs, bool gone) {
     Store app(std::string("/data/apps/") + d.id + ".json");  // the app's own store: its seen marker
     const int n = gone ? 0 : newCount(feed.items, app.get("seen", 0));
     unread += n;
-    fs::mkdirs(std::string("/data/cache/") + d.id);
-    fs::writeFile(std::string("/data/cache/") + d.id + "/badge", std::to_string(n));
+    setAppBadge(d.id, n);
   }
   return unread;
 }

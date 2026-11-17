@@ -7,6 +7,7 @@
 
 #include <ArduinoJson.h>
 
+#include "apps/common/ha_error_state.h"
 #include "apps/inbox/compose.h"
 #include "apps/inbox/inbox_model.h"
 #include "apps/inbox/relay_fetch.h"
@@ -188,7 +189,7 @@ class ListScreen : public Screen {
       return;
     }
     if (error_ && !haveData_) {
-      holder_->add<ui::EmptyState>(Icon::WifiOff, "Cannot reach Home Assistant", "Check Wi-Fi and the address, then try again.", "Retry", [this] { refresh(true); })->flex = 1;
+      apps::addHaErrorState(*holder_, failure_, [this] { refresh(true); });
       markAll_->visible = false;
       holder_->host()->relayout();
       return;
@@ -282,6 +283,7 @@ class ListScreen : public Screen {
         return;
       }
       error_ = true;
+      failure_ = f.http.ok() ? HaError::Other : f.http.error;  // an answer that made no sense counts as not reached
       if (haveData_) {
         ctx().toast(f.http.ok() ? "Unexpected answer from Home Assistant" : haErrorText(f.http.error));  // the saved list stays
         status_->setText("Saved data");
@@ -305,7 +307,7 @@ class ListScreen : public Screen {
     writeBadge(newCount(feed_.items, ctx().store.get("seen", 0)));
   }
 
-  void writeBadge(int n) { ctx().cache.write("badge", std::to_string(n)); }
+  void writeBadge(int n) { setAppBadge(ctx().appId(), n); }
 
   void confirmMarkAll() {
     ui::confirmSheet(*holder_, "Mark all read?", "The list is cleared here. The notifications stay on your phone.", "Mark all read",
@@ -340,6 +342,7 @@ class ListScreen : public Screen {
   int rowCount_ = 0;
   int64_t seenAtStart_ = 0;
   bool haveData_ = false, busy_ = false, error_ = false, notSetUp_ = false, notPaired_ = false, fetchedOnce_ = false;
+  HaError failure_ = HaError::None;  // why the last read failed (while error_)
   uint32_t lastFetchMs_ = 0;
   ui::Column* holder_ = nullptr;
   ui::Label* status_ = nullptr;

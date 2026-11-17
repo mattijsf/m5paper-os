@@ -64,4 +64,9 @@ class Cache {
   std::string dir_;
 };
 
+// An app's launcher badge (its unread count), kept in the app's cache: the launcher, its summary line and the sleep
+// screen read it without the app running and without the network.
+int appBadge(const std::string& appId);  // 0 when the app never wrote one
+void setAppBadge(const std::string& appId, int count);
+
 }  // namespace pos

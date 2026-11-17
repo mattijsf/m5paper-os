@@ -257,7 +257,7 @@ class PageScreen : public Screen {
                     static_cast<unsigned>(ms), r.fromCache ? "cached index" : "indexed", static_cast<unsigned>(r.importMs),
                     static_cast<unsigned>(r.indexMs));
           if (!r.fromCache)
-            ctx().log("  structure %u, cover %u, meta %u ms",  static_cast<unsigned>(r.timing.structureMs), static_cast<unsigned>(r.timing.coverMs), static_cast<unsigned>(r.timing.metaMs));
+            ctx().log("  structure %u, meta %u ms", static_cast<unsigned>(r.timing.structureMs), static_cast<unsigned>(r.timing.metaMs));
           if (!r.fromCache)
             ctx().log("  zip %u, xhtml %u, write %u, read %u, parse %u, layout %u ms (measuring %u ms, cache %u hits / %u misses)", static_cast<unsigned>(r.timing.zipMs),
                       static_cast<unsigned>(r.timing.convertMs), static_cast<unsigned>(r.timing.writeMs), static_cast<unsigned>(r.timing.readMs),

@@ -50,7 +50,7 @@ class HomeScreen : public Screen {
     body_->flex = 1;
     std::vector<ui::TabBar::Tab> tabs;
     for (const Tab& t : config_.tabs) tabs.push_back({iconByName(t.icon, Icon::House), t.title});
-    for (size_t i = 0; i < config_.tabs.size(); ++i) tabContent_.push_back(buildTab(static_cast<int>(i)));
+    for (size_t i = 0; i < config_.tabs.size(); ++i) buildTab(static_cast<int>(i));
     status_ = root.add<ui::Label>(haveCache_ ? "Saved data" : "Loading...", Type::Caption, ui::secondary);
     status_->align = ui::TextAlign::Center;
     tabbar_ = root.add<ui::TabBar>(tabs, 0);
@@ -186,9 +186,6 @@ class HomeScreen : public Screen {
   }
 
   // ---- showing
-
-  Tab& currentTab() { return config_.tabs[tab_]; }
-  TabView& view(int i) { return views_[i]; }
 
   void showTab(int i) {
     tab_ = i;
@@ -529,7 +526,6 @@ class HomeScreen : public Screen {
   States states_;
   bool haveCache_ = false;
   std::deque<TabView> views_;
-  std::vector<ui::Column*> tabContent_;
   ui::Stack* body_ = nullptr;
   ui::Label* status_ = nullptr;
   ui::TabBar* tabbar_ = nullptr;

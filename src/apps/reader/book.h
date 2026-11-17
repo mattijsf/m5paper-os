@@ -182,7 +182,6 @@ struct Timing {
   uint32_t layoutMs = 0;  // pagination
   uint32_t measureMs = 0; // of which: measuring text (misses of the width cache)
   uint32_t structureMs = 0;  // reading the EPUB structure (container, package, contents)
-  uint32_t coverMs = 0;      // extracting the cover
   uint32_t metaMs = 0;       // writing meta.json
   uint32_t hits = 0, misses = 0;  // width cache
 };

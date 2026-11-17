@@ -43,7 +43,6 @@ class HttpServer {
   // Listens on all interfaces; the handler runs on the server's own threads (one per connection, a few at most).
   virtual bool start(ServerHandler handler) = 0;
   virtual void stop() = 0;  // closes every connection; returns when no handler runs any more
-  virtual bool running() const = 0;
   virtual uint16_t port() const = 0;  // device 80, simulator 8080
 };
 

@@ -55,7 +55,6 @@ class Writer {
   bool open(const std::string& virtualPath);
   bool write(const void* data, size_t n);
   bool close();  // true if everything reached the file
-  bool isOpen() const { return f_ != nullptr; }
   unsigned retries() const { return retries_; }  // writes that needed another try
 
  private:
@@ -77,7 +76,6 @@ class Reader {
   // True if all `n` bytes at `offset` were read.
   bool readAt(uint64_t offset, void* data, size_t n);
   void close();
-  bool isOpen() const { return f_ != nullptr; }
 
  private:
   FILE* f_ = nullptr;

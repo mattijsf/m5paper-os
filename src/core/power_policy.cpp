@@ -78,7 +78,6 @@ void PowerPolicy::idle(uint32_t maxWaitMs) {
 
   const uint32_t sleepMs = decideSleep(in);
   if (sleepMs > 0) {
-    ++sleeps_;
     p.power.lightSleep(sleepMs);  // returns on touch (the tap is then read as usual) or timer
     return;
   }

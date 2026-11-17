@@ -26,11 +26,7 @@ std::string dateLine(hal::Clock& clock) {
 // What the summary line is made of: the badges the apps cached (never the network) and the reader's last book.
 std::string computeSummary(const std::vector<const AppEntry*>& apps) {
   int unread = 0;
-  for (const AppEntry* a : apps) {
-    std::string raw;
-    fs::readFile(std::string("/data/cache/") + a->info.id + "/badge", raw);
-    unread += std::max(0, std::atoi(raw.c_str()));
-  }
+  for (const AppEntry* a : apps) unread += appBadge(a->info.id);
   Store reader("/data/apps/read.json");
   return summaryLine(unread, reader.get("last.title", std::string()), reader.has("last.percent") ? reader.get("last.percent", -1) : -1);
 }
@@ -77,14 +73,7 @@ class LauncherScreen : public Screen {
   void onShow() override {
     showAgenda();
     summary_->setText(computeSummary(apps_));  // the layout that follows makes room for it
-    // Badges come from what apps cached earlier; the launcher never does network I/O.
-    for (size_t i = 0; i < tiles_.size(); ++i) {
-      const int idx = page_ * kPerPage + static_cast<int>(i);
-      if (idx >= static_cast<int>(apps_.size())) continue;
-      std::string raw;
-      fs::readFile(std::string("/data/cache/") + apps_[idx]->info.id + "/badge", raw);
-      tiles_[i]->setBadge(std::atoi(raw.c_str()));
-    }
+    showBadges();
   }
 
  private:
@@ -93,6 +82,14 @@ class LauncherScreen : public Screen {
     const std::string line = agendaLine(shell_.os().platform().clock);
     agenda_->visible = !line.empty();
     agenda_->setText(line);
+  }
+
+  // Badges come from what apps cached earlier; the launcher never does network I/O.
+  void showBadges() {
+    for (size_t i = 0; i < tiles_.size(); ++i) {
+      const int idx = page_ * kPerPage + static_cast<int>(i);
+      if (idx < static_cast<int>(apps_.size())) tiles_[i]->setBadge(appBadge(apps_[idx]->info.id));
+    }
   }
 
   void fill(int page) {
@@ -108,10 +105,10 @@ class LauncherScreen : public Screen {
       t->setBlank(false);
       t->setIcon(info.icon);
       t->setLabel(info.name);
-      t->setBadge(0);
       const std::string id = info.id;
       t->onClick = [this, id] { shell_.requestOpen(id); };
     }
+    showBadges();  // of the page now on screen (they showed 0 after a page turn until the launcher was shown again)
   }
 
   Shell& shell_;

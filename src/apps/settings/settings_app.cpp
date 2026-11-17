@@ -640,7 +640,9 @@ class FilesPage : public Page {
   // A screen can also go without onHide (the whole app replaced, `>set screen`): then the app's context may already be gone, so
   // the server is stopped through the pointer kept at start, nothing else.
   ~FilesPage() override {
-    if (running_ && http_) http_->stop();
+    if (!running_) return;
+    if (http_) http_->stop();
+    if (radio_) radio_->setPowerSave(true);  // as stopServer() does, without the app's worker (it may be gone too)
   }
 
   std::string debugState() const override {
@@ -683,6 +685,7 @@ class FilesPage : public Page {
       server_ = std::make_shared<files::FileServer>("/sd/books", code_text_, [clock] { return clock->millis(); });
       auto srv = server_;
       http_ = http;
+      radio_ = &ctx().os().platform().net;
       if (!http->start([srv](hal::ServerRequest& q) { return srv->handle(q); })) {
         state_->setText("Could not start the file server");
         showRunning(false);
@@ -739,6 +742,7 @@ class FilesPage : public Page {
   ui::Button* button_ = nullptr;
   std::shared_ptr<files::FileServer> server_;
   hal::HttpServer* http_ = nullptr;
+  hal::Net* radio_ = nullptr;  // kept with http_ for the destructor
   std::string code_text_;
   bool running_ = false, starting_ = false;
 };

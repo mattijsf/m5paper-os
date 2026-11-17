@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "apps/common/daily_game.h"
 #include "apps/wordgame/wordgame.h"
 #include "core/app.h"
 #include "core/clipboard.h"
@@ -46,14 +47,13 @@ constexpr const char* kListFile = "guesses";  // in the app's cache: the fetched
 constexpr const char* kNoClockHint = "Zet hem via wifi, dan komt het woord van vandaag.";
 
 std::string triesText(int n) { return std::to_string(n) + (n == 1 ? " beurt" : " beurten"); }
-std::string daysText(int n) { return std::to_string(n) + (n == 1 ? " dag" : " dagen"); }
+using apps::daysText;
 
 // Today's day number (game::dayOf), false while the clock was never set.
 bool today(hal::Clock& clock, int* day) {
-  const int64_t now = clock.now();
-  struct tm t{};
-  if (!clockIsSet(now) || !localTime(now, t)) return false;
-  *day = game::dayOf({t.tm_year + 1900, t.tm_mon + 1, t.tm_mday});
+  Date date;
+  if (!apps::today(clock, date)) return false;
+  *day = game::dayOf(date);
   return true;
 }
 
@@ -486,7 +486,7 @@ class GameScreen : public Screen {
     board_->answer = &answer_;
     board_->guesses = &guesses_;
     board_->typed = &typed_;
-    legend_ = game_->add<Legend>();
+    game_->add<Legend>();
     keys_ = game_->add<KeyPad>();
     keys_->onKey = [this](char ch) { key(ch); };
 
@@ -593,29 +593,20 @@ class GameScreen : public Screen {
 
   // Without a clock (the battery ran flat): set it from the internet, then today's word.
   void setClock() {
-    if (syncing_) return;
-    syncing_ = true;
-    clockError_.clear();
-    show();
-    ctx().syncClock([this](bool ok, const std::string& error) {
-      syncing_ = false;
-      if (!ok) {
-        ctx().log("clock not set: %s", error.c_str());
-        clockError_ = error == AppContext::kNoNetworkTime ? "Wel wifi, maar geen tijd ontvangen. Probeer het nog eens."
-                                                          : "Geen wifi. Probeer het nog eens.";
-      }
+    if (clock_.busy()) return;
+    clock_.start(ctx(), [this] {
       openDay();
       show();
       if (hasDay_) fetchListIfDue();
     });
+    show();  // "Verbinden met wifi..."
   }
 
   void show() {
     const bool done = over();
     noClock_->visible = !hasDay_;
-    if (noClock_->button()) noClock_->button()->visible = !syncing_;
-    if (noClock_->hint())
-      noClock_->hint()->setText(syncing_ ? "Verbinden met wifi..." : clockError_.empty() ? kNoClockHint : clockError_);
+    if (noClock_->button()) noClock_->button()->visible = !clock_.busy();
+    if (noClock_->hint()) noClock_->hint()->setText(clock_.hint(kNoClockHint));
     game_->visible = hasDay_;
     keys_->visible = hasDay_ && !done;
     done_->visible = done;
@@ -709,20 +700,13 @@ class GameScreen : public Screen {
     });
   }
 
-  void copyScore() {
-    if (clipboard::set(game::shareText(game::puzzleNumber(day_), answer_, guesses_), "wordgame"))
-      ctx().toast("Score gekopieerd");
-    else
-      ctx().toast("Kopi\xC3\xABren lukte niet");
-  }
+  void copyScore() { apps::copyScore(ctx(), game::shareText(game::puzzleNumber(day_), answer_, guesses_)); }
 
   ui::Column* root_ = nullptr;
   ui::EmptyState* noClock_ = nullptr;
-  bool syncing_ = false;
-  std::string clockError_;
+  apps::ClockSetter clock_;
   ui::Column *game_ = nullptr, *done_ = nullptr;
   Board* board_ = nullptr;
-  Legend* legend_ = nullptr;
   KeyPad* keys_ = nullptr;
   ui::Label *doneTitle_ = nullptr, *doneLine_ = nullptr;
 

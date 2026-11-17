@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <memory>
 
+#include "apps/common/ha_error_state.h"
 #include "apps/weather/weather_model.h"
 #include "core/app.h"
 #include "core/fs.h"
@@ -361,18 +362,11 @@ class WeatherScreen : public Screen {
         page_ = p;
         view_->setPage(p);
       };
-    } else if (error_ == HaError::NoToken || error_ == HaError::NoUrl) {
-      holder_->add<ui::EmptyState>(Icon::Cloud, "Not set up yet", "Put HA_URL and HA_TOKEN in paperos_config on the SD card.")->flex = 1;
     } else if (notFound_) {
       holder_->add<ui::EmptyState>(Icon::Cloud, "No weather in Home Assistant", place().entity + " was not found or has no data.", "Retry",
                                    [this] { refresh(); })->flex = 1;
-    } else if (error_ == HaError::Unauthorized) {
-      holder_->add<ui::EmptyState>(Icon::TriangleAlert, "Home Assistant refused the token", "Check HA_TOKEN in paperos_config on the SD card.",
-                                   "Retry", [this] { refresh(); })->flex = 1;
     } else if (error_ != HaError::None) {
-      const std::string hint = error_ == HaError::Other ? std::string("Check Wi-Fi and the address, then try again.")
-                                                        : haErrorText(error_) + std::string(". Try again later.");
-      holder_->add<ui::EmptyState>(Icon::WifiOff, "Cannot reach Home Assistant", hint, "Retry", [this] { refresh(); })->flex = 1;
+      apps::addHaErrorState(*holder_, error_, [this] { refresh(); });
     } else {
       holder_->add<ui::EmptyState>(Icon::Cloud, "Loading...")->flex = 1;
     }
@@ -464,6 +458,7 @@ class WeatherScreen : public Screen {
           busy_ = false;
           if (f.place != place_) {  // the place was changed while this read ran: its copy is saved, the new place is read now
             if (!fresh()) refresh();
+            armTimer();  // (a fresh copy of the new place starts no read: the regular refresh must go on all the same)
             return;
           }
           tried_ = true;

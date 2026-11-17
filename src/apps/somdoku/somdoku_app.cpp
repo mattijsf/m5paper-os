@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "apps/common/daily_game.h"
 #include "apps/somdoku/somdoku.h"
 #include "core/app.h"
 #include "core/clipboard.h"
@@ -277,10 +278,10 @@ class GameScreen : public Screen {
 
   // Today from the clock, and its puzzle (generated on the worker). Without a clock: nothing, the ready view says so.
   void openDay() {
-    const int64_t now = ctx().clock.now();
+    Date date;
     struct tm t{};
-    if (clockIsSet(now) && localTime(now, t)) {
-      day_ = game::dayString({t.tm_year + 1900, t.tm_mon + 1, t.tm_mday});
+    if (apps::today(ctx().clock, date, &t)) {
+      day_ = game::dayString(date);
       longDay_ = std::string(kDays[t.tm_wday]) + " " + std::to_string(t.tm_mday) + " " + kMonths[t.tm_mon];
     }
     number_ = day_.empty() ? 0 : game::puzzleNumber(day_);
@@ -365,12 +366,10 @@ class GameScreen : public Screen {
       setTitleAccessory(0, nullptr);
     done_->visible = v == View::Done;
     start_->visible = v == View::Ready;
-    clockButton_->visible = day_.empty() && !syncing_;
+    clockButton_->visible = day_.empty() && !clock_.busy();
     readyStreak_->visible = v == View::Ready;
     if (day_.empty()) {
-      readyHint_->setText(syncing_ ? "Verbinden met wifi..."
-                                   : clockError_.empty() ? "De klok is nog niet gezet. Zet hem via wifi, dan komt de puzzel van vandaag."
-                                                         : clockError_);
+      readyHint_->setText(clock_.hint("De klok is nog niet gezet. Zet hem via wifi, dan komt de puzzel van vandaag."));
     } else if (v == View::Wait) {
       readyHint_->setText("Puzzel maken...");
     } else if (v == View::Ready) {
@@ -462,30 +461,16 @@ class GameScreen : public Screen {
     updateNote();
   }
 
+  // Without a clock (the battery ran flat): set it from the internet, then today's puzzle.
   void setClock() {
-    if (syncing_) return;
-    syncing_ = true;
-    clockError_.clear();
-    show();
-    ctx().syncClock([this](bool ok, const std::string& error) {
-      syncing_ = false;
-      if (!ok) {
-        ctx().log("clock not set: %s", error.c_str());
-        clockError_ = error == AppContext::kNoNetworkTime ? "Wel wifi, maar geen tijd ontvangen. Probeer het nog eens."
-                                                            : "Geen wifi. Probeer het nog eens.";
-      }
-      openDay();
-    });
+    if (clock_.busy()) return;
+    clock_.start(ctx(), [this] { openDay(); });
+    show();  // "Verbinden met wifi..."
   }
 
   std::string scoreText() const { return game::shareText(name_, state_.activeMs / 1000, state_.trail, kN); }
 
-  void copyScore() {
-    if (clipboard::set(scoreText(), "somdoku"))
-      ctx().toast("Score gekopieerd");
-    else
-      ctx().toast("Kopi\xC3\xABren lukte niet");
-  }
+  void copyScore() { apps::copyScore(ctx(), scoreText()); }
 
   // --- the store ------------------------------------------------------------------------------------------------------
 
@@ -558,8 +543,7 @@ class GameScreen : public Screen {
   TrailTiles* tiles_ = nullptr;
 
   ui::Button* clockButton_ = nullptr;
-  bool syncing_ = false;
-  std::string clockError_;
+  apps::ClockSetter clock_;
   std::string day_, longDay_, name_;
   int number_ = 0;
   game::Puzzle puzzle_;

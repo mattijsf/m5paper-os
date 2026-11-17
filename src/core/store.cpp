@@ -1,5 +1,8 @@
 #include "core/store.h"
 
+#include <algorithm>
+#include <cstdlib>
+
 #include <ArduinoJson.h>
 
 #include "core/fs.h"
@@ -74,5 +77,8 @@ std::string Cache::read(const std::string& name) const {
 }
 bool Cache::write(const std::string& name, const std::string& text) const { return fs::writeFile(dir_ + "/" + name, text); }
 bool Cache::exists(const std::string& name) const { return fs::exists(dir_ + "/" + name); }
+
+int appBadge(const std::string& appId) { return std::max(0, std::atoi(Cache(appId).read("badge").c_str())); }
+void setAppBadge(const std::string& appId, int count) { Cache(appId).write("badge", std::to_string(std::max(0, count))); }
 
 }  // namespace pos

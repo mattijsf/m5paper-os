@@ -59,12 +59,10 @@ class PowerPolicy {
   void idle(uint32_t maxWaitMs);
   // Power off now: apps save their state, the panel finishes, then power.powerOff(0).
   void powerOffNow();
-  uint32_t sleepCount() const { return sleeps_; }
 
  private:
   Os& os_;
   std::function<void(uint32_t)> wait_;
-  uint32_t sleeps_ = 0;
   bool usbSeen_ = false;
   uint32_t usbSeenMs_ = 0;  // clock.millis() when USB (host or charger) was last seen
   bool hostSeen_ = false;
