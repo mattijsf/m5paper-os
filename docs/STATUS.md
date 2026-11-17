@@ -965,3 +965,9 @@ None of these block Phase 1, Phase 2, or the reader.
   correction needed; it showed that the picture is dark (white at 44-63 of 255) and that a reflection lies on the left
   edge of the panel (ink reads up to 0.28 there). Both are for the set-up (more light, move what is mirrored), then
   `make cam-target` again; gray numbers were worth about 0.11 in that light.
+- 2026-11-17: The camera in the 3D printer (the user cannot change the light there). `cam.py lock` now measures:
+  exposure 33 ms and the gain that puts the panel's white at 185 of 255 (the C922 reports its defaults in automatic mode,
+  so the old lock froze a dark picture: white at 44-63, now 166-195). The target's dots give a map of what ink reads
+  (28-67 % of the local white: a reflection on the left edge); `compare` and `around` use it for gray levels for an hour.
+  A single gray patch is good to about 0.06, the mean of the target's three places to 0.02 (DISPLAY.md "Calibration
+  target"). Start of a camera session: `cam.py lock`, then `make cam-target`.

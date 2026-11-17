@@ -540,11 +540,52 @@ def sharpness(img, Hm):
     return float(cv2.Laplacian(v, cv2.CV_32F).var())
 
 
+WHITE_TARGET = 185  # where the panel's white should sit of the camera's 255: bright, with room before it clips
+
+
+def white_level(img, Hm):
+    """What the panel's white reads in a camera frame: the 95th percentile inside the panel (the middle of the image
+    when the panel was not found)."""
+    v = warp(img, Hm) if Hm is not None else img[img.shape[0] // 4: 3 * img.shape[0] // 4, img.shape[1] // 4: 3 * img.shape[1] // 4]
+    return float(np.percentile(v, 95))
+
+
+def expose(u, rec, Hm, exposure, gain):
+    """Exposure and gain by measuring: the camera's own readings in automatic mode are its defaults, not what it chose
+    (C922: 25 ms and gain 0 whatever the light), so a lock on them froze a dark picture (white at 44-63 of 255 inside
+    the 3D printer, 2026-11-17). The longest exposure 30 fps allows first, then the gain that brings the panel's white
+    to WHITE_TARGET. Returns (exposure, gain, the white it ends at)."""
+    def measure(**settings):
+        u.set(**settings)
+        t = time.time()
+        time.sleep(0.9)  # the setting, then a few frames
+        idx = [i for i in range(len(rec.frames)) if rec.arrival[i] >= t + 0.5]
+        return white_level(rec.frames[idx[-1] if idx else -1], Hm)
+
+    white = measure(exposure_time_abs=exposure, gain=gain if gain is not None else 0)
+    if gain is not None:
+        return exposure, gain, white
+    lo, hi, gain = 0, 255, 0
+    if white >= WHITE_TARGET:
+        return exposure, 0, white
+    for _ in range(7):  # the white rises with the gain: halve the interval
+        mid = (lo + hi + 1) // 2
+        w = measure(gain=mid)
+        if w > WHITE_TARGET + 12:
+            hi = mid - 1
+        else:
+            lo, gain, white = mid, mid, w
+        if hi <= lo:
+            break
+    return exposure, gain, measure(gain=gain)
+
+
 def cmd_lock(a):
-    """Exposure, white balance and focus to fixed values for this session (they change with the light and the camera's place,
-    so lock again at the start of a session). Exposure and white balance: what the camera's automatics chose after a few
-    seconds, the exposure capped at 33 ms (30 fps). Focus: a sweep over the range on whatever the panel shows (a page with
-    text works best), sharpest = highest Laplacian variance inside the panel."""
+    """Exposure, gain, white balance and focus to fixed values for this session (they change with the light and the
+    camera's place, so lock again at the start of a session). Exposure: 33 ms, the longest 30 fps allows, and the gain
+    that brings the panel's white to WHITE_TARGET (measured, see expose()). White balance: what the automatics chose.
+    Focus: a sweep over the range on whatever the panel shows (a page with text works best), sharpest = highest
+    Laplacian variance inside the panel."""
     if a.source:
         sys.exit("lock needs a camera")
     name = pick_camera(a.camera)
@@ -554,13 +595,17 @@ def cmd_lock(a):
     rec = Recorder(a, os.path.join(ROOT, "out", "cam-lock.mp4"), width=1920, fps=0)
     rec.wait_first(20)
     time.sleep(3.0)
-    expo, wb, gain = u.get("exposure-time-abs"), u.get("white-balance-temp"), u.get("gain")
-    expo = min(int(a.exposure or expo), 330)
-    wb = int(a.wb or wb)
+    wb = int(a.wb or u.get("white-balance-temp"))
+    expo = min(int(a.exposure or 330), 330)
     u.set(auto_exposure_mode=1, exposure_time_abs=expo, auto_white_balance_temp="false", white_balance_temp=wb, auto_focus="false")
-    say(f"  exposure {expo / 10:.1f} ms (manual), white balance {wb} K, gain {gain}")
+    time.sleep(0.9)
     frame = load_frame(a.frame) if os.path.exists(a.frame) else None
     Hm, how = find_panel(rec.frames[-1], frame, a.max_age * 60, quiet=True)
+    expo, gain, white = expose(u, rec, Hm, expo, a.gain)
+    say(f"  exposure {expo / 10:.1f} ms, gain {gain} of 255: the panel's white reads {white:.0f} of 255 "
+        f"({'inside the panel' if Hm is not None else 'in the middle of the image: panel not found'}); white balance {wb} K")
+    if white < 110:
+        say("  still dark with the gain at its end: more light on the panel would help every number")
     say(f"  sharpness measured {'inside the panel (' + how + ')' if Hm is not None else 'in the middle of the image (panel not found)'}")
 
     def sweep(values):
@@ -594,7 +639,7 @@ def cmd_lock(a):
                 "gain": gain, "focus_abs": focus}
     with open(LOCK, "w") as f:
         json.dump(settings, f, indent=1)
-    say(f"locked: exposure {expo / 10:.1f} ms, white balance {wb} K, focus {focus}; written to {LOCK}. `cam.py unlock` gives the automatics back.")
+    say(f"locked: exposure {expo / 10:.1f} ms, gain {gain}, white balance {wb} K, focus {focus}; written to {LOCK}. `cam.py unlock` gives the automatics back.")
 
 
 def cmd_unlock(a):
@@ -742,8 +787,33 @@ def cmd_calibrate(a):
 
 # ---------------------------------------------------------------- compare: residual = ghosting
 
-def compare_images(cam_gray, frame, Hm):
+TARGET_MAX_AGE = 3600  # seconds a calibration with the target stays in use (the set-up moves, the light changes)
+
+
+def saved_black_map():
+    """What ink reads over the panel (as a part of the local white), from the last `target` run of this hour: the
+    reflections and the camera's black level, which dividing by the light does not take out. None without one."""
+    path = os.path.join(ROOT, "out", "cam-target.json")
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        t = json.load(f)
+    if time.time() - t.get("time", 0) > TARGET_MAX_AGE or not t.get("ink_grid"):
+        return None
+    return black_map_from(np.float32(t["ink_grid"]))
+
+
+def black_map_from(grid):
+    """The dots' ink readings (rows x columns of the lattice, which covers the panel evenly) as a smooth map."""
+    return cv2.resize(cv2.blur(grid, (3, 3), borderType=cv2.BORDER_REPLICATE), (W, H), interpolation=cv2.INTER_LINEAR)
+
+
+def compare_images(cam_gray, frame, Hm, black="saved"):
     """Normalised camera view of the panel and the residual against the frame dump.
+
+    `black`: "saved" = the black map of the last target run (saved_black_map()), None for none. With it the view's
+    lightness is two-point: 0 is the ink at that place, 1 the white at that place. The ghost number does not use it
+    (it is about white areas, and stays comparable with earlier runs).
 
     Lighting: divide by the local white (smoothed over pixels the frame says are white). Tone: a robust linear fit of the
     normalised camera value against the (blurred) frame level. Residual: (camera - fit) / contrast, so 0.05 means 5 % of
@@ -797,8 +867,13 @@ def compare_images(cam_gray, frame, Hm):
         raise ValueError(f"no contrast between ink and white (fit slope {b:.3f}): wrong page, or the panel is not in view")
     R = (Nb - (a + b * Eb)) / b
     ghost = np.where(far > 0, np.clip(-R, 0, None), np.nan)
-    lightness = np.clip((N - a) / b, -0.2, 1.2)  # 0 = black ink, 1 = white, in this image's own scale
-    return {"view": lightness, "R": R, "ghost": ghost, "far": far, "a": float(a), "b": float(b), "field": field}
+    B = saved_black_map() if isinstance(black, str) else black
+    if B is not None:
+        lightness = np.clip((N - B) / np.maximum(1.0 - B, 0.2), -0.2, 1.2)  # 0 = the ink here, 1 = the white here
+    else:
+        lightness = np.clip((N - a) / b, -0.2, 1.2)  # 0 = black ink, 1 = white, in this image's own scale
+    return {"view": lightness, "R": R, "ghost": ghost, "far": far, "a": float(a), "b": float(b), "field": field, "N": N,
+            "two_point": B is not None}
 
 
 def region_table(ghost, cols=3, rows=4):
@@ -860,7 +935,8 @@ def report_compare(res, frame, out_path, label=""):
         say("  " + "  ".join("     -      " if c is None else f"{c[0]:5.2f}/{c[1]:5.1f}" for c in row))
     lv = gray_levels(res["view"], frame)
     if len(lv) >= 3:
-        say("measured lightness per gray level (0 = ink, 1 = white): " + ", ".join(f"g{k}={v:.2f}" for k, v in sorted(lv.items())))
+        say("measured lightness per gray level (0 = ink, 1 = white" + ("; each place with its own black, from the last target run" if res.get("two_point") else
+            "; no fresh `cam.py target` run: a reflection on the panel lifts the dark levels") + "): " + ", ".join(f"g{k}={v:.2f}" for k, v in sorted(lv.items())))
     draw_diff(res, frame, cells, out_path, f"{label}ghost {ghost:.2f} %  (p95 {p95:.1f} %)")
     say(f"wrote {out_path}")
     return ghost
@@ -1387,8 +1463,8 @@ def analyse_target(cam_gray, frame):
     lines.append("  the lens bends the picture by less than the dots can show: no correction needed" if gain < 0.15 else
                  f"  the lens term takes {gain:.2f} px off: the picture is bent, numbers near the panel's edge are less sure")
     Hm = fit["H"]
-    res = compare_images(cam_gray, frame, Hm)
-    view = res["view"]
+    res = compare_images(cam_gray, frame, Hm, black=None)
+    view = res["N"]  # the camera value as a part of the local white: ink is not 0 here, that is what the dots measure
     # Light: how uneven it is over the panel (the white field that every number is divided by).
     lo, hi = float(res["field"].min()), float(res["field"].max())
     lines.append(f"light: the darkest part of the panel gets {100 * lo / hi:.0f} % of the brightest (white reads {lo:.0f} to {hi:.0f} of the camera's 255)")
@@ -1397,46 +1473,54 @@ def analyse_target(cam_gray, frame):
     elif hi < 110:
         lines.append(f"  the picture is dark: white uses {100 * hi / 255:.0f} % of the camera's range, so every number is noisier than it has to be: "
                      "more light on the panel, or a longer exposure (`cam.py lock --exposure 330` is the most at 30 fps)")
-    # Stray light: what ink reads at each dot. The light is divided out, so ink that reads lighter in one part of the panel
-    # is light lying on top of the picture there (a reflection): it lifts the dark end and leaves white alone. The dots
-    # are a lattice, so their readings are a map of it, and the map takes it out of the gray readings below.
-    ink = np.array([float(view[max(0, int(y) - 2):int(y) + 3, max(0, int(x) - 2):int(x) + 3].mean()) for x, y in dots])
-    floor = float(np.median(ink))
+    # Black. Dividing by the light leaves in what ink reads: the camera's own black level, and light lying on top of
+    # the picture (a reflection, stronger in one place than in another). The dots are a lattice, so what ink reads at
+    # them is a map of it: with white as 1 and that map as 0 every place of the panel has its own two points.
+    # (A power curve for the camera's tone was tried, fitted so that a gray reads the same in its three places: the
+    # fit ran to the end of its range and took 0.02 off the spread, so the camera's curve is not what is left.)
     xs, ys = np.unique(np.round(dots[:, 0])), np.unique(np.round(dots[:, 1]))
-    stray_map = None
-    if len(xs) * len(ys) == len(dots):  # every dot of the lattice is there
-        grid = np.zeros((len(ys), len(xs)), np.float32)
-        for (x, y), v in zip(dots, ink):
-            grid[int(np.searchsorted(ys, round(float(y)))), int(np.searchsorted(xs, round(float(x))))] = v
-        stray_map = cv2.resize(cv2.blur(grid, (3, 3), borderType=cv2.BORDER_REPLICATE), (W, H), interpolation=cv2.INTER_LINEAR)
-        j, i = np.unravel_index(int(np.argmax(grid)), grid.shape)
-        where = ["top", "upper middle", "lower middle", "bottom"][min(3, 4 * j // len(ys))] + ", " + ["left", "centre", "right"][min(2, 3 * i // len(xs))]
-        over = 100.0 * float((grid > floor + 0.05).mean())
-        lines.append(f"ink at the dots reads {floor:.2f} for most of the panel"
-                     + (": no stray light to speak of" if grid.max() - floor < 0.05 else
-                        f", but up to {grid.max():.2f} ({where}): a reflection lies on {over:.0f} % of the panel and lifts dark grays there by that much "
-                        "(white and ghost numbers are not touched). Move the lamp or screen that it mirrors, or shade the panel"))
-    # Tone: every gray patch on its own (each level is on the target three times, in three places).
-    levels, raw_spread = {}, 0.0
-    # With the stray light taken out: ink at a dot is 0 everywhere, white stays 1.
-    clean = view if stray_map is None else (view - stray_map) / np.maximum(1.0 - stray_map, 0.2)
+    lattice = len(xs) * len(ys) == len(dots)  # every dot is there
+    patches = []  # (level, pixel mask) of every gray patch
     for lvl in range(15):  # (white, level 15, is what 1.0 means: the page around the patches)
         m = cv2.erode((frame == lvl * 17).astype(np.uint8), np.ones((9, 9), np.uint8))
         n, lab, stats, _ = cv2.connectedComponentsWithStats(m, connectivity=8)
-        vals = [float(np.median(clean[lab == i])) for i in range(1, n) if 150 <= stats[i][4] <= 1200]  # a 30 x 40 patch, eroded
-        raw = [float(np.median(view[lab == i])) for i in range(1, n) if 150 <= stats[i][4] <= 1200]
-        if len(raw) > 1:
-            raw_spread = max(raw_spread, max(raw) - min(raw))
-        if vals:
-            levels[lvl] = vals
+        patches += [(lvl, lab == i) for i in range(1, n) if 150 <= stats[i][4] <= 1200]  # a 30 x 40 patch, eroded
+    def two_point(own_black=True):
+        lin = view
+        ink = np.array([float(lin[max(0, int(y) - 2):int(y) + 3, max(0, int(x) - 2):int(x) + 3].mean()) for x, y in dots])
+        grid = None
+        if lattice and own_black:
+            grid = np.zeros((len(ys), len(xs)), np.float32)
+            for (x, y), v in zip(dots, ink):
+                grid[int(np.searchsorted(ys, round(float(y)))), int(np.searchsorted(xs, round(float(x))))] = v
+            blk = black_map_from(grid)
+        else:
+            blk = float(np.median(ink))
+        clean = (lin - blk) / np.maximum(1.0 - blk, 0.2)
+        lv = {}
+        for lvl, mask in patches:
+            lv.setdefault(lvl, []).append(float(np.median(clean[mask])))
+        spread = max([max(v) - min(v) for v in lv.values() if len(v) > 1] or [0.0])
+        return clean, grid, lv, spread
+
+    clean, grid, levels, spread = two_point()
+    raw_spread = two_point(own_black=False)[3]
+    if grid is not None:
+        g1 = grid
+        j, i = np.unravel_index(int(np.argmax(g1)), g1.shape)
+        where = ["top", "upper middle", "lower middle", "bottom"][min(3, 4 * j // len(ys))] + ", " + ["left", "centre", "right"][min(2, 3 * i // len(xs))]
+        lines.append(f"black: ink reads {100 * float(g1.min()):.0f} to {100 * float(g1.max()):.0f} % of the white around it (most of the panel "
+                     f"{100 * float(np.median(g1)):.0f} %)"
+                     + (": even" if g1.max() - g1.min() < 0.05 else
+                        f"; lightest at the {where}: a reflection, or the side the light comes from. It lifts dark grays there; the map "
+                        "is saved and used on gray readings for the next hour (white and ghost numbers do not need it)"))
     if len(levels) >= 12:
         mean = {k: float(np.mean(v)) for k, v in levels.items()}
-        spread = max(max(v) - min(v) for v in levels.values() if len(v) > 1)
-        lines.append("grays (0 = ink, 1 = white; mean of the places a level is shown" + ("" if stray_map is None else ", stray light taken out") + "): "
+        lines.append("grays (0 = the ink at that place, 1 = the white at that place; mean of the places a level is shown): "
                      + ", ".join(f"g{k}={mean[k]:.2f}" for k in sorted(mean)))
-        lines.append(f"  the same level in different places differs by at most {spread:.2f}"
-                     + ("" if stray_map is None else f" ({raw_spread:.2f} before the stray light was taken out)") + ": "
-                     + ("light and reflections are taken out well" if spread < 0.05 else "trust gray numbers to about that"))
+        lines.append(f"  the same level in different places differs by at most {spread:.2f} ({raw_spread:.2f} with one black for the whole panel): "
+                     + ("a gray number is good to about that" if spread < 0.05 else
+                        "trust a gray number to about that; what is left is not the light or the black (the panel's own grays may differ from place to place)"))
         order = sorted(mean)
         bad = [f"g{b} ({mean[b]:.2f}) is darker than g{a} ({mean[a]:.2f})" for a, b in zip(order, order[1:]) if mean[b] < mean[a] - 0.02]
         same = [f"g{a}/g{b}" for a, b in zip(order, order[1:]) if abs(mean[b] - mean[a]) <= 0.02]
@@ -1448,7 +1532,7 @@ def analyse_target(cam_gray, frame):
     # Sharpness: what is left of full contrast in the line pairs.
     mod = {}
     for x, y, w, h, px, way in TARGET_LINES:
-        f, v = frame[y:y + h, x:x + w], view[y:y + h, x:x + w]
+        f, v = frame[y:y + h, x:x + w], clean[y:y + h, x:x + w]
         if (f == 0).sum() > 50 and (f == 255).sum() > 50:
             mod[(way, px)] = float(v[f == 255].mean() - v[f == 0].mean())
     if mod:
@@ -1459,9 +1543,10 @@ def analyse_target(cam_gray, frame):
                      "  no line width keeps half its contrast: out of focus, or the camera is too far away")
     result = {"time": time.time(), "when": time.strftime("%Y-%m-%d %H:%M:%S"), "camera_size": list(size), "scale": scale,
               "dots": int(ok.sum()), "rms_px": rms(fit["err"]), "worst_px": float(fit["err"].max()), "k1": fit["k1"],
-              "rms_lens_px": rms(fit["err_lens"]), "light_min_over_max": lo / hi, "white_camera_value": hi, "ink_floor": floor, "ink_max": float(ink.max()),
+              "rms_lens_px": rms(fit["err_lens"]), "light_min_over_max": lo / hi, "white_camera_value": hi, "gray_spread": spread,
+              "ink_grid": None if grid is None else [[float(v) for v in row] for row in grid],
               "grays": {str(k): v for k, v in levels.items()}, "line_contrast": {f"{way} {px}": v for (way, px), v in mod.items()}}
-    return {"H": Hm, "fit": fit, "dots": dots[ok], "seen": seen[ok], "result": result, "view": view}, lines
+    return {"H": Hm, "fit": fit, "dots": dots[ok], "seen": seen[ok], "result": result, "view": clean}, lines
 
 
 def draw_target(cam_bgr, an, path):
@@ -1691,7 +1776,8 @@ def main():
     p.add_argument("--port")
     p.add_argument("--max-age", type=float, default=60)
     p = sub.add_parser("lock", help="exposure, white balance, focus to fixed values (uvc-util)")
-    p.add_argument("--exposure", type=int, help="exposure-time-abs in 100 us units (default: what auto exposure chose, max 330)")
+    p.add_argument("--exposure", type=int, help="exposure-time-abs in 100 us units (default and most: 330, 33 ms, what 30 fps allows)")
+    p.add_argument("--gain", type=int, help="gain 0..255 (default: found by measuring the panel's white)")
     p.add_argument("--wb", type=int, help="white balance in K (default: what auto white balance chose)")
     p.add_argument("--focus", default="auto", help="focus-abs 0..250, or auto (sweep)")
     p.add_argument("--frame", default="out/device.png")

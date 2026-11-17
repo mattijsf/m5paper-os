@@ -367,8 +367,12 @@ whether text is comfortable to read, ghosting too faint for the camera), batched
 - Every number is normalised by the same image: the light is a smooth surface fitted through the white areas, black and contrast are a
   robust fit of camera value against the frame's gray. A number is "% of this image's white-to-black contrast".
 - Numbers are compared only within one session (before and after a change, A against B). No camera goldens, no thresholds in `make check`.
-- **Lock at the start of a session**: `cam.py lock` puts exposure (what auto exposure chose, at most 33 ms), white balance and focus
-  to fixed values through `uvc-util` (IOKit, no camera permission needed) and writes them to `out/cam-lock.json`. Focus: a sweep over
+- **Lock at the start of a session**: `cam.py lock` puts exposure, gain, white balance and focus
+  to fixed values through `uvc-util` (IOKit, no camera permission needed) and writes them to `out/cam-lock.json`.
+  Exposure and gain are **measured** since 2026-11-17: 33 ms (the most 30 fps allows) and the gain that brings the
+  panel's white to 185 of 255. Before, lock took "what auto exposure chose" from the camera, but the C922 reports its
+  defaults in automatic mode (25 ms, gain 0), so the lock froze a dark picture: white at 44-63 of 255 in the 3D printer
+  the device sits in (about the light there). Now gain 160, white 166-195. Focus: a sweep over
   0..250 on the page shown (text works best), sharpest inside the panel. 2026-11-16: exposure 29.5 ms, 4000 K, focus 45 (sharpness 173
   against 4-6 out of focus). The settings stay in the camera until it is unplugged; `cam.py unlock` gives the automatics back.
   `uvc-util`: github.com/jtfrey/uvc-util (commit 8110da7), source read before building (IOKit and Foundation only), built with
@@ -418,17 +422,25 @@ from the frame dump (it knows only the dot size and where the line pairs are) an
 - **sharpness**: the contrast left in the line pairs: from which line width on the camera shows detail.
 
 Self-test 3 (`cam.py selftest`) runs the analysis on the golden through a synthetic camera, straight and with a bent
-lens (k1 0.04 found as 0.039). **First run on the panel (2026-11-17, exposure 25 ms, focus 40)**: 144 of 144 dots, 1.14
-camera pixels per panel pixel, the panel found to 0.57 px by the feature match and 0.21 px (worst 0.46) by the dots; the
-lens term takes 0.06 px off: no correction needed. The light falls to 70 % across the panel, and **the picture is
-dark**: white reads 44-63 of 255. **A reflection lies on the lower middle of the left edge**: ink reads up to 0.28
-there against 0.02 elsewhere (17 % of the panel). Grays with the reflection taken out: g0 0.00, g1 -0.01, g2 0.03, g3
-0.08, g4 0.13, g5 0.19, g6 0.23, g7 0.41, g8 0.48, g9 0.55, g10 0.61, g11 0.74, g12 0.91, g13 0.98, g14 1.03: in
-order, g0 and g1 not told apart, the largest step g6 to g7 (0.18); the same level differs by up to 0.11 between its
-three places (dark levels read lighter toward the top), which is what a single gray number was worth in that light.
-The g11 = 0.49 of the Display lab ramp earlier that day was such a place effect, not the panel. Lines: 4 px 0.82 / 0.73
-(down / across), 3 px 0.81 / 0.68, 2 px 0.63 / 0.26, 1 px 0: detail from 3 panel pixels on. Not done: the stray-light
-map and the dark-picture warning are in the report only; `compare` and `around` do not use them yet.
+lens (k1 0.04 found as 0.039).
+
+**On the panel (2026-11-17; the device lies in a 3D printer, the light cannot be changed)**. First run, with the old lock
+(exposure 25 ms, gain 0): white at 44-63 of 255, too dark to trust. After the lock was fixed (33 ms, gain 160, focus 45):
+144 of 144 dots, 1.14 camera pixels per panel pixel; the panel found to 0.56 px by the feature match and 0.20 px
+(worst 0.43) by the dots; the lens term takes 0.04 px off: **no lens correction needed**. Light: the darkest part gets
+85 % of the brightest. **Black is far from even**: ink reads 28 to 67 % of the white around it, lightest at the lower
+middle of the left edge (a reflection, or the side the light comes from). So one black for the whole panel is wrong by
+a lot: the same gray differed by up to 0.23 between its three places. With the dots' map as each place's own black:
+0.12-0.13. Grays (mean of three places, repeatable to 0.02 between two runs): g0 -0.03, g1 -0.02, g2 0.06, g3 0.15, g4
+0.23, g5 0.30, g6 0.38, g7 0.53, g8 0.57, g9 0.63, g10 0.69, g11 0.78, g12 0.91, g13 0.96, g14 1.01: in order, g0 and
+g1 not told apart, the largest step g6 to g7. What is left between places is not the light, the black or the camera's
+tone curve (a fitted power curve took 0.02 off and ran to the end of its range: not kept); it changes with what the
+panel showed before (from the launcher the dark half read lighter toward the top; from a cleaned white screen it did
+not), so part of it is the panel's own. A single gray patch is good to about 0.06, the mean of three to 0.02. Lines: 4
+px 0.86 / 0.88 (down / across), 3 px 0.69 / 0.69, 2 px 0.48 / 0.45, 1 px 0: detail from 3 panel pixels on.
+**The map is used**: `compare` and `around` read the black map of the last target run (an hour) for their gray levels
+("each place with its own black"): the Display lab ramp then reads in order (g11 0.73; that morning, with one black,
+0.49 between g10 0.70 and g12 0.74). Ghost numbers do not use it (white areas only), so they compare with earlier runs.
 
 What "ghost" measures: pixels the frame dump says are white and at least 3 px away from any ink, and how much darker than expected the
 camera sees them. The known page for it is the Display lab: Checker, then White (one Fast pass each), then `make cam-compare`; "Clean
