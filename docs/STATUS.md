@@ -382,8 +382,8 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
-- **Launcher 3 x 4 (2026-11-17, simulator only)**: flash, frame dump against the golden `launcher`, a tap on a tile of
-  each row, badges on a small tile; for a person's fingers: whether 153 x 160 tiles are comfortable to hit.
+- **Launcher 3 x 4**: flashed 2026-11-17 13:10 (below); for a person's fingers: whether 153 x 160 tiles are
+  comfortable to hit.
 - **After the device run of 2026-11-17** (below, "Done on the device 2026-11-17"), still open: the flash patch for the
   user's eyes in daily use (the camera says the sweep is gone; whether anything else looks off, e.g. patches of white, is
   for a look); Finder and a phone on Files over Wi-Fi (curl only so far); the Wi-Fi scan page with a real finger while
@@ -1004,3 +1004,8 @@ None of these block Phase 1, Phase 2, or the reader.
   page, all nine on one page (apps/launcher.md "Twelve apps to a page"). `ui::Tile` has two sizes. Simulator, unit
   tests (308) and goldens (238; 16 re-accepted, `agenda-launcher` and `wordgame-launcher` replace the two page-2
   shots). **Not flashed**: the device was not on the USB bus when this was done (Pending device checks).
+- 2026-11-17 13:10: the 3 x 4 launcher on the device (2,433,504 bytes): the frame dump shows the nine tiles on one page
+  under the date, the agenda line and the summary; **a real badge**: WhatsApp 3 and "3 unread" (the launcher's own
+  read of the relay after the boot, and the badge fix, with real messages; WhatsApp was not opened, so the badge stays
+  for the user to see). Injected taps on a tile of each row (Home, Settings, Weather) each brought a screen change of
+  that app's size (492 x 872, 492 x 824, 494 x 874); back returned to the launcher. `out/dev-review/launcher-new.png`.
