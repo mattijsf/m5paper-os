@@ -191,7 +191,9 @@ Also changed: a toast is a Content update, not a Screen change (it could trigger
 with its gray icon wells, 366 ms), a Fast pass as one (144-170 ms). Fast then settle on the same screen is one pulse
 and, a second later, three more where the gray is. Without gray (ink, paper, anti-aliased edges) the settle is a
 ripple of about a sixth of the Fast pulse. So: flat gray on a screen that is navigated to often is paid for on every
-visit; the launcher's wells went for that reason (apps/launcher.md "No gray on the launcher").
+visit; the launcher's wells went for that reason (apps/launcher.md "No gray on the launcher"), then those of every
+`Tile`. Screens that still go out as a Text pass (`why=screen-gray` in the UI test logs): Agenda's day view (gray event
+blocks), everything with the on-screen keyboard (gray keys), a book's cover page, the Display lab.
 
 ## Navigation speed (2026-11-15)
 

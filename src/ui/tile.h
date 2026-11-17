@@ -1,6 +1,7 @@
-// Tile: an outlined square with a 64 px icon in a well, a label, an optional value and badge. Two sizes: Large (two to
-// a row, 196 high: the Home app's rooms and scenes) and Small (three to a row, 160 high, the label one size down, the
-// icon without a gray well: the launcher, twelve apps to a page). Pressed = 4 px border (pure ink and paper). docs/UI.md "Widgets".
+// Tile: an outlined square with a 64 px icon, a label, an optional value and badge. Ink and paper only: a gray well
+// behind the icon made every screen of tiles a Text pass (a flicker in three steps, DISPLAY.md "Gray areas cost a
+// flicker"). Two sizes: Large (two to a row, 196 high: the Home app's rooms and scenes) and Small (three to a row, 160
+// high, the label one size down: the launcher, twelve apps to a page). Pressed = 4 px border (pure ink and paper). docs/UI.md "Widgets".
 #pragma once
 
 #include <string>

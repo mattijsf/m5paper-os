@@ -104,5 +104,6 @@ launcher (`cam.py around tap 36 92`, one session):
 | **without wells** (Fast then settle by itself: nothing gray) | **one pulse of 144 ms**, then a ripple of about a sixth of it (the anti-aliased edges) |
 
 Gray(13) read as 0.96-0.98 of white on the panel (DISPLAY.md): the wells were hardly there to the eye. The Home app's
-large tiles still have theirs (its screens are Text passes): the same change would be the next step there.
+large tiles lost theirs the same day: Lights to its Climate tab was one Text pass,
+visible 397 ms; now a Fast pass of 195 ms and a settle the camera does not see.
 `>set gray-pass off` (device only) switches the one-Text-pass rule off for a comparison.

@@ -1022,3 +1022,7 @@ None of these block Phase 1, Phase 2, or the reader.
   the launcher has a power button in the header's corner (a tap: sleep screen, off), and the sleep screen says "Powered
   off" with the power icon above "Press the side button to start". 19 goldens re-accepted (header, sleep screens), one
   new (`sleep-launcher-button`); the grid did not move. Simulator only: Pending device checks.
+- 2026-11-17: No gray wells on any `Tile` (Home's large tiles too). Camera: Home, Lights to the Climate tab: one Text
+  pass visible 397 ms before, a Fast pass of 195 ms and no visible settle after. Back to the launcher from any app is
+  a Fast pass now (measured from Settings and Home). Still Text passes: Agenda's day view, screens with the keyboard,
+  a book cover (DISPLAY.md "Gray areas cost a flicker"). 5 goldens re-accepted (`home-climate*`, `widgets2*`).

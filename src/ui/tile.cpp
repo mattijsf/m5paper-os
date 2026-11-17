@@ -30,8 +30,7 @@ void Tile::draw(Canvas& c) {
   }
   const bool hasValue = !value_.empty();
   const int iconY = frame.y + (hasValue ? 60 : 72);
-  c.fillCircle(cx, iconY, 44, fill);
-  drawIcon(c, icon_, cx, iconY, 64, ink, fill);
+  drawIcon(c, icon_, cx, iconY, 64, ink, bg());  // (no gray well here either: the same reason as above)
   const int maxW = frame.w - 2 * s2;
   drawText(c, ellipsize(c, label_, Type::Title, maxW), cx, frame.y + (hasValue ? 128 : 150), Type::Title, ink, Anchor::MiddleCenter, bg());
   if (hasValue)
