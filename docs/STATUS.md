@@ -57,7 +57,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   older settle that lies outside the page (DISPLAY.md "As implemented"); a Hacker News story's header and first page
   end crisp for it. Ghost after eight turns 0.86 %. 347 unit tests, 288 screenshots (25 re-accepted), firmware
   2,531,543 bytes (+1,127). The firmware on the device also carries P7-15 (below): its self-test passed.
-- **P7-15 Inter is drawn as wide as it is measured, 2026-11-18: built, simulator and unit tests; not flashed yet**
+- **P7-15 Inter is drawn as wide as it is measured, 2026-11-18: done, runs on the device**
   (the fix "Notes for later tasks" asked for; D24 patch 5, UI.md "Type"). M5GFX measured a glyph's fractional advance
   rounded and drew it cut off: every Inter string (Caption, Body, BodyStrong, Title, Headline: 816 of their baked glyphs have
   an advance that rounds up) was drawn about half a pixel a character narrower than `measureText` said. `tools/patch_m5gfx.py` patch 5
@@ -80,8 +80,17 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   probes the patched `drawChar`). 346 unit tests, 288 screenshots; firmware 2,530,416 bytes (-208).
   **Mind in other checkouts and worktrees**: after merging this, the first build wipes `.pio/build` (a
   `platformio.ini` change) and patches that checkout's own `.pio/libdeps/<env>/M5GFX`; goldens made with an
-  unpatched simulator will not match. **Device: Pending device checks** (the device was in use by the Teletekst
-  work; user: wait for it).
+  unpatched simulator will not match. **On the device (2026-11-18 12:17, main at d3709a0, flashed, injected taps, frame dumps in `out/dev-p7-15/`, log)**:
+  `.pio/libdeps/papers3/M5GFX` removed and built again (the log: "applied PAPEROS PATCH 1" to "5"), firmware 2,532,096
+  bytes on the device; `>set epd-selftest on`: `[epdtest] fast identical (0 of 129600 pixels differ)`, `quality
+  identical`. Frame dumps: the scripts `widgets1`, `widgets2`, `widgets2list`, `widgets2rows` and `textblock` are the
+  goldens pixel for pixel (17 of 17 shots), `widgets3` 8 of 12 (the other four hold the same text at the same place in
+  another refresh state: the device had settled where the golden has not; 6 of 12 on 2026-11-15); the Settings list,
+  Settings > Reading and the launcher's tiles are the simulator's frames pixel for pixel below the status bar (the
+  simulator driven the same way through `tools/device.py --sim`); a live Hacker News thread (page 1 of 28) has the
+  simulator's title bar and "Next thread" button pixel for pixel and reads as the fixture thread does; Teletekst's
+  title row is the golden's. No error in the log. Not looked at with the camera: the patch moves glyphs by whole
+  pixels, it does not change how they are driven.
 
 - **P7-14 Hacker News, 2026-11-18: built, runs on the device, checked with the camera**. App `hackernews`, the eleventh tile of launcher page 1 (a Y in a filled
   square, drawn; its name is set in the caption size: wider than the tile's 137 px). Lists Top / New / Ask / Show: thirty
@@ -470,15 +479,6 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
-- **Inter drawn as measured (P7-15, 2026-11-18)**: partly done by the Teletekst work the same day, whose firmware
-  (its branch rebased on P7-15, M5GFX removed and patched again: "applied PAPEROS PATCH 1" to "5" in the build log) is
-  on the device: `epd-selftest` says "identical" for Fast and Quality, and a frame dump of Teletekst page 702 has the
-  simulator's title bar and button rows (Inter) pixel for pixel. Still open: the frame dumps of the launcher, Settings
-  and a WhatsApp or Hacker News list against the simulator. The original list: `rm -rf .pio/libdeps/papers3/M5GFX`, `make fw` (the log must say
-  "applied PAPEROS PATCH 1" to "5"), `make flash`, `tools/device.py set epd-selftest on` and the log says "identical";
-  frame dumps of the launcher, Settings, a WhatsApp or Hacker News list and a Teletekst page, each compared with the
-  simulator's render (text positions must be the simulator's). Nothing for the camera: the patch moves glyphs by whole
-  pixels, it does not change how they are driven.
 - **Idle return on battery (P7-13, 2026-11-18)**: checked on USB only, where the device does not light-sleep. Open: on
   battery the idle return's timer must wake the device from light sleep a minute after the last touch (timers are part
   of `Os::msToNextDeadline()`, as for the settle pass; the unit tests cover the deadline, not the wake). To do: unplug,
@@ -1251,6 +1251,14 @@ None of these block Phase 1, Phase 2, or the reader.
   clean tree before accepting anything. (2) `agenda-launcher` flaked in the accept run (Notes for later tasks); its
   golden was put back to the stable state by hand. 346 unit tests, 288 screenshots (all re-accepted), firmware
   2,530,416 bytes (-208). Not flashed: the device was in use for Teletekst (Pending device checks).
+- 2026-11-18: P7-15 on the device (12:17, after the Teletekst work said the device was free). M5GFX removed from
+  `.pio/libdeps/papers3`, built (patches 1 to 5 applied), flashed (2,532,096 bytes: main at d3709a0), `epd-selftest`
+  identical for Fast and Quality. Frame dumps against the goldens with `tools/device.py script` (the static test
+  screens: 25 of 29 shots identical, the four of `widgets3` differ by refresh state only) and against the simulator's
+  remote mode driven with the same taps (Settings list, Settings > Reading, launcher tiles: identical below the status
+  bar). The `settings` UI script was not run on the device: it changes the ghost limit, the settle delay and the
+  switch-off time. `home-after 0` was set for the check; the device was rebooted afterwards (`>reboot`), so the idle
+  return is the saved setting again. Images: `out/dev-p7-15/`.
 - 2026-11-18: Teletekst under the camera (P7-12, after the Hacker News work's camera run). One session, camera locked at 11:04 by that
   session, `cam.py target` at 11:35 (144 of 144 dots, 0.21 px), `cam.py around` per tap, before (main at 747deb9)
   against after. Before: a page from the network was "Loading" (F, F), the page (F, push call 170 ms under the first

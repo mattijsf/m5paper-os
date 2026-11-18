@@ -305,7 +305,8 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   side chosen because it is the spacing the font means and because every layout decision already used the measured
   width: nothing wraps or cuts differently, text only fills the width it was given. A unit test fails on an unpatched
   library (`text_fast_test.cpp` "LovyanGFX moves the pen by the advance it measures"). The patch moves pixels: every
-  golden with Inter text was re-accepted with it.
+  golden with Inter text was re-accepted with it. On the device (2026-11-18): the self-test still says identical, frame
+  dumps are the simulator's.
 - **Rejected**: vendoring M5GFX (150 MB, mostly fonts); a private-member hack (`#define private public`); our own panel driver (D2).
 - **ESP-IDF settings**: see D25 (the core is now built from source).
 
