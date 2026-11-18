@@ -146,6 +146,8 @@ TEST_CASE("hackernews: comment HTML to marked text") {
   // A code block: its lines stay lines (0x06: continues the block), what a line is moved in by stays as no-break spaces.
   CHECK(markedText("Like so:<p><pre><code>if x:\n    y()\n\nz()\n</code></pre>\nDone.") ==
         "Like so:\nif x:\n\x06\xC2\xA0\xC2\xA0\xC2\xA0\xC2\xA0y()\n\x06z()\nDone.");
+  // The two blanks the site wants before every line of code are not an indentation.
+  CHECK(markedText("<pre><code>  a = 1\n    b = 2\n  c = 3\n</code></pre>") == "a = 1\n\x06\xC2\xA0\xC2\xA0" "b = 2\n\x06" "c = 3");
   CHECK(markedText("") == "");
   CHECK(markedText("<p><p>") == "");
   CHECK(markedText("a\x01\x05" "b") == "ab");  // no control bytes: they are marks in marked text
@@ -372,6 +374,27 @@ TEST_CASE("hackernews: a story's comments are two requests, in the site's order"
   CHECK(tt.topLevel.size() == 5);
   CHECK(ui::plainText(tt.paras[0]) == "duty_cycle \xC2\xB7 2 h \xC2\xB7 2 replies");
 
+  // Asked again right after a list (the connection is on the search service) with the comment count the list gave: the
+  // comments first, then the item. The same result.
+  {
+    FixtureNet after;
+    const ListResult list = fetchList(after.transport(), Section::Top);
+    REQUIRE(list.ok);
+    after.asked.clear();
+    const ThreadResult again = fetchThread(after.transport(), list.stories[0]);
+    REQUIRE(again.ok);
+    REQUIRE(after.asked.size() == 2);
+    CHECK(after.asked[0] == commentsUrl(38250001));
+    CHECK(after.asked[1] == itemUrl(38250001));
+    CHECK(again.thread.comments.size() == 13);
+    CHECK(again.thread.comments[0].by == "duty_cycle");  // still the site's order
+    // The next story: the connection is on the order service now, so the item first.
+    after.asked.clear();
+    REQUIRE(fetchThread(after.transport(), list.stories[1]).ok);
+    REQUIRE(after.asked.size() == 2);
+    CHECK(after.asked[0] == itemUrl(38250002));
+  }
+
   // An Ask HN: its own text comes with the item.
   FixtureNet ask;
   known = Story{};
@@ -400,4 +423,116 @@ TEST_CASE("hackernews: a story's comments are two requests, in the site's order"
   CHECK_FALSE(d.ok);
   CHECK(d.error == "Hacker News answered 503");
   CHECK(d.story.title == "The long tail of time zone bugs");  // what the first answer gave is kept
+}
+
+TEST_CASE("hackernews: Markdown of an article to marked text") {
+  CHECK(articleMarked("One line.") == "One line.");
+  CHECK(articleMarked("A paragraph\nthat goes on.\n\nAnother.\n") == "A paragraph that goes on.\nAnother.");
+  // Headings: # and ## are level 2, deeper ones 3; a line underlined with = or - is one too.
+  CHECK(articleMarked("# Title\n\n## Part ##\n\n### Detail\n\nText") == "\x05" "2Title\n\x05" "2Part\n\x05" "3Detail\nText");
+  CHECK(articleMarked("Title\n=====\n\nSub\n---\n\nText") == "\x05" "2Title\n\x05" "2Sub\nText");
+  CHECK(articleMarked("#hashtag is text") == "#hashtag is text");
+  // Emphasis: bold is marked, the marks of emphasis, inline code and escapes go; signs and snake_case stay.
+  CHECK(articleMarked("A **bold** word, an _emphasised_ one, `code_here` and 2 * 3 = 6.") ==
+        "A \x01" "bold\x02 word, an \x03" "emphasised\x04 one, code_here and 2 * 3 = 6.");
+  CHECK(articleMarked("snake_case stays, \\*not emphasis\\*, a\\_b") == "snake_case stays, *not emphasis*, a_b");
+  CHECK(articleMarked("**never closed") == "\x01never closed\x02");
+  // Lists: a bullet or the number, an item moved in by its level; the lines of an item are joined.
+  CHECK(articleMarked("*   first\n*   second\n    goes on\n    *   inner\n1.  one\n12. twelve\n- dash") ==
+        "\xE2\x80\xA2 first\n\xE2\x80\xA2 second goes on\n\xC2\xA0\xC2\xA0\xC2\xA0\xC2\xA0\xE2\x80\xA2 inner\n1. one\n12. twelve\n\xE2\x80\xA2 dash");
+  // A line across is dropped; a quote keeps its sign.
+  CHECK(articleMarked("above\n\n* * *\n\nbelow\n\n---\n\n> quoted\n> on two lines\n\nafter") == "above\nbelow\n> quoted on two lines\nafter");
+  // Code: lines stay lines (0x06), what a line is moved in by stays, nothing in it is a mark.
+  CHECK(articleMarked("Before:\n\n```c\nint *p = a_b;\n    return **p;\n\n```\nAfter") ==
+        "Before:\nint *p = a_b;\n\x06\xC2\xA0\xC2\xA0\xC2\xA0\xC2\xA0return **p;\nAfter");
+  // A table: a row a line, its cells with a dot between, the row of dashes dropped.
+  CHECK(articleMarked("| Name | Blocks |\n| --- | --- |\n| Rename | 2 |\n\nAfter") ==
+        "Name \xC2\xB7 Blocks\n\x06Rename \xC2\xB7 2\nAfter");
+  CHECK(articleMarked("") == "");
+  CHECK(articleMarked("\n\n---\n\n") == "");
+}
+
+TEST_CASE("hackernews: the reader's answer and request") {
+  const hal::HttpRequest req = articleRequest("https://www.example.com/a?b=\"c\"");
+  CHECK(req.method == "POST");
+  CHECK(req.url == "https://r.jina.ai/");
+  CHECK(req.body == "{\"url\":\"https://www.example.com/a?b=\\\"c\\\"\"}");
+  bool noImages = false, json = false;
+  for (const auto& h : req.headers) {
+    noImages = noImages || (h.first == "X-Retain-Images" && h.second == "none");
+    json = json || (h.first == "Content-Type" && h.second == "application/json");
+  }
+  CHECK(noImages);
+  CHECK(json);
+
+  Article a;
+  REQUIRE(parseArticle("Title: The page\n\nURL Source: https://example.com/x\n\nMarkdown Content:\nFirst paragraph.\n\n## Part\n\nSecond.\n", a));
+  CHECK(a.title == "The page");
+  CHECK(a.text == "\x05" "2The page\nFirst paragraph.\n\x05" "2Part\nSecond.");  // the title: the text starts with none
+  REQUIRE(parseArticle("Title: The page\n\nMarkdown Content:\n# The page, again\n\nText.\n", a));
+  CHECK(a.text == "\x05" "2The page, again\nText.");
+  REQUIRE(parseArticle("Title: Blocked\n\nWarning: Target URL returned error 403: Forbidden\n\nMarkdown Content:\nJust a moment...\n", a));
+  CHECK(a.text == "\x05" "4Target URL returned error 403: Forbidden\n\x05" "2Blocked\nJust a moment...");
+  REQUIRE(parseArticle("No marker at all, only text.", a));
+  CHECK(a.text == "No marker at all, only text.");
+  CHECK_FALSE(parseArticle("Title: Empty\n\nMarkdown Content:\n\n", a));
+  CHECK_FALSE(parseArticle("", a));
+}
+
+TEST_CASE("hackernews: an article is one request; the service's own words when it fails") {
+  FixtureNet net;
+  hal::HttpRequest sent;
+  const Transport fixtures = net.transport();
+  const Transport send = [&](const hal::HttpRequest& req) {
+    sent = req;
+    hal::HttpResponse r;
+    // (the fixtures of a request with a body are named after the body)
+    const std::string name = "tests/fixtures/http/" + fixtureFileName(req.method, req.url, req.body);
+    std::ifstream f(name);
+    if (!f) {
+      r.error = "no fixture";
+      return r;
+    }
+    std::stringstream ss;
+    ss << f.rdbuf();
+    r.body = ss.str();
+    r.status = 200;
+    std::ifstream st(name.substr(0, name.size() - 5) + ".status");
+    if (st) st >> r.status;
+    return r;
+  };
+  const ArticleResult r = fetchArticle(send, "https://www.example.com/postcard-fs");
+  REQUIRE(r.ok);
+  CHECK(sent.method == "POST");
+  CHECK(r.article.title == "A file system that fits on a postcard");
+  const std::vector<ui::Paragraph> paras = ui::parseMarked(r.article.text);
+  REQUIRE(paras.size() > 20);
+  CHECK(paras[0].heading == 2);
+  CHECK(ui::plainText(paras[0]) == "A file system that fits on a postcard");
+  CHECK(ui::plainText(paras[1]) == "By Marit, January 2026");
+  bool bold = false, code = false;
+  for (const ui::Paragraph& p : paras) {
+    for (const ui::Run& run : p.runs) bold = bold || (run.bold && run.text == "postcard");
+    code = code || (p.softBreak && ui::plainText(p).find("uint16_t next;") != std::string::npos);
+  }
+  CHECK(bold);
+  CHECK(code);
+  CHECK(ui::plainText(paras.back()).find("snake_case and all") != std::string::npos);
+
+  const ArticleResult bad = fetchArticle(send, "https://blog.example.net/2023/time-zones");
+  CHECK_FALSE(bad.ok);
+  CHECK(bad.error == "Domain 'blog.example.net' could not be resolved");
+  const auto fail = [](int status, const char* error, std::string body) {
+    return [=](const hal::HttpRequest&) {
+      hal::HttpResponse r;
+      r.status = status;
+      r.error = error;
+      r.body = body;
+      return r;
+    };
+  };
+  CHECK(fetchArticle(fail(0, "No Wi-Fi: No known network in range", ""), "https://x.example/").error == "No Wi-Fi: No known network in range");
+  CHECK(fetchArticle(fail(503, "", "<html>"), "https://x.example/").error == "The reader answered 503");
+  CHECK(fetchArticle(fail(200, "", "Title: x\n\nMarkdown Content:\n"), "https://x.example/").error == "No text on the page");
+  CHECK(fetchArticle(fail(200, "", std::string(kMaxArticleBytes + 1, 'a')), "https://x.example/").error == "The page is too long");
 }

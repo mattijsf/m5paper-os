@@ -40,6 +40,10 @@ void drawText(Canvas& c, const std::string& utf8, int x, int y, Type type, Color
 void forgetLoadedFont();
 // Width in pixels of the text on one line.
 int measureText(Canvas& c, const std::string& utf8, Type type);
+// How far drawText moves the pen over the text: where a second piece drawn after it has to start. For the Inter faces
+// this is a little less than measureText (their glyph advances are fractions of a pixel: LovyanGFX measures them rounded
+// and draws them cut off, about half a pixel a character; docs/STATUS.md "Notes for later tasks").
+int penAdvance(Canvas& c, const std::string& utf8, Type type);
 // Line height in pixels of the font.
 int lineHeight(Canvas& c, Type type);
 // Cuts the text to fit `maxWidth` and ends it with an ellipsis when it was cut (UTF-8 aware).

@@ -3,6 +3,7 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <string>
 
 #include "ui/controls.h"
@@ -56,6 +57,7 @@ class Pager;
 class PagerBar : public Widget {
  public:
   explicit PagerBar(Pager* owner) : owner_(owner) {}
+  ~PagerBar() override { *alive_ = false; }
   Size measure(int availW) override { return {availW, kTouchMin}; }
   void draw(Canvas& c) override;
   bool onTouch(const Gesture& g) override;
@@ -64,7 +66,10 @@ class PagerBar : public Widget {
  private:
   int targetAt(int x) const;  // -1 previous, 1 next, 0 none
   Pager* owner_;
-  int pressedTarget_ = 0;
+  int downTarget_ = 0;     // the arrow the finger went down on
+  int pressedTarget_ = 0;  // the arrow drawn pressed: only when the finger stays down (kPressDelayMs), like a Pressable
+  uint32_t pressSeq_ = 0;
+  std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
 };
 
 // Container: its content children fill the frame above a 72 px PagerBar. A tap on the bar's arrows

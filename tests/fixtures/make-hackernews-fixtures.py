@@ -5,6 +5,7 @@ APIs answer (checked against the live services on 2026-11-18):
   hacker-news.firebaseio.com/v0/<list>.json      the ids of a list, in the site's order
   hacker-news.firebaseio.com/v0/item/<id>.json   one story: by, descendants, kids (the site's order), score, time, title, url, text
   hn.algolia.com/api/v1/search?tags=...          hits with objectID and the attributes asked for; nbHits
+  r.jina.ai (POST {"url": ...})                  a page as text: "Title: ...", "Markdown Content:", the page as Markdown
 
 The stories, names and comments are made up: nothing of the real site is copied. Times count back from the moment the UI
 scripts start at, so the ages on the screenshots stay the same.
@@ -134,6 +135,69 @@ KIDS_2 = [38250203, 38250201]
 
 S4 = TOP[3][0]  # its comments can not be read (503)
 
+READER = "r.jina.ai"
+# The article of the first story, as the reader service answers (plain text: a few lines about the page, then Markdown).
+ARTICLE_1 = """Title: A file system that fits on a postcard
+
+URL Source: https://www.example.com/postcard-fs
+
+Published Time: 2026-01-15T08:00:00Z
+
+Markdown Content:
+A file system that fits on a postcard
+=====================================
+
+_By Marit, January 2026_
+
+Most file systems are described in books. This one is described on a **postcard**, and the postcard has room to spare. It stores up to 64 files on a card of 4096 blocks, survives a power cut at any moment, and its whole on-disk format is three structures.
+
+I wrote it for a sensor that wakes twice a day, writes one line and goes back to sleep. Nothing about that job needs directories, permissions or timestamps, so there are none.
+
+## The three structures
+
+1.  The **superblock**: one block, written once, never changed.
+2.  The **directory**: 64 entries of 32 bytes, rotated through eight blocks.
+3.  The **free list**, which lives _inside_ the free blocks themselves.
+
+That last one is the trick. A free block has nothing better to do than to hold the number of the next free block, so the list costs no space at all:
+
+```
+struct free_block {
+    uint16_t next;      /* 0 = end of the list */
+    uint16_t count;
+};
+```
+
+Allocating a block is reading `next` from the head; freeing one is writing the old head into it.
+
+## Surviving a power cut
+
+> Two names for one file is a fair trade; no name for a file is not.
+
+A rename writes the new entry first and clears the old one last. If the power goes in between, the check at mount time finds two entries for one block and drops the older one. Which is older is decided by a 16-bit counter in the entry, not by a clock: the sensor has no idea what time it is.
+
+### What it costs
+
+| Operation | Blocks written |
+| --- | --- |
+| Append a line | 1 |
+| Create a file | 2 |
+| Rename | 2 |
+
+*   No write ever touches more than two blocks.
+*   The directory block in use changes with every write, which spreads the wear.
+    *   Eight blocks share it, so each sees an eighth of the writes.
+*   Reading never writes.
+
+* * *
+
+## Was it worth it?
+
+After two years and about 4000 units in the field, no card has come back corrupt. The format has not changed since the day it was printed, and I can still read the first card I ever wrote with it. Small formats age well.
+
+The source is 412 lines of C, snake\\_case and all, and the postcard is taped above my desk.
+"""
+
 
 def story_hit(s):
     sid, title, url, by, points, comments, age = s
@@ -204,6 +268,21 @@ def main(out_dir):
     write("GET_%s_v0_item_%d.json" % (ORDER, TOP[2][0]), item(TOP[2]))  # no comments: the search is not asked
     write("GET_%s_v0_item_%d.json" % (ORDER, S4), item(TOP[3], [38250401]))
     write_comments(S4, [], status=503)
+
+    def write_article(url, text=None, error=None, status=None):
+        body = json.dumps({"url": url}, separators=(",", ":"))  # what the app posts
+        name = os.path.join(out_dir, "POST_%s__b%s" % (READER, fnv1a(body)))
+        with open(name + ".json", "w") as f:
+            f.write(text if text is not None else json.dumps(error, separators=(",", ":")) + "\n")
+        if status:
+            with open(name + ".status", "w") as f:
+                f.write("%d\n" % status)
+
+    write_article(TOP[0][2], ARTICLE_1)
+    # A page the service can not fetch: its error, as JSON with a sentence for people.
+    write_article(TOP[3][2], error={"data": None, "path": "url", "code": 422, "name": "SubmittedDataMalformedError", "status": 42203,
+                                    "message": "Domain 'blog.example.net' could not be resolved",
+                                    "readableMessage": "SubmittedDataMalformedError: Domain 'blog.example.net' could not be resolved"}, status=422)
 
 
 if __name__ == "__main__":

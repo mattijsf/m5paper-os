@@ -18,7 +18,9 @@ Type CanvasMetrics::faceFor(Type type, bool bold, bool italic, bool& fakeBold) {
     if (italic) return Type::ReadItalicM;
     return Type::ReadM;
   }
-  if (type == Type::Body) return bold ? Type::BodyStrong : Type::Body;  // (text set in the interface's font: a comment thread)
+  // Text set in the interface's font (a comment thread, an article): its bold is a face of its own, its headings are.
+  if (type == Type::Body) return bold ? Type::BodyStrong : Type::Body;
+  if (type == Type::Title || type == Type::Headline) return type;
   fakeBold = bold;
   return type;
 }
@@ -26,6 +28,9 @@ Type CanvasMetrics::faceFor(Type type, bool bold, bool italic, bool& fakeBold) {
 int CanvasMetrics::width(const std::string& utf8, Type type, bool bold, bool italic) {
   bool fake;
   Type face = faceFor(type, bold, italic, fake);
+  // The interface's font: what drawing moves the pen by (ui::penAdvance says why), so a bold word in a line stands where
+  // the text before it ends. The reader's faces measure as they draw.
+  if (face == Type::Body || face == Type::BodyStrong || face == Type::Title || face == Type::Headline) return penAdvance(c_, utf8, face);
   return measureText(c_, utf8, face) + (fake ? 1 : 0);
 }
 
@@ -66,7 +71,7 @@ std::vector<Paragraph> parseMarked(const std::string& text) {
       else if (ch == 0x06) p.softBreak = true;
       else if (ch == 0x05) {
         int level = 1;
-        if (i + 1 < line.size() && line[i + 1] >= '1' && line[i + 1] <= '3') level = line[++i] - '0';
+        if (i + 1 < line.size() && line[i + 1] >= '1' && line[i + 1] <= '4') level = line[++i] - '0';
         p.heading = level;
       } else cur.text += line[i];
     }
@@ -85,6 +90,7 @@ Type typeFor(const Paragraph& p, const TextStyle& st, bool& bold) {
   bold = false;
   if (p.heading == 0) return st.body;
   bold = true;
+  if (st.body == Type::Body) return p.heading == 1 ? Type::Headline : p.heading == 2 ? Type::Title : Type::Body;  // Inter
   switch (p.heading) {
     case 1: return Type::ReadXL;
     case 2: return Type::ReadL;

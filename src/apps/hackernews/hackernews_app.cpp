@@ -1,5 +1,6 @@
-// Hacker News (docs/apps/hackernews.md). Two screens: a list of thirty stories (Top / New / Ask / Show, six a page) and a
-// story with its comments as pages of text, replies moved right under what they answer. Read only.
+// Hacker News (docs/apps/hackernews.md). Three screens: a list of thirty stories (Top / New / Ask / Show, six a page), a
+// story with its comments as pages of text, replies moved right under what they answer, and the article the story links
+// to as text from a reader service. Read only.
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -10,6 +11,7 @@
 #include "core/clipboard.h"
 #include "core/fs.h"
 #include "core/strings.h"
+#include "core/text_clean.h"
 #include "core/timefmt.h"
 #include "ui/qr.h"
 #include "ui/root.h"
@@ -24,7 +26,7 @@ using ui::Type;
 constexpr int kRowsPerPage = 6;
 constexpr int kRowH = 106;          // two lines of title and the line under it
 constexpr int kRankW = 40;          // the column of the story's place in the list
-constexpr int64_t kFreshSec = 300;  // a list this young is shown without a read
+constexpr int64_t kFreshSec = 900;  // a list this young is shown without a read (a read moves the rows under the reader's eyes)
 constexpr int64_t kResumeSec = 3600;  // opened again within the hour: the story that was open, at its page
 constexpr const char* kCacheDir = "/data/cache/hackernews/";
 
@@ -88,6 +90,243 @@ ui::TextStyle threadStyle() {
   return s;
 }
 
+ui::TextStyle articleStyle() {
+  ui::TextStyle s;
+  s.body = Type::Body;  // as the comments: the interface's font, with a real bold and headings of its own
+  s.indent = 0;
+  s.paragraphGap = 12;
+  return s;
+}
+
+// The story's link as a QR code for the phone; a story without a link, and a link too long for the code, give the
+// story's page on the site.
+void openLinkSheet(AppContext& ctx, ui::Widget& from, const Story& story) {
+  AppContext* c = &ctx;
+  ui::openSheet(from, [c, &story](ui::Sheet& s) {
+    std::string url = story.url.empty() ? siteUrl(story.id) : story.url;
+    auto qr = std::make_unique<ui::QrCode>(url, 300);
+    if (!qr->ok()) {
+      url = siteUrl(story.id);
+      qr = std::make_unique<ui::QrCode>(url, 300);
+    }
+    s.content()->add<ui::Label>("Open on your phone", Type::Title);
+    s.content()->add<ui::Column>(0, ui::Align::Center)->adopt(std::move(qr));
+    auto* address = s.content()->add<ui::Label>(url, Type::Caption, ui::secondary);
+    address->align = ui::TextAlign::Center;
+    address->maxLines = 2;
+    auto* row = s.content()->add<ui::Row>(ui::s1);
+    auto* copy = row->add<ui::Button>("Copy link", s.closing([c, url] {
+      clipboard::set(url, c->appId());
+      c->toast(clipboard::syncing() ? "Link copied, on its way to the phone" : "Link copied");
+    }), ui::Button::Kind::Secondary);
+    copy->flex = 1;
+    auto* close = row->add<ui::Button>("Close", s.closing());
+    close->flex = 1;
+  });
+}
+
+// A screen whose middle is pages of text (a ui::TextBlock: a tap on the right or a swipe turns the page), with a message
+// in its place while there is no text: loading, nothing to show, why a read failed.
+class TextScreen : public Screen {
+ protected:
+  // The text's place in the screen: call from build().
+  void addText(ui::Column& root, const ui::TextStyle& style) {
+    holder_ = root.add<ui::Stack>();
+    holder_->flex = 1;
+    block_ = holder_->add<ui::TextBlock>();
+    block_->setStyle(style);
+    block_->pageHint = Hint::Page;
+    block_->onPageChange = [this](int) { showPage(); };
+    block_->onLayout = [this] { showPage(); };
+    message_ = holder_->add<ui::Column>(0);
+    message_->visible = false;
+  }
+
+  void showMessage(Icon icon, const std::string& title, const std::string& hint = "", const std::string& button = "",
+                   std::function<void()> onButton = {}) {
+    message_->removeAll();
+    message_->add<ui::EmptyState>(icon, title, hint, button, std::move(onButton))->flex = 1;
+    message_->visible = true;
+    if (message_->frame.w > 0) message_->layout();
+    holder_->invalidate(Hint::Content);
+  }
+
+  // "Loading ...": a line of ink and nothing gray, so the Fast pass of the new screen already shows it as it is (an icon
+  // in gray made the settle pass 0.6 s later a visible second change: camera, 2026-11-18).
+  void showLoading(const std::string& text) {
+    message_->removeAll();
+    message_->add<ui::Spacer>(0, 1);
+    auto* line = message_->add<ui::Label>(text, Type::Title);
+    line->align = ui::TextAlign::Center;
+    message_->add<ui::Spacer>(0, 1);
+    message_->visible = true;
+    if (message_->frame.w > 0) message_->layout();
+    holder_->invalidate(Hint::Content);
+  }
+
+  void clearMessage() {
+    if (!message_->visible) return;
+    message_->removeAll();
+    message_->visible = false;  // it lies over the text: touches go to the text again
+    holder_->invalidate(Hint::Page);  // the text comes as a page does: one Fast pass, no settle sweep over it
+  }
+
+  // Text is on screen (not a message in its place).
+  bool reading() const { return hasText_ && !message_->visible; }
+
+  // "Page 3 of 57", "" for a single page, no text, or while the pages are still being counted.
+  std::string pageText() {
+    const int n = reading() && !counting_ ? block_->pageCount() : 0;
+    return n > 1 ? "Page " + std::to_string(block_->pageIndex() + 1) + " of " + std::to_string(n) : std::string();
+  }
+
+  // Shows `paras` at the page of `pos`. Where the pages of a long text start takes a second or more to find (700
+  // paragraphs: 1.5 s on the device): on the worker, with the page size the screen has now. A text shown from its start
+  // does not wait for that: its first page needs no page starts, so it is on screen at once and the page count follows
+  // (pages turn once it is there). Dropped if seq_ moved on meanwhile.
+  void showText(std::vector<ui::Paragraph> paras, ui::TextPos pos) {
+    const unsigned seq = seq_;
+    auto text = std::make_shared<std::vector<ui::Paragraph>>(std::move(paras));
+    const ui::TextStyle style = block_->style();
+    const bool fromStart = pos == ui::TextPos{};
+    if (fromStart) {
+      hasText_ = true;
+      counting_ = true;
+      clearMessage();
+      block_->setChapter(*text, {ui::TextPos{}}, ui::TextPos{});  // (a copy: the worker reads the other one)
+      showPage();
+    }
+    ctx().async(
+        [text, style] {
+          // Worker thread: its own metrics canvas (the frame canvas belongs to the UI thread), as the reader does.
+          ui::forgetLoadedFont();
+          Canvas metrics;
+          metrics.setColorDepth(lgfx::color_depth_t::grayscale_8bit);
+          metrics.createSprite(16, 16);
+          ui::CanvasMetrics m(metrics);
+          std::vector<ui::TextPos> starts = ui::paginate(*text, style, m);
+          ui::forgetLoadedFont();
+          return starts;
+        },
+        [this, text, style, seq, pos, fromStart](std::vector<ui::TextPos> starts) {
+          if (seq != seq_) return;
+          busy_ = false;
+          counting_ = false;
+          const ui::TextStyle now = block_->style();
+          const bool same = now.width == style.width && now.height == style.height;
+          if (fromStart) {
+            if (same) block_->setPageStarts(std::move(starts));  // the page on screen stays as it is
+            // (else the page size changed meanwhile and the block finds its pages itself)
+          } else {
+            hasText_ = true;
+            clearMessage();
+            if (same) {
+              block_->setChapter(std::move(*text), std::move(starts), pos);
+            } else {
+              block_->setParagraphs(std::move(*text));
+              block_->goTo(pos);
+            }
+          }
+          showPage();
+        });
+  }
+
+  // The page changed, text came or went: the page label, the buttons.
+  virtual void showPage() = 0;
+
+  ui::Stack* holder_ = nullptr;
+  ui::TextBlock* block_ = nullptr;
+  ui::Column* message_ = nullptr;
+  bool hasText_ = false;  // a read ended and its text is in the block
+  bool counting_ = false; // the first page is on screen, where the others start is still being found
+  bool busy_ = false;
+  unsigned seq_ = 0;      // a newer read makes the answers of older ones void
+  std::string error_;     // why the last read failed, "" if it did not
+};
+
+// The page a story links to, as text from the reader service (docs/apps/hackernews.md "The article").
+class ArticleScreen : public TextScreen {
+ public:
+  // `at`: where to open it (the article that was open when the app was left).
+  explicit ArticleScreen(Story story, ui::TextPos at = {}) : story_(std::move(story)), at_(at) {}
+
+  void build(ui::Column& root) override {
+    const std::string site = hostOfUrl(story_.url);
+    setTitle(site.empty() ? std::string("Article") : site);
+    setAction(Icon::RefreshCw, [this] { load(); });
+    root.add<ui::Spacer>(ui::s1);
+    addText(root, articleStyle());
+    root.add<ui::Spacer>(ui::s1);
+    auto* bottom = root.add<ui::Row>(ui::s1);
+    link_ = bottom->add<ui::Button>("Link", [this] { openLinkSheet(ctx(), *link_, story_); }, ui::Button::Kind::Secondary);
+    pageLabel_ = bottom->add<ui::Label>("", Type::Caption);  // ink: it changes with the page, in the page's Fast pass, and is not settled
+    pageLabel_->align = ui::TextAlign::Center;
+    pageLabel_->flex = 1;
+    bottom->add<ui::Spacer>(96);  // as wide as the button: the page stands in the middle
+    root.add<ui::Spacer>(ui::s1);
+    showLoading("Loading the article...");
+  }
+
+  void onShow() override {
+    if (!hasText_ && !busy_) load();
+  }
+
+  // Kept for the next time the app opens: the place in the article. (Back to the comments drops it: their onShow.)
+  void onHide() override {
+    if (reading()) at_ = block_->position();
+    ctx().store.set("article", joinInts({1, at_.para, at_.byte}));
+  }
+
+  std::string debugState() const override {
+    return "article=" + std::to_string(story_.id) + "|" + pageLabel_->text() + (busy_ ? "|busy" : "") +
+           (error_.empty() ? "" : "|error=" + error_);
+  }
+
+ private:
+  void load() {
+    if (busy_) return;
+    if (reading()) at_ = block_->position();  // read again: the place stays (the text is the same one)
+    busy_ = true;
+    error_.clear();
+    const unsigned seq = ++seq_;
+    const auto send = ctx().transport();
+    const std::string url = story_.url;
+    ctx().async(
+        [send, url] {
+          ArticleResult r = fetchArticle(send, url);
+          auto paras = std::make_shared<std::vector<ui::Paragraph>>();
+          if (r.ok) *paras = ui::parseMarked(r.article.text);
+          return std::make_pair(std::move(r.error), paras);
+        },
+        [this, seq](std::pair<std::string, std::shared_ptr<std::vector<ui::Paragraph>>> r) {
+          if (seq != seq_) return;
+          if (r.second->empty()) {
+            busy_ = false;
+            ctx().log("article of %u not read: %s", static_cast<unsigned>(story_.id), r.first.c_str());
+            if (reading()) {
+              ctx().toast(r.first);
+              return;
+            }
+            error_ = r.first;
+            showMessage(errorIcon(error_), "Article not loaded", error_, "Retry", [this] { load(); });
+            return;
+          }
+          ctx().log("article of %u: %u paragraphs", static_cast<unsigned>(story_.id), static_cast<unsigned>(r.second->size()));
+          const int paras = static_cast<int>(r.second->size());
+          const ui::TextPos pos = at_.para < paras ? at_ : ui::TextPos{};
+          at_ = ui::TextPos{};
+          showText(std::move(*r.second), pos);
+        });
+  }
+
+  void showPage() override { pageLabel_->setText(pageText(), Hint::Page); }  // with the page: one pass, no settle after it
+
+  Story story_;
+  ui::TextPos at_;  // where to open the text once it is read
+  ui::Label* pageLabel_ = nullptr;
+  ui::Button* link_ = nullptr;
+};
+
 // What the worker hands back for a story: the story as read just now and its text and comments as paragraphs.
 struct Loaded {
   bool ok = false;
@@ -97,12 +336,19 @@ struct Loaded {
   std::shared_ptr<ThreadText> text;
 };
 
-// A story: its title, then its own text and the comments, a page at a time. A tap on the right or a swipe turns the page,
-// "Next thread" skips the replies to the next answer to the story, "Link" shows the address as a QR code.
-class ThreadScreen : public Screen {
+// Where to open a story again: the place in its comments, and the place in its article if that was open.
+struct Resume {
+  Anchor at;
+  bool article = false;
+  ui::TextPos articleAt;
+};
+
+// A story: its title, then its own text and the comments, a page at a time. "Next thread" skips the replies to the next
+// answer to the story; "Article" opens the page the story links to as text ("Link", its address as a QR code, for a
+// story without one).
+class ThreadScreen : public TextScreen {
  public:
-  // `at`: where to open it (the story that was open when the app was left).
-  explicit ThreadScreen(Story story, Anchor at = {}) : story_(std::move(story)), at_(at) {}
+  explicit ThreadScreen(Story story, Resume resume = {}) : story_(std::move(story)), at_(resume.at), resume_(resume) {}
 
   void build(ui::Column& root) override {
     setTitle("Hacker News");
@@ -114,28 +360,27 @@ class ThreadScreen : public Screen {
     root.add<ui::Spacer>(ui::s1);
     root.add<Rule>();
     root.add<ui::Spacer>(ui::s1);
-    holder_ = root.add<ui::Stack>();
-    holder_->flex = 1;
-    block_ = holder_->add<ui::TextBlock>();
-    block_->setStyle(threadStyle());
-    block_->pageHint = Hint::Page;
-    block_->onPageChange = [this](int) { showPage(); };
-    block_->onLayout = [this] { showPage(); };
-    message_ = holder_->add<ui::Column>(0);
+    addText(root, threadStyle());
     root.add<ui::Spacer>(ui::s1);
     auto* bottom = root.add<ui::Row>(ui::s1);
-    link_ = bottom->add<ui::Button>("Link", [this] { openLink(); }, ui::Button::Kind::Secondary);
-    pageLabel_ = bottom->add<ui::Label>("", Type::Caption, ui::secondary);
+    link_ = bottom->add<ui::Button>(story_.url.empty() ? "Link" : "Article", [this] { openArticle(); }, ui::Button::Kind::Secondary);
+    pageLabel_ = bottom->add<ui::Label>("", Type::Caption);  // ink: it changes with the page, in the page's Fast pass, and is not settled
     pageLabel_->align = ui::TextAlign::Center;
     pageLabel_->flex = 1;
     next_ = bottom->add<ui::Button>("Next thread", [this] { nextThread(); }, ui::Button::Kind::Secondary);
     next_->enabled = false;
     root.add<ui::Spacer>(ui::s1);
-    showMessage(Icon::MessageCircle, "Loading comments...");
+    showLoading("Loading comments...");
   }
 
   void onShow() override {
-    if (!text_ && !busy_) load();
+    if (resume_.article && !story_.url.empty()) {  // the article was open when the app was left: straight to it
+      resume_.article = false;
+      ctx().nav.push<ArticleScreen>(story_, resume_.articleAt);  // (the comments are read when the user comes back to them)
+      return;
+    }
+    ctx().store.set("article", "");  // no article is open
+    if (!hasText_ && !busy_) load();
   }
 
   // Kept for the next time the app opens: the story and the place in it. (Back to the list drops it again: the list's
@@ -152,25 +397,6 @@ class ThreadScreen : public Screen {
   }
 
  private:
-  // Something said in the place of the comments (while there are none to show).
-  void showMessage(Icon icon, const std::string& title, const std::string& hint = "", const std::string& button = "",
-                   std::function<void()> onButton = {}) {
-    message_->removeAll();
-    message_->add<ui::EmptyState>(icon, title, hint, button, std::move(onButton))->flex = 1;
-    message_->visible = true;
-    if (message_->frame.w > 0) message_->layout();
-    holder_->invalidate(Hint::Content);
-  }
-
-  void clearMessage() {
-    if (!message_->visible) return;
-    message_->removeAll();
-    message_->visible = false;  // it lies over the text: touches go to the text again
-    holder_->invalidate(Hint::Content);
-  }
-
-  bool reading() const { return text_ && !message_->visible; }
-
   void load() {
     if (busy_) return;
     if (reading()) at_ = anchorOf(*text_, block_->position());  // read again: the place stays
@@ -205,7 +431,18 @@ class ThreadScreen : public Screen {
           story_ = std::move(r.story);
           comments_ = r.comments;
           showStory();
-          paginate(std::move(r.text), seq);
+          text_ = std::move(r.text);
+          if (text_->paras.empty()) {
+            busy_ = false;
+            hasText_ = true;
+            block_->setChapter({}, {}, ui::TextPos{});
+            showMessage(Icon::MessageCircle, "No comments yet");
+            showPage();
+            return;
+          }
+          const ui::TextPos pos = posOf(*text_, at_);  // the start, or the place the story was left at
+          at_ = Anchor{};
+          showText(std::move(text_->paras), pos);  // (text_ keeps where the comments start)
         });
   }
 
@@ -215,47 +452,6 @@ class ThreadScreen : public Screen {
     if (title_->text() == story_.title) return;
     title_->setText(story_.title);
     if (title_->host()) title_->host()->relayout();  // the title may take another number of lines
-  }
-
-  // The pages of a long thread take a second or more to find: on the worker, with the page size the screen has now.
-  void paginate(std::shared_ptr<ThreadText> text, unsigned seq) {
-    if (text->paras.empty()) {
-      busy_ = false;
-      text_ = std::move(text);
-      block_->setChapter({}, {}, ui::TextPos{});
-      showMessage(Icon::MessageCircle, "No comments yet");
-      showPage();
-      return;
-    }
-    const ui::TextStyle style = block_->style();
-    ctx().async(
-        [text, style] {
-          // Worker thread: its own metrics canvas (the frame canvas belongs to the UI thread), as the reader does.
-          ui::forgetLoadedFont();
-          Canvas metrics;
-          metrics.setColorDepth(lgfx::color_depth_t::grayscale_8bit);
-          metrics.createSprite(16, 16);
-          ui::CanvasMetrics m(metrics);
-          std::vector<ui::TextPos> starts = ui::paginate(text->paras, style, m);
-          ui::forgetLoadedFont();
-          return starts;
-        },
-        [this, text, style, seq](std::vector<ui::TextPos> starts) {
-          if (seq != seq_) return;
-          busy_ = false;
-          text_ = text;
-          clearMessage();
-          const ui::TextStyle now = block_->style();
-          const ui::TextPos pos = posOf(*text_, at_);  // the start, or the place the story was left at
-          at_ = Anchor{};
-          if (now.width == style.width && now.height == style.height) {
-            block_->setChapter(std::move(text_->paras), std::move(starts), pos);
-          } else {
-            block_->setParagraphs(std::move(text_->paras));  // the page size changed meanwhile: the block finds its pages itself
-            block_->goTo(pos);
-          }
-          showPage();
-        });
   }
 
   // A read failed: said in the place of the comments, or in a toast when comments are on screen.
@@ -269,11 +465,9 @@ class ThreadScreen : public Screen {
     showMessage(errorIcon(why), "Comments not loaded", why, "Retry", [this] { load(); });
   }
 
-  void showPage() {
-    const bool has = reading();
-    const int n = has ? block_->pageCount() : 0;
-    pageLabel_->setText(n > 1 ? "Page " + std::to_string(block_->pageIndex() + 1) + " of " + std::to_string(n) : "");
-    setEnabled(next_, has && nextStart() >= 0);
+  void showPage() override {
+    pageLabel_->setText(pageText(), Hint::Page);  // with the page: one pass, no settle after it
+    setEnabled(next_, reading() && !counting_ && nextStart() >= 0);
   }
 
   // The paragraph of the first answer to the story that starts after the page on screen, -1 if there is none.
@@ -284,50 +478,25 @@ class ThreadScreen : public Screen {
   }
 
   void nextThread() {
-    if (!reading()) return;
+    if (!reading() || counting_) return;
     const int para = nextStart();
     if (para < 0) return;
     block_->goTo(ui::TextPos{para, 0});
     showPage();
   }
 
-  // The story's link as a QR code for the phone; a link too long for the code gives the story's page on the site.
-  void openLink() {
-    ui::openSheet(*link_, [this](ui::Sheet& s) {
-      std::string url = story_.url.empty() ? siteUrl(story_.id) : story_.url;
-      auto qr = std::make_unique<ui::QrCode>(url, 300);
-      if (!qr->ok()) {
-        url = siteUrl(story_.id);
-        qr = std::make_unique<ui::QrCode>(url, 300);
-      }
-      s.content()->add<ui::Label>("Open on your phone", Type::Title);
-      s.content()->add<ui::Column>(0, ui::Align::Center)->adopt(std::move(qr));
-      auto* address = s.content()->add<ui::Label>(url, Type::Caption, ui::secondary);
-      address->align = ui::TextAlign::Center;
-      address->maxLines = 2;
-      auto* row = s.content()->add<ui::Row>(ui::s1);
-      auto* copy = row->add<ui::Button>("Copy link", s.closing([this, url] {
-        clipboard::set(url, ctx().appId());
-        ctx().toast(clipboard::syncing() ? "Link copied, on its way to the phone" : "Link copied");
-      }), ui::Button::Kind::Secondary);
-      copy->flex = 1;
-      auto* close = row->add<ui::Button>("Close", s.closing());
-      close->flex = 1;
-    });
+  void openArticle() {
+    if (story_.url.empty()) openLinkSheet(ctx(), *link_, story_);
+    else ctx().nav.push<ArticleScreen>(story_);
   }
 
   Story story_;
   Anchor at_;                         // where to open the text once it is read (a story opened again)
+  Resume resume_;
   std::shared_ptr<ThreadText> text_;  // null until a read ended; its paragraphs are in the block
   int comments_ = 0;
-  std::string error_;
-  bool busy_ = false;
-  unsigned seq_ = 0;
   ui::Label* title_ = nullptr;
   ui::Label* meta_ = nullptr;
-  ui::Stack* holder_ = nullptr;
-  ui::TextBlock* block_ = nullptr;
-  ui::Column* message_ = nullptr;
   ui::Label* pageLabel_ = nullptr;
   ui::Button* link_ = nullptr;
   ui::Button* next_ = nullptr;
@@ -359,7 +528,12 @@ class ListScreen : public Screen {
     const int64_t now = ctx().clock.now();
     if (unpackList(ctx().store.get("open", ""), left, open) && open.size() == 1 && now >= left && now - left < kResumeSec) {
       const std::vector<int> at = splitInts(ctx().store.get("at", ""));
-      if (at.size() == 3) resumeAt_ = Anchor{static_cast<uint32_t>(at[0]), at[1], at[2]};
+      if (at.size() == 3) resumeAt_.at = Anchor{static_cast<uint32_t>(at[0]), at[1], at[2]};
+      const std::vector<int> article = splitInts(ctx().store.get("article", ""));
+      if (article.size() == 3) {
+        resumeAt_.article = true;
+        resumeAt_.articleAt = ui::TextPos{article[1], article[2]};
+      }
       resume_ = std::move(open);
     }
   }
@@ -410,6 +584,13 @@ class ListScreen : public Screen {
     if (pager_) pager_->setPage(0);
     fill();
     if (!fresh()) refresh();
+    oneChange();
+  }
+
+  // The switcher, the rows and the status line changed together: one region, so one pass on the panel (three regions
+  // are three passes that wait for each other: 280 ms instead of 70).
+  void oneChange() {
+    if (ui::Widget* all = status_->parent()) all->invalidate(Hint::Content);
   }
 
   // The rows, or what is said while there are none.
@@ -435,7 +616,10 @@ class ListScreen : public Screen {
       } else {
         holder_->add<ui::EmptyState>(Icon::Hackernews, "No stories")->flex = 1;
       }
-      if (holder_->host()) holder_->host()->relayout();
+      if (holder_->frame.w > 0) {  // (in build() the first layout is still to come)
+        holder_->layout();         // its own place stays: only what is in it changed, not the whole screen
+        holder_->invalidate(Hint::Content);
+      }
     }
     if (pager_) {
       const int pages = (static_cast<int>(stories_.size()) + kRowsPerPage - 1) / kRowsPerPage;
@@ -509,8 +693,12 @@ class ListScreen : public Screen {
         ctx().log("%s not read: %s", sectionKey(section), r.error.c_str());
         error_ = r.error;
       }
-      if (shown_) fill();
-      else stale_ = true;
+      if (shown_) {
+        fill();
+        oneChange();
+      } else {
+        stale_ = true;
+      }
     });
   }
 
@@ -521,7 +709,7 @@ class ListScreen : public Screen {
 
   Section section_ = Section::Top;
   std::vector<Story> resume_;  // the story to open again (one or none), until the first onShow
-  Anchor resumeAt_;
+  Resume resumeAt_;
   std::vector<Story> stories_;
   int64_t fetched_ = 0;  // when the list on screen was read
   std::string error_;    // why the last read failed, "" if it did not

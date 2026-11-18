@@ -240,6 +240,9 @@ handed to the panel driver; the waveform follows (Fast ~0.13-0.17 s visible).
 | open a screen (Settings row) | 807 ms (246 idle) | **150 ms** | fast text, M5GFX patches (two cores), 64 KB data cache, 120 MHz flash + PSRAM (D25), diff updates the shadow |
 | small control (stepper) | 52 ms | **5 ms** | config written 1 s later, not on the tap |
 
+| list page turn (Hacker News, 2026-11-18) | 415 ms, three passes | **105 ms, one pass** | the pager's pressed look waits `kPressDelayMs`; `measureText` from the glyph cache; `ellipsize` by halving |
+| segmented control with a list under it (2026-11-18) | 330 ms, three passes | **120 ms, one pass** | its highlight waits `kPressDelayMs`; one region |
+
 On the panel (camera, page turn): first change 0.53 s -> **0.38 s** after the tap, turn finished 0.67 s -> **0.55 s** (both include
 the camera's own ~0.2 s delay; at the start of the day, with the settle sweep, the turn ended at 1.6 s).
 
@@ -258,6 +261,15 @@ Where the time went and what was done:
 - **Prefetch** (`TextBlock::prefetch`, reader): 600 ms after a page shows, the next page is drawn into a spare canvas; the turn
   copies it in. **Skipping the diff for pages was tried and reverted**: a page turned under the open menu sheet then re-pushed the
   sheet's unchanged gray text in Fast mode.
+- **A pressed look in flight** (2026-11-18): a pager arrow drawn pressed on the finger going down is a small Fast pass
+  whose waveform the page that follows must wait for (150 ms). `PagerBar` and `Segmented` now show their pressed look only
+  when the finger stays down (`kPressDelayMs`), like `Pressable`. Rule: nothing draws on Down that a Tap replaces.
+- **Measuring** (2026-11-18): `ui::measureText` asked LovyanGFX, which looks every glyph up again (12 us a character on
+  the device; a wrapped title is measured a dozen times, an ellipsis cut once per character: 30 ms for one line). It now
+  sums the metrics kept in the glyph cache (identical, tested for every baked character and face), `ui::ellipsize` halves.
+- **Regions that change together are one invalidation** (2026-11-18): Feedback and Content pushes are split into bands
+  of changed rows, and each band is a push that waits for the one before; a screen's parent column invalidated once is
+  one push (Hacker News `oneChange`).
 - **Config writes**: Settings write `config.json` about a second after the last change (`Os::saveConfigSoon`; flushed before
   power-off); a flash write on the tap cost 25-50 ms before the redraw.
 - **Data cache** (D25, the core built from source): 64 KB with 64-byte lines instead of 32 KB / 32 B. A screen change during

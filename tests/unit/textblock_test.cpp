@@ -447,6 +447,29 @@ TEST_CASE("margin: every line of the paragraph starts further right and ends at 
     CHECK(right <= st.width);
   }
   CHECK(pg.lines.back().segs[0].x == 0);
+  // Text set in the interface's font has headings in that font: Headline, Title, and the body size from level 3 on.
+  {
+    TextStyle inter = st;
+    inter.body = Type::Body;
+    std::vector<Paragraph> heads(4);
+    for (int i = 0; i < 4; ++i) {
+      heads[i].heading = i + 1;
+      heads[i].runs.push_back(Run{"Heading", false, false});
+    }
+    Page hp = layoutPage(heads, TextPos{0, 0}, inter, m);
+    REQUIRE(hp.lines.size() == 4);
+    CHECK(hp.lines[0].segs[0].type == Type::Headline);
+    CHECK(hp.lines[1].segs[0].type == Type::Title);
+    CHECK(hp.lines[2].segs[0].type == Type::Body);
+    CHECK(hp.lines[3].segs[0].type == Type::Body);
+    bool fake = true;
+    CHECK(CanvasMetrics::faceFor(Type::Body, true, false, fake) == Type::BodyStrong);
+    CHECK_FALSE(fake);
+    CHECK(CanvasMetrics::faceFor(Type::Title, true, false, fake) == Type::Title);
+    CHECK_FALSE(fake);
+    CHECK(CanvasMetrics::faceFor(Type::ReadS, true, false, fake) == Type::ReadS);
+    CHECK(fake);
+  }
   // A byline is kept with its text like a heading: last on a page, it moves to the next one.
   st.height = 100;  // a line of 27, the gaps of 10 and 18, the byline to 82: the reply's first line would end at 119
   std::vector<Paragraph> three{plain, byline, reply};

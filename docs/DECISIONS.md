@@ -565,10 +565,17 @@ the budget runs short (sizes from the linker map):
   rather than the reader's Literata 24: half as much again on a page, and the site is a dense one.
 - **Not exempt from the idle return** (D33: the user named books and games only). Instead the story that was open comes
   back at its page when the app is opened again within the hour (apps/hackernews.md "Opened again").
-- **No article text**: a story's link is shown as a QR code for the phone (and can be copied to the shared clipboard).
+- **The article through a reader service**: `r.jina.ai` (Jina Reader, no key) fetches the linked page and answers it as Markdown,
+  which becomes pages of text (apps/hackernews.md "The article"). Turning any web page into readable text on the device
+  would need an HTML parser and the rules of a reader mode in 2.5 MB of firmware; the service does that. The cost: the
+  article's address goes to a third party (only when Article is tapped, nothing else with it), and the feature lives as
+  long as the service answers without a key (20 requests a minute). The link as a QR code stays, on the article screen.
 - **Job adverts are not shown** (the search does not know them), comments are not saved (20 to 300 KB a thread), no
   login, votes or replies.
 - **Test stories are made up** (`tests/fixtures/make-hackernews-fixtures.py`): the repository holds no text of the site.
 - New outside the app: `ctx.transport()` (several requests in one worker job, APPS.md), `Paragraph::margin` and heading 4
   in `ui/textblock`, a launcher tile sets a name wider than its 137 px in the caption size, `Icon::Hackernews` (drawn).
+- **Speed found with the camera is fixed where it comes from**: the pager's and the switcher's pressed look wait like a button's, text is measured from the
+  glyph cache, the ellipsis cut is found by halving. Those are in `ui/`, so every app's lists and labels gain
+  (apps/hackernews.md "Speed and flicker"; DISPLAY.md "Tap latency").
 

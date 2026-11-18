@@ -3,6 +3,7 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -10,12 +11,14 @@
 
 namespace pos::ui {
 
-// 2 to 4 options in one outlined bar, 72 high. Selected = filled ink. A Down already shows the
-// option under the finger as selected; Tap commits it.
+// 2 to 4 options in one outlined bar, 72 high. Selected = filled ink. A finger that stays down (kPressDelayMs) shows the
+// option under it as selected; Tap commits it. A quick tap goes straight to the new selection, in one pass with what the
+// choice changes on the screen.
 class Segmented : public Widget {
  public:
   explicit Segmented(std::vector<std::string> options, int selected = 0)
       : options_(std::move(options)), selected_(selected) {}
+  ~Segmented() override { *alive_ = false; }
   std::function<void(int)> onChange;
   int selected() const { return selected_; }
   void setSelected(int i, Hint h = Hint::Feedback);  // no callback
@@ -27,7 +30,9 @@ class Segmented : public Widget {
   int indexAt(int x) const;
   std::vector<std::string> options_;
   int selected_;
-  int preview_ = -1;  // option under the finger
+  int preview_ = -1;  // option under the finger, shown once it stays down (kPressDelayMs)
+  uint32_t pressSeq_ = 0;
+  std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
 };
 
 // [-]  value  [+]: two 72 px IconButtons around the value text. The buttons grey out at the limits.

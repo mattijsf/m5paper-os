@@ -2,6 +2,9 @@
 
 #include <algorithm>
 
+#include "core/timers.h"
+#include "ui/root.h"
+
 namespace pos::ui {
 
 // ---- ListItem
@@ -123,24 +126,44 @@ int PagerBar::targetAt(int x) const {
 
 bool PagerBar::onTouch(const Gesture& g) {
   const int t = targetAt(g.startX);
+  // The pressed look is drawn only if the finger is still down after kPressDelayMs: a quick tap goes straight to the new
+  // page (one pass, and no waveform of a pressed arrow still running when the page is pushed: that cost 150 ms on the panel).
+  auto release = [this] {
+    downTarget_ = 0;
+    ++pressSeq_;
+    if (pressedTarget_ == 0) return;
+    pressedTarget_ = 0;
+    invalidate(Hint::Feedback);
+  };
   switch (g.type) {
-    case Gesture::Down:
+    case Gesture::Down: {
       if (t == 0 || (t < 0 && owner_->page() == 0) || (t > 0 && owner_->page() >= owner_->pages() - 1)) return false;  // the Pager takes swipes
-      pressedTarget_ = t;
-      invalidate(Hint::Feedback);
+      downTarget_ = t;
+      pos::Timers* timers = host() ? host()->timers() : nullptr;
+      if (!timers) {
+        pressedTarget_ = t;
+        invalidate(Hint::Feedback);
+        return true;
+      }
+      const uint32_t seq = ++pressSeq_;
+      timers->after(kPressDelayMs, [this, seq, t, alive = std::weak_ptr<bool>(alive_)] {
+        auto a = alive.lock();
+        if (!a || !*a || seq != pressSeq_) return;
+        pressedTarget_ = t;
+        invalidate(Hint::Feedback);
+      });
       return true;
+    }
     case Gesture::Tap:
-      if (pressedTarget_ == 0) return false;
-      pressedTarget_ = 0;
-      invalidate(Hint::Feedback);
+      if (downTarget_ == 0) return false;
+      release();
       if (t < 0) owner_->prev();
       else owner_->next();
       return true;
     case Gesture::LongPress:
     case Gesture::Cancel:
-      if (pressedTarget_ == 0) return false;
-      pressedTarget_ = 0;
-      invalidate(Hint::Feedback);
+      if (downTarget_ == 0) return false;
+      release();
       return true;
     default:
       return false;

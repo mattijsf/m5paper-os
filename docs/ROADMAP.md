@@ -439,10 +439,12 @@ P6-11 last (it needs the relay and a device that can pair).
 - [x] **P7-14 Hacker News**. Read:
   apps/hackernews.md, D34. App `hackernews`: the Top / New / Ask / Show lists (thirty stories, six a page) from the site's
   API (order) and its search service (content), a story's comments as pages of text with replies moved right, "Next
-  thread", the link as a QR code, saved copies of the lists, the open story back at its page after the idle return.
-  Fixtures with made-up stories, UI scripts `hackernews*`, unit tests. Done when: goldens accepted, `make check` green,
-  a live list and a live thread read on the device. (2026-11-18: done; on the device a thread of 236 comments, 116
-  pages; the panel's look is a camera check.)
+  thread", the article a story links to as text from a reader service (`r.jina.ai`), the link as a QR code, saved copies of the lists, the open
+  story or article back at its page after the idle return. Fixtures with made-up stories, UI scripts `hackernews*`,
+  unit tests. Done when: goldens accepted, `make check` green, a live list, thread and article read on the device,
+  speed and flicker checked with the camera.
+  (2026-11-18: done; on the device a thread of 236 comments, an article of 145 paragraphs; camera: page turns and list
+  changes are one Fast pass, 105-120 ms from the tap to the panel driver, apps/hackernews.md "Speed and flicker".)
 
 ## Phase 8: Optional, ask the owner first
 
@@ -472,4 +474,4 @@ P6-11 last (it needs the relay and a device that can pair).
 | Agenda | P7-10 (the phone's calendar, one way through the encrypted relay, D28) |
 | Weather | P7-11 (Google Weather through Home Assistant) |
 | Teletekst | P7-12 (NOS Teletekst, read from the service's own JSON) |
-| Hacker News | P7-14 (lists and comments, from the site's API and its search service) |
+| Hacker News | P7-14 (lists and comments from the site's API and its search service, articles as text from a reader service) |

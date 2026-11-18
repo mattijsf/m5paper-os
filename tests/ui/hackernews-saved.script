@@ -1,12 +1,12 @@
 # app: hackernews
-# Hacker News' saved copies. Top and New are read and kept; then Wi-Fi goes away and the app starts again ten minutes
-# later on the list that was chosen: its copy shows at once, and the line under it says why it may be old.
+# Hacker News' saved copies. Top and New are read and kept; then Wi-Fi goes away and the app starts again over a quarter
+# of an hour later on the list that was chosen: its copy shows at once, and the line under it says why it may be old.
 wait 1500
 tap 207 173
 wait 1500
 expect-state section=new|stories=8|page=1/2|Updated 13:34
 wifi off
-wait 600000
+wait 1000000
 restart
 wait 200
 shot hackernews-saved-first     # drawn from the saved copy before the read ended

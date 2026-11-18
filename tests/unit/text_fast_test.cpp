@@ -134,3 +134,82 @@ TEST_CASE("fast text: fake-bold double strike over glyphs whose boxes overlap (r
     CHECK(p.fastUsed == 6);
   }
 }
+
+TEST_CASE("fast text: measuring from the glyph cache gives LovyanGFX's widths, for every character and face") {
+  Canvas c;
+  c.setColorDepth(lgfx::color_depth_t::grayscale_8bit);
+  c.createSprite(64, 64);
+  forgetLoadedFont();
+  // Every code point of the baked ranges (tools/gen-assets.sh), alone and between letters, and the samples.
+  std::vector<std::string> texts = kSamples;
+  texts.push_back("jfj");                                   // a first glyph that starts left of the pen
+  texts.push_back("The quick brown fox jumps over the lazy dog 0123456789 (f) [j] {y} f");
+  texts.push_back("tab\there\nand a line feed, a control \x01 byte");
+  auto add = [&texts](uint32_t cp) {
+    std::string ch;
+    if (cp < 0x80) ch += static_cast<char>(cp);
+    else if (cp < 0x800) { ch += static_cast<char>(0xC0 | (cp >> 6)); ch += static_cast<char>(0x80 | (cp & 0x3F)); }
+    else { ch += static_cast<char>(0xE0 | (cp >> 12)); ch += static_cast<char>(0x80 | ((cp >> 6) & 0x3F)); ch += static_cast<char>(0x80 | (cp & 0x3F)); }
+    texts.push_back(ch);
+    texts.push_back("a" + ch + "f" + ch);
+  };
+  for (uint32_t cp = 0x20; cp <= 0x7E; ++cp) add(cp);
+  for (uint32_t cp = 0xA0; cp <= 0x17F; ++cp) add(cp);
+  for (uint32_t cp = 0x2010; cp <= 0x2027; ++cp) add(cp);
+  add(0x20AC);
+  add(0x4E2D);  // no glyph: a question mark after sanitize
+  int checked = 0;
+  for (int t = 0; t < static_cast<int>(Type::Count); ++t) {
+    const Type type = static_cast<Type>(t);
+    for (const std::string& s : texts) {
+      setFastText(true);
+      const int fast = measureText(c, s, type);
+      setFastText(false);
+      const int ref = measureText(c, s, type);
+      if (fast != ref) {
+        INFO("type " << t << " text '" << s << "'");
+        CHECK(fast == ref);
+      }
+      ++checked;
+    }
+  }
+  setFastText(true);
+  forgetLoadedFont();
+  CHECK(checked > 8000);
+}
+
+TEST_CASE("ellipsize: the longest beginning that fits with its ellipsis, found by halving") {
+  Canvas c;
+  c.setColorDepth(lgfx::color_depth_t::grayscale_8bit);
+  c.createSprite(64, 64);
+  forgetLoadedFont();
+  const std::string dots = "\xE2\x80\xA6";
+  const std::vector<std::string> lines = {
+      "512 points \xC2\xB7 203 comments \xC2\xB7 12 h \xC2\xB7 status.example.com.and.a.long.host.name.example.org",
+      "caf\xC3\xA9 cr\xC3\xA8me \xE2\x80\x94 \xE2\x80\x9Cquoted\xE2\x80\x9D \xE2\x82\xAC 12,50 and then some more words to cut",
+      "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii WWWWWWWWWWWWWWW",
+      "short"};
+  for (Type type : {Type::Caption, Type::Body, Type::BodyStrong, Type::Title, Type::ReadS}) {
+    for (const std::string& s : lines) {
+      for (int width : {0, 20, 77, 150, 233, 452, 492}) {
+        const std::string got = ellipsize(c, s, type, width);
+        // What the plain way gives: add characters while the beginning with its ellipsis still fits.
+        std::string want = s;
+        if (measureText(c, s, type) > width) {
+          std::string prefix;
+          for (size_t i = 0; i < s.size();) {
+            size_t n = 1;
+            while (i + n < s.size() && (static_cast<unsigned char>(s[i + n]) & 0xC0) == 0x80) ++n;
+            if (measureText(c, prefix + s.substr(i, n) + dots, type) > width) break;
+            prefix += s.substr(i, n);
+            i += n;
+          }
+          want = prefix + dots;
+        }
+        INFO("type " << static_cast<int>(type) << " width " << width << " '" << s << "'");
+        CHECK(got == want);
+      }
+    }
+  }
+  forgetLoadedFont();
+}

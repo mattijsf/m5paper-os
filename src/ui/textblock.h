@@ -25,6 +25,7 @@ struct Run {
 struct Paragraph {
   std::vector<Run> runs;
   int heading = 0;        // 0 = body text, 1..3 = heading level, 4 = a byline: bold at the body size, kept with its text like a heading
+                          // (sizes: ReadXL, ReadL, ReadM; with TextStyle::body == Type::Body: Headline, Title, BodyStrong)
   bool softBreak = false;  // starts after a line break inside the same block (<br>): no indent, no gap above (verse, addresses)
   int margin = 0;          // px every line starts further right and is shorter by (a reply under the comment it answers)
 };
@@ -98,7 +99,7 @@ int pageIndexOf(const std::vector<TextPos>& starts, TextPos pos);
 // Paragraph text without styling.
 std::string plainText(const Paragraph& p);
 // The reader's compact chapter format: one paragraph per line; control bytes 0x01/0x02 bold on/off,
-// 0x03/0x04 italic on/off, 0x05 + a level digit character '1'..'3' starts a heading line, 0x06 marks a line that continues the
+// 0x03/0x04 italic on/off, 0x05 + a level digit character '1'..'4' starts a heading line, 0x06 marks a line that continues the
 // previous block after a line break (Paragraph::softBreak). Blank lines are skipped.
 std::vector<Paragraph> parseMarked(const std::string& text);
 

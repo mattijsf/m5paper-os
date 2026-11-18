@@ -146,15 +146,15 @@ class Widget {
 | `Toggle` | on/off pill 88x48 | on = filled ink with paper knob; pure black/white |
 | `LevelBar` | 10 segments, tap a segment to set 10..100% | replaces sliders: dragging is poor on e-ink |
 | `Stepper` | minus, value, plus | temperatures, font size |
-| `Segmented` | 2 to 4 options | selected = filled ink |
-| `Pager` | "3 / 12" with previous/next targets; also handles horizontal swipes | every list longer than one screen uses it |
+| `Segmented` | 2 to 4 options | selected = filled ink; the option under a finger that stays down shows after `kPressDelayMs`, a quick tap goes straight to the new selection |
+| `Pager` | "3 / 12" with previous/next targets; also handles horizontal swipes | every list longer than one screen uses it; an arrow shows pressed only when the finger stays down (`kPressDelayMs`): a quick tap is one pass, the new page |
 | `Badge` | filled ink circle/pill with count | unread counts |
 | `Sheet` | bottom sheet over the untouched screen, 2 px ink top edge, max 60% height; a tap outside or a swipe down closes it | detail controls, confirmations |
 | `Toast` | one line over the status bar for 3 s: an ink band, edge to edge | errors like "No Wi-Fi", "Score gekopieerd" |
 | `EmptyState` | 64 px icon + title + hint + optional button | empty lists, errors, loading |
 | `Keyboard` | QWERTY, 3 layers (abc / ABC / 123#), key 54x72 | Wi-Fi password, search |
 | `TextField` | one line (72 px) or `setLines(n)` wrapped lines; long press = Paste / Copy all / Clear | text input with the keyboard |
-| `TextBlock` | paginated rich text (paragraphs, bold/italic, headings; `Paragraph::margin` moves a paragraph right, heading 4 is a byline: bold at the body size, kept with its text; with `Type::Body` bold is `BodyStrong`) | reader, message/mail detail, Hacker News comments |
+| `TextBlock` | paginated rich text (paragraphs, bold/italic, headings; `Paragraph::margin` moves a paragraph right, heading 4 is a byline: bold at the body size, kept with its text; with `Type::Body` as the body, bold is `BodyStrong`, headings 1 and 2 are `Headline` and `Title`, and pieces of a line are placed by `ui::penAdvance`, what drawing moves the pen by) | reader, message/mail detail, Hacker News comments and articles |
 
 Loading is shown with `EmptyState` ("Loading..." + icon), never a spinner. Stale cached data is
 shown immediately with a "Updated 12:30" caption, then replaced when the fetch finishes.
@@ -188,8 +188,8 @@ arrows and horizontal swipes anywhere in the content call `onPage(page)`; arrows
 disabled). A Fast pass shows the shrunk changed rectangle only: a Toggle tap pushes about 2 x 4000
 pixels. Test screens: `widgets2`, `widgets2rows`, `widgets2list` (`--app`, or `>set screen NAME`).
 
-P2-3 widgets (`ui/inputs`, `ui/panels`): `Segmented` (2-4 options, 72 high; a Down already shows the option
-under the finger as selected, Tap commits), `Stepper` (two 72 px IconButtons that grey out at the
+P2-3 widgets (`ui/inputs`, `ui/panels`): `Segmented` (2-4 options, 72 high; a finger that stays down
+`kPressDelayMs` shows the option under it as selected, Tap commits), `Stepper` (two 72 px IconButtons that grey out at the
 limits around the value text; optional formatter), `LevelBar` (10 segments, 10..100 %, tap sets
 (k+1) x 10), `EmptyState` (a Column: 64 px icon, title, hint, optional button), `Sheet`, `Toast`.
 Overlays: `Root::addOverlay(widget)` puts a widget above the root (it gets touches first; its

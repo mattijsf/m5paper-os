@@ -25,29 +25,41 @@ expect-state section=top|stories=30|page=1/5|
 tap 270 269
 wait 1500
 shot hackernews-thread
-expect-state story=38250001|comments=13|Page 1 of 5|next
+expect-state story=38250001|comments=13|Page 1 of 4|next
 # A tap on the right two thirds turns the page, on the left third turns back.
 tap 400 500
 wait 1500
 shot hackernews-thread-page2
-expect-state story=38250001|comments=13|Page 2 of 5|next
+expect-state story=38250001|comments=13|Page 2 of 4|next
 tap 400 500
 wait 1500
 shot hackernews-thread-code
-expect-state story=38250001|comments=13|Page 3 of 5|next
+expect-state story=38250001|comments=13|Page 3 of 4|next
 tap 100 500
 tap 100 500
 wait 1500
-expect-state story=38250001|comments=13|Page 1 of 5|next
+expect-state story=38250001|comments=13|Page 1 of 4|next
 # "Next thread": the page of the next answer to the story that starts after this page.
 tap 427 917
 wait 1500
-expect-state story=38250001|comments=13|Page 2 of 5|next
+expect-state story=38250001|comments=13|Page 2 of 4|next
 tap 427 917
 tap 427 917
 wait 1500
 shot hackernews-thread-end
-expect-state story=38250001|comments=13|Page 4 of 5
+expect-state story=38250001|comments=13|Page 4 of 4
+# "Article": the page the story links to, as text from the reader service.
+tap 70 917
+wait 1500
+shot hackernews-article
+expect-state article=38250001|Page 1 of 4
+tap 400 500
+wait 1500
+shot hackernews-article-page2
+expect-state article=38250001|Page 2 of 4
+tap 400 500
+wait 1500
+shot hackernews-article-page3
 # "Link": the story's address as a QR code.
 tap 70 917
 wait 1500
@@ -58,12 +70,20 @@ shot hackernews-link-copied
 wait 3500
 back
 wait 1500
+expect-state story=38250001|comments=13|Page 4 of 4
+back
+wait 1500
 expect-state section=top|stories=30|page=1/5|Updated 13:34
-# A story with its own text (Ask HN): the text, then the comments.
+# A story with its own text (Ask HN): the text, then the comments. It links to nothing: "Link" is its page on the site.
 tap 270 375
 wait 1500
 shot hackernews-ask
 expect-state story=38250002|comments=3|
+tap 70 917
+wait 1500
+shot hackernews-link-site
+tap 394 890
+wait 1500
 back
 wait 500
 # A story nobody commented on.
@@ -78,6 +98,13 @@ tap 270 587
 wait 1500
 shot hackernews-thread-error
 expect-state story=38250004|comments=0||error=Hacker News answered 503
+# Its article can not be read either: the service says why.
+tap 70 917
+wait 1500
+shot hackernews-article-error
+expect-state article=38250004||error=Domain 'blog.example.net' could not be resolved
+back
+wait 500
 back
 wait 500
 # The other lists.

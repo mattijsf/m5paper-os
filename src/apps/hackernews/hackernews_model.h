@@ -96,8 +96,9 @@ struct ThreadResult {
   Story story;  // as read just now (points, comment count, text)
   Thread thread;
 };
-// Two requests: the story (for its text and the order of its comments), then the comments. `known` is the story as the
-// list has it: what the first answer lacks stays.
+// Two requests: the story (for its text and the order of its comments) and the comments, first the one to the service the
+// last request went to (the connection to it is still open). `known` is the story as the list has it: what the item
+// lacks stays.
 ThreadResult fetchThread(const Transport& send, const Story& known);
 
 // ---- text
@@ -131,6 +132,31 @@ struct Anchor {
 Anchor anchorOf(const ThreadText& t, ui::TextPos pos);
 // The start of the text if the comment is no longer there.
 ui::TextPos posOf(const ThreadText& t, const Anchor& a);
+
+// ---- the article a story links to, as text (a reader service: docs/apps/hackernews.md "The article")
+
+constexpr const char* kReaderUrl = "https://r.jina.ai/";
+constexpr size_t kMaxArticleBytes = 400 * 1024;  // a long article is 50 KB of text
+
+struct Article {
+  std::string title;  // the page's title, "" if the service named none
+  std::string text;   // marked text (ui::parseMarked): the title as a heading when the text does not start with one
+};
+
+// The request for the text of the page at `url`: its address goes to the service, nothing else.
+hal::HttpRequest articleRequest(const std::string& url);
+// The service's answer ("Title: ...", "Markdown Content:", then the page as Markdown) into `out`. False if it holds no text.
+bool parseArticle(const std::string& body, Article& out);
+// Markdown as marked text: headings (# and ## are level 2, deeper ones 3), paragraphs, list items with a bullet, code blocks and
+// table rows as lines that stay lines, **bold**; the marks of emphasis, inline code and links are dropped.
+std::string articleMarked(const std::string& markdown);
+
+struct ArticleResult {
+  bool ok = false;
+  std::string error;
+  Article article;
+};
+ArticleResult fetchArticle(const Transport& send, const std::string& url);
 
 // ---- the saved copy of a list (a few KB: /data/cache/hackernews/<section>)
 

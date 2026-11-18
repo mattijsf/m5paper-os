@@ -2,6 +2,9 @@
 
 #include <algorithm>
 
+#include "core/timers.h"
+#include "ui/root.h"
+
 namespace pos::ui {
 
 // ---- Segmented
@@ -21,24 +24,42 @@ int Segmented::indexAt(int x) const {
 
 bool Segmented::onTouch(const Gesture& g) {
   switch (g.type) {
-    case Gesture::Down:
-      preview_ = indexAt(g.x);
-      invalidate(Hint::Feedback);
+    case Gesture::Down: {
+      const int under = indexAt(g.x);
+      pos::Timers* timers = host() ? host()->timers() : nullptr;
+      if (!timers) {
+        preview_ = under;
+        invalidate(Hint::Feedback);
+        return true;
+      }
+      const uint32_t seq = ++pressSeq_;
+      timers->after(kPressDelayMs, [this, seq, under, alive = std::weak_ptr<bool>(alive_)] {
+        auto a = alive.lock();
+        if (!a || !*a || seq != pressSeq_ || under == selected_) return;
+        preview_ = under;
+        invalidate(Hint::Feedback);
+      });
       return true;
+    }
     case Gesture::Tap: {
       const int i = indexAt(g.startX);
+      ++pressSeq_;
+      const bool shown = preview_ >= 0;
       preview_ = -1;
       if (i < 0) return true;  // no options: nothing to select
       const bool changed = i != selected_;
       selected_ = i;
-      invalidate(Hint::Feedback);
+      if (changed || shown) invalidate(Hint::Feedback);
       if (changed && onChange) onChange(i);
       return true;
     }
     case Gesture::LongPress:
     case Gesture::Cancel:
-      preview_ = -1;
-      invalidate(Hint::Feedback);
+      ++pressSeq_;
+      if (preview_ >= 0) {
+        preview_ = -1;
+        invalidate(Hint::Feedback);
+      }
       return true;
     default:
       return false;

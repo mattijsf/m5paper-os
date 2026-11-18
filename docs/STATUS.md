@@ -49,21 +49,33 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   shared score had its own name (the user set it to "Woordle" later). Seventh app: the launcher now has a second page. The firmware builds with it; not flashed (Pending
   device checks). Open question 7.
 
-- **P7-14 Hacker News, 2026-11-18: built, runs on the device**. App `hackernews`, the eleventh tile of launcher page 1 (a Y in a filled square, drawn; its name is
-  set in the caption size: wider than the tile's 137 px). Lists Top / New / Ask / Show: thirty stories, six a page, in the
-  site's order; a story: its own text and every comment as pages of text (`ui::TextBlock`, Inter 22), replies moved right
-  under what they answer, "Next thread", the link as a QR code with "Copy link". Data: the site's API for the order
-  (`hacker-news.firebaseio.com/v0`), its search service for the content (`hn.algolia.com/api/v1`): two requests a list,
-  two a story, each pair one worker job (`ctx.transport()`, new). Saved copies of the lists (shown first, and when a read
-  fails); comments are not kept. Not exempt from the idle return (D33): the open story comes back at its page when the
-  app is opened again within the hour. New in `ui/textblock`: `Paragraph::margin`, heading 4 (a byline), `BodyStrong` as
-  the bold of `Body`. Fixtures are made-up stories (`tests/fixtures/make-hackernews-fixtures.py`); UI scripts
-  `hackernews`, `hackernews-offline`, `hackernews-saved`, `hackernews-resume` (21 new goldens; 21 re-accepted: 20 show the
-  launcher with its new tile or its ghost score, `fonts-sheet` one more icon). 339 unit tests (13 new cases), 282
-  screenshots; firmware 2,518,512 bytes (+36,224). **On the device (2026-11-18, flashed, injected taps, frame dumps in
-  `out/dev-hn/`, log)**: TLS to both services works; the live Top list; a story of 236 comments is 710 paragraphs and 116
-  pages (the item 0.92 s on a new TLS connection, the comments 1.14 s); internal heap lowest 79 KB, 115 KB free with the
-  story open and after leaving; UI stack 2.8 KB left, worker 10.5 KB. `tools/memory.py` has a `hackernews` scenario.
+- **P7-14 Hacker News, 2026-11-18: built, runs on the device, checked with the camera**. App `hackernews`, the eleventh tile of launcher page 1 (a Y in a filled
+  square, drawn; its name is set in the caption size: wider than the tile's 137 px). Lists Top / New / Ask / Show: thirty
+  stories, six a page, in the site's order; a story: its own text and every comment as pages of text (`ui::TextBlock`,
+  Inter 22), replies moved right under what they answer, "Next thread"; **the article a story links to as text**
+: Jina Reader (`r.jina.ai`,
+  no key) answers the page as Markdown, shown as pages like the comments; the link as a QR code with "Copy link" on the
+  article screen. Data: the site's API for the order (`hacker-news.firebaseio.com/v0`), its search service for the
+  content (`hn.algolia.com/api/v1`): two requests a list, two a story, each pair one worker job (`ctx.transport()`,
+  new). Saved copies of the lists (shown first, and when a read fails); comments and articles are not kept. Not exempt
+  from the idle return (D33): the open story or article comes back at its page when the app is opened again within the
+  hour. Fixtures are made-up stories (`tests/fixtures/make-hackernews-fixtures.py`); UI scripts `hackernews`,
+  `hackernews-offline`, `hackernews-saved`, `hackernews-resume` (27 goldens). 344 unit tests, 288 screenshots; firmware
+  2,530,624 bytes (+48,336 since P7-13: the app 36 KB, the article and its Markdown 10 KB).
+  **Camera session**: a list page turn went from 415 ms and three passes to **105 ms and one**, a
+  list switch from 330 ms and three passes to **120 ms and one**, a comment or article page turn is one Fast pass at
+  110 ms with no settle, the first page of a thread no longer waits 1.5 s for the page count, a story costs one TLS
+  handshake instead of two. **Changed in `ui/` for that, so for every app**: `PagerBar` and `Segmented` show their
+  pressed look only when the finger stays down (`kPressDelayMs`); `ui::measureText` sums the glyph cache's metrics
+  instead of asking LovyanGFX (identical, tested for every baked character and face); `ui::ellipsize` finds its cut by
+  halving; glyph probing skips untouched rows. Ten goldens of Settings and the Display lab re-accepted (their counters
+  show fewer passes). New in `ui/textblock`: `Paragraph::margin`, heading 4 (a byline), with `Type::Body` real bold
+  (`BodyStrong`), headings in Inter and pieces placed by `ui::penAdvance`.
+  **On the device (flashed, injected taps, frame dumps in `out/dev-hn/`, log, camera)**: TLS to the three services
+  works; the live Top list; a story of 236 comments is 710 paragraphs and 116 pages; an article of 145 paragraphs in
+  1.6 s; internal heap lowest 79 KB, 115 KB free with a story open and after leaving; UI stack 2.8 KB left, worker
+  10.5 KB. `tools/memory.py` has a `hackernews` scenario. Not judged by the camera: reading comfort of Inter 22 in
+  black and white between cleans (a person's eyes, when they next read on it).
 
 - **P7-13 idle return, 2026-11-18: built, runs on the device**. The Shell leaves
   an app nobody touched for `launcher.homeAfterSec` seconds (default 60) and shows the launcher; Settings > Power has the
@@ -658,6 +670,20 @@ None of these block Phase 1, Phase 2, or the reader.
 
 ## Notes for later tasks
 
+- **LovyanGFX measures the Inter faces wider than it draws them (found 2026-11-18, not fixed)**: the baked Inter fonts
+  (measured: Caption, Body, BodyStrong, Title) store glyph advances in sixteenths of a pixel. `BFFfont::
+  updateFontMetric` rounds them (`(adv + 8) >> 4`), `BFFfont::drawChar` cuts them off (`>> 20`): `textWidth` is about
+  half a pixel a character more than the pen moves ("This one is described on a": measured 274, drawn 264; Literata's
+  advances are whole pixels, so the reader is not affected). Consequences today: text is set a little tighter than the
+  font means, centred text stands 2-5 px left of centre, ellipsis cuts and wrapping give up a few pixels early. The
+  text block works around it for Inter (`ui::penAdvance`, 2026-11-18). The real fix is one line in M5GFX (round in
+  `drawChar` as in the metric; `tools/patch_m5gfx.py`, D24): every Inter glyph then moves by its rounded advance, so
+  **every golden changes** and the EPD self-test and a look at the panel are due. A task of its own; ask the owner first.
+- **A pressed look in flight delays what follows** (2026-11-18, camera): fixed for `PagerBar` and `Segmented`. Not looked
+  at: `Stepper`, `LevelBar`, the keyboard's keys (they draw on Down by design: a key's letter), `TabBar`.
+- **Story open is network-bound** (Hacker News, 2026-11-18): Wi-Fi join 1.4-1.7 s when the radio was off (20 s after the
+  last read), a TLS handshake 0.8-0.9 s for every change of host (the device keeps one TLS connection: `gSecure` in
+  `platform/device/net.cpp`). A second kept connection would save a handshake wherever an app talks to two hosts.
 - **Flaky unit test `wifi_test.cpp:396`: fixed 2026-11-18** (it failed 1 run in 6, 3 in 6 on a loaded Mac). Cause: the clock
   sync that follows a connect is a worker job started by `NetService::tick()`, and it counts as use of the link when it
   lands; the test's tick at 19999 ms started it and the tick at 20000 ms raced it. The test now lets the sync land before
@@ -1160,3 +1186,17 @@ None of these block Phase 1, Phase 2, or the reader.
   name was cut ("Hacker Ne..."): a tile now sets a name wider than its 137 px in the caption size. 339 unit tests, 282
   screenshots; firmware 2,518,512 bytes (+36,224). Flashed: live list and a thread of 236 comments (116 pages), heap
   lowest 79 KB, nothing kept after leaving (`tools/memory.py --only hackernews`).
+- 2026-11-18: Hacker News, the article. Jina Reader probed from the Mac first (GET and POST, 16 KB of Markdown in 0.7 s, errors as JSON, its
+  chain under GTS Root R4); `articleMarked` (Markdown to marked text), `ArticleScreen`, the shared `TextScreen` base,
+  resume into the article. First set in Literata 24: a gap showed around bold words. Cause (probed in a throwaway
+  test): LovyanGFX measures Inter's fractional advances rounded and draws them cut off (Notes for later tasks);
+  `ui::penAdvance` for the text block, articles in Inter with real bold and Inter headings.
+- 2026-11-18: Hacker News under the camera. `cam.py lock` (33 ms, gain 128, focus 40), `make cam-target` (144 of 144 dots, 0.21 px), then
+  `cam.py around tap` per interaction and the `[lat]` lines. Found: a list page turn was three passes and 415 ms. An
+  instrumented build (a log line per row, reverted) showed 30 ms in `ellipsize` for one over-long line and 3-22 ms a
+  title; the 150 ms push wait was the pager arrow's pressed look. Fixed in `ui/` (pressed looks wait, `measureText` from
+  the glyph cache, `ellipsize` by halving, probe scan), and in the app (one region per change, a line of ink while
+  loading, the first page before the page count, the requests ordered by the open connection, the page number in ink
+  with the page, lists fresh for 15 minutes). After: list turn 105 ms one pass, list switch 120 ms one pass, page turn
+  110 ms one pass; camera: visible 0.38 s after the tap, done at 0.51 s, no visible settle. Ten goldens of Settings and
+  the Display lab re-accepted (pass counters). 344 unit tests, 288 screenshots; firmware 2,530,624 bytes.

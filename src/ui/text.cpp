@@ -156,6 +156,8 @@ inline uint8_t mix(uint32_t back, uint32_t fore, uint32_t alpha) {  // LovyanGFX
 struct Glyph {
   bool ready = false;  // probed
   bool ok = false;     // usable by the fast path
+  bool metric = false; // the font has the glyph: madv, mxoff, mw are what LovyanGFX's textWidth uses for it
+  int16_t madv = 0, mxoff = 0, mw = 0;
   int16_t adv = 0;     // what drawChar advances the pen by
   int16_t xoff = 0;    // bitmap left relative to the pen (BFF bbox_x)
   int16_t w = 0;       // bitmap width (BFF bbox_w)
@@ -226,6 +228,10 @@ void probeGlyph(GlyphCache& gc, FontId id, uint32_t cp, Glyph& g) {
   lgfx::FontMetrics m{};
   font->getDefaultMetric(&m);
   if (!font->updateFontMetric(&m, static_cast<uint16_t>(cp))) return;  // no glyph: LovyanGFX draws its dummy
+  g.metric = true;
+  g.madv = static_cast<int16_t>(m.x_advance);
+  g.mxoff = static_cast<int16_t>(m.x_offset);
+  g.mw = static_cast<int16_t>(m.width);
   // drawChar with the background fill switched off (filled_x far right) but fore != back: exactly the glyph's box is
   // written, its empty pixels as `back`. On a canvas of a gray no level produces, the true box shows (LovyanGFX writes
   // the box's empty rows too, over a neighbouring glyph: the fast path must do the same).
@@ -243,13 +249,16 @@ void probeGlyph(GlyphCache& gc, FontId id, uint32_t cp, Glyph& g) {
   if (x0 < 0 || x0 + g.w > kProbeW || g.w < 0) return;
   const auto* buf = static_cast<const uint8_t*>(p.getBuffer());
   int first = -1, last = -1;
-  for (int y = 0; y < kProbeH; ++y)
+  static const std::vector<uint8_t> untouched(kProbeW, kSentinel);
+  for (int y = 0; y < kProbeH; ++y) {
+    if (std::memcmp(buf + y * kProbeW, untouched.data(), kProbeW) == 0) continue;  // most rows: nothing written (a probe is 32000 pixels)
     for (int x = 0; x < kProbeW; ++x)
       if (buf[y * kProbeW + x] != kSentinel) {
         if (x < x0 || x >= x0 + g.w) return;  // written outside the box the metrics give: not understood, keep LovyanGFX
         if (first < 0) first = y;
         last = y;
       }
+  }
   if (first == 0 || last == kProbeH - 1) return;  // may be cut by the probe canvas
   g.h = first < 0 ? 0 : static_cast<int16_t>(last - first + 1);
   g.yoff = first < 0 ? 0 : static_cast<int16_t>(first - kProbeY);
@@ -285,6 +294,27 @@ const Glyph& glyphFor(FontId id, uint32_t cp) {
   if (!g->ready) probeGlyph(gc, id, cp, *g);
   return *g;
 }
+
+// c.textWidth(text) from the glyph cache: the same sum LovyanGFX makes (LGFXBase::text_width), without its glyph lookups
+// (a binary search and a bit-unpack per character: 12 us each on the device, and wrapping a title measures it a dozen
+// times). False when a character is one the cache does not know the metrics of: LovyanGFX then measures.
+bool fastWidth(FontId id, const std::string& text, int& width) {
+  int left = 0, right = 0;
+  for (size_t i = 0; i < text.size();) {
+    uint32_t cp;
+    i += utf8::decode(text, i, cp);
+    if (cp < 0x20 || (cp >= 0xFE00 && cp < 0xFE10)) continue;
+    if (cp > 0xFFFF) return false;
+    const Glyph& g = glyphFor(id, cp);
+    if (!g.metric) return false;
+    if (left == 0 && right == 0 && g.mxoff < 0) left = right = -g.mxoff;
+    right = left + std::max<int>(g.madv, g.mw + g.mxoff);
+    left += g.madv;
+  }
+  width = right;
+  return true;
+}
+
 
 // ---- Emoji (docs/UI.md "Emoji"): bitmaps from the atlas on the card (ui/emoji), kept in the same glyph cache as the letters,
 // so after the first use an emoji costs what a letter costs. Placed on the font's baseline (the bottom of its "x").
@@ -368,7 +398,9 @@ bool fastDraw(Canvas& c, FontId id, const std::string& text, int x, int y, textd
   else if (d & bottom_left) y -= height;
   else if (d & baseline_left) return false;  // not used by us
   if (d & (top_center | top_right)) {
-    const int cwidth = anyEmoji ? widthSpecial(c, id, text) : c.textWidth(text.c_str());
+    int cwidth = 0;
+    if (anyEmoji) cwidth = widthSpecial(c, id, text);
+    else if (!fastWidth(id, text, cwidth)) cwidth = c.textWidth(text.c_str());
     x -= (d & top_center) ? cwidth >> 1 : cwidth;
   }
   int sumX = n && items[0].g->xoff < 0 ? -items[0].g->xoff : 0;
@@ -606,9 +638,32 @@ void drawText(Canvas& c, const std::string& utf8, int x, int y, Type type, Color
 
 int measureText(Canvas& c, const std::string& utf8, Type type) {
   dropStaleEmojiGlyphs();
-  useFont(c, fontFor(type));
+  const FontId id = fontFor(type);
   const std::string text = sanitize(utf8);
-  return hasSquares(text) || hasEmoji(text) ? widthSpecial(c, fontFor(type), text) : c.textWidth(text.c_str());
+  if (hasSquares(text) || hasEmoji(text)) {
+    useFont(c, id);
+    return widthSpecial(c, id, text);
+  }
+  int width = 0;
+  if (gFastText && c.getTextSizeX() == 1.0f && fastWidth(id, text, width)) return width;
+  useFont(c, id);
+  return c.textWidth(text.c_str());
+}
+
+int penAdvance(Canvas& c, const std::string& utf8, Type type) {
+  const std::string text = sanitize(utf8);
+  if (hasSquares(text) || hasEmoji(text)) return measureText(c, text, type);
+  const FontId id = fontFor(type);
+  int sum = 0;
+  for (size_t i = 0; i < text.size();) {
+    uint32_t cp;
+    i += utf8::decode(text, i, cp);
+    if (cp < 0x20 || (cp >= 0xFE00 && cp < 0xFE10)) continue;  // not drawn (fastDraw)
+    const Glyph& g = glyphFor(id, cp);
+    if (!g.ok) return measureText(c, text, type);  // a glyph the cache does not understand: LovyanGFX's own width
+    sum += g.adv;
+  }
+  return sum;
 }
 
 int lineHeight(Canvas& c, Type type) {
@@ -619,18 +674,21 @@ int lineHeight(Canvas& c, Type type) {
 std::string ellipsize(Canvas& c, const std::string& utf8, Type type, int maxWidth) {
   std::string s = sanitize(utf8);
   if (measureText(c, s, type) <= maxWidth) return s;
-  // Candidate cut points are code point boundaries; the longest prefix + "…" that fits wins.
-  std::string best;
-  std::string prefix;
+  // Candidate cut points are code point boundaries; the longest prefix + "…" that fits wins. A longer prefix is never
+  // narrower, so the cut is found by halving (a line of 80 characters: 7 measurements, not 80).
+  std::vector<size_t> cuts{0};
   for (size_t i = 0; i < s.size();) {
     uint32_t cp;
-    size_t n = utf8::decode(s, i, cp);
-    std::string next = prefix + s.substr(i, n);
-    if (measureText(c, next + "\xE2\x80\xA6", type) > maxWidth) break;
-    prefix = next;
-    i += n;
+    i += utf8::decode(s, i, cp);
+    cuts.push_back(i);
   }
-  return prefix + "\xE2\x80\xA6";
+  size_t lo = 0, hi = cuts.size() - 1;  // the prefix of lo characters fits (nothing but the "…" always counts as fitting)
+  while (lo < hi) {
+    const size_t mid = (lo + hi + 1) / 2;
+    if (measureText(c, s.substr(0, cuts[mid]) + "\xE2\x80\xA6", type) > maxWidth) hi = mid - 1;
+    else lo = mid;
+  }
+  return s.substr(0, cuts[lo]) + "\xE2\x80\xA6";
 }
 
 // An icon drawn by hand (gen::kDrawnIcons): its bitmap as it is at 64, every other pixel of it at 32 (a pixel is ink

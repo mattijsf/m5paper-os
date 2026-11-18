@@ -3,10 +3,13 @@
 #include <ArduinoJson.h>
 
 #include <algorithm>
+#include <atomic>
+#include <cctype>
 #include <cstdlib>
 
 #include "core/strings.h"
 #include "core/text_clean.h"
+#include "core/utf8.h"
 
 namespace pos::hackernews {
 
@@ -38,16 +41,21 @@ std::string textOf(JsonVariantConst v) {
 }
 
 // What to tell the user about a request that did not give a usable answer.
-std::string errorText(const hal::HttpResponse& r) {
+std::string errorText(const hal::HttpResponse& r, const char* who = "Hacker News") {
   if (r.status == 0) return r.error.empty() ? std::string("No connection") : r.error;
-  if (r.status != 200) return "Hacker News answered " + std::to_string(r.status);
+  if (r.status != 200) return std::string(who) + " answered " + std::to_string(r.status);
   return r.error.empty() ? std::string("Unexpected answer") : r.error;  // 200 with an error: the answer was cut (too large)
 }
+
+// Which of the two services the last request went to (false: the order service, true: the search). The device keeps one
+// TLS connection open: a request to the other host is a new handshake, 0.9 s (docs/apps/hackernews.md "On the device").
+std::atomic<bool> gLastWasSearch{false};
 
 hal::HttpResponse get(const Transport& send, const std::string& url) {
   hal::HttpRequest req;
   req.url = url;
   req.timeoutMs = 15000;
+  gLastWasSearch = startsWith(url, kSearchBase);
   return send(req);
 }
 
@@ -77,17 +85,24 @@ void appendBlock(const std::string& block, std::string& out) {
     addText(block.substr(at, pre - at));
     size_t end = block.find("</pre>", pre);
     if (end == std::string::npos) end = block.size();
-    // Code: its lines stay lines, and what a line is moved in by stays (as no-break spaces, which the layout keeps).
-    bool first = true;
-    for (const std::string& raw : split(block.substr(pre + 5, end - pre - 5), '\n')) {
+    // Code: its lines stay lines, and what a line is moved in by stays (as no-break spaces, which the layout keeps),
+    // less what all of them are moved in by (the site wants two blanks before every line of code).
+    std::vector<std::pair<size_t, std::string>> code;  // columns moved in, text
+    size_t least = 1000;
+    std::string inside = block.substr(pre + 5, end - pre - 5);
+    if (startsWith(inside, "<code>")) inside.erase(0, 6);  // (else the first line's blanks stand behind the tag)
+    for (const std::string& raw : split(inside, '\n')) {
       size_t lead = 0, cols = 0;
       while (lead < raw.size() && (raw[lead] == ' ' || raw[lead] == '\t')) cols += raw[lead++] == '\t' ? 2 : 1;
-      const std::string code = cleanText(raw, opt);
-      if (code.empty()) continue;
+      std::string text = cleanText(raw, opt);
+      if (text.empty()) continue;
+      least = std::min(least, cols);
+      code.emplace_back(cols, std::move(text));
+    }
+    for (size_t k = 0; k < code.size(); ++k) {
       std::string line;
-      for (size_t i = 0; i < std::min<size_t>(cols, 12); ++i) line += kNbsp;
-      addLine(line + code, !first);
-      first = false;
+      for (size_t i = 0; i < std::min<size_t>(code[k].first - least, 12); ++i) line += kNbsp;
+      addLine(line + code[k].second, k > 0);
     }
     at = std::min(block.size(), end + 6);
   }
@@ -319,21 +334,37 @@ ListResult fetchList(const Transport& send, Section s) {
 ThreadResult fetchThread(const Transport& send, const Story& known) {
   ThreadResult res;
   res.story = known;
-  hal::HttpResponse r = get(send, itemUrl(known.id));
-  if (r.status != 200 || !r.error.empty() || r.body.size() > kMaxListBytes) {
-    res.error = errorText(r);
+  // Two requests that do not need each other's answer: first the one to the host the connection is open to (after a list
+  // that is the search), so a story costs one handshake, not two. A story the list says has no comments: the item first,
+  // and the search is not asked at all if the item agrees.
+  const bool searchFirst = gLastWasSearch && known.comments > 0;
+  hal::HttpResponse item, comments;
+  bool asked = false;  // the comments were asked for
+  if (searchFirst) {
+    comments = get(send, commentsUrl(known.id));
+    asked = true;
+    if (comments.status == 0) {  // no network: the second request would only wait for the same
+      res.error = errorText(comments);
+      return res;
+    }
+  }
+  item = get(send, itemUrl(known.id));
+  if (item.status != 200 || !item.error.empty() || item.body.size() > kMaxListBytes) {
+    res.error = errorText(item);
     return res;
   }
   std::vector<uint32_t> kids;
-  parseItem(r.body, res.story, kids);  // "null" (an item the first API does not have): what the list knew stays
-  if (kids.empty() && res.story.comments <= 0) {
-    res.ok = true;  // nothing to read
-    return res;
+  parseItem(item.body, res.story, kids);  // "null" (an item the first API does not have): what the list knew stays
+  if (!asked) {
+    if (kids.empty() && res.story.comments <= 0) {
+      res.ok = true;  // nothing to read
+      return res;
+    }
+    comments = get(send, commentsUrl(known.id));
   }
-  r = get(send, commentsUrl(known.id));
-  if (r.status != 200 || !r.error.empty() || r.body.size() > kMaxThreadBytes ||
-      !parseComments(r.body, known.id, kids, res.thread)) {
-    res.error = errorText(r);
+  if (comments.status != 200 || !comments.error.empty() || comments.body.size() > kMaxThreadBytes ||
+      !parseComments(comments.body, known.id, kids, res.thread)) {
+    res.error = errorText(comments);
     return res;
   }
   res.ok = true;
@@ -434,6 +465,269 @@ ui::TextPos posOf(const ThreadText& t, const Anchor& a) {
   }
   if (a.para < 0 || first + a.para >= end) return ui::TextPos{first, 0};  // the comment got shorter: its start
   return ui::TextPos{first + a.para, std::max(0, a.byte)};
+}
+
+// ---- the article
+
+namespace {
+
+constexpr const char* kBullet = "\xE2\x80\xA2 ";  // "• "
+
+bool punct(char c) { return std::ispunct(static_cast<unsigned char>(c)) != 0; }
+bool wordChar(char c) { return std::isalnum(static_cast<unsigned char>(c)) != 0 || static_cast<unsigned char>(c) >= 0x80; }
+
+// One paragraph's Markdown as marked text: **bold** as bold marks, *emphasis* as italic marks, the backticks of inline
+// code and the backslash before an escaped character dropped.
+std::string inlineMarked(const std::string& raw) {
+  CleanOptions opt;
+  opt.shortenLinks = false;
+  const std::string s = cleanText(raw, opt);
+  std::string out;
+  out.reserve(s.size() + 8);
+  bool bold = false, italic = false, code = false;
+  const size_t n = s.size();
+  for (size_t i = 0; i < n; ++i) {
+    const char c = s[i];
+    if (code) {
+      if (c == '`') code = false;
+      else out += c;
+      continue;
+    }
+    if (c == '\\' && i + 1 < n && punct(s[i + 1])) {
+      out += s[++i];
+      continue;
+    }
+    if (c == '`') {
+      code = true;
+      continue;
+    }
+    if (c != '*' && c != '_') {
+      out += c;
+      continue;
+    }
+    const bool spaceBefore = i == 0 || s[i - 1] == ' ';
+    const bool pair = i + 1 < n && s[i + 1] == c;
+    const size_t after = i + (pair ? 2 : 1);
+    const bool spaceAfter = after >= n || s[after] == ' ';
+    // An underscore inside a word is a letter (snake_case), a mark with blanks on both sides is a sign (2 * 3).
+    const bool inWord = c == '_' && i > 0 && wordChar(s[i - 1]) && after < n && wordChar(s[after]);
+    bool& on = pair ? bold : italic;
+    if (inWord || (!on && spaceAfter) || (on && spaceBefore)) {
+      out += c;
+      continue;
+    }
+    on = !on;
+    out += pair ? (on ? '\x01' : '\x02') : (on ? '\x03' : '\x04');
+    if (pair) ++i;
+  }
+  if (bold) out += '\x02';
+  if (italic) out += '\x04';
+  return trimmed(out);
+}
+
+// "---", "* * *", "___": a line across.
+bool isRule(const std::string& t) {
+  int marks = 0;
+  for (char c : t) {
+    if (c == ' ') continue;
+    if (c != '-' && c != '*' && c != '_') return false;
+    if (c != t[0]) return false;
+    ++marks;
+  }
+  return marks >= 3;
+}
+
+// "====" or "----" under a line of text: that line is a heading.
+bool isUnderline(const std::string& t) {
+  return t.size() >= 2 && (t[0] == '=' || t[0] == '-') && t.find_first_not_of(t[0]) == std::string::npos;
+}
+
+// "- ", "* ", "+ ", "12. ", "3) " at the start: the length of the marker with its blanks, 0 if there is none; `number`
+// gets "12." for a numbered item.
+size_t listMarker(const std::string& t, std::string& number) {
+  number.clear();
+  size_t i = 0;
+  if (!t.empty() && (t[0] == '-' || t[0] == '*' || t[0] == '+')) {
+    i = 1;
+  } else {
+    while (i < t.size() && i < 4 && t[i] >= '0' && t[i] <= '9') ++i;
+    if (i == 0 || i >= t.size() || (t[i] != '.' && t[i] != ')')) return 0;
+    number = t.substr(0, i) + ".";
+    ++i;
+  }
+  if (i >= t.size() || t[i] != ' ') return 0;
+  while (i < t.size() && t[i] == ' ') ++i;
+  return i;
+}
+
+}  // namespace
+
+std::string articleMarked(const std::string& md) {
+  std::string out, para, inset;  // inset: what the paragraph being collected is moved in by (no-break spaces: a list in a list)
+  int heading = 0;          // of the paragraph being collected: 0 none, else the level
+  bool code = false, codeFirst = true, tableRow = false;
+  auto addLine = [&out](const std::string& line, bool continues) {
+    if (line.empty()) return;
+    if (!out.empty()) out += '\n';
+    if (continues) out += kSoftBreak;
+    out += line;
+  };
+  auto flush = [&] {
+    const std::string text = inlineMarked(para);
+    if (!text.empty()) addLine((heading ? std::string("\x05") + static_cast<char>('0' + heading) : std::string()) + inset + text, false);
+    para.clear();
+    inset.clear();
+    heading = 0;
+  };
+  CleanOptions plain;
+  plain.shortenLinks = false;
+  for (size_t at = 0; at <= md.size();) {
+    size_t end = md.find('\n', at);
+    if (end == std::string::npos) end = md.size();
+    std::string line = md.substr(at, end - at);
+    at = end + 1;
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    size_t lead = 0, cols = 0;
+    while (lead < line.size() && (line[lead] == ' ' || line[lead] == '\t')) cols += line[lead++] == '\t' ? 4 : 1;
+    std::string t = trimmed(line);
+    const bool fence = startsWith(t, "```") || startsWith(t, "~~~");
+    if (code) {
+      if (fence) {
+        code = false;
+        continue;
+      }
+      const std::string text = cleanText(line, plain);
+      if (text.empty()) continue;
+      std::string moved;
+      for (size_t i = 0; i < std::min<size_t>(cols, 12); ++i) moved += kNbsp;
+      addLine(moved + text, !codeFirst);
+      codeFirst = false;
+      continue;
+    }
+    const bool wasRow = tableRow;
+    tableRow = false;
+    if (fence) {
+      flush();
+      code = true;
+      codeFirst = true;
+      continue;
+    }
+    if (t.empty()) {
+      flush();
+      continue;
+    }
+    if (!para.empty() && heading == 0 && isUnderline(t)) {
+      heading = 2;
+      flush();
+      continue;
+    }
+    if (isRule(t)) {
+      flush();
+      continue;
+    }
+    if (t[0] == '#') {
+      size_t level = 0;
+      while (level < t.size() && t[level] == '#') ++level;
+      if (level <= 6 && level < t.size() && t[level] == ' ') {
+        flush();
+        para = trimmed(t.substr(level), " #");
+        heading = level <= 2 ? 2 : 3;
+        flush();
+        continue;
+      }
+    }
+    if (t[0] == '|') {  // a table row: its cells on one line; the row of dashes under the head is dropped
+      flush();
+      if (t.find_first_not_of("|-: ") == std::string::npos) {
+        tableRow = wasRow;
+        continue;
+      }
+      std::string row;
+      for (const std::string& cell : split(t, '|')) {
+        const std::string text = inlineMarked(cell);
+        if (text.empty()) continue;
+        if (!row.empty()) row += kDot;
+        row += text;
+      }
+      addLine(row, wasRow);
+      tableRow = !row.empty() || wasRow;
+      continue;
+    }
+    bool quote = false;
+    while (!t.empty() && t[0] == '>') {
+      t = trimmed(t.substr(1));
+      quote = true;
+    }
+    if (t.empty()) {
+      flush();
+      continue;
+    }
+    std::string number;
+    if (const size_t marker = listMarker(t, number)) {
+      flush();
+      for (size_t i = 0; i < std::min<size_t>(cols / 2, 3) * 2; ++i) inset += kNbsp;
+      para += number.empty() ? std::string(kBullet) : number + " ";
+      para += t.substr(marker);
+      continue;
+    }
+    if (para.empty() && quote) para = "> ";
+    else if (!para.empty()) para += ' ';
+    para += t;
+  }
+  flush();
+  return out;
+}
+
+hal::HttpRequest articleRequest(const std::string& url) {
+  hal::HttpRequest req;
+  req.method = "POST";
+  req.url = kReaderUrl;
+  JsonDocument doc;
+  doc["url"] = url;
+  serializeJson(doc, req.body);
+  req.headers = {{"Content-Type", "application/json"},
+                 {"Accept", "text/plain"},
+                 {"X-Retain-Images", "none"},        // no pictures: their addresses are noise here
+                 {"X-Md-Link-Style", "discarded"}};  // a link is its words
+  req.timeoutMs = 30000;  // the service fetches the page first
+  return req;
+}
+
+bool parseArticle(const std::string& body, Article& out) {
+  out = Article{};
+  static const char kMarker[] = "Markdown Content:";
+  const size_t marker = body.find(kMarker);
+  const std::string head = marker == std::string::npos ? std::string() : body.substr(0, marker);
+  std::string warning;
+  for (const std::string& line : split(head, '\n')) {
+    if (startsWith(line, "Title: ") && out.title.empty()) out.title = cleanText(line.substr(7));
+    if (startsWith(line, "Warning: ") && warning.empty()) warning = cleanText(line.substr(9));
+  }
+  const std::string text = articleMarked(marker == std::string::npos ? body : body.substr(marker + sizeof kMarker - 1));
+  if (text.empty()) return false;
+  // What the service said about the page ("Target URL returned error 403") is worth reading before the text.
+  if (!warning.empty()) out.text = "\x05" "4" + warning + "\n";
+  if (!out.title.empty() && text[0] != '\x05') out.text += "\x05" "2" + out.title + "\n";
+  out.text += text;
+  return true;
+}
+
+ArticleResult fetchArticle(const Transport& send, const std::string& url) {
+  ArticleResult res;
+  const hal::HttpResponse r = send(articleRequest(url));
+  if (r.status == 200 && r.error.empty() && r.body.size() <= kMaxArticleBytes && parseArticle(r.body, res.article)) {
+    res.ok = true;
+    return res;
+  }
+  res.error = errorText(r, "The reader");
+  if (r.status == 200 && r.error.empty()) res.error = r.body.size() > kMaxArticleBytes ? "The page is too long" : "No text on the page";
+  // An error of the service comes as JSON with a sentence for people ("Domain 'x' could not be resolved").
+  JsonDocument doc;
+  if (r.status >= 400 && !deserializeJson(doc, r.body)) {
+    const std::string said = cleanText(doc["message"] | "");
+    if (!said.empty()) res.error = said.size() > 120 ? utf8::truncate(said, 117) + "..." : said;
+  }
+  return res;
 }
 
 // ---- the saved copy

@@ -167,7 +167,12 @@ the device. Keep such things on the heap (`std::make_shared`, a `std::vector`, a
 3. **`relayout()` only when sizes change** (rows came or went, a bar appeared). It is a whole-screen pass.
 4. **Several results at once, not one after the other**: one job that fetches everything a screen needs (`HaClient::
    getMany`, one relay read) gives one update; three jobs give three.
-5. A result for a screen that is gone is dropped by itself (`ctx.async`); a job nobody waits for any more is not even
+5. **What changes together is one region.** Three widgets that change in one callback are three regions, and each is a
+   push that waits for the one before (280 ms on the panel against 70): invalidate their common parent once
+   (`parent->invalidate(Hint::Content)`; Hacker News `oneChange`). And nothing is drawn on the finger going down that
+   the tap replaces: a pressed look in flight delays the result (`Pressable`, `PagerBar` and `Segmented` wait
+   `kPressDelayMs` for that).
+6. A result for a screen that is gone is dropped by itself (`ctx.async`); a job nobody waits for any more is not even
    started when the app closes. What must happen all the same goes to `ctx.background`.
 
 Measured on the device (2026-11-17): leaving an app for the launcher was 134-354 ms before the first pixel because the
@@ -219,4 +224,4 @@ the first guess there (cleaning the saved messages) cost nothing measurable on t
 | Weather (Google Weather through Home Assistant) | `apps/weather.md` | P7 |
 | Agenda (the phone's calendar, one way) | `apps/agenda.md` | P7 |
 | Teletekst (NOS Teletekst, page by page) | `apps/teletekst.md` | P7 |
-| Hacker News (story lists and comments) | `apps/hackernews.md` | P7 |
+| Hacker News (story lists, comments, articles as text) | `apps/hackernews.md` | P7 |
