@@ -4,8 +4,8 @@ teletekst-data.nos.nl/json/<page> answers (checked against the live service on 2
 colour classes ("yellow bg-blue "), links (<a class="yellow" href="#104">), mosaics as private-use character references
 (&#xF020; to &#xF07f;), named references for accents. The text is made up: no page of the real service is copied.
 
-Pages: 100 (index), 101 (headlines), 104 (an article), 702 with a second subpage (a map of mosaics, a table) and 199, which
-does not exist (404).
+Pages: 100 (index), 101 (headlines), 104 (an article), 702 with a second subpage (a map of mosaics: our own drawing of the
+Netherlands in the service's colours; a table) and 199, which does not exist (404).
 
   python3 -I tests/fixtures/make-teletekst-fixtures.py tests/fixtures/http
 """
@@ -183,28 +183,93 @@ def article():
     return p
 
 
+# The weather map: our own rough drawing of the Netherlands (corner points by hand, degrees east and north), built the
+# way the service's map is: the coast as a cyan line, the Wadden Sea, the IJsselmeer and the Westerschelde filled cyan,
+# Germany and Belgium green, the North Sea and the land itself black with the temperatures in red on it.
+MAP_COL, MAP_ROW, MAP_COLS, MAP_ROWS = 17, 3, 23, 20
+WEST, EAST, SOUTH, NORTH = 3.2, 7.3, 50.7, 53.6
+LAND = [(3.37, 51.37), (3.45, 51.55), (3.70, 51.75), (3.87, 51.83), (4.05, 51.98), (4.27, 52.11), (4.42, 52.25),
+        (4.55, 52.46), (4.62, 52.75), (4.72, 52.96), (5.03, 52.93), (5.40, 53.07), (5.41, 53.17), (5.60, 53.30),
+        (6.00, 53.40), (6.20, 53.41), (6.85, 53.46), (6.95, 53.33), (7.20, 53.24), (7.20, 53.00), (7.05, 52.64),
+        (6.72, 52.63), (6.70, 52.48), (7.06, 52.40), (7.05, 52.23), (6.83, 51.97), (6.40, 51.83), (5.95, 51.83),
+        (6.22, 51.50), (6.08, 51.17), (5.95, 51.05), (6.10, 50.92), (6.02, 50.76), (5.70, 50.76), (5.75, 51.15),
+        (5.50, 51.28), (5.05, 51.47), (4.75, 51.43), (4.40, 51.37), (4.22, 51.37), (3.90, 51.22), (3.37, 51.28)]
+SEA = [(3.00, 51.25), (3.37, 51.37), (3.45, 51.55), (3.70, 51.75), (3.87, 51.83), (4.05, 51.98), (4.27, 52.11),
+       (4.42, 52.25), (4.55, 52.46), (4.62, 52.75), (4.72, 52.96), (4.85, 53.18), (5.05, 53.30), (5.35, 53.42),
+       (5.75, 53.47), (6.20, 53.50), (6.85, 53.55), (7.00, 53.55), (7.40, 53.70), (3.00, 53.70)]
+WATER = [
+    # Wadden Sea
+    [(4.72, 52.96), (4.85, 53.18), (5.05, 53.30), (5.35, 53.42), (5.75, 53.47), (6.20, 53.50), (6.85, 53.55),
+     (7.00, 53.55), (7.05, 53.42), (7.22, 53.33), (7.20, 53.24), (6.95, 53.33), (6.85, 53.46), (6.20, 53.41),
+     (6.00, 53.40), (5.60, 53.30), (5.41, 53.17), (5.40, 53.07), (5.03, 52.93)],
+    # IJsselmeer
+    [(5.03, 52.93), (5.40, 53.07), (5.72, 52.84), (5.60, 52.66), (5.42, 52.52), (5.20, 52.36), (5.02, 52.37),
+     (5.07, 52.64), (5.10, 52.78)],
+    # Westerschelde
+    [(3.45, 51.42), (3.85, 51.36), (4.22, 51.37), (4.22, 51.43), (3.85, 51.45), (3.50, 51.48)],
+]
+
+
+def inside(poly, x, y):
+    hit = False
+    for (x1, y1), (x2, y2) in zip(poly, poly[1:] + poly[:1]):
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            hit = not hit
+    return hit
+
+
+def map_pixels():
+    """The map as rows of 2 x 3 block pixels: ' ' sea or land, 'c' cyan, 'g' green."""
+    w, h = MAP_COLS * 2, MAP_ROWS * 3
+    kind = [["" for _ in range(w)] for _ in range(h)]
+    for py in range(h):
+        for px in range(w):
+            x = WEST + (px + 0.5) / w * (EAST - WEST)
+            y = NORTH - (py + 0.5) / h * (NORTH - SOUTH)
+            if any(inside(poly, x, y) for poly in WATER):
+                kind[py][px] = "water"
+            elif inside(LAND, x, y):
+                kind[py][px] = "land"
+            elif inside(SEA, x, y):
+                kind[py][px] = "sea"
+            else:
+                kind[py][px] = "abroad"
+    out = [[" " for _ in range(w)] for _ in range(h)]
+    for py in range(h):
+        for px in range(w):
+            k = kind[py][px]
+            if k == "water":
+                out[py][px] = "c"
+            elif k == "abroad":
+                out[py][px] = "g"
+            elif k == "land":   # the coast: land with the sea beside it
+                near = [(px - 1, py), (px + 1, py), (px, py - 1), (px, py + 1)]
+                if any(0 <= nx < w and 0 <= ny < h and kind[ny][nx] == "sea" for nx, ny in near):
+                    out[py][px] = "c"
+    return out
+
+
 def weather_map():
     p = Page(702)
     p.fill(1, 1, 39, "blue", "blue")
     p.text(1, 3, "VERWACHTING TOT MIDDERNACHT:", "yellow", "blue")
     p.text(1, 36, "1/2", "cyan", "blue")
-    # A made-up island: an outline in cyan with the land in green.
-    import math
-    for row in range(3, 23):
-        for col in range(17, 39):
-            dx, dy = (col - 28) / 10.5, (row - 12.5) / 9.5
-            d = math.hypot(dx, dy) + 0.12 * math.sin(col * 0.9) * math.cos(row * 0.7)
-            if d < 0.8:
-                p.mosaic(row, col, [FULL], "green")
-            elif d < 0.97:
-                p.mosaic(row, col, [0x7F if (row + col) % 3 else 0x6A], "cyan")
-    for row, col, value in ((6, 27, "10"), (11, 22, "11"), (12, 31, "10"), (17, 26, "12"), (19, 33, "11")):
-        p.text(row, col - 1, " " + value + " ", "red")
+    pixels = map_pixels()
+    for row in range(MAP_ROWS):
+        for col in range(MAP_COLS):
+            six = [pixels[row * 3 + i // 2][col * 2 + i % 2] for i in range(6)]   # bit i of a block, as in the model
+            colour = "c" if six.count("c") >= six.count("g") else "g"   # a cell has one colour: the one with most blocks
+            bits = sum(1 << i for i in range(6) if six[i] == colour)
+            if bits:
+                code = 0x20 | (bits & 0x1F) | ((bits & 0x20) << 1)
+                p.mosaic(MAP_ROW + row, MAP_COL + col, [code], "cyan" if colour == "c" else "green")
+    for row, col, value in ((4, 20, "11"), (6, 35, "10"), (11, 34, "10"), (13, 28, "11"), (17, 21, "12"), (17, 30, "11")):
+        p.text(row, col, value, "red")
     for i, line in enumerate(["Veel bewolking", "met af en toe", "een bui,vooral", "in het midden.", "In de middag", "ook wat zon."]):
         p.text(6 + i, 1, line, "cyan")
-    p.text(20, 3, "=", "red")
-    p.text(20, 5, "max.temp.", "green")
-    p.text(21, 5, "vandaag", "green")
+    p.text(19, 3, "=", "green")
+    p.text(19, 5, "max.temp.", "green")
+    p.text(20, 5, "vandaag", "green")
     p.mosaic(23, 1, [0x23] * 11, "blue")
     p.text(23, 13, "voorbeeldkaart", "green")
     p.mosaic(23, 29, [0x23] * 11, "blue")

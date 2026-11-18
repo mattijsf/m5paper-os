@@ -50,7 +50,7 @@ ink and paper only, and the black background of a television is paper:
 | text in the colour of its own background (hidden) | nothing |
 | mosaic blocks in white, yellow, cyan, blue | solid ink |
 | mosaic blocks in red, magenta | two of every three pixel rows ink |
-| mosaic blocks in green | every other pixel row ink (the land on the weather map against its cyan outline) |
+| mosaic blocks in green | every other pixel row ink (Germany and Belgium on the weather map; the Netherlands itself is black there, so paper, inside a cyan coast line) |
 | mosaic blocks on an ink bar | paper |
 
 Characters are drawn with `Type::Mono` (JetBrains Mono Medium 22, every character 13 px wide; UI.md "Type") and then cut
@@ -90,7 +90,11 @@ for; a page asked without a subpage that turns out to have them is subpage 1.
 ## Tests
 
 - Fixtures: `tests/fixtures/make-teletekst-fixtures.py` writes pages 100, 101, 104, 702 (two subpages) and the 404 of 199
-  in the service's shape. **The text is made up**; no page of the real service is in the repository.
+  in the service's shape. **The text is made up**; no page of the real service is in the repository. The map of 702 is
+  our own drawing of the Netherlands (corner points in the script), coloured as the service colours its map: cyan coast
+  line and inland water, green neighbours, red numbers on black land.
+- A look at real pages without the device: fetch them with curl into a directory outside the repository under the
+  fixture names (`GET_teletekst-data.nos.nl_json_702.json`) and run a script with `--fixtures <that directory>`.
 - UI scripts: `teletekst` (index, a headline tap, the number pad, the map with its subpage, a page that does not exist, a
   coloured link), `teletekst-offline` (nothing saved, no network), `teletekst-saved` (saved copies without Wi-Fi, the page
   that was open comes back, page 100 after an hour).

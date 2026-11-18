@@ -1081,3 +1081,8 @@ None of these block Phase 1, Phase 2, or the reader.
   grid in ink and paper, `Type::Mono` (JetBrains Mono Medium 22), `Screen::sideMargin()`, icon `tv`. Simulator, 8 unit test
   cases, 3 UI scripts with made-up pages; 320 unit tests, 257 screenshots; firmware 2,479,376 bytes (+43,216). Not flashed:
   no device attached (Pending device checks).
+- 2026-11-18: Teletekst test map: the fixture's map was a
+  made-up island, green land in a cyan ring, nothing like the service's map. Real pages 702 to 705 rendered in the simulator
+  (fetched to a directory outside the repository, `--fixtures`): they draw well, the app is unchanged. The fixture is now our
+  own drawing of the Netherlands in the service's colours (cyan coast line and inland water, green neighbours, red numbers on
+  black land); goldens teletekst-map and teletekst-missing re-accepted. 320 unit tests, 257 screenshots.
