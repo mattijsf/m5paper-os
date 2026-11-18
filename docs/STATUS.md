@@ -305,8 +305,11 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   answered after **16.8 s** with 837 bytes, the site's "Access Denied" (DPG Media's firewall, "Target URL returned
   error 403"), and that notice was saved as an article. **Fixed**: a site's refusal is a read that failed ("The site
   refused the reader (403)"), the link is dropped and nothing is saved (`refusedStatus`, unit test). The notice was
-  removed on the device with a long press on its row. Firmware now 2,558,611 bytes, flashed. **Still not seen: a
-  real shared link that becomes an article** (a site that lets the reader service in): "Pending device checks".
+  removed on the device with a long press on its row. Firmware now 2,558,611 bytes, flashed. **A second real link, 14:58** (a
+  jeffquast.com page): relay "accepted 1", the page read in **1.9 s** on the connection that was open, 10,244 bytes
+  saved as "A Perfect SimCity · Articles - jeffquast.com.md", listed under the card with "New", opened in 2.05 s the
+  first time (23 pages; convert 1.65 s, paginate 0.39 s), read on the panel (`out/p7-18/dev-link2-article.png`,
+  `cam-link2-article-upright.png`). Card P7-18 is done.
 
 ## What works today
 
@@ -543,14 +546,12 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
-- **Read later (P7-18, 2026-11-18)**: (1) a link shared from the real phone that becomes an article: a page of a site
-  that lets the reader service in (the first real link, tweakers.net, was refused: "Now"); then the article in the
-  library and on the panel, or saved by a scheduled wake (`[sched] ... N article(s)`, the seventh field of
-  `/data/refresh.log`). Needs a person's hand on the phone. (2) the toast "site: The site refused the reader (403)" on
-  the device (unit test only; the refusal itself was seen with the firmware before the fix). (3) how long a page that
-  is read takes (the refused one: 16.8 s; Hacker News measured 1.6 s for an article of 145 paragraphs). Done on
-  2026-11-18 ("Now"): the relay taking a real shared link, the badge, the read from the library, a `.md` with a name
-  outside ASCII, opening, reading on the panel, removing by the card's button and by a long press.
+- **Read later (P7-18, 2026-11-18)**: (1) an article saved by a scheduled wake while the device is off (`[sched] ...
+  N article(s)`, the seventh field of `/data/refresh.log`): the wake ran with nothing waiting only. (2) the toast
+  "site: The site refused the reader (403)" on the device (unit test only; the refusal itself was seen with the
+  firmware before the fix). Done on 2026-11-18 ("Now"): two real shared links through the relay, the badge, the read
+  from the library (1.9 s for a page that is read, 16.8 s for one that is refused), a `.md` with a name outside ASCII,
+  opening, reading on the panel, removing by the card's button and by a long press.
 - **Today board (P7-16, 2026-11-18)**: done with the camera on 2026-11-18 ("Now"): the board on the panel after a real
   power-off, and "Updated HH:MM" after a wake. Open: (2) the board with the book row on the device (the preview screen
   passes no book; the simulator's `today-board-book` has it). (4) the switch in Settings > Power on the device
@@ -1403,4 +1404,6 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-18: Read later with the real phone: a tweakers.net link came through the relay, the badge showed, the page was
   read from the library in 16.8 s, and was the site's "Access Denied" (403 for the reader service). A site's refusal is
   now a failed read, not an article. Long-press removal run on the device. Firmware 2,558,611 bytes.
+- 2026-11-18: Read later, a second real link (jeffquast.com): read in 1.9 s, saved, listed with "New", 23 pages, read on
+  the panel. P7-18 done.
 

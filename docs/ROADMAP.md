@@ -475,7 +475,7 @@ P6-11 last (it needs the relay and a device that can pair).
   `home.json` (thermostat, a door, the car) as a row on the board: needs a way to mark the items (a key in `home.json`),
   their reads in the scheduled refresh, and a text per item type.
 
-- [~] **P7-18 Read later**. Read: COMPANION.md 7.1 `clip`, apps/hackernews.md "The article", D34,
+- [x] **P7-18 Read later**. Read: COMPANION.md 7.1 `clip`, apps/hackernews.md "The article", D34,
   apps/reader.md. A link shared with the Paper ("Send to Paper" on the phone's share sheet: a `clip` whose text is one
   link, alone or after a title; no change to the phone app or the protocol's messages) is queued
   (`core/readlater`, `/data/readlater.json`) besides becoming the clipboard. The page is read through the reader
@@ -489,8 +489,8 @@ P6-11 last (it needs the relay and a device that can pair).
   messages only. Done when: unit tests (the link rule, the queue, file names, the `.md` import), UI script with goldens
   (a shared link arrives, the library, the article, removing it), `make check` green, a link shared from the real phone
   read on the device. (2026-11-18: built; on the device a pushed article is listed, read and removed, and a link shared from the real
-  phone came through, but its site (tweakers.net) refuses the reader service: no article. Open: a real shared link that
-  becomes an article.)
+  phone came through, but its site (tweakers.net) refuses the reader service: no article. A second real link (jeffquast.com) was read in
+  1.9 s, saved and read on the panel: done.)
 
 ## Phase 8: Optional, ask the owner first
 
