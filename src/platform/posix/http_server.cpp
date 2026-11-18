@@ -151,8 +151,9 @@ struct Conn {
 
 }  // namespace
 
-bool PosixHttpServer::start(hal::ServerHandler handler) {
+bool PosixHttpServer::start(hal::ServerHandler handler, uint16_t port) {
   if (running_) return true;
+  port_ = port ? port : ownPort_;
   handler_ = std::move(handler);
   listenFd_ = ::socket(AF_INET, SOCK_STREAM, 0);
   if (listenFd_ < 0) return false;
@@ -161,9 +162,9 @@ bool PosixHttpServer::start(hal::ServerHandler handler) {
   sockaddr_in addr{};
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = htonl(INADDR_ANY);
-  addr.sin_port = htons(port_);
+  addr.sin_port = htons(port_.load());
   if (::bind(listenFd_, reinterpret_cast<sockaddr*>(&addr), sizeof addr) != 0 || ::listen(listenFd_, kMaxConnections) != 0) {
-    POS_LOG("http", "cannot listen on port %u (errno %d)", static_cast<unsigned>(port_), errno);
+    POS_LOG("http", "cannot listen on port %u (errno %d)", static_cast<unsigned>(port_.load()), errno);
     ::close(listenFd_);
     listenFd_ = -1;
     return false;
@@ -171,7 +172,7 @@ bool PosixHttpServer::start(hal::ServerHandler handler) {
   running_ = true;
   threadConfig();
   acceptThread_ = std::thread([this] { acceptLoop(); });
-  POS_LOG("http", "listening on port %u", static_cast<unsigned>(port_));
+  POS_LOG("http", "listening on port %u", static_cast<unsigned>(port_.load()));
   return true;
 }
 
@@ -189,6 +190,7 @@ void PosixHttpServer::stop() {
   }
   const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
   while (active_ > 0 && std::chrono::steady_clock::now() < until) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  port_ = ownPort_;
   POS_LOG("http", "stopped");
 }
 

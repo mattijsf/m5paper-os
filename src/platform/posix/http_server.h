@@ -14,11 +14,11 @@ namespace pos::platform {
 
 class PosixHttpServer : public hal::HttpServer {
  public:
-  explicit PosixHttpServer(uint16_t port) : port_(port) {}
+  explicit PosixHttpServer(uint16_t port) : ownPort_(port), port_(port) {}
   ~PosixHttpServer() override { stop(); }
-  bool start(hal::ServerHandler handler) override;
+  bool start(hal::ServerHandler handler, uint16_t port = 0) override;
   void stop() override;
-  uint16_t port() const override { return port_; }
+  uint16_t port() const override { return port_; }  // of this run; the platform's own when stopped
 
   static constexpr int kMaxConnections = 4;    // Finder opens two or three at once
   static constexpr int kIdleTimeoutSec = 30;   // a silent connection is closed
@@ -27,7 +27,8 @@ class PosixHttpServer : public hal::HttpServer {
   void acceptLoop();
   void serve(int fd);
 
-  const uint16_t port_;
+  const uint16_t ownPort_;
+  std::atomic<uint16_t> port_;
   std::atomic<bool> running_{false};
   std::atomic<int> listenFd_{-1};  // closed by stop() while the accept thread reads it
   std::thread acceptThread_;

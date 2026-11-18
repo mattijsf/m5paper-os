@@ -1,6 +1,8 @@
 // Firmware update on the device (hal/update.h, DECISIONS.md D37): ESP-IDF's two app slots. The image is written to the
 // slot that is not running as it arrives; the bootloader's rollback (CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE) goes back to
 // the firmware from before when a new image is reset before it was confirmed.
+#include <cstdio>
+
 #include <esp_app_desc.h>
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
@@ -15,8 +17,10 @@ extern "C" bool verifyRollbackLater() { return true; }
 namespace pos::hal {
 
 std::string buildId() {
-  char hex[13] = {0};
-  esp_app_get_elf_sha256(hex, sizeof hex);
+  // (esp_app_get_elf_sha256() gives CONFIG_APP_RETRIEVE_LEN_ELF_SHA digits, 9 in this build: the description has all.)
+  const esp_app_desc_t* d = esp_app_get_description();
+  char hex[13];
+  for (int i = 0; i < 6; ++i) snprintf(hex + 2 * i, 3, "%02x", d->app_elf_sha256[i]);
   return hex;
 }
 

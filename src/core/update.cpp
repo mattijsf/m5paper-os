@@ -134,20 +134,25 @@ hal::ServerResponse Server::receive(hal::ServerRequest& req) {
   POS_LOG("update", "receiving build %s, %u bytes", h.build.c_str(), static_cast<unsigned>(h.size));
   crypto_hash_sha256_state hash;
   crypto_hash_sha256_init(&hash);
-  std::vector<uint8_t> buf(16 * 1024);
-  uint32_t got = 0;
+  // One flash sector at a time, from a buffer that is not in PSRAM (one upload at a time: `busy`): a write to the
+  // internal flash stops the cache, and with it PSRAM, for as long as it takes.
+  static uint8_t buf[4096];
+  uint32_t got = 0, slowest = 0;
+  const uint32_t t0 = millis_();
   while (got < h.size) {
-    const size_t want = std::min<size_t>(buf.size(), h.size - got);
-    const long n = req.read(reinterpret_cast<char*>(buf.data()), want);
+    const size_t want = std::min<size_t>(sizeof buf, h.size - got);
+    const long n = req.read(reinterpret_cast<char*>(buf), want);
     if (n <= 0) {
       updater_.abort();
       return fail(400, "The upload stopped after " + std::to_string(got) + " of " + std::to_string(h.size) + " bytes");
     }
-    crypto_hash_sha256_update(&hash, buf.data(), static_cast<size_t>(n));
-    if (!updater_.write(buf.data(), static_cast<size_t>(n))) {
+    crypto_hash_sha256_update(&hash, buf, static_cast<size_t>(n));
+    const uint32_t w0 = millis_();
+    if (!updater_.write(buf, static_cast<size_t>(n))) {
       updater_.abort();
       return fail(500, "Writing the image failed");
     }
+    slowest = std::max(slowest, millis_() - w0);
     got += static_cast<uint32_t>(n);
     lastRequest_ = millis_();
     std::lock_guard<std::mutex> lock(mu_);
@@ -166,7 +171,7 @@ hal::ServerResponse Server::receive(hal::ServerRequest& req) {
     stats_.done = true;
     stats_.last = "Update received";
   }
-  POS_LOG("update", "build %s is in place: restarting", h.build.c_str());
+  POS_LOG("update", "build %s is in place after %u ms (slowest write %u ms): restarting", h.build.c_str(), static_cast<unsigned>(millis_() - t0), static_cast<unsigned>(slowest));
   return text(200, "ok: build " + h.build + " is in place, the device restarts");
 }
 

@@ -131,8 +131,8 @@ Golden `files-storage`, `files-wifi` (UI script `files-wifi`, a fake Wi-Fi netwo
 
 ## Update over Wi-Fi (task P7-3, DECISIONS.md D37)
 
-Settings > About > Update over Wi-Fi (`UpdatePage`). While the page is open the Paper joins Wi-Fi and listens on port 80
-(the simulator: 8080) for a firmware package from the Mac:
+Settings > About > Update over Wi-Fi (`UpdatePage`). While the page is open the Paper joins Wi-Fi and listens on port 8266
+(`update::kPort`, device and simulator) for a firmware package from the Mac:
 
 ```bash
 make ota-key   # once: the signing key (~/.config/paperos/ota-signing.key) and its public half in src/core/update_key.h
@@ -140,13 +140,14 @@ make flash     # once after that, over USB: the firmware on the device must hold
 make ota       # from then on: builds, signs and sends (HOST=192.168.1.23 names the device)
 ```
 
-- The page shows the address, "On the Mac: make ota", what arrives ("Receiving build 3fa9c1d2e4b7: 1.2 MB of 2.5 MB"),
+- The page shows the address with the port, "On the Mac: make ota", what arrives ("Receiving build 3fa9c1d2e4b7", "1.2 MB of 2.5 MB"),
   the reason when a package is refused, and under it the build that runs and its slot. After a good image: "Build ...
   received. Restarting...", then the restart (2.5 s later, so the sender has its answer).
 - It stops listening when the page is left, or after five minutes without a request. A firmware built before a key
   existed says "This firmware has no update key" and does not listen.
-- `tools/ota.py send` finds the device by `--host`, `$OTA_HOST`, the address of the last update (`out/ota/last-host`),
-  or by asking every address of the Mac's /24 on port 80 (`GET /` answers `{"paperos":"update","build":...}`).
+- `tools/ota.py send` takes the device's address from `--host` (`make ota HOST=...`), `$OTA_HOST`, a device on USB
+  (`device.py status`), or the last update (`out/ota/last-host`), and checks it with `GET /` (the page answers
+  `{"paperos":"update","build":...}`). It never searches the network: that set a router against the Mac once (D37).
 - Requests (`update::Server`): `GET /` (who this is), `POST /update` (the package; 200, or 400 / 403 / 409 / 413 / 500
   with the reason as text). The package format is in `src/core/update.h`.
 - The new firmware is kept once it has run 15 s; before that a reset brings the old one back, and the page then says

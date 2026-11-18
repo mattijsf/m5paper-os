@@ -41,9 +41,10 @@ class HttpServer {
  public:
   virtual ~HttpServer() = default;
   // Listens on all interfaces; the handler runs on the server's own threads (one per connection, a few at most).
-  virtual bool start(ServerHandler handler) = 0;
+  // `port` 0: the platform's own (below); another number for a service of its own (the update page: 8266).
+  virtual bool start(ServerHandler handler, uint16_t port = 0) = 0;
   virtual void stop() = 0;  // closes every connection; returns when no handler runs any more
-  virtual uint16_t port() const = 0;  // device 80, simulator 8080
+  virtual uint16_t port() const = 0;  // the port it listens on, or would with start(handler, 0): device 80, simulator 8080
 };
 
 }  // namespace pos::hal

@@ -23,6 +23,9 @@
 
 namespace pos::update {
 
+// The port the update page listens on, device and simulator: its own, not the file server's 80 (a service of its own,
+// and `make ota` then does not depend on what a router thinks of port 80: DECISIONS.md D37).
+constexpr uint16_t kPort = 8266;
 constexpr size_t kHeaderBytes = 148, kSignedBytes = 84, kKeyBytes = 32, kHashBytes = 32, kSigBytes = 64;
 constexpr const char kMagic[] = "POSOTA1\n";
 using PublicKey = std::array<uint8_t, kKeyBytes>;

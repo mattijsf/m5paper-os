@@ -632,9 +632,16 @@ the budget runs short (sizes from the linker map):
 Answers STATUS.md open question 4 with its option b. Asked once more with the two ways side by side (pull at the hourly
 wake, announced through Home Assistant; or push while a page is open): the owner chose the push.
 
-- **Where**: Settings > About > Update over Wi-Fi. The device joins Wi-Fi and listens on port 80 only while that page is
-  open, five minutes without a request at most; leaving the page stops it. On the Mac: `make ota` (builds, signs, finds
-  the device, sends). The same HTTP server as Files over Wi-Fi (D30), with another handler (`core/update`).
+- **Where**: Settings > About > Update over Wi-Fi. The device joins Wi-Fi and listens on port 8266 only while that page
+  is open, five minutes without a request at most; leaving the page stops it. On the Mac: `make ota` (builds, signs,
+  sends). The same HTTP server as Files over Wi-Fi (D30), with another handler (`core/update`) and a port of its own
+  (`hal::HttpServer::start(handler, port)`).
+- **`make ota` never searches the network.** The first version asked every address of the home network on port 80 when
+  it knew no address (1021 connections in a few seconds). The mesh router took that for an attack: seconds later it cut
+  the upload that was running and from then on dropped everything from the Mac to the device's port 80, across
+  restarts of the device (seen 2026-11-18; Files over Wi-Fi from this Mac was dead with it). The tool now takes the
+  address from `HOST=`, from a device on USB (`device.py status`), or from the last update, and asks the user for it
+  otherwise (the page shows it). The page's own port also keeps `make ota` clear of that block.
 - **Signed, not a code**: a package is the firmware image behind a 148-byte header (build, size, SHA-256, time) signed
   with Ed25519 (libsodium, already in the firmware for the companion protocol: no new library). The public key is
   compiled in (`src/core/update_key.h`, written by `make ota-key`); the private key is on the Mac at
@@ -657,5 +664,9 @@ wake, announced through Home Assistant; or push while a page is open): the owner
   `tools/device.py status` show it; `make ota` sends nothing when the device already runs that build.
 - **Left out**: the pull at the hourly wake (zero touch, but it needs a token for Home Assistant on the Mac and the Mac
   awake when the device wakes); a version check; TLS (the firmware has no TLS server, D31).
-- **Cost**: firmware +26 KB (2,584,487 bytes).
+- **On the device** (2026-11-18): 2.5 MB in 25 to 47 s (the flash is written a sector at a time from a buffer in
+  internal RAM, slowest write 139 ms; the Wi-Fi sets the pace), the restart, "not confirmed yet" for 15 s, then kept;
+  a reset inside those 15 s: the old slot is back and the page says so; a changed header 403, a changed image 400 after
+  it was written (never made the one that boots), text that is no package 400; `make flash` afterwards boots app0.
+- **Cost**: firmware +26 KB (2,584,523 bytes).
 

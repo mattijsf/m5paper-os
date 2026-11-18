@@ -19,10 +19,10 @@ making it the one that boots, and goes back to the firmware from before if the n
 Package: 148-byte header + firmware.bin (src/core/update.h):
   "POSOTA1\\n", build[32], size u32 LE, sha256[32], made u64 LE, Ed25519 signature[64] over the first 84 bytes.
 
-Finding the device: --host, else $OTA_HOST, else the address of the last update (out/ota/last-host), else every address
-of this Mac's /24 is asked "GET /" on port 80 (the update page answers {"paperos":"update",...}).
+Finding the device: --host, else $OTA_HOST, else the address a device on USB reports, else the address of the last
+update (out/ota/last-host). The update page answers "GET /" with {"paperos":"update",...}. The network is never searched.
 """
-import argparse, concurrent.futures, hashlib, http.client, json, os, re, socket, struct, subprocess, sys, time
+import argparse, hashlib, http.client, json, os, re, socket, struct, subprocess, sys, time
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -34,6 +34,7 @@ BIN = os.path.join(ROOT, ".pio", "build", "papers3", "firmware.bin")
 OUT = os.path.join(ROOT, "out", "ota")
 MAGIC = b"POSOTA1\n"
 HEADER_BYTES, SIGNED_BYTES = 148, 84
+PORT = 8266  # update::kPort: the update page's own port, device and simulator
 APP_DESC_OFFSET, APP_DESC_MAGIC, ELF_SHA_OFFSET = 0x20, 0xABCD5432, 0xB0
 
 
@@ -130,50 +131,48 @@ def ask(host, port, timeout):
         return None
 
 
-def my_address():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(("192.0.2.1", 9))  # no packet is sent: this only picks the interface of the default route
-        return s.getsockname()[0]
-    except OSError:
-        return None
-    finally:
-        s.close()
-
-
 def find(a):
-    port = 8080 if a.sim else 80
-    tried = []
-    for host, why in ((a.host, "--host"), (os.environ.get("OTA_HOST"), "$OTA_HOST")):
-        if host:
-            d = ask(host, port, 4)
-            if d:
-                return host, port, d
-            sys.exit(f"no update page at {host}:{port} ({why}): open Settings > About > Update over Wi-Fi on the device")
+    """The device to send to: --host, $OTA_HOST, the address a device on USB reports, the address of the last update.
+    No search of the network: asking every address of the home network on port 80 looks like an attack to a router
+    (2026-11-18: a mesh router then dropped everything from this Mac to the device's port 80)."""
+    port = a.port or PORT
     if a.sim:
         d = ask("localhost", port, 2)
         if d:
             return "localhost", port, d
-        sys.exit("no simulator with the update page open on localhost:8080")
-    last = os.path.join(OUT, "last-host")
-    if os.path.exists(last):
-        host = open(last).read().strip()
-        d = ask(host, port, 2)
+        sys.exit(f"no simulator with the update page open on localhost:{port}")
+    tried = []
+    for host, why in ((a.host, "--host"), (os.environ.get("OTA_HOST"), "$OTA_HOST"), (usb_address(), "the device on USB"),
+                      (last_host(), "the last update")):
+        if not host or host in tried:
+            continue
+        tried.append(host)
+        d = ask(host, port, 4)
         if d:
             return host, port, d
-        tried.append(host)
-    me = my_address()
-    if not me:
-        sys.exit("this Mac has no network address")
-    net = me.rsplit(".", 1)[0]
-    say(f"looking for the device on {net}.0/24 ...")
-    hosts = [f"{net}.{i}" for i in range(1, 255) if f"{net}.{i}" != me]
-    with concurrent.futures.ThreadPoolExecutor(max_workers=64) as pool:
-        for host, d in zip(hosts, pool.map(lambda h: ask(h, port, 1.5), hosts)):
-            if d:
-                return host, port, d
-    sys.exit("no device found" + (f" (not at {tried[0]} either)" if tried else "") +
-             ": open Settings > About > Update over Wi-Fi on it (it listens for 5 minutes), or name it with HOST=<address>")
+        say(f"no update page at {host}:{port} ({why})")
+    sys.exit("no device to send to: open Settings > About > Update over Wi-Fi on it (it listens for 5 minutes) and give "
+             "the address it shows: make ota HOST=<address>")
+
+
+def last_host():
+    path = os.path.join(OUT, "last-host")
+    return open(path).read().strip() if os.path.exists(path) else None
+
+
+def usb_address():
+    """The Wi-Fi address of a device on USB (`tools/device.py status`), or None. Never waits long."""
+    import glob
+    if not glob.glob("/dev/cu.usbmodem*"):
+        return None
+    py = os.path.expanduser("~/.platformio/penv/bin/python")
+    try:
+        out = subprocess.run([py, os.path.join(ROOT, "tools", "device.py"), "--limit", "12", "status"], capture_output=True, text=True,
+                             timeout=15).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    m = re.search(r"^wifi: connected .* ip=(\d+\.\d+\.\d+\.\d+)", out, re.M)
+    return m.group(1) if m else None
 
 
 def cmd_send(a):
@@ -216,9 +215,10 @@ def cmd_send(a):
             sys.exit(f"the upload failed after {sent} bytes: {e}")
     if r.status != 200:
         sys.exit(f"the device refused it ({r.status}): {answer}")
-    os.makedirs(OUT, exist_ok=True)
-    with open(os.path.join(OUT, "last-host"), "w") as f:
-        f.write(host + "\n")
+    if not a.sim:
+        os.makedirs(OUT, exist_ok=True)
+        with open(os.path.join(OUT, "last-host"), "w") as f:
+            f.write(host + "\n")
     say(f"{answer}  ({time.time() - t0:.1f} s)")
     say("it restarts into the new firmware and keeps it once it has run 15 s; Settings > About shows the build.")
 
@@ -244,7 +244,8 @@ def main():
     s = sub.add_parser("send", help="sign firmware.bin and send it to a device that shows the update page")
     s.add_argument("--bin", default=BIN)
     s.add_argument("--host")
-    s.add_argument("--sim", action="store_true", help="the simulator on localhost:8080")
+    s.add_argument("--sim", action="store_true", help="the simulator on localhost")
+    s.add_argument("--port", type=int, help="the update page's port (8266)")
     s.add_argument("--force", action="store_true", help="send even if the device runs this build")
     s = sub.add_parser("info", help="which key, which build")
     s.add_argument("--bin", default=BIN)

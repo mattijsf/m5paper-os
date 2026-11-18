@@ -322,8 +322,22 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   `UpdatePage` in Settings, `tools/ota.py`, `make ota` / `make ota-key`. Tests: 3 unit tests (358), script `update`
   (golden `update-page`; `settings-about` re-accepted), and the real tool against the simulator (the page opened with
   `--remote`, `ota.py send --sim`: 2,585,040 bytes arrived identical to `firmware.bin`, the simulator "restarted").
-  304 screenshots. Firmware 2,584,487 bytes (+25,876). **Not on the device yet**: it was not on USB when this was
-  built, and the first firmware with the key has to go over USB: "Pending device checks".
+  304 screenshots. Firmware 2,584,523 bytes (+25,912). **On the device, 18:05 to 18:30** (USB for the first flash and
+  for watching; the update itself over Wi-Fi): `make ota` sent 2.5 MB in 25 to 47 s, the device restarted into the
+  other slot, `status` said "(new: not confirmed yet)" and 16 s later did not ("new firmware confirmed: build ... in
+  app1"); a `>reboot` inside the 15 s brought the old slot back ("the last update did not start: this is the firmware
+  from before", on the page too); a changed header was refused with 403, a changed image with 400 after it was
+  written, text with 400, the running firmware untouched each time; `make flash` afterwards booted app0. The device
+  now runs build b416f3c3ffd2 from app1, put there by `make ota`. **Found on the way**: (1) the build id read through
+  `esp_app_get_elf_sha256()` had 9 digits (the tool's has 12): read from the app description now. (2) **The tool's
+  search of the network set the router against the Mac**: with no address it asked all 1021 addresses of the home
+  network on port 80; seconds later the mesh router cut the running upload at 68 KB and has since dropped everything
+  from this Mac to the device's port 80 (still at 18:30; ping and other ports are fine; a restart of the device
+  changes nothing). The search is gone from the tool, and the update page has its own port, 8266. **Files over Wi-Fi
+  from this Mac does not work while the router's block lasts**: "Open questions" 10. (3) the progress line lost its
+  "MB" (a label that became two lines was not laid out again).
+
+## What works today
 
 ## What works today
 
@@ -560,15 +574,11 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
-- **Update over Wi-Fi (P7-3, 2026-11-18)**: nothing ran on the device. In order: (1) `make flash` once over USB (the
-  key), `device.py status` shows `build: <id> slot=app0`. (2) Settings > About > Update over Wi-Fi, `make ota` with a
-  changed build: the page's progress, the restart, `status` shows the new build in `slot=app1` and, after 15 s, no
-  "not confirmed yet"; time for the 2.5 MB. (3) rollback: an update, then a reset inside the first 15 s (the remote
-  `reboot` does not confirm): the old build is back and the page says so. (4) a package that is refused (a changed
-  byte: `ota.py pack`, edit, `curl --data-binary`): the reason on the page, the running firmware untouched. (5) a
-  scheduled wake as the first boot of a new firmware (it is off again within 5 s: `confirmUpdateIfPending`). (6) `make
-  flash` after an update: app0 boots again. (7) the heap while the page receives (TLS is not in play; Wi-Fi and the
-  server are).
+- **Update over Wi-Fi (P7-3, 2026-11-18)**: done on the device ("Now"): the update, the confirmation, the rollback,
+  three refusals, `make flash` afterwards. Open: (1) an update with the device away from USB (the address then comes
+  from `HOST=` or the last update; every run so far had the cable in for watching). (2) a scheduled wake as the first
+  boot of a new firmware (it is off again within 5 s: `confirmUpdateIfPending`). (3) the heap while the page receives.
+  (4) a new firmware that crashes by itself in its first seconds (the reset was sent by hand).
 - **Read later (P7-18, 2026-11-18)**: (1) an article saved by a scheduled wake while the device is off (`[sched] ...
   N article(s)`, the seventh field of `/data/refresh.log`): the wake ran with nothing waiting only. (2) the toast
   "site: The site refused the reader (403)" on the device (unit test only; the refusal itself was seen with the
@@ -819,6 +829,12 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
 9. **Home Assistant states on the Today board (P7-17, asked 2026-11-18)**: which two or three items of the Home app
    should the sleep screen show (the thermostat's temperature, a door or window, the car, something else)? They are read
    at a scheduled wake, so they are as old as the board.
+
+10. **The router blocks this Mac's connections to the Paper's port 80 (2026-11-18, 18:10)**: caused by `tools/ota.py`'s
+   first version, which asked every address of the home network on port 80 (D37; removed). Since then Files over Wi-Fi
+   (port 80) cannot be reached from this Mac; other devices are probably not affected, and updates use port 8266. If it
+   does not lift by itself: the mesh's app (its security or intrusion log) should list the Mac or the event; unblock it
+   there. Note whether it lifted.
 
 None of these block Phase 1, Phase 2, or the reader.
 
@@ -1433,4 +1449,7 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-18: P7-3 update over Wi-Fi (D37): the update page, signed packages, two slots with the bootloader's rollback,
   `make ota` / `make ota-key`, `hal::buildId()`. 358 unit tests, 304 screenshots, firmware 2,584,487 bytes. Run against
   the simulator with the real tool; not on the device yet (it has to be flashed over USB once).
+- 2026-11-18: P7-3 on the device: update over Wi-Fi in 25-47 s, confirmed after 15 s, rollback after a reset, bad
+  packages refused, `make flash` wins back app0. The tool no longer searches the network (the router blocked the Mac's
+  way to the device's port 80 after it did); the update page listens on 8266. Firmware 2,584,523 bytes.
 

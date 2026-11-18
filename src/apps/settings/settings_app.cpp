@@ -1072,6 +1072,7 @@ class UpdatePage : public Page {
     root.add<ui::Spacer>(ui::s2);
     activity_ = root.add<ui::Label>("", Type::Body);
     activity_->maxLines = 3;
+    activity_->keepLineBreaks = true;
     root.add<ui::Spacer>(0, 1);
     hal::Updater* up = ctx().os().platform().update;
     std::string running = "This firmware: build " + hal::buildId();
@@ -1147,7 +1148,7 @@ class UpdatePage : public Page {
       auto srv = server_;
       http_ = http;
       radio_ = &ctx().os().platform().net;
-      if (!http->start([srv](hal::ServerRequest& q) { return srv->handle(q); })) {
+      if (!http->start([srv](hal::ServerRequest& q) { return srv->handle(q); }, update::kPort)) {
         state_->setText("Could not start listening");
         showRunning(false);
         return;
@@ -1155,7 +1156,7 @@ class UpdatePage : public Page {
       running_ = true;
       const bool sim = std::string(ctx().os().platform().name) == "simulator";
       const std::string ip = sim ? "localhost" : ctx().os().net().link().ip;
-      addr_->setText(ip + (http->port() == 80 ? "" : ":" + std::to_string(http->port())));
+      addr_->setText(ip + ":" + std::to_string(http->port()));
       state_->setText("Waiting for an update while this page is open. Only firmware signed with this device's key is taken.");
       showRunning(true);
       tick();
@@ -1169,11 +1170,14 @@ class UpdatePage : public Page {
     ctx().os().keepAwake();
     const update::Stats s = server_->stats();
     std::string a;
-    if (s.done) a = "Build " + s.build + " received. Restarting...";
-    else if (s.busy && s.size > 0) a = "Receiving build " + s.build + ": " + bytesText(s.received) + " of " + bytesText(s.size);
+    if (s.done) a = "Build " + s.build + " received.\nRestarting...";
+    else if (s.busy && s.size > 0) a = "Receiving build " + s.build + "\n" + bytesText(s.received) + " of " + bytesText(s.size);
     else if (s.busy) a = "Receiving...";
     else a = s.last;
-    if (a != activity_->text()) activity_->setText(a);
+    if (a != activity_->text()) {
+      activity_->setText(a);
+      if (auto* h = activity_->host()) h->relayout();  // one line became two
+    }
     if (s.done) {  // the answer to the sender is on its way: stop listening, show the line, restart
       restarting_ = true;
       state_->setText("The new firmware is in place.");
