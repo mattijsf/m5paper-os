@@ -5,7 +5,7 @@ user or the device is sent anywhere.
 
 Code: `src/apps/teletekst/` (`teletekst_model.*`: the page JSON into a grid of cells, page references, the link a touch
 means, the saved copy; unit tested in `tests/unit/teletekst_test.cpp`. `teletekst_app.cpp`: the page view, the buttons, the
-number pad). Launcher tile "Teletekst", icon `tv`, order 99 (after the weather: the tenth tile of page 1).
+number pad). Launcher tile "Teletekst", icon `Icon::Teletekst` (the logo redrawn as a bitmap, UI.md "Icons"; the loading state keeps `tv`), order 99 (after the weather: the tenth tile of page 1).
 
 ## The screen
 

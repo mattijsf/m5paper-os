@@ -50,7 +50,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   device checks). Open question 7.
 
 - **P7-12 Teletekst, 2026-11-18: built, runs on the device**. App `teletekst`,
-  the tenth tile of launcher page 1 (icon `tv`): NOS Teletekst read from the JSON the service's own site uses
+  the tenth tile of launcher page 1 (icon: the logo, redrawn; first `tv`): NOS Teletekst read from the JSON the service's own site uses
   (`teletekst-data.nos.nl/json/<page>`, checked live on 2026-11-18 from the Mac: 25 lines of 40 cells, 404 for a page that
   does not exist), drawn as the 40 x 24 grid in ink and paper only: a new font token `Type::Mono` (JetBrains Mono Medium 22,
   13 px a character, +21.5 KB), dark backgrounds as ink bars, mosaic colours as solid or striped ink, characters cut to
@@ -1096,3 +1096,9 @@ None of these block Phase 1, Phase 2, or the reader.
   702/2, an article and the number pad looked at; 702 against the simulator's render of the same JSON: 941 pixels differ,
   all in the status line (the time). Taps: next, previous, a headline row, the number pad, a swipe to the subpage. The
   real page 100 has subpages (the button says 100/1). No webcam attached: the panel was not seen.
+- 2026-11-18: Teletekst's launcher icon is the logo. Redrawn by hand on a 97 x 64 grid, ink on paper (`assets/icons-drawn/teletekst.txt`; the red O is the outlined
+  one); new: drawn icons (UI.md "Icons": the generator bakes the bitmap into `src/gen/icons.h`, `drawIcon` draws it, half
+  size at 32). The loading state keeps `tv`. 17 goldens re-accepted (16 show the launcher, `fonts-sheet` one more icon:
+  changed pixels only inside the tile's icon box). 320 unit tests, 257 screenshots; firmware 2,480,544 bytes (+1,168).
+  **On the device**: flashed, the frame dump of the launcher shows the icon, a tap on the tile opens the app and reads page
+  100. The panel itself not seen (no webcam): the 2 and 3 px strokes of the icon are part of the pending camera check.

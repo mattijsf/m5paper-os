@@ -578,7 +578,7 @@ class TeletekstApp : public App {
 POS_REGISTER_APP(TeletekstApp, {
     .id = "teletekst",
     .name = "Teletekst",
-    .icon = Icon::Tv,
+    .icon = Icon::Teletekst,
     .order = 99,  // after the weather: the tiles of the other apps keep their places
 });
 

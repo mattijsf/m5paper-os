@@ -35,5 +35,6 @@ ICON_RANGES=$(python3 tools/gen_assets.py icon-ranges)
 conv lucide_32 lucide.ttf 32 "$ICON_RANGES"
 conv lucide_64 lucide.ttf 64 "$ICON_RANGES"
 
+# (icons drawn by hand, assets/icons-drawn/*.txt, go into src/gen/icons.h as bitmaps)
 python3 tools/gen_assets.py emit "$BUILD"
 echo "generated src/gen/fonts.h src/gen/fonts.cpp src/gen/icons.h"

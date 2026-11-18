@@ -633,7 +633,41 @@ std::string ellipsize(Canvas& c, const std::string& utf8, Type type, int maxWidt
   return prefix + "\xE2\x80\xA6";
 }
 
+// An icon drawn by hand (gen::kDrawnIcons): its bitmap as it is at 64, every other pixel of it at 32 (a pixel is ink
+// when two of the four it stands for are). Ink only: the paper around it is the caller's.
+static bool drawDrawnIcon(Canvas& c, Icon icon, int cx, int cy, int size, Color color) {
+  for (const gen::DrawnIcon& d : gen::kDrawnIcons) {
+    if (d.icon != icon) continue;
+    const int stride = (d.w + 7) / 8;
+    const int step = size >= 64 ? 1 : 2;
+    const int w = d.w / step, h = d.h / step;
+    const int x0 = cx - w / 2, y0 = cy - h / 2;
+    auto ink = [&](int x, int y) { return x < d.w && y < d.h && (d.bits[y * stride + x / 8] & (0x80 >> (x % 8))) != 0; };
+    for (int y = 0; y < h; ++y) {
+      int run = -1;  // the first pixel of a run of ink, -1: none open
+      for (int x = 0; x <= w; ++x) {
+        bool on = false;
+        if (x < w) {
+          if (step == 1) {
+            on = ink(x, y);
+          } else {
+            on = ink(2 * x, 2 * y) + ink(2 * x + 1, 2 * y) + ink(2 * x, 2 * y + 1) + ink(2 * x + 1, 2 * y + 1) >= 2;
+          }
+        }
+        if (on && run < 0) run = x;
+        if (!on && run >= 0) {
+          c.drawFastHLine(x0 + run, y0 + y, x - run, color);
+          run = -1;
+        }
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
 void drawIcon(Canvas& c, Icon icon, int cx, int cy, int size, Color color, Color bg) {
+  if (drawDrawnIcon(c, icon, cx, cy, size, color)) return;
   useFont(c, size >= 64 ? FontId::Lucide64 : FontId::Lucide32);
   std::string s;
   utf8::append(s, gen::kIconCodepoint[static_cast<size_t>(icon)]);

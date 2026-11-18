@@ -83,10 +83,16 @@ Initial set: arrow-left, chevron-left, chevron-right, house, book-open, library,
 lightbulb-off, sofa, utensils, blocks, cooking-pot, lamp-wall-down, lamp-wall-up, car, bed, thermometer,
 droplets, fan, wind, message-circle, mail, mail-open, settings, wifi, wifi-off, battery,
 battery-low, battery-charging, refresh-cw, moon, power, sun, check, x, plus, minus, clock,
-folder, file-text, type, info, triangle-alert, door-open, air-vent. Later: tv (Teletekst's tile).
+folder, file-text, type, info, triangle-alert, door-open, air-vent. Later: tv (Teletekst's loading state).
 Weather conditions (P7-11, apps/weather.md): sun, moon, cloud, cloud-sun, cloud-moon, cloud-rain, cloud-rain-wind, cloud-snow,
 cloud-lightning, cloud-fog, cloud-hail, wind, umbrella, droplets, sunrise, sunset.
 The Home app reuses the names of the icons in the user's Home Assistant dashboard so rooms look familiar.
+
+**Drawn icons** (2026-11-18) are for a mark that no line icon stands for: `assets/icons-drawn/<name>.txt`, 64 rows of `X`
+(ink) and `.`, any width up to 255 (lines starting with `//` are comments). The generator adds `Icon::<Name>` after the
+Lucide ones and the bitmap (a bit a pixel) to `src/gen/icons.h` (`gen::kDrawnIcons`); `drawIcon` draws it as it is at 64 and
+at half size at 32, ink only, centred like a glyph. One so far: `Icon::Teletekst`, the NOS Teletekst logo redrawn by hand
+on a 97 x 64 grid for the launcher tile. The logo is the NOS's mark: for this private device, not to be published.
 
 ## Screen anatomy
 
