@@ -107,8 +107,19 @@ A parsed page (`Page`) is 8 KB: 1000 cells of 8 bytes. It lives on the heap (`st
 and one being parsed at most), never as a local: the UI thread's stack on the device is 8 KB (APPS.md "Threads").
 `parsePage` therefore fills its result field by field instead of assigning a fresh `Page{}`.
 
-## Not checked on the device
+## On the device
 
-The app has only run in the simulator (STATUS.md "Pending device checks"): the TLS connection to the service (its chain
-ends at USERTrust RSA, which is among the firmware's 44 roots, D31), the time a read takes, memory during a read, how the
-bitmap letters and the striped blocks look on the panel.
+Flashed and run on 2026-11-18 with injected taps, frame dumps and the log (STATUS.md Log):
+
+| | |
+|---|---|
+| TLS to the service | works (its chain ends at USERTrust RSA, among the firmware's 44 roots, D31) |
+| a read, Wi-Fi up | 0.7 s the first request, 38-164 ms after it on the kept connection |
+| render of a page | 92-138 ms from the network, 36-38 ms from a saved copy |
+| tap to the page pushed | ~0.4-0.5 s from the network, 130 ms from a saved copy |
+| internal heap, lowest | 79 KB (idle 83 KB); nothing stays allocated after leaving |
+| UI thread stack left | 2.9 KB of 8 |
+| frame of page 702 | the simulator's, pixel for pixel (only the time in the status line differs) |
+
+Not seen yet: the panel itself (STATUS.md "Pending device checks"): how the bitmap letters and the 1 px stripes of the
+map look, ghosting after pages with ink bars.

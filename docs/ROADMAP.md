@@ -423,12 +423,12 @@ P6-11 last (it needs the relay and a device that can pair).
   `weather*`, unit tests. Done when: goldens accepted, `make check` green, the live entity read on the device. (2026-11-16: done;
   live read on the device: 10 days, 24 hours, STATUS.md.)
 
-- [~] **P7-12 Teletekst**. Read: apps/teletekst.md, D32. App `teletekst`:
+- [x] **P7-12 Teletekst**. Read: apps/teletekst.md, D32. App `teletekst`:
   NOS Teletekst from the JSON its own site reads (`teletekst-data.nos.nl/json/<page>`), drawn as the 40 x 24 grid in ink
   and paper with a mono font; a tap on a row opens its link, swipes and arrows for subpages, the page's four coloured links
   as buttons, previous / next page, a number pad; saved copies of the last 16 pages (shown first, and when a read fails).
   Fixtures with made-up pages, UI scripts `teletekst*`, unit tests. Done when: goldens accepted, `make check` green, a
-  live page read on the device. (2026-11-18: built and tested in the simulator; device run pending.)
+  live page read on the device. (2026-11-18: built, tested in the simulator, flashed and read live pages on the device; the panel's look is a pending camera check.)
 
 ## Phase 8: Optional, ask the owner first
 
