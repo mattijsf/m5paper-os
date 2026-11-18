@@ -1,0 +1,98 @@
+# app: hackernews
+# Hacker News (docs/apps/hackernews.md): lists and comments from the fixtures (tests/fixtures/make-hackernews-fixtures.py,
+# made-up stories). Opens on Top: thirty stories, six a page.
+wait 1500
+shot hackernews
+expect-state section=top|stories=30|page=1/5|Updated 13:34
+# The arrow at the right of the bar and a swipe turn the page.
+tap 480 892
+wait 1500
+shot hackernews-page2
+expect-state section=top|stories=30|page=2/5|
+swipe 400 500 100 500
+swipe 400 500 100 500
+swipe 400 500 100 500
+wait 1500
+shot hackernews-last
+expect-state section=top|stories=30|page=5/5|
+swipe 100 500 400 500
+swipe 100 500 400 500
+swipe 100 500 400 500
+swipe 100 500 400 500
+wait 1500
+expect-state section=top|stories=30|page=1/5|
+# A tap on a story: its comments, in the site's order, replies moved right.
+tap 270 269
+wait 1500
+shot hackernews-thread
+expect-state story=38250001|comments=13|Page 1 of 5|next
+# A tap on the right two thirds turns the page, on the left third turns back.
+tap 400 500
+wait 1500
+shot hackernews-thread-page2
+expect-state story=38250001|comments=13|Page 2 of 5|next
+tap 400 500
+wait 1500
+shot hackernews-thread-code
+expect-state story=38250001|comments=13|Page 3 of 5|next
+tap 100 500
+tap 100 500
+wait 1500
+expect-state story=38250001|comments=13|Page 1 of 5|next
+# "Next thread": the page of the next answer to the story that starts after this page.
+tap 427 917
+wait 1500
+expect-state story=38250001|comments=13|Page 2 of 5|next
+tap 427 917
+tap 427 917
+wait 1500
+shot hackernews-thread-end
+expect-state story=38250001|comments=13|Page 4 of 5
+# "Link": the story's address as a QR code.
+tap 70 917
+wait 1500
+shot hackernews-link
+tap 148 890
+wait 1500
+shot hackernews-link-copied
+wait 3500
+back
+wait 1500
+expect-state section=top|stories=30|page=1/5|Updated 13:34
+# A story with its own text (Ask HN): the text, then the comments.
+tap 270 375
+wait 1500
+shot hackernews-ask
+expect-state story=38250002|comments=3|
+back
+wait 500
+# A story nobody commented on.
+tap 270 481
+wait 1500
+shot hackernews-no-comments
+expect-state story=38250003|comments=0|
+back
+wait 500
+# A story whose comments can not be read (the search answers 503): the reason, with Retry.
+tap 270 587
+wait 1500
+shot hackernews-thread-error
+expect-state story=38250004|comments=0||error=Hacker News answered 503
+back
+wait 500
+# The other lists.
+tap 207 173
+wait 1500
+shot hackernews-new
+expect-state section=new|stories=8|page=1/2|Updated 13:34
+tap 480 892
+wait 1500
+shot hackernews-new-page2
+expect-state section=new|stories=8|page=2/2|
+tap 331 173
+wait 1500
+shot hackernews-ask-list
+expect-state section=ask|stories=4|page=1/1|Updated 13:34
+tap 454 173
+wait 1500
+expect-state section=show|stories=4|page=1/1|Updated 13:34

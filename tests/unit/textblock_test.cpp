@@ -415,3 +415,42 @@ TEST_CASE("TextBlock prefetch: a page drawn ahead is copied in, pixel for pixel 
   delete dmA;
   delete dmB;
 }
+
+TEST_CASE("margin: every line of the paragraph starts further right and ends at the same edge; a byline is a heading at the body size") {
+  std::vector<Paragraph> paras;
+  Paragraph byline;
+  byline.heading = 4;
+  byline.margin = 40;
+  byline.runs.push_back(Run{"someone 3 h", false, false});
+  paras.push_back(byline);
+  Paragraph reply;
+  reply.margin = 40;
+  reply.runs.push_back(Run{"a reply that is long enough to take more than one line of the narrow column it is given here", false, false});
+  paras.push_back(reply);
+  Paragraph plain;
+  plain.runs.push_back(Run{"back at the left edge", false, false});
+  paras.push_back(plain);
+  FakeMetrics m;
+  TextStyle st;
+  st.width = 300;
+  st.height = 600;
+  st.indent = 0;
+  Page pg = layoutPage(paras, TextPos{0, 0}, st, m);
+  REQUIRE(pg.lines.size() >= 5);
+  CHECK(pg.lines[0].segs[0].bold);                      // the byline: bold
+  CHECK(pg.lines[0].segs[0].type == st.body);           // at the body size (headings 1 to 3 are larger)
+  CHECK(pg.lines[0].h == pg.lines[1].h);
+  for (size_t i = 0; i + 1 < pg.lines.size(); ++i) {
+    CHECK(pg.lines[i].segs[0].x == 40);
+    int right = 0;
+    for (const Seg& s : pg.lines[i].segs) right = std::max(right, s.x + m.width(s.text, s.type, s.bold, s.italic));
+    CHECK(right <= st.width);
+  }
+  CHECK(pg.lines.back().segs[0].x == 0);
+  // A byline is kept with its text like a heading: last on a page, it moves to the next one.
+  st.height = 100;  // a line of 27, the gaps of 10 and 18, the byline to 82: the reply's first line would end at 119
+  std::vector<Paragraph> three{plain, byline, reply};
+  std::vector<TextPos> starts = paginate(three, st, m);
+  REQUIRE(starts.size() >= 2);
+  CHECK(starts[1] == TextPos{1, 0});
+}

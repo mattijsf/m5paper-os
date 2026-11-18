@@ -1,0 +1,28 @@
+# app: hackernews
+# Hacker News left with a story open (the idle return does that after a minute): opened again within the hour, the story
+# is back at the page it was left at. Back from it: the list. Left from the list: the list next time.
+wait 1500
+tap 270 269
+wait 1500
+tap 400 500
+tap 400 500
+wait 1500
+expect-state story=38250001|comments=13|Page 3 of 5|next
+restart
+wait 1500
+shot hackernews-resume
+expect-state story=38250001|comments=13|Page 3 of 5|next
+back
+wait 1500
+expect-state section=top|stories=30|page=1/5|Updated 13:34
+restart
+wait 1500
+expect-state section=top|stories=30|page=1/5|
+# More than an hour later: the list.
+tap 270 269
+wait 1500
+restart
+wait 3700000
+restart
+wait 1500
+expect-state section=top|stories=30|page=1/5|

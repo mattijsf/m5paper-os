@@ -1,0 +1,3 @@
+# Test data for tests/ui/teletekst.script: fake values only.
+WIFI_SSID=HomeNet
+WIFI_PASSWORD=home-password

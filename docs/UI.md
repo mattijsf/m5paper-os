@@ -91,7 +91,8 @@ The Home app reuses the names of the icons in the user's Home Assistant dashboar
 **Drawn icons** (2026-11-18) are for a mark that no line icon stands for: `assets/icons-drawn/<name>.txt`, 64 rows of `X`
 (ink) and `.`, any width up to 255 (lines starting with `//` are comments). The generator adds `Icon::<Name>` after the
 Lucide ones and the bitmap (a bit a pixel) to `src/gen/icons.h` (`gen::kDrawnIcons`); `drawIcon` draws it as it is at 64 and
-at half size at 32, ink only, centred like a glyph. One so far: `Icon::Teletekst`, the NOS Teletekst logo redrawn by hand
+at half size at 32, ink only, centred like a glyph. Two so far: `Icon::Hackernews` (a Y in a filled square,
+apps/hackernews.md "Icon") and `Icon::Teletekst`, the NOS Teletekst logo redrawn by hand
 on a 97 x 64 grid for the launcher tile. The logo is the NOS's mark: for this private device, not to be published.
 
 ## Screen anatomy
@@ -140,7 +141,7 @@ class Widget {
 | `IconView` | icon glyph | 32 or 64 |
 | `Button` | primary (filled ink) / secondary (2 px outline) / text | height 72; pressed = inverted |
 | `IconButton` | 72x72 target with a 32 px icon | |
-| `Tile` | outlined square: 64 px icon + label, optional value and badge; ink and paper only (no gray well: DISPLAY.md "Gray areas cost a flicker"). `Size::Large` (two to a row, 196 high, title-size label: Home) and `Size::Small` (three to a row, 160 high, body-size label: the launcher) | pressed = 4 px border |
+| `Tile` | outlined square: 64 px icon + label, optional value and badge; ink and paper only (no gray well: DISPLAY.md "Gray areas cost a flicker"). `Size::Large` (two to a row, 196 high, title-size label: Home) and `Size::Small` (three to a row, 160 high, body-size label, caption size for a name wider than the tile's 137 px: the launcher) | pressed = 4 px border |
 | `ListItem` | 96 px row: leading icon, title, subtitle, trailing text / chevron / toggle / badge | divider below |
 | `Toggle` | on/off pill 88x48 | on = filled ink with paper knob; pure black/white |
 | `LevelBar` | 10 segments, tap a segment to set 10..100% | replaces sliders: dragging is poor on e-ink |
@@ -153,7 +154,7 @@ class Widget {
 | `EmptyState` | 64 px icon + title + hint + optional button | empty lists, errors, loading |
 | `Keyboard` | QWERTY, 3 layers (abc / ABC / 123#), key 54x72 | Wi-Fi password, search |
 | `TextField` | one line (72 px) or `setLines(n)` wrapped lines; long press = Paste / Copy all / Clear | text input with the keyboard |
-| `TextBlock` | paginated rich text (paragraphs, bold/italic) | reader and message/mail detail |
+| `TextBlock` | paginated rich text (paragraphs, bold/italic, headings; `Paragraph::margin` moves a paragraph right, heading 4 is a byline: bold at the body size, kept with its text; with `Type::Body` bold is `BodyStrong`) | reader, message/mail detail, Hacker News comments |
 
 Loading is shown with `EmptyState` ("Loading..." + icon), never a spinner. Stale cached data is
 shown immediately with a "Updated 12:30" caption, then replaced when the fetch finishes.

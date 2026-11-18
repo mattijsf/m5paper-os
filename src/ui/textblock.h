@@ -24,8 +24,9 @@ struct Run {
 
 struct Paragraph {
   std::vector<Run> runs;
-  int heading = 0;        // 0 = body text, 1..3 = heading level
+  int heading = 0;        // 0 = body text, 1..3 = heading level, 4 = a byline: bold at the body size, kept with its text like a heading
   bool softBreak = false;  // starts after a line break inside the same block (<br>): no indent, no gap above (verse, addresses)
+  int margin = 0;          // px every line starts further right and is shorter by (a reply under the comment it answers)
 };
 
 struct TextPos {
@@ -53,8 +54,8 @@ class TextMetrics {
   virtual int lineHeight(Type type) = 0;
 };
 
-// Real metrics from the baked fonts (bold and italic exist at ReadM only; elsewhere bold is a double strike
-// one pixel apart, italic is the regular face).
+// Real metrics from the baked fonts (bold and italic exist at ReadM only, bold also at Body: BodyStrong; elsewhere bold
+// is a double strike one pixel apart, italic is the regular face).
 class CanvasMetrics : public TextMetrics {
  public:
   explicit CanvasMetrics(Canvas& c) : c_(c) {}

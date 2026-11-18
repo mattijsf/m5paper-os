@@ -1,0 +1,30 @@
+# app: hackernews
+# Hacker News' saved copies. Top and New are read and kept; then Wi-Fi goes away and the app starts again ten minutes
+# later on the list that was chosen: its copy shows at once, and the line under it says why it may be old.
+wait 1500
+tap 207 173
+wait 1500
+expect-state section=new|stories=8|page=1/2|Updated 13:34
+wifi off
+wait 600000
+restart
+wait 200
+shot hackernews-saved-first     # drawn from the saved copy before the read ended
+wait 1500
+shot hackernews-saved
+expect-state section=new|stories=8|page=1/2|Saved 13:34: No Wi-Fi
+# The other list that was read: from its copy. One that was never read: the reason, with Retry.
+tap 85 173
+wait 1500
+expect-state section=top|stories=30|page=1/5|Saved 13:34: No Wi-Fi
+tap 331 173
+wait 1500
+shot hackernews-saved-none
+expect-state section=ask|stories=0|page=0/0||error=No Wi-Fi
+# A story from a saved list: its comments are not kept.
+tap 85 173
+wait 1500
+tap 270 269
+wait 1500
+shot hackernews-saved-thread
+expect-state story=38250001|comments=0||error=No Wi-Fi

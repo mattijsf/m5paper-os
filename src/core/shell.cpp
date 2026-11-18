@@ -96,6 +96,10 @@ void Nav::home() {
 
 Os& AppContext::os() { return shell_.os(); }
 HaClient AppContext::ha() { return HaClient::fromNet(shell_.os().net(), shell_.os().secrets()); }
+std::function<hal::HttpResponse(const hal::HttpRequest&)> AppContext::transport() {
+  NetService* net = &shell_.os().net();
+  return [net](const hal::HttpRequest& request) { return net->perform(request); };
+}
 Worker& AppContext::worker() { return shell_.os().worker(); }
 NetService& AppContext::netService() { return shell_.os().net(); }
 std::weak_ptr<bool> AppContext::aliveToken() {

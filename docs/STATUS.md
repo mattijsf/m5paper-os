@@ -49,6 +49,22 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   shared score had its own name (the user set it to "Woordle" later). Seventh app: the launcher now has a second page. The firmware builds with it; not flashed (Pending
   device checks). Open question 7.
 
+- **P7-14 Hacker News, 2026-11-18: built, runs on the device**. App `hackernews`, the eleventh tile of launcher page 1 (a Y in a filled square, drawn; its name is
+  set in the caption size: wider than the tile's 137 px). Lists Top / New / Ask / Show: thirty stories, six a page, in the
+  site's order; a story: its own text and every comment as pages of text (`ui::TextBlock`, Inter 22), replies moved right
+  under what they answer, "Next thread", the link as a QR code with "Copy link". Data: the site's API for the order
+  (`hacker-news.firebaseio.com/v0`), its search service for the content (`hn.algolia.com/api/v1`): two requests a list,
+  two a story, each pair one worker job (`ctx.transport()`, new). Saved copies of the lists (shown first, and when a read
+  fails); comments are not kept. Not exempt from the idle return (D33): the open story comes back at its page when the
+  app is opened again within the hour. New in `ui/textblock`: `Paragraph::margin`, heading 4 (a byline), `BodyStrong` as
+  the bold of `Body`. Fixtures are made-up stories (`tests/fixtures/make-hackernews-fixtures.py`); UI scripts
+  `hackernews`, `hackernews-offline`, `hackernews-saved`, `hackernews-resume` (21 new goldens; 21 re-accepted: 20 show the
+  launcher with its new tile or its ghost score, `fonts-sheet` one more icon). 339 unit tests (13 new cases), 282
+  screenshots; firmware 2,518,512 bytes (+36,224). **On the device (2026-11-18, flashed, injected taps, frame dumps in
+  `out/dev-hn/`, log)**: TLS to both services works; the live Top list; a story of 236 comments is 710 paragraphs and 116
+  pages (the item 0.92 s on a new TLS connection, the comments 1.14 s); internal heap lowest 79 KB, 115 KB free with the
+  story open and after leaving; UI stack 2.8 KB left, worker 10.5 KB. `tools/memory.py` has a `hackernews` scenario.
+
 - **P7-13 idle return, 2026-11-18: built, runs on the device**. The Shell leaves
   an app nobody touched for `launcher.homeAfterSec` seconds (default 60) and shows the launcher; Settings > Power has the
   control (Never / 30 s / 1 min / 2 min / 5 min). Read, Somdoku and the word game stay open (`.stayOpen` in the
@@ -1135,3 +1151,12 @@ None of these block Phase 1, Phase 2, or the reader.
   (flashed, injected taps, log, frame dumps in `out/dev-idle-home/`): Settings > Power open, 60 s after the last tap
   `[shell] settings not used for 60 s: back to the launcher`, one Fast pass and its settle, the launcher in the dump; the
   reader's library still open 70 s after its tap. On USB only (Pending device checks: battery).
+- 2026-11-18: Hacker News (P7-14, D34). Both APIs probed live first
+  (curl from the Mac): the site's API gives order but one item a request, its search gives thirty stories or a whole
+  thread in one answer but in its own order, and does not know job adverts; so both are used, two requests a list and
+  two a story. Comments are a `ui::TextBlock` (margin per paragraph, byline heading, both new), pages found on the
+  worker. First draft exempted the story screen from the idle return; D33 says only books and games are, so instead the
+  open story comes back at its page (kept as a comment and an offset, so it survives a new read). The launcher tile's
+  name was cut ("Hacker Ne..."): a tile now sets a name wider than its 137 px in the caption size. 339 unit tests, 282
+  screenshots; firmware 2,518,512 bytes (+36,224). Flashed: live list and a thread of 236 comments (116 pages), heap
+  lowest 79 KB, nothing kept after leaving (`tools/memory.py --only hackernews`).

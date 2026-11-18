@@ -37,6 +37,8 @@ SCENARIOS = {
     "weather": (15, []),
     # next page twice, back, the number pad to 702 (the map), the next page: six reads over one TLS connection
     "teletekst": (8, [(480, 896), (480, 896), (60, 896), (270, 896), (103, 820), (270, 900), (270, 660), (480, 896)]),
+    # the Top list (two reads), its first story (two reads, a few hundred comments), page turns, "Next thread"
+    "hackernews": (10, [(270, 269), (400, 500), (400, 500), (400, 500), (400, 500), (400, 500), (427, 917), (400, 500)]),
 }
 
 

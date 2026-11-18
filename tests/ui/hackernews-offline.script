@@ -1,0 +1,6 @@
+# app: hackernews
+# Hacker News with nothing saved and no network (this card names no Wi-Fi network): the reason takes the list's place,
+# with Retry.
+wait 1500
+shot hackernews-offline
+expect-state section=top|stories=0|page=0/0||error=No Wi-Fi

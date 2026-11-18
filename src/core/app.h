@@ -189,6 +189,10 @@ class AppContext {
     NetService* net = &netService();
     async([net, request = std::move(request)] { return net->perform(request); }, std::move(onDone));
   }
+  // For a job on the worker (ctx.async) that makes several requests in a row: what it calls to send one (NetService::perform:
+  // Wi-Fi on demand, the linger policy). One job that reads everything a screen needs gives one update of the screen
+  // (docs/APPS.md "Threads"). Blocking: never call it on the UI thread.
+  std::function<hal::HttpResponse(const hal::HttpRequest&)> transport();
   // A Home Assistant client for jobs on the worker (ctx.async): HA_URL / HA_TOKEN from the card, requests through the net service
   // (Wi-Fi on demand). Blocking calls: never on the UI thread. docs/BACKEND.md.
   HaClient ha();

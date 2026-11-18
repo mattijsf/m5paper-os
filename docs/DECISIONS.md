@@ -548,3 +548,27 @@ the budget runs short (sizes from the linker map):
   message can take more than a minute to read: the user named books and games only. The setting is the way out.
 - Cost: none in power (the loop wakes once a minute anyway); one unasked screen change on the panel a minute after the
   last touch.
+
+## D34. Hacker News: the order from the site's API, the content from its search service
+
+- **Two public services, both without a key**: `hacker-news.firebaseio.com/v0` (the site's own API) for what only it
+  knows, the site's order (of a list's stories, of a story's direct comments) and a story's own text; `hn.algolia.com/api/v1`
+  (the site's search) for content in bulk: thirty stories in one answer, every comment of a story in one answer
+  (apps/hackernews.md "Data"). Checked live on 2026-11-18. The first API alone would be a request per item (31 for a
+  list, 201 for a thread of 200 comments: seconds of radio per page); the second alone orders stories by points and
+  comments by time, which is not the site. A list is two requests, a story two.
+- **Read straight from the Paper**, not through Home Assistant: public pages, nothing to keep secret, a request carries
+  nothing but a list name or story ids.
+- **Comments are pages of text, not a tree to fold**: reading order as on the site, a reply 16 px further right a level
+  (up to eight), "Next thread" to skip an exchange. `ui::TextBlock` does the pages; it got a paragraph margin, a byline
+  heading (level 4: bold at the body size, kept with its text) and a real bold for the interface font. Set in Inter 22
+  rather than the reader's Literata 24: half as much again on a page, and the site is a dense one.
+- **Not exempt from the idle return** (D33: the user named books and games only). Instead the story that was open comes
+  back at its page when the app is opened again within the hour (apps/hackernews.md "Opened again").
+- **No article text**: a story's link is shown as a QR code for the phone (and can be copied to the shared clipboard).
+- **Job adverts are not shown** (the search does not know them), comments are not saved (20 to 300 KB a thread), no
+  login, votes or replies.
+- **Test stories are made up** (`tests/fixtures/make-hackernews-fixtures.py`): the repository holds no text of the site.
+- New outside the app: `ctx.transport()` (several requests in one worker job, APPS.md), `Paragraph::margin` and heading 4
+  in `ui/textblock`, a launcher tile sets a name wider than its 137 px in the caption size, `Icon::Hackernews` (drawn).
+

@@ -115,6 +115,7 @@ alone for a minute is closed the same way (above, "Staying open").
 | `ctx.async(job, onDone)` | run `job` on the worker thread, deliver its result to `onDone` on the UI thread; dropped if the screen is gone |
 | `ctx.background(job)` | run `job` on the worker thread, nothing comes back; it runs even if the screen or the app closes first (save a file, switch something off) |
 | `ctx.http(request, onDone)` | convenience over `async`: brings Wi-Fi up, performs the request, applies the Wi-Fi linger policy |
+| `ctx.transport()` | for a job that makes several requests in a row (`ctx.async`): what the job calls to send one, with the same Wi-Fi handling as `ctx.http`. One job, one update of the screen (Hacker News: a list is two requests) |
 | `ctx.store` | per-app key/value JSON persisted at `/data/apps/<id>.json`: `get<T>(key, default)`, `set(key, value)`, `save()` |
 | `ctx.config` | read-only system settings (`config.json`) |
 | `ctx.secrets` | read-only secrets by key (`HA_TOKEN`), from `/sd/paperos_config` |
@@ -218,3 +219,4 @@ the first guess there (cleaning the saved messages) cost nothing measurable on t
 | Weather (Google Weather through Home Assistant) | `apps/weather.md` | P7 |
 | Agenda (the phone's calendar, one way) | `apps/agenda.md` | P7 |
 | Teletekst (NOS Teletekst, page by page) | `apps/teletekst.md` | P7 |
+| Hacker News (story lists and comments) | `apps/hackernews.md` | P7 |

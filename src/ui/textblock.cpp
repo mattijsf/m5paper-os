@@ -18,6 +18,7 @@ Type CanvasMetrics::faceFor(Type type, bool bold, bool italic, bool& fakeBold) {
     if (italic) return Type::ReadItalicM;
     return Type::ReadM;
   }
+  if (type == Type::Body) return bold ? Type::BodyStrong : Type::Body;  // (text set in the interface's font: a comment thread)
   fakeBold = bold;
   return type;
 }
@@ -87,7 +88,8 @@ Type typeFor(const Paragraph& p, const TextStyle& st, bool& bold) {
   switch (p.heading) {
     case 1: return Type::ReadXL;
     case 2: return Type::ReadL;
-    default: return Type::ReadM;
+    case 3: return Type::ReadM;
+    default: return st.body;  // 4: a byline
   }
 }
 
@@ -189,7 +191,7 @@ Page layoutPage(const std::vector<Paragraph>& paras, TextPos start, const TextSt
       Line line;
       line.y = y;
       line.h = pitch;
-      int x = (firstLine && indentFirst) ? st.indent : 0;
+      int x = std::max(0, para.margin) + ((firstLine && indentFirst) ? st.indent : 0);
       const int lineStart = words[wi].first.start;
       size_t used = 0;
       bool cutWord = false;
