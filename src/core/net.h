@@ -28,6 +28,7 @@ class NetService {
   struct Result {
     bool ok = false;
     bool fast = false;       // joined through the stored BSSID / channel without a scan
+    bool joined = false;     // this call brought Wi-Fi up (false: it was up already)
     std::string ssid;        // the network joined (or tried last)
     std::string error;       // "No Wi-Fi networks configured", "No known network in range", ...
     std::string scan;        // log-safe scan summary when a scan was made (SSIDs, signal, channel)
@@ -41,7 +42,14 @@ class NetService {
   // Makes sure Wi-Fi is connected; one fast attempt, one scan attempt, no retries.
   Result ensureConnected();
   // ensureConnected() + the request. A failed connect gives status 0 and error "No Wi-Fi: ...".
+  // A request that fails at once before anything of it left the device (hal::HttpResponse::notSent: the name lookup or
+  // the connection) is sent once more, after a short pause when this call brought Wi-Fi up: the first lookup or
+  // connection on a link that is seconds old can fail. One more try, never a loop; a failure that took kRetryWithinMs
+  // or longer has waited long enough and is reported as it is.
   hal::HttpResponse perform(const hal::HttpRequest& req);
+  static constexpr uint32_t kRetryWithinMs = 3000;
+  // The pause before the second try on a fresh link (unit tests set 0).
+  void setRetryPauseMs(uint32_t ms) { retryPauseMs_ = ms; }
   // Joins a specific network (the Wi-Fi screen); on success it is remembered and, if `save`, stored on the device.
   Result connectTo(const std::string& ssid, const std::string& password, bool save);
   std::vector<hal::WifiNetwork> scan();
@@ -59,6 +67,16 @@ class NetService {
   hal::WifiLink link();
   void disconnect();
   Result lastResult();
+  // The last request that got no answer at its first try (status 0), kept until power-off: `>status` shows it (the log
+  // keeps 50 lines only). What the transport said, when, how long it took, how many since boot, whether this call had
+  // brought Wi-Fi up, whether it was sent once more and whether that try got an answer.
+  struct Trouble {
+    std::string error;
+    int64_t unix = 0;
+    uint32_t ms = 0, count = 0;
+    bool afterJoin = false, retried = false, recovered = false;
+  };
+  Trouble lastTrouble();
   // The worker that runs the clock sync after a connect (set by the Os).
   void setWorker(Worker* w) { worker_ = w; }
   // Wi-Fi or the clock changed (status bar): set by the Shell.
@@ -97,6 +115,8 @@ class NetService {
   void cacheLink();
   Worker* worker_ = nullptr;
   Result last_;
+  Trouble trouble_;
+  uint32_t retryPauseMs_ = 400;
 };
 
 }  // namespace pos

@@ -143,13 +143,20 @@ hal::HttpResponse Net::request(const hal::HttpRequest& req) {
       const uint32_t t0 = millis();
       if (!WiFi.hostByName(host.c_str(), ip)) {
         r.error = "DNS failed";
+        r.notSent = true;
+        POS_LOG("net", "DNS failed after %ums", static_cast<unsigned>(millis() - t0));
         return r;
       }
       tDns = millis() - t0;
       gSecure.setTimeout(req.timeoutMs / 1000 ? req.timeoutMs / 1000 : 1);
       const uint32_t t1 = millis();
       if (!gSecure.connect(ip, port, host.c_str(), nullptr, nullptr, nullptr)) {
+        char why[96] = "";
+        gSecure.lastError(why, sizeof why);  // mbedTLS's text, "" when the TCP connection itself failed
+        POS_LOG("net", "TLS connect failed after %ums%s%s", static_cast<unsigned>(millis() - t1), why[0] ? ": " : "", why);
+        gSecure.stop();
         r.error = "TLS connect failed";
+        r.notSent = true;
         return r;
       }
       tConnect = millis() - t1;
@@ -175,6 +182,8 @@ hal::HttpResponse Net::request(const hal::HttpRequest& req) {
                                     : gHttp.sendRequest(req.method.c_str(), reinterpret_cast<uint8_t*>(const_cast<char*>(req.body.data())), req.body.size());
   if (code < 0) {
     r.error = HTTPClient::errorToString(code).c_str();
+    // No connection, or the request line and headers could not be written: the server has nothing to act on.
+    r.notSent = code == HTTPC_ERROR_CONNECTION_REFUSED || code == HTTPC_ERROR_SEND_HEADER_FAILED;
     gHttp.end();
     return r;
   }

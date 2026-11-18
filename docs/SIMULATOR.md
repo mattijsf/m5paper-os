@@ -76,6 +76,7 @@ back                  # tap the back arrow
 type hello            # taps keys on the on-screen keyboard
 battery 15            # set fake battery percent
 wifi off              # make connections fail
+wifi hiccup 1         # the next N requests fail before they are sent ("DNS failed"), as the first one on a new link can
 expect-no-quality     # fail if the refresh log since the last 'shot' contains a Quality push
 expect-max-pushed 20000   # fail if more than N pixels were pushed since the last 'shot'
 restart               # save and close the app (as at power-off), build the surface again: a boot with the same data
@@ -109,7 +110,8 @@ accept it and commit the golden with the code.
 ### Wi-Fi world and test data
 
 The simulator's `hal::Net` is a small fake Wi-Fi world: HomeNet (two access points, channels 6 and 11), Neighbour, CafeFree
-(open); script commands `wifi off` / `wifi on` make no network reachable, `wifi crowd N` puts N more networks in range
+(open); script commands `wifi off` / `wifi on` make no network reachable, `wifi hiccup N` fails the next N requests before they
+are sent (the net service's one more try, `tests/ui/inbox-hiccup.script`), `wifi crowd N` puts N more networks in range
 ("Flat 01".., weaker than the four) of which the first scan hears every second one (the scan page's paging and
 rescans, `tests/ui/wifi-scan.script`). A script can come with preset data:
 `tests/ui/data/<script name>/` is copied into that script's data root before the run (`sd/paperos_config` with fake values
@@ -193,8 +195,8 @@ A task is done only when `make check` passes.
   - **data** (runs, but the goldens come from preset card data and HTTP fixtures the device does not have): `home`, `inbox-empty`, `inbox-link`,
     `launcher-summary`, `library`, `reader-menu`, `settings`.
   - **cannot**: scripts with `type` / `type-max` (key positions are not exposed: `keyboard`, `wifi`, `textfield-menu`, `whatsapp-send`,
-    `whatsapp-send-refused`, `whatsapp-send-missing`), `wifi on|off` (simulator only: `home-offline`,
-    `inbox-error`, `inbox-mail`), `restart` (`epub`, `inbox`, `inbox-wifi`, `reader`), `power-off` (`sleep`, `sleep-reader`), `timer-wake` (`sched-refresh`; on the device: `poweroff N M`), and `fonts` (drawn by the Os).
+    `whatsapp-send-refused`, `whatsapp-send-missing`), `wifi on|off|hiccup` (simulator only: `home-offline`,
+    `inbox-error`, `inbox-hiccup`, `inbox-mail`), `restart` (`epub`, `inbox`, `inbox-wifi`, `reader`), `power-off` (`sleep`, `sleep-reader`), `timer-wake` (`sched-refresh`; on the device: `poweroff N M`), and `fonts` (drawn by the Os).
   Time is real on the device: a shot right after a tap can catch the frame before or after the settle pass, so it may differ from the golden by a few
   hundred anti-aliased pixels (seen in `widgets3-stepper` and `-level` even against the simulator's remote mode).
 - **An app left open goes back to the launcher after a minute without a touch** (the idle return, apps/launcher.md; injected

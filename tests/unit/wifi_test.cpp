@@ -207,9 +207,21 @@ class ScriptedNet : public hal::Net {
     ++scans;
     return world;
   }
+  // The next `fails` requests fail with `failWith` (not sent, if `failNotSent`); `onFail` runs in each (the clock, the link).
+  int fails = 0;
+  bool failNotSent = true;
+  std::string failWith = "DNS failed";
+  std::function<void()> onFail;
   hal::HttpResponse request(const hal::HttpRequest& r) override {
     ++requests;
     hal::HttpResponse out;
+    if (fails > 0) {
+      --fails;
+      out.error = failWith;
+      out.notSent = failNotSent;
+      if (onFail) onFail();
+      return out;
+    }
     out.status = 200;
     out.body = r.url;
     return out;
@@ -263,6 +275,7 @@ struct Env {
   explicit Env(const std::string& card) {
     worker.start();
     svc.setWorker(&worker);
+    svc.setRetryPauseMs(0);
     fs::writeFile("/sd/paperos_config", card);
     secrets.load();
   }
@@ -374,6 +387,99 @@ TEST_CASE("net: perform connects on demand, fails with a clear message offline")
   CHECK(off.status == 0);
   CHECK(off.error.rfind("No Wi-Fi: ", 0) == 0);
   CHECK(f.net.requests == 0);
+}
+
+TEST_CASE("net: a request that failed at once before it was sent gets one more try, never a loop") {
+  hal::HttpRequest req;
+  req.method = "POST";  // nothing left the device: safe for any method
+  req.url = "https://ha.example/api/";
+  const std::string card = "WIFI_SSID=Home\nWIFI_PASSWORD=h\n";
+  auto world = [](ScriptedNet& n) { n.world = {{"Home", -50, true, 6, "H1"}}; };
+
+  SUBCASE("the first request on a link that just came up fails: the second one answers, one join") {
+    Env e(card);
+    world(e.net);
+    e.net.fails = 1;
+    auto resp = e.svc.perform(req);
+    CHECK(resp.status == 200);
+    CHECK(e.net.requests == 2);
+    CHECK(e.net.connects.size() == 1);
+    CHECK(e.svc.online());
+    const NetService::Trouble t = e.svc.lastTrouble();  // what `>status` shows afterwards
+    CHECK(t.error == "DNS failed");
+    CHECK(t.count == 1);
+    CHECK(t.afterJoin);
+    CHECK(t.retried);
+    CHECK(t.recovered);
+  }
+  SUBCASE("it fails twice: the failure is reported after two requests") {
+    Env e(card);
+    world(e.net);
+    e.net.fails = 5;
+    auto resp = e.svc.perform(req);
+    CHECK(resp.status == 0);
+    CHECK(resp.error == "DNS failed");
+    CHECK(e.net.requests == 2);
+  }
+  SUBCASE("with Wi-Fi up already: one more try as well") {
+    Env e(card);
+    world(e.net);
+    CHECK(e.svc.perform(req).status == 200);
+    e.net.fails = 1;
+    CHECK(e.svc.perform(req).status == 200);
+    CHECK(e.net.requests == 3);
+    CHECK(e.net.connects.size() == 1);
+  }
+  SUBCASE("a request that may have reached the server is not sent again") {
+    Env e(card);
+    world(e.net);
+    e.net.fails = 1;
+    e.net.failNotSent = false;
+    e.net.failWith = "connection lost";
+    auto resp = e.svc.perform(req);
+    CHECK(resp.status == 0);
+    CHECK(resp.error == "connection lost");
+    CHECK(e.net.requests == 1);
+    CHECK(e.svc.lastTrouble().error == "connection lost");
+    CHECK_FALSE(e.svc.lastTrouble().retried);
+  }
+  SUBCASE("a failure that took its time is reported as it is (Home Assistant down: no second wait)") {
+    Env e(card);
+    world(e.net);
+    e.net.fails = 1;
+    e.net.failWith = "TLS connect failed";
+    e.net.onFail = [&e] { e.clock.ms += NetService::kRetryWithinMs; };
+    auto resp = e.svc.perform(req);
+    CHECK(resp.status == 0);
+    CHECK(resp.error == "TLS connect failed");
+    CHECK(e.net.requests == 1);
+  }
+  SUBCASE("the link fell during the request: joined again, then sent") {
+    Env e(card);
+    world(e.net);
+    CHECK(e.svc.perform(req).status == 200);
+    e.net.fails = 1;
+    e.net.onFail = [&e] { e.net.up = false; };
+    CHECK(e.svc.perform(req).status == 200);
+    CHECK(e.net.requests == 3);
+    CHECK(e.net.connects.size() == 2);
+    CHECK(e.svc.online());
+  }
+  SUBCASE("the link fell and cannot be joined again: No Wi-Fi") {
+    Env e(card);
+    world(e.net);
+    CHECK(e.svc.perform(req).status == 200);
+    e.net.fails = 1;
+    e.net.onFail = [&e] {
+      e.net.up = false;
+      e.net.accepts = [](const ScriptedNet::Call&) { return false; };
+    };
+    auto resp = e.svc.perform(req);
+    CHECK(resp.status == 0);
+    CHECK(resp.error.rfind("No Wi-Fi: ", 0) == 0);
+    CHECK(e.net.requests == 2);
+    CHECK_FALSE(e.svc.online());
+  }
 }
 
 TEST_CASE("net: Wi-Fi goes off after the linger time, not while a request runs; one handshake window for a refresh") {

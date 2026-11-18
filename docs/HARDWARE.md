@@ -72,6 +72,11 @@ display, touch, RTC, IMU, power and SD pins. Our device HAL calls M5Unified. One
   open works again. Bytes sent over USB while the chip sleeps do **not** wake it and are lost. So a device
   in light sleep cannot be reached by `tools/device.py` until its timer fires or a touch wakes it (see P3-4,
   `power.stayAwakeOnUsb`). `HWCDC::isPlugged()` (SOF seen) tells whether a host is connected.
+  **2026-11-18, on the hub under the camera: the node itself goes.** A device that light-slept (unplugged from the
+  Mac for over ten minutes, then on the hub; and after `>set sleep 15000`) was not on the USB bus at all (`ioreg` showed
+  no 303A device, no `/dev/cu.usbmodem*`), also not 60 s after the sleep had ended; it came back only when the user
+  plugged the cable in again. So `>set sleep` and `>set usbsleep` can cost the link until someone replugs: do not use
+  them in an unattended run there.
 - **Power off with an RTC alarm works**: `M5.Power.timerSleep(20)` (`hal::Power::powerOff(20)`): the USB port
   disappeared at once and came back after 20 s with a fresh boot (`booted` in 0.0 s of polling, boot log
   complete, config and storage mounted). `powerOff(0)` (`M5.Power.powerOff()`, only the side button wakes

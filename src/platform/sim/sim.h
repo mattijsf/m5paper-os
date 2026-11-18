@@ -109,8 +109,12 @@ class Net : public hal::Net {
     wifiAvailable_ = on;
     if (!on) link_ = hal::WifiLink{};
   }
+  // Script `wifi hiccup N`: the next N requests fail before they are sent ("DNS failed"), as the first one on a link
+  // that just came up can on the device.
+  void setHiccups(int n) { hiccups_ = n; }
 
  private:
+  int hiccups_ = 0;
   int crowd_ = 0, scans_ = 0;
   hal::WifiLink link_;
   bool wifiAvailable_ = true;

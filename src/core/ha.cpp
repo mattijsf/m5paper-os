@@ -60,7 +60,7 @@ HaResult HaClient::request(const std::string& method, const std::string& path, c
   } else if (resp.status < 200 || resp.status >= 300) {
     r.error = HaError::Other;
   }
-  if (r.error != HaError::None) POS_LOG("ha", "%s %s -> %d (%s)", method.c_str(), path.c_str(), r.status, haErrorText(r.error));  // path only: no token
+  if (r.error != HaError::None) POS_LOG("ha", "%s %s -> %d (%s%s%s)", method.c_str(), path.c_str(), r.status, haErrorText(r.error), r.detail.empty() ? "" : ": ", r.detail.c_str());  // path only: no token (detail is the transport's error text)
   return r;
 }
 

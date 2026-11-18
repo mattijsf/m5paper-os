@@ -244,6 +244,22 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   browser pane may not open LAN addresses). In the simulator: `tools/device.py --sim --sim-data DIR` gives it a card with a
   Wi-Fi network.
 
+- **"Home Assistant not reachable" when WhatsApp is opened with Wi-Fi off.** That toast is `HaError::Other`: Wi-Fi was joined
+  and the request then failed in the transport, not a timeout and not "No Wi-Fi". **The cause on the device is not known**: 16
+  opens with Wi-Fi off under USB (7 on main at 84021c0, 9 on this firmware; join 1.3-1.7 s on the fast path, TLS 0.47-0.59 s,
+  rssi -74 dBm) all read the list. Not tried: the open that wakes the device from light sleep (a light sleep takes the device
+  off the USB bus on this hub, HARDWARE.md), and a name lookup that is not answered from lwIP's cache (dns was 0-1 ms every time).
+  Built on the guess that the first lookup or connection on a link that is seconds old fails now and then: `NetService::perform`
+  sends a request once more when it failed within 3 s before anything of it left the device (`hal::HttpResponse::notSent`:
+  "DNS failed", "TLS connect failed", connection refused, headers not written), 0.4 s later when the same call brought Wi-Fi
+  up, after a new join when the link fell (POWER.md "Wi-Fi policy"). Never a loop, safe for a POST. **To find the cause next
+  time**: `tools/device.py status` has a line `last failed request: <what the transport said> after N ms, right after the join
+  | Wi-Fi was up, second try answered | failed too | not sent again, at <unix> (N since boot)` (kept until power-off; absent
+  when no request failed), the `[ha]` log line ends in the transport's words, and the device logs how long a failed lookup or
+  TLS connect took and mbedTLS's reason. Simulator: script command `wifi hiccup N`, `tests/ui/inbox-hiccup.script` (goldens
+  `inbox-hiccup`: read at the second try, no toast; `inbox-hiccup-twice`: the toast). 348 unit tests, 290 screenshots; firmware
+  2,533,671 bytes (+1,575 on 2,532,096). Flashed.
+
 ## What works today
 
 | Thing | Command | Result |
@@ -479,6 +495,11 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **The second try of a request (2026-11-18, "Now")**: flashed, but no request failed on the device in 9 opens, so the
+  second try has run in the unit tests and the simulator only. When the user sees the "Home Assistant not reachable"
+  toast again (or does not, for some days): `tools/device.py status` before the device powers off, read the line
+  `last failed request`. "second try answered" = the guess was right; "second try failed too" or "not sent again" names
+  the real cause (then fix that).
 - **Idle return on battery (P7-13, 2026-11-18)**: checked on USB only, where the device does not light-sleep. Open: on
   battery the idle return's timer must wake the device from light sleep a minute after the last touch (timers are part
   of `Os::msToNextDeadline()`, as for the settle pass; the unit tests cover the deadline, not the wake). To do: unplug,
@@ -1270,3 +1291,6 @@ None of these block Phase 1, Phase 2, or the reader.
   `out/ui` under a run of this one; rebased on P7-15 before the second flash, so the device got patch 5 too
   (`epd-selftest` identical). Ghost after eight turns 0.86 % (p95 4.3 %). 347 unit tests, 288 screenshots (25
   re-accepted), firmware 2,531,543 bytes (+1,127 on P7-15's 2,530,416). Images: `out/tt/cam/` in that worktree.
+- 2026-11-18: "Home Assistant not reachable" when WhatsApp is opened with Wi-Fi off. Not reproduced on the device (16
+  opens). One more try for a request that failed at once before it was sent (`NetService::perform`), the cause kept for
+  `>status` and in the log, `wifi hiccup N` in the simulator. Flashed; "Now" and "Pending device checks".

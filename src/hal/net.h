@@ -33,6 +33,9 @@ struct HttpResponse {
   int status = 0;  // 0 = transport error, see `error`
   std::string body;
   std::string error;
+  // With status 0: nothing of the request left the device (no address for the name, no connection). Sending it again
+  // cannot make the server do something twice, whatever the method.
+  bool notSent = false;
 };
 
 class Net {

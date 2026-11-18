@@ -1,0 +1,16 @@
+# app: whatsapp
+# The first request on a link that just came up fails before it is sent (on the device: the name lookup or the connection): the net
+# service waits a moment and sends it once more. The list is read, no toast. Twice in a row is a real failure: the saved list stays, with the toast.
+wait 1500
+wifi off
+wifi on                 # the link is gone: the next request joins again
+wifi hiccup 1
+tap 504 92              # refresh
+wait 3000
+shot inbox-hiccup
+expect-state Updated
+wifi hiccup 2
+tap 504 92              # refresh
+wait 1200
+shot inbox-hiccup-twice
+expect-state Saved data

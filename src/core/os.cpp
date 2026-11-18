@@ -221,6 +221,11 @@ std::string Os::statusText() {
   if (!r.ssid.empty() || !r.error.empty())
     out += std::string("last connect: ") + (r.ok ? "ok" : "failed") + " ssid=" + r.ssid + (r.fast ? " fast" : "") + " " + std::to_string(r.ms) + "ms" + (r.error.empty() ? "" : " (" + r.error + ")") + "\n";
   if (!r.scan.empty()) out += "scan: " + r.scan + "\n";
+  const NetService::Trouble t = net_.lastTrouble();
+  if (t.count > 0)
+    out += "last failed request: " + t.error + " after " + std::to_string(t.ms) + "ms" + (t.afterJoin ? ", right after the join" : ", Wi-Fi was up") +
+           (t.retried ? (t.recovered ? ", second try answered" : ", second try failed too") : ", not sent again") + ", at " + std::to_string(t.unix) + " (" +
+           std::to_string(t.count) + " since boot)\n";
   hal::MemoryInfo m = hal::memoryInfo();
   out += "heap: " + std::to_string(m.heapFree) + "/" + std::to_string(m.heapTotal) + " psram: " + std::to_string(m.psramFree) + "/" + std::to_string(m.psramTotal) + "\n";
   {  // Does any secret value (first 8 characters) appear in the log ring or in this very output? Counts only.

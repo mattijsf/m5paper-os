@@ -74,6 +74,12 @@ hal::HttpResponse Net::request(const hal::HttpRequest& req) {
     r.error = "not connected";
     return r;
   }
+  if (hiccups_ > 0) {  // script `wifi hiccup N`
+    --hiccups_;
+    r.error = "DNS failed";
+    r.notSent = true;
+    return r;
+  }
   if (!fixturesDir_.empty()) {
     std::string name = fixtureFileName(req.method, req.url, req.body);  // a fixture for this body first, then for the URL
     std::ifstream f(fixturesDir_ + "/" + name, std::ios::binary);
@@ -113,6 +119,7 @@ hal::HttpResponse Net::request(const hal::HttpRequest& req) {
   CURLcode rc = curl_easy_perform(c);
   if (rc != CURLE_OK) {
     r.error = curl_easy_strerror(rc);
+    r.notSent = rc == CURLE_COULDNT_RESOLVE_HOST || rc == CURLE_COULDNT_CONNECT;
   } else {
     long code = 0;
     curl_easy_getinfo(c, CURLINFO_RESPONSE_CODE, &code);

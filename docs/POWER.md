@@ -95,7 +95,11 @@ No Wi-Fi at boot. `>set screen launcher` never resumes.
   service connects if needed. **Several networks**: known = `WIFI_SSID[_2.._8]` from the card + networks added on the
   device (the card wins duplicates). It tries the last network that worked with its stored BSSID and channel (fast path,
   ~1.2 s measured), and if that fails or there is none, scans once and joins the known network with the strongest signal
-  (~5.3 s measured). One attempt each, never a loop; a failure is reported to the caller. **2.4 GHz only**: the SSID must
+  (~5.3 s measured). One attempt each, never a loop; a failure is reported to the caller. **A request gets one more
+  try** when it failed within 3 s before anything of it left the device (no address for the name, no connection:
+  `hal::HttpResponse::notSent`), 0.4 s later when the same call brought Wi-Fi up: the first lookup or connection on a
+  link that is seconds old can fail, and the user saw "Home Assistant not reachable" for it (2026-11-18). Safe for
+  any method (nothing was sent); a failure that took longer, or a second one, is reported as it is (`NetService::perform`). **2.4 GHz only**: the SSID must
   also exist on 2.4 GHz (mesh routers normally do).
 - After the last request finishes, Wi-Fi stays up for `net.lingerSec` (default 20 s) in case
   another request follows, then switches off.

@@ -1,5 +1,8 @@
 #include "core/net.h"
 
+#include <chrono>
+#include <thread>
+
 #include "core/display_manager.h"  // kNoDeadline
 #include "core/log.h"
 #include "core/timefmt.h"
@@ -26,6 +29,7 @@ void NetService::succeeded(Result& r, bool fast) {
   cacheLink();
   r.ok = true;
   r.fast = fast;
+  r.joined = true;
   r.ssid = l.ssid.empty() ? r.ssid : l.ssid;
   store_.remember(r.ssid, l.bssid, l.channel);
   store_.save();
@@ -107,6 +111,29 @@ hal::HttpResponse NetService::perform(const hal::HttpRequest& req) {
     resp.error = "No Wi-Fi: " + r.error;
   } else {
     resp = p_.net.request(req);
+    if (resp.status == 0) {
+      trouble_ = Trouble{resp.error, p_.clock.now(), p_.clock.millis() - tConnected, trouble_.count + 1, r.joined, false, false};
+    }
+    if (resp.status == 0 && resp.notSent && p_.clock.millis() - tConnected < kRetryWithinMs) {
+      // Failed at once and nothing left the device: one more try (net.h). Seen as a "Home Assistant not reachable" toast
+      // when an app was opened with Wi-Fi off.
+      POS_LOG("net", "request not sent (%s) %ums after %s: one more try", resp.error.c_str(), static_cast<unsigned>(p_.clock.millis() - tConnected),
+              r.joined ? "the join" : "the start, Wi-Fi was up");
+      trouble_.retried = true;
+      if (!p_.net.wifiConnected()) {
+        connected_ = false;
+        r = connectLocked();  // the link fell: the usual one fast and one scan attempt
+      } else if (r.joined && retryPauseMs_ > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(retryPauseMs_));
+      }
+      if (r.ok) {
+        resp = p_.net.request(req);
+        trouble_.recovered = resp.status != 0;
+      } else {
+        resp = hal::HttpResponse{};
+        resp.error = "No Wi-Fi: " + r.error;
+      }
+    }
   }
   markActive();
   if (r.ok && !p_.net.wifiConnected()) connected_ = false;  // the link dropped during the request
@@ -219,6 +246,11 @@ void NetService::disconnect() {
   std::lock_guard<std::mutex> lock(mu_);
   p_.net.wifiOff();
   connected_ = false;
+}
+
+NetService::Trouble NetService::lastTrouble() {
+  std::lock_guard<std::mutex> lock(mu_);
+  return trouble_;
 }
 
 NetService::Result NetService::lastResult() {

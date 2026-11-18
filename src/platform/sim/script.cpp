@@ -117,10 +117,12 @@ bool ScriptRunner::command(const std::string& cmd, const std::string& args, std:
     int crowd = 0;
     if (state == "crowd" && (in >> crowd) && crowd >= 0 && crowd <= 60) {
       net_.setCrowd(crowd);  // that many more networks in range (the scan page's paging and rescans)
+    } else if (state == "hiccup" && (in >> crowd) && crowd >= 0) {
+      net_.setHiccups(crowd);  // the next N requests fail before they are sent
     } else if (state == "on" || state == "off") {
       net_.setWifiAvailable(state == "on");
     } else {
-      error = "usage: wifi on|off, wifi crowd N (0..60)";
+      error = "usage: wifi on|off, wifi crowd N (0..60), wifi hiccup N";
       return false;
     }
   } else if (cmd == "type" || cmd == "type-max") {
