@@ -48,6 +48,12 @@ That is the whole app. `POS_REGISTER_APP` adds it to a static registry that the 
 (The registry uses a static initialiser; `platformio.ini` keeps app object files from being
 dropped by the linker. If a new app does not show up in the launcher, check that first.)
 
+**Staying open** (apps/launcher.md "Idle return"): an app nobody touches for a minute (`launcher.homeAfterSec`) is left
+for the launcher. An app one looks at for minutes without a touch, a book or a game, registers with one more field,
+`.stayOpen = true` (after `.order`). A single screen that is in use without a finger (a code being compared with the
+phone, files arriving) overrides `bool staysOpen() const` instead; it is asked at every look, so it may change. Text
+being typed is safe by itself: nothing leaves while the on-screen keyboard shows.
+
 ## As built (P2-4)
 
 `core/app.h` (App, Screen, Nav, AppContext, registry, `POS_REGISTER_APP`), `core/shell.{h,cpp}` (the
@@ -98,7 +104,8 @@ launcher tile tapped
 ```
 
 Only one app is alive at a time. Leaving an app destroys it, so it must save what it wants to
-keep (`ctx.store`) in `onStop()`/`onHide()`. Power-off calls `onStop()` first.
+keep (`ctx.store`) in `onStop()`/`onHide()`. Power-off calls `onStop()` first. So does the idle return: an app left
+alone for a minute is closed the same way (above, "Staying open").
 
 ## What an app gets: `AppContext`
 

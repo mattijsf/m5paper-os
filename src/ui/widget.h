@@ -47,6 +47,8 @@ class Widget {
   // As an overlay (Root::addOverlay): what its coming and going is to the panel. A sheet is a change of screen (the
   // moment a due clean may flash); a message over the status bar is not.
   virtual Hint overlayHint() const { return Hint::Screen; }
+  // As an overlay: take yourself away (Root::closeOverlays). A Sheet closes as on a tap beside it.
+  virtual void dismissOverlay();
   // The device build has no RTTI: widgets that must be found by kind say so.
   virtual bool isKeyboard() const { return false; }
 

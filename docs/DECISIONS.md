@@ -531,3 +531,20 @@ the budget runs short (sizes from the linker map):
 - **Reads**: only when a page is asked for (a copy under two minutes old is shown instead). The last 16 pages are kept on
   the flash, shown first when the app opens and when a read fails. No background refresh, nothing on the launcher.
 - **Test pages are made up** (`tests/fixtures/make-teletekst-fixtures.py`): the repository holds no text of the service.
+
+## D33. Idle return: an unused app goes back to the launcher
+
+
+
+- **In the Shell, not in the apps**: one timer per open app (`Shell::idleHomeCheck`), idle measured from the last touch
+  event. The app is closed the ordinary way (it saves its state), so apps need no code for it.
+- **Who is exempt is declared, not listed in the Shell**: `.stayOpen = true` in the app's registration (Read, Somdoku, the
+  word game), `Screen::staysOpen()` for single screens that are in use without a finger (pairing, Files over Wi-Fi, the
+  Display lab). Added without being asked, because the alternative loses work: nothing leaves while the on-screen keyboard
+  shows (a reply half typed) or a finger is down.
+- **The setting** is `launcher.homeAfterSec` (default 60), on Settings > Power next to "Switch off after": Never, 30 s,
+  1 min, 2 min, 5 min. The Settings list has no room for a ninth row.
+- **Teletekst, WhatsApp, Mail, Agenda, Weather, Home and Settings are not exempt**, although a Teletekst page or a long
+  message can take more than a minute to read: the user named books and games only. The setting is the way out.
+- Cost: none in power (the loop wakes once a minute anyway); one unasked screen change on the panel a minute after the
+  last touch.

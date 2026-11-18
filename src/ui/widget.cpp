@@ -33,6 +33,10 @@ void Widget::removeAll() {
   while (!children_.empty()) remove(children_.back().get());
 }
 
+void Widget::dismissOverlay() {
+  if (Root* r = host()) r->closeOverlay(this);
+}
+
 Root* Widget::host() const {
   for (const Widget* w = this; w; w = w->parent_)
     if (w->screen_) return w->screen_;

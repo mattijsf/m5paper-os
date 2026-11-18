@@ -47,6 +47,10 @@ class Screen {
   virtual int sideMargin() const { return ui::kMargin; }
   // One line describing what is shown ("page=3/120"), for UI scripts (expect-state, page-through). "" = nothing to say.
   virtual std::string debugState() const { return ""; }
+  // True: while this screen is on top, the app is not left for the launcher when nobody touches it (the idle return,
+  // config launcher.homeAfterSec). For a screen that is in use without a finger: a pairing code being compared with the
+  // phone, files arriving over Wi-Fi. Asked each time the idle return looks, so it may change.
+  virtual bool staysOpen() const { return false; }
 
   // Title shown in the title bar while this screen is on top. Call from build() or later.
   void setTitle(const std::string& title);
@@ -100,6 +104,9 @@ struct AppInfo {
   const char* name;  // label under the launcher tile
   Icon icon;
   int order;         // position in the launcher (lower first)
+  // True: the app is never left for the launcher by itself when nobody touches it (the idle return, config
+  // launcher.homeAfterSec): something one looks at for minutes without a touch, a book or a game.
+  bool stayOpen = false;
 };
 
 struct AppEntry {

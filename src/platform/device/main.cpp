@@ -319,6 +319,10 @@ class SerialRemoteHost : public RemoteHost {
       gDisplay.setKeepUnchanged(value != "off");
       return true;
     }
+    if (key == "home-after") {  // ">set home-after 0": the idle return off (seconds, 0 = never) until the next boot, for a
+      gOs.config().launcher.homeAfterSec = atoi(value.c_str());  // session that leaves an app open (camera); not saved
+      return true;
+    }
     if (key == "chime") {  // ">set chime 1": the sound for new messages, whatever the setting (core/sound.h)
       sound::play();
       return true;

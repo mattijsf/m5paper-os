@@ -40,6 +40,10 @@ class Root : public Surface {
   // Removes an overlay and redraws what was under it. Safe to call from the overlay's own handlers.
   void closeOverlay(Widget* w);
   bool hasOverlay() const { return !overlays_.empty(); }
+  // Closes every overlay, the toast included, each the way it closes itself (a Sheet runs its onClose).
+  void closeOverlays();
+  // True while an on-screen keyboard is showing (something is being typed).
+  bool keyboardShowing() const;
   // True while `w` is one of the open overlays (a sheet that a late async result wants to update).
   bool hasOverlay(const Widget* w) const;
   // Shows a one-line message at the bottom for `ms` (needs timers), replacing the previous one.

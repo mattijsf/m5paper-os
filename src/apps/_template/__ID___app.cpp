@@ -31,6 +31,7 @@ POS_REGISTER_APP(__CLASS__App, {
     .name = "__NAME__",     // label under the launcher tile
     .icon = Icon::__ICON__, // from src/gen/icons.h
     .order = 90,            // position in the launcher (lower first)
+    // .stayOpen = true,    // a book or a game: not left for the launcher after a minute without a touch (docs/APPS.md)
 });
 
 }  // namespace pos::apps::__ID__

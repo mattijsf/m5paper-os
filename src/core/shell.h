@@ -18,6 +18,9 @@ namespace pos {
 
 // A swipe up that starts this close to the bottom edge cleans the whole screen (Shell::onGesture).
 constexpr int kCleanEdgeH = 60;
+// The idle return (config launcher.homeAfterSec) looks again this often while it has no time to wait for: the setting is
+// off, or the screen on top stays open. No extra wake-ups: the loop ticks once a minute anyway (kMaxSleepMs).
+constexpr uint32_t kIdleHomeRecheckMs = 60000;
 
 class Shell : public Surface {
  public:
@@ -81,6 +84,9 @@ class Shell : public Surface {
   }
   void runDeferred();
   void showTop();          // title bar, visibility, onShow
+  // Idle return: leaves an app nobody touched for config launcher.homeAfterSec and shows the launcher. Not an app
+  // registered with `.stayOpen`, not while the top screen says staysOpen(), a keyboard is showing or a finger is down.
+  void idleHomeCheck();
   void updateStatus();
 
   Os& os_;
@@ -102,6 +108,9 @@ class Shell : public Surface {
   std::unique_ptr<AppContext> ctx_;
   size_t appBase_ = 0;  // stack index of the app's first screen
   unsigned appRun_ = 0;  // changes whenever an app opens or closes: tells the actions of one run from the next
+  bool appStaysOpen_ = false;   // AppInfo::stayOpen of the running app
+  uint32_t appOpenedMs_ = 0;    // clock.millis() when it opened: an app opened without a touch (boot, remote) is not idle yet
+  Timers::Id idleTimer_ = 0;    // the next idleHomeCheck(), 0 = none
 };
 
 }  // namespace pos

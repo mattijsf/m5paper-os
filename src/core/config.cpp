@@ -75,6 +75,7 @@ bool Config::load() {
   readString(doc["ha"]["baseUrl"], ha.baseUrl);
 
   if (doc["launcher"]["resumeLastApp"].is<bool>()) launcher.resumeLastApp = doc["launcher"]["resumeLastApp"].as<bool>();
+  readInt(doc["launcher"]["homeAfterSec"], launcher.homeAfterSec, 0, 3600);
   if (doc["phone"]["clipboard"].is<bool>()) phone.shareClipboard = doc["phone"]["clipboard"].as<bool>();
   if (doc["phone"]["sound"].is<bool>()) phone.sound = doc["phone"]["sound"].as<bool>();
   return true;
@@ -98,6 +99,7 @@ bool Config::save() const {
   doc["reader"]["lineSpacing"] = reader.lineSpacing;
   doc["ha"]["baseUrl"] = ha.baseUrl;
   doc["launcher"]["resumeLastApp"] = launcher.resumeLastApp;
+  doc["launcher"]["homeAfterSec"] = launcher.homeAfterSec;
   doc["phone"]["clipboard"] = phone.shareClipboard;
   doc["phone"]["sound"] = phone.sound;
   std::string out;

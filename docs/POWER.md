@@ -62,6 +62,8 @@ Shell writes `lastApp` to `/data/system.json` and closes the app so it saves), t
 - Not while USB (a host on the data link, or the charger) was seen in the last 12 hours of this boot (`kUsbGraceMs`): a Mac
   suspends a port nobody has open, the device then sees no host, and only the side button could undo an unwanted power-off.
 - Before power-off every app gets `onPause()` to save state (reading position).
+- Since the idle return (apps/launcher.md, default a minute) an unused app is closed long before auto-off: the device
+  switches off from the launcher, except in a book or a game (or with the idle return on Never).
 - Boot after power-off is a cold start. Target: **under 2.5 s from button to the previous
   screen** (task P3-6): the launcher restores the last app and the app restores its state from
   `/data`. Do not connect Wi-Fi during boot.

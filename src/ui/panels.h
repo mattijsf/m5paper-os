@@ -28,6 +28,7 @@ class Sheet : public Widget {
   void layout() override;
   void draw(Canvas& c) override;
   bool onTouch(const Gesture& g) override;
+  void dismissOverlay() override { close(); }
   Rect panel() const { return panel_; }
 
  private:

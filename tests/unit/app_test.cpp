@@ -711,3 +711,144 @@ TEST_CASE("launcher: the summary line leaves out what is not there") {
   CHECK(summaryLine(3, "Dune", -1) == "3 unread - Reading: Dune");
   CHECK(summaryLine(0, "Dune", 250) == "Reading: Dune, 100%");
 }
+
+// ---- idle return (config launcher.homeAfterSec, apps/launcher.md "Idle return") -----------------
+namespace pos::apps::idletest {
+
+bool gStay = false;  // what StayScreen::staysOpen() answers
+
+class StayScreen : public Screen {
+ public:
+  void build(ui::Column& root) override {
+    setTitle("Stay");
+    button_ = root.add<ui::Button>("Sheet", [this] {
+      ui::openSheet(*button_, [](ui::Sheet& s) { s.onClose = [] { ++closed; }; });
+    });
+  }
+  bool staysOpen() const override { return gStay; }
+  static int closed;
+
+ private:
+  ui::Button* button_ = nullptr;
+};
+int StayScreen::closed = 0;
+
+class StayScreenApp : public App {
+ public:
+  void onStart(AppContext& ctx) override { ctx.nav.push<StayScreen>(); }
+};
+POS_REGISTER_APP(StayScreenApp, {.id = "idle-screen", .name = "Idle screen", .icon = Icon::Info, .order = 91});
+
+class GameApp : public App {
+ public:
+  void onStart(AppContext& ctx) override { ctx.nav.push<StayScreen>(); }
+};
+POS_REGISTER_APP(GameApp, {.id = "idle-game", .name = "Idle game", .icon = Icon::Info, .order = 92, .stayOpen = true});
+
+}  // namespace pos::apps::idletest
+
+namespace {
+// Lets `ms` pass in steps of a second, the main loop running (timers, deferred navigation, render).
+void pass(Env& env, uint32_t ms) {
+  for (uint32_t t = 0; t < ms; t += 1000) {
+    env.clock.ms += 1000;
+    env.step();
+  }
+}
+}  // namespace
+
+TEST_CASE("idle return: an app nobody touches for a minute is left for the launcher") {
+  Env env;
+  REQUIRE(env.shell->openApp("hello"));
+  pass(env, 59000);
+  CHECK(env.shell->appOpen());
+  pass(env, 1000);
+  CHECK_FALSE(env.shell->appOpen());
+  CHECK(env.shell->depth() == 1);  // the launcher
+  CHECK(logTail(5).find("hello not used for 60 s") != std::string::npos);
+  // the launcher itself is never left
+  pass(env, 180000);
+  CHECK(env.shell->depth() == 1);
+}
+
+TEST_CASE("idle return: a touch starts the minute again; an app opened long after the last touch gets its minute") {
+  Env env;
+  pass(env, 300000);  // five minutes on the launcher, no touch
+  REQUIRE(env.shell->openApp("hello"));  // opened without one (a boot that resumes, the remote)
+  pass(env, 50000);
+  CHECK(env.shell->appOpen());
+  env.os.keepAwake();  // what a touch event does to Os::lastInputMs()
+  pass(env, 59000);
+  CHECK(env.shell->appOpen());  // 109 s after it opened, 59 s after the touch
+  pass(env, 1000);
+  CHECK_FALSE(env.shell->appOpen());
+}
+
+TEST_CASE("idle return: the setting; 0 is never, a change counts for the app that is open") {
+  Env env;
+  env.os.config().launcher.homeAfterSec = 0;
+  REQUIRE(env.shell->openApp("hello"));
+  pass(env, 600000);
+  CHECK(env.shell->appOpen());
+  env.os.config().launcher.homeAfterSec = 30;  // Settings: seen at the next look, within a minute
+  pass(env, 60000);
+  CHECK_FALSE(env.shell->appOpen());
+
+  env.os.config().launcher.homeAfterSec = 300;
+  REQUIRE(env.shell->openApp("hello"));
+  pass(env, 299000);
+  CHECK(env.shell->appOpen());
+  pass(env, 1000);
+  CHECK_FALSE(env.shell->appOpen());
+}
+
+TEST_CASE("idle return: not an app registered with stayOpen (the reader, the games), not a screen that says staysOpen") {
+  Env env;
+  REQUIRE(AppRegistry::instance().find("read")->info.stayOpen);
+  REQUIRE(AppRegistry::instance().find("somdoku")->info.stayOpen);
+  REQUIRE(AppRegistry::instance().find("wordgame")->info.stayOpen);
+  for (const char* id : {"home", "whatsapp", "mail", "settings", "agenda", "weather", "teletekst"})
+    CHECK_FALSE(AppRegistry::instance().find(id)->info.stayOpen);
+
+  REQUIRE(env.shell->openApp("idle-game"));
+  pass(env, 3600000);
+  CHECK(env.shell->appOpen());
+  env.shell->closeApp();
+
+  pos::apps::idletest::gStay = true;
+  REQUIRE(env.shell->openApp("idle-screen"));
+  pass(env, 600000);
+  CHECK(env.shell->appOpen());
+  pos::apps::idletest::gStay = false;  // the screen is done (files stopped arriving): the idle time has long passed
+  pass(env, 60000);
+  CHECK_FALSE(env.shell->appOpen());
+}
+
+TEST_CASE("idle return: an open sheet closes as on a tap beside it and does not stay on the launcher") {
+  Env env;
+  pos::apps::idletest::StayScreen::closed = 0;
+  REQUIRE(env.shell->openApp("idle-screen"));
+  auto* b = findButton(env.shell->root().root(), "Sheet");
+  REQUIRE(b != nullptr);
+  env.tapAt(b->frame.x + 10, b->frame.y + 10);
+  REQUIRE(env.shell->root().hasOverlay());
+  pass(env, 61000);
+  CHECK_FALSE(env.shell->appOpen());
+  CHECK_FALSE(env.shell->root().hasOverlay());
+  CHECK(pos::apps::idletest::StayScreen::closed == 1);
+  pass(env, 2000);  // the closed sheet is destroyed at the next render: nothing of the app is called
+}
+
+TEST_CASE("idle return: not while the on-screen keyboard shows (something is half typed)") {
+  Env env;
+  REQUIRE(env.shell->openApp("hello"));
+  auto panel = std::make_unique<ui::KeyboardPanel>();
+  ui::Widget* raw = env.shell->root().addOverlay(std::move(panel));
+  REQUIRE(env.shell->root().keyboardShowing());
+  pass(env, 300000);
+  CHECK(env.shell->appOpen());
+  env.shell->root().closeOverlay(raw);
+  CHECK_FALSE(env.shell->root().keyboardShowing());
+  pass(env, 60000);
+  CHECK_FALSE(env.shell->appOpen());
+}

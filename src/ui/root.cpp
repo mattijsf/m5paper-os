@@ -123,6 +123,15 @@ void Root::closeOverlay(Widget* w) {
   }
 }
 
+void Root::closeOverlays() {
+  hideToast();
+  while (!overlays_.empty()) {
+    Widget* w = overlays_.back().get();
+    w->dismissOverlay();
+    if (hasOverlay(w)) closeOverlay(w);  // an overlay that did not take itself away
+  }
+}
+
 void Root::hideToast() {
   if (timers_ && toastTimer_) timers_->cancel(toastTimer_);
   toastTimer_ = 0;
@@ -222,6 +231,12 @@ Keyboard* findKeyboard(Widget* w) {
   return nullptr;
 }
 }  // namespace
+
+bool Root::keyboardShowing() const {
+  for (const auto& o : overlays_)
+    if (findKeyboard(o.get())) return true;
+  return root_ && findKeyboard(root_.get());
+}
 
 std::vector<KeyTap> Root::keyboardTaps(const std::string& text) {
   for (size_t i = overlays_.size(); i-- > 0;)

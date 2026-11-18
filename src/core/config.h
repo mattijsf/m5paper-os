@@ -38,6 +38,9 @@ struct HaConfig {
 };
 struct LauncherConfig {
   bool resumeLastApp = true;
+  // Idle return: an app nobody touched for this many seconds is left for the launcher (Shell, apps/launcher.md "Idle return").
+  // 0 = never. Not for apps registered with `.stayOpen` (the reader, the games).
+  int homeAfterSec = 60;
 };
 struct PhoneConfig {
   bool shareClipboard = true;  // the clipboard goes to and comes from the paired phone (DECISIONS.md D23)

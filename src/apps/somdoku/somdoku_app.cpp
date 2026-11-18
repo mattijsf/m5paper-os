@@ -575,6 +575,7 @@ POS_REGISTER_APP(SomdokuApp, {
     .name = "Somdoku",
     .icon = Icon::Grid3x3,
     .order = 95,  // after Settings: the tiles of the other apps keep their places
+    .stayOpen = true,  // a game: thinking is not leaving (the idle return)
 });
 
 }  // namespace pos::apps::somdoku_app

@@ -229,6 +229,7 @@ TEST_CASE("PowerPolicy::idle: auto-off after the idle time, remembers the open a
   Env e;
   e.os.config().power.autoOffMin = 15;
   e.os.config().power.autoOffMinReader = 30;
+  e.os.config().launcher.homeAfterSec = 0;  // no idle return: the app stays open until the power goes (below: with it)
   REQUIRE(e.shell->openApp("settings"));
   e.clock.ms += 14 * 60 * 1000 + 30 * 1000;  // 14.5 minutes without input
   e.os.loopOnce();                            // runs the overdue status timer
@@ -246,6 +247,22 @@ TEST_CASE("PowerPolicy::idle: auto-off after the idle time, remembers the open a
   CHECK_FALSE(e.shell->appOpen());      // the app was stopped (state saved)
   Store sys("/data/system.json");
   CHECK(sys.get("lastApp", std::string("")) == "settings");
+
+  // With the idle return (the default, a minute) the app was left long before: the power goes from the launcher and the
+  // next boot shows the launcher.
+  {
+    Env h;
+    h.os.config().power.autoOffMin = 15;
+    REQUIRE(h.shell->openApp("settings"));
+    h.clock.ms += 2 * 60 * 1000;
+    h.os.loopOnce();
+    CHECK_FALSE(h.shell->appOpen());
+    h.clock.ms += 14 * 60 * 1000;
+    h.policy.idle(1000);
+    REQUIRE(h.power.offs.size() == 1);
+    Store after("/data/system.json");
+    CHECK(after.get("lastApp", std::string("x")) == "");
+  }
 
   // on USB: never
   Env u;

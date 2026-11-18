@@ -49,6 +49,16 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   shared score had its own name (the user set it to "Woordle" later). Seventh app: the launcher now has a second page. The firmware builds with it; not flashed (Pending
   device checks). Open question 7.
 
+- **P7-13 idle return, 2026-11-18: built, runs on the device**. The Shell leaves
+  an app nobody touched for `launcher.homeAfterSec` seconds (default 60) and shows the launcher; Settings > Power has the
+  control (Never / 30 s / 1 min / 2 min / 5 min). Read, Somdoku and the word game stay open (`.stayOpen` in the
+  registration); so do Settings > Phone while pairing, Files over Wi-Fi while serving and the Display lab
+  (`Screen::staysOpen()`), and any screen while the on-screen keyboard shows. **Mind it in device sessions**: an app opened
+  for a check is gone a minute after the last injected tap; `tools/device.py set home-after 0` switches it off until the
+  next boot. 326 unit tests, 261 screenshots; firmware 2,482,288 bytes (+1,744). On the device (flashed 10:05): Settings >
+  Power went to the launcher 60 s after the last tap (log, frame dump), the reader's library stayed past 70 s
+  (`out/dev-idle-home/`).
+
 - **P7-12 Teletekst, 2026-11-18: built, runs on the device**. App `teletekst`,
   the tenth tile of launcher page 1 (icon: the logo, redrawn; first `tv`): NOS Teletekst read from the JSON the service's own site uses
   (`teletekst-data.nos.nl/json/<page>`, checked live on 2026-11-18 from the Mac: 25 lines of 40 cells, 404 for a page that
@@ -398,6 +408,11 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Idle return on battery (P7-13, 2026-11-18)**: checked on USB only, where the device does not light-sleep. Open: on
+  battery the idle return's timer must wake the device from light sleep a minute after the last touch (timers are part
+  of `Os::msToNextDeadline()`, as for the settle pass; the unit tests cover the deadline, not the wake). To do: unplug,
+  open Weather, leave it; a frame dump after plugging in again shows the launcher and `>log` the line
+  `[shell] weather not used for 60 s`. With the camera: how the unasked screen change looks on the panel.
 - **Teletekst on the panel (P7-12, 2026-11-18)**: the app is flashed and checked through the log, frame dumps and injected
   taps (Log, apps/teletekst.md "On the device"). Open, for a camera session (only the Mac's built-in camera was there):
   the bitmap letters at 22 px, the striped blocks of the weather map (do the 1 px rows hold or fill in?), a page turn as
@@ -627,8 +642,14 @@ None of these block Phase 1, Phase 2, or the reader.
 
 ## Notes for later tasks
 
-- **Flaky unit test seen once (2026-11-16, weather work)**: `wifi_test.cpp:396` (the linger switches Wi-Fi off after
-  `lingerSec`) failed once in `make test` and passed in three reruns of the same binary. Not investigated.
+- **Flaky unit test `wifi_test.cpp:396`: fixed 2026-11-18** (it failed 1 run in 6, 3 in 6 on a loaded Mac). Cause: the clock
+  sync that follows a connect is a worker job started by `NetService::tick()`, and it counts as use of the link when it
+  lands; the test's tick at 19999 ms started it and the tick at 20000 ms raced it. The test now lets the sync land before
+  it measures (12 runs of 12 pass). The product code is as it was: a sync landing just before the linger ends keeps
+  Wi-Fi up for another `lingerSec`, by design.
+- **`agenda-launcher` golden under load (2026-11-18)**: with the Mac at load 20+ (other builds running) the shot at
+  1700 ms sometimes catches the launcher before the settle pass that follows the relay read (2 of 5 runs; none in three
+  runs before and after). The script's 200 ms between the read and the shot is the margin. Not changed.
 - **Weather on the launcher or the sleep screen** (P7-11, 2026-11-16): the weather app wants neither yet. A line like
   "6° Partly cloudy, rain 70 % at 17:00" can come from the saved copy (`/data/cache/weather/weather.thuis.json`, `weather_model`
   `fromJson` + `nextHours`) without a read; keeping it fresh needs a scheduled wake (POWER.md). Left out because the agenda
@@ -1102,3 +1123,15 @@ None of these block Phase 1, Phase 2, or the reader.
   changed pixels only inside the tile's icon box). 320 unit tests, 257 screenshots; firmware 2,480,544 bytes (+1,168).
   **On the device**: flashed, the frame dump of the launcher shows the icon, a tap on the tile opens the app and reads page
   100. The panel itself not seen (no webcam): the 2 and 3 px strokes of the icon are part of the pending camera check.
+- 2026-11-18: P7-13 idle return. `Shell::idleHomeCheck()`: a timer per open app, idle from the last touch (not
+  longer than the app is open); `launcher.homeAfterSec` (60) with a Segmented on Settings > Power; `.stayOpen` in the
+  registration of Read, Somdoku and the word game; `Screen::staysOpen()` on the pairing page, Files over Wi-Fi and the
+  Display lab; not while the keyboard shows or a finger is down; open overlays close first (`ui::Root::closeOverlays()`,
+  `Widget::dismissOverlay()`: a sheet runs its `onClose`). Device aid `>set home-after N`. Scripts touched: `home` (a tap
+  on nothing halfway its 65 s wait), `sched-refresh` (the 2 h button moved down); goldens `settings-power`,
+  `settings-power-never`, `sched-power-setting` re-accepted (the new control), four new `idle-home-*`. The auto-off unit
+  test now says both: with the idle return the power goes from the launcher. The flaky `wifi_test.cpp:396` fixed on the
+  way (Notes for later tasks). 326 unit tests, 261 screenshots; firmware 2,482,288 bytes (+1,744). **On the device**
+  (flashed, injected taps, log, frame dumps in `out/dev-idle-home/`): Settings > Power open, 60 s after the last tap
+  `[shell] settings not used for 60 s: back to the launcher`, one Fast pass and its settle, the launcher in the dump; the
+  reader's library still open 70 s after its tap. On USB only (Pending device checks: battery).

@@ -386,6 +386,15 @@ TEST_CASE("net: Wi-Fi goes off after the linger time, not while a request runs; 
   e.svc.perform(req);
   e.svc.perform(req);  // a second request of the same refresh: no new connect
   CHECK(e.net.connects.size() == 1);
+  // The clock sync that follows a connect is a worker job started by tick(), and it counts as use of the link when it
+  // lands. Let it land now: left to the tick below it ran at 19999 or at 20000 as the threads fell, and then the
+  // linger started again (this test failed about one run in five until 2026-11-18).
+  e.svc.tick();
+  for (int i = 0; i < 5000 && e.worker.pending() > 0; ++i) {
+    e.worker.runCompleted();
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  REQUIRE(e.worker.pending() == 0);
   CHECK(e.svc.msToNextDeadline() == 20000);
   e.clock.ms += 19999;
   e.svc.tick();

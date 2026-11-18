@@ -430,6 +430,12 @@ P6-11 last (it needs the relay and a device that can pair).
   Fixtures with made-up pages, UI scripts `teletekst*`, unit tests. Done when: goldens accepted, `make check` green, a
   live page read on the device. (2026-11-18: built, tested in the simulator, flashed and read live pages on the device; the panel's look is a pending camera check.)
 
+- [x] **P7-13 Idle return to the launcher**. Read: apps/launcher.md "Idle return", D33. The Shell
+  leaves an app nobody touched for `launcher.homeAfterSec` (default 60; Settings > Power); not Read, Somdoku or the word
+  game (`.stayOpen`), not a screen that says `staysOpen()`, not while the keyboard shows. Unit tests, UI script `idle-home`.
+  Done when: `make check` green, seen on the device. (2026-11-18: done; on the device Settings went to the launcher after
+  60 s, the reader stayed.)
+
 ## Phase 8: Optional, ask the owner first
 
 - [ ] **P8-1 Notification-sensor feeds** (DECISIONS.md D8) as a replacement if the WhatsApp

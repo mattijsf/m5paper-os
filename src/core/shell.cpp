@@ -1,5 +1,6 @@
 #include "core/shell.h"
 
+#include <algorithm>
 #include <ctime>
 
 #include "core/quick_panel.h"
@@ -182,6 +183,7 @@ Shell::~Shell() {
     os_.net().onChangeOwner = nullptr;
   }
   os_.timers().cancel(statusTimer_);
+  if (idleTimer_) os_.timers().cancel(idleTimer_);
   if (app_) app_->onStop();
   // The widget tree dies with root_; screens must go first (their widgets may be referenced).
   while (!stack_.empty()) stack_.pop_back();
@@ -254,14 +256,44 @@ bool Shell::openApp(const std::string& id) {
   ctx_.reset(new AppContext(*this, *nav_, *store_, *cache_, os_.platform().clock, os_.config(), os_.secrets(), id));
   appBase_ = stack_.size();
   ++appRun_;
+  appStaysOpen_ = entry->info.stayOpen;
+  appOpenedMs_ = os_.platform().clock.millis();
   app_ = entry->create();
   app_->onStart(*ctx_);
   runDeferred();  // the first screen push
+  idleHomeCheck();  // starts the idle return's timer
   return true;
+}
+
+void Shell::idleHomeCheck() {
+  idleTimer_ = 0;
+  if (!app_ || appStaysOpen_ || sleeping_ || stack_.size() <= appBase_) return;
+  const int sec = os_.config().launcher.homeAfterSec;  // read each time: Settings may have changed it
+  uint32_t wait = kIdleHomeRecheckMs;
+  // In use without a touch: the screen says so, something is half typed, a finger rests on the panel.
+  const bool held = stack_.back().screen->staysOpen() || root_.keyboardShowing() || os_.touching();
+  if (sec > 0 && !held) {
+    const uint32_t now = os_.platform().clock.millis();
+    const uint32_t limit = static_cast<uint32_t>(sec) * 1000u;
+    const uint32_t idle = std::min(now - os_.lastInputMs(), now - appOpenedMs_);
+    if (idle >= limit) {
+      POS_LOG("shell", "%s not used for %d s: back to the launcher", appId_.c_str(), sec);
+      // After the timers have run (this is one of them), like every other navigation.
+      deferForApp([this] {
+        root_.closeOverlays();  // a sheet of the app, the quick panel, a toast: nothing of the app stays on the launcher
+        closeApp();
+      });
+      return;
+    }
+    wait = std::min(wait, limit - idle);
+  }
+  idleTimer_ = os_.timers().after(wait, [this] { idleHomeCheck(); });
 }
 
 void Shell::closeApp() {
   if (!app_) return;
+  if (idleTimer_) os_.timers().cancel(idleTimer_);
+  idleTimer_ = 0;
   hal::Clock& clock = os_.platform().clock;
   const uint32_t t0 = clock.millis();
   if (stack_.size() > appBase_) stack_.back().screen->onHide();  // lifecycle: onHide, then onStop

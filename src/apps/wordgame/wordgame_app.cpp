@@ -754,6 +754,7 @@ POS_REGISTER_APP(WordGameApp, {
     .name = game::kName,  // the launcher tile follows the one name constant
     .icon = Icon::Type,
     .order = 96,  // after Somdoku
+    .stayOpen = true,  // a game: thinking is not leaving (the idle return)
 });
 
 }  // namespace pos::apps::wordgame_app

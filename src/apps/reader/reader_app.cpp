@@ -519,7 +519,7 @@ class ReadApp : public App {
   Store* store_ = nullptr;
 };
 
-POS_REGISTER_APP(ReadApp, {.id = "read", .name = "Read", .icon = Icon::BookOpen, .order = 10});
+POS_REGISTER_APP(ReadApp, {.id = "read", .name = "Read", .icon = Icon::BookOpen, .order = 10, .stayOpen = true});
 
 }  // namespace
 

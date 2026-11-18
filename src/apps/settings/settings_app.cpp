@@ -91,6 +91,15 @@ class PowerPage : public Page {
       cfg().power.autoOffMin = kMin[i];
       save();
     };
+    caption(root, "Back to home when unused for (not books or games)");
+    const int hs = cfg().launcher.homeAfterSec;
+    auto* home = root.add<ui::Segmented>(std::vector<std::string>{"Never", "30 s", "1 min", "2 min", "5 min"},
+                                         hs == 0 ? 0 : hs <= 30 ? 1 : hs <= 60 ? 2 : hs <= 120 ? 3 : 4);
+    home->onChange = [this](int i) {
+      static const int kSec[] = {0, 30, 60, 120, 300};
+      cfg().launcher.homeAfterSec = kSec[i];  // the Shell reads it at its next look (within a minute)
+      save();
+    };
     caption(root, "While off, wake to check the inbox every");
     const int h = cfg().power.refreshHours;
     auto* refresh = root.add<ui::Segmented>(std::vector<std::string>{"Off", "1 h", "2 h", "4 h", "8 h"}, h == 1 ? 1 : h == 2 ? 2 : h == 4 ? 3 : h == 8 ? 4 : 0);
@@ -415,6 +424,7 @@ class PhonePage : public Page {
   }
 
   void onHide() override { polling_ = false; }
+  bool staysOpen() const override { return polling_; }  // the QR code is being scanned, the codes compared: no touch here
 
   std::string debugState() const override { return "phone=" + state_; }
 
@@ -692,6 +702,7 @@ class FilesPage : public Page {
     if (!running_ && !starting_) start();
   }
   void onHide() override { stopServer(""); }
+  bool staysOpen() const override { return running_ || starting_; }  // it stops by itself after ten minutes without a request
   // A screen can also go without onHide (the whole app replaced, `>set screen`): then the app's context may already be gone, so
   // the server is stopped through the pointer kept at start, nothing else.
   ~FilesPage() override {
@@ -890,6 +901,7 @@ class LabView : public ui::Widget {
 
 class DisplayLabPage : public Page {
  public:
+  bool staysOpen() const override { return true; }  // a pattern left on the panel for the camera or the eye
   void build(ui::Column& root) override {
     setTitle("Display lab");
     root.add<ui::Spacer>(ui::s1);

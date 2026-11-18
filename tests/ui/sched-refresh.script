@@ -5,7 +5,7 @@ tap 270 424             # launcher: Settings tile
 wait 900
 tap 270 364             # Power
 wait 900
-tap 270 330             # wake to check the inbox every: 2 h
+tap 270 425             # wake to check the inbox every: 2 h
 wait 900
 shot sched-power-setting
 back

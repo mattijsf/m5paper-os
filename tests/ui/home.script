@@ -35,7 +35,9 @@ shot home-more
 tap 472 268             # Air conditioning toggle: the service call fails (fixture status 500): reverts, toast
 wait 700
 shot home-more-failed
-wait 65000              # foreground polling: touched within 2 minutes, so the tab is read again every 30 s
+wait 35000              # foreground polling: touched within 2 minutes, so the tab is read again every 30 s
+tap 270 600             # a touch on nothing: the idle return (a minute without one) would leave the app
+wait 30000
 expect-state Updated 13:35
 shot home-polled
 swipe 270 20 270 400    # the quick panel with Wi-Fi up (the Home refresh brought it up)

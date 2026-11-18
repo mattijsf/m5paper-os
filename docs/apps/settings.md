@@ -9,7 +9,7 @@ System configuration and developer tools.
 | Settings (list) | Wi-Fi, Display, Power, Reading, Home Assistant, Storage, Developer, About |
 | Wi-Fi | current network + signal; "Scan" lists networks (name, signal bars, lock); tap one, enter the password on `ui::Keyboard`, connect, save. Saved networks with "Forget". |
 | Display | "Clean screen now"; ghost limit (Stepper 4..16); settle delay (Segmented 300/600/1000 ms) |
-| Power | auto-off (Segmented 5/15/30/never-on-USB); scheduled inbox refresh while off (Segmented Off/1/2/4/8 h, POWER.md); stay awake on USB; battery mV and percent |
+| Power | auto-off (Segmented 5/15/30/never-on-USB); idle return to the launcher (Segmented Never/30 s/1 min/2 min/5 min, `launcher.homeAfterSec`, apps/launcher.md "Idle return"); scheduled inbox refresh while off (Segmented Off/1/2/4/8 h, POWER.md); stay awake on USB; battery mV and percent |
 | Reading | default font size (S/M/L/XL), margins (narrow/normal/wide), line spacing |
 | Home Assistant | base URL (read-only here), token present yes/no, "Test connection" (GET `/api/`), last error |
 | Storage | SD card present/size/free; `/data` used/free; "Clear caches" |
@@ -60,7 +60,7 @@ the token and the Authorization header are never shown or logged. Developer > "H
   "net":      { "lingerSec": 20, "timezone": "CET-1CEST,M3.5.0,M10.5.0/3" },
   "reader":   { "fontSize": "M", "margins": "normal", "lineSpacing": 1.35 },
   "ha":       { "baseUrl": "http://homeassistant.local:8123" },
-  "launcher": { "resumeLastApp": true },
+  "launcher": { "resumeLastApp": true, "homeAfterSec": 60 },
   "phone":    { "clipboard": true, "sound": false }
 }
 ```
