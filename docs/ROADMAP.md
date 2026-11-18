@@ -475,6 +475,21 @@ P6-11 last (it needs the relay and a device that can pair).
   `home.json` (thermostat, a door, the car) as a row on the board: needs a way to mark the items (a key in `home.json`),
   their reads in the scheduled refresh, and a text per item type.
 
+- [~] **P7-18 Read later**. Read: COMPANION.md 7.1 `clip`, apps/hackernews.md "The article", D34,
+  apps/reader.md. A link shared with the Paper ("Send to Paper" on the phone's share sheet: a `clip` whose text is one
+  link, alone or after a title; no change to the phone app or the protocol's messages) is queued
+  (`core/readlater`, `/data/readlater.json`) besides becoming the clipboard. The page is read through the reader
+  service the Hacker News app uses (D34: the address goes to that third party) and saved as it answers to
+  `/sd/books/Articles/<title> - <host>.md`: a book like any other. The Read app opens `.md` (Markdown through
+  `hackernews::parseArticle`: headings, lists, bold), lists new articles first with "New", and removes one on a long
+  press. Pages are read by the scheduled refresh and when the library opens (not at the launcher's relay check: the one
+  worker would keep an app opened meanwhile waiting); a link that cannot be read is dropped after a note (no text,
+  refused) or after six tries (no network). Links that wait and articles nobody opened are the Read tile's badge and so
+  the Today board's count; the launcher's and the plain sleep screen's "N unread" stay
+  messages only. Done when: unit tests (the link rule, the queue, file names, the `.md` import), UI script with goldens
+  (a shared link arrives, the library, the article, removing it), `make check` green, a link shared from the real phone
+  read on the device. (2026-11-18: built, simulator and unit tests; the device run with the real phone is open.)
+
 ## Phase 8: Optional, ask the owner first
 
 - [ ] **P8-1 Notification-sensor feeds** (DECISIONS.md D8) as a replacement if the WhatsApp

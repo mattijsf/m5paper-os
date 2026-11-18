@@ -194,7 +194,9 @@ exceed 1000 bytes.
 Quick Settings tile or the app's button; never automatic: Android lets an app read the clipboard only while it has focus). `text`
 1..900 characters, cut by the sender, then shortened until the plaintext fits 1000 bytes. The Paper replaces its clipboard with it
 (the newest `clip` of a queue wins) unless it is older than 24 hours by `ts` or the Paper's "Share the clipboard" is off; such a
-`clip` is read and acked, not applied. A clipboard Android marks sensitive (`ClipDescription.EXTRA_IS_SENSITIVE`) is never sent.
+`clip` is read and acked, not applied. **A `clip` that is a link** (its text is one http(s) address, alone or as the last
+word after a title) is also queued on the Paper to be read later as an article (apps/reader.md "Articles", P7-18): with
+the clipboard not shared too, and whatever its `ts`. A clipboard Android marks sensitive (`ClipDescription.EXTRA_IS_SENSITIVE`) is never sent.
 
 **`agenda`** (D28, one way: the Paper never changes the calendar): the phone's calendar for a run of days.
 

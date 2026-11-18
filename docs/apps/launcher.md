@@ -33,7 +33,9 @@ Since the word game (2026-11-16) there are seven apps: the pager bar shows ("1 /
 
 - Tiles come from the app registry sorted by `order`. Tap opens the app (`Hint::Screen`).
 - Badges: an app may expose `int badge()` in its registration (unread count). The launcher
-  reads the cached value from `/data/cache/<id>/badge`; it never triggers network I/O itself.
+  reads the cached value from `/data/cache/<id>/badge`; it never triggers network I/O itself. The Read tile's badge
+  counts what there is to read later, links that wait and articles nobody opened (apps/reader.md "Articles", P7-18);
+  the summary line's "N unread" leaves it out (`cachedUnread()`: messages only).
 - Swipe down from the status bar opens the quick panel (`Sheet`): Wi-Fi on/off state, battery
   detail, "Sleep now" (power off), "Clean screen" (full Quality refresh).
 - On boot, if `config.launcher.resumeLastApp` is true (default) and the device was powered off
@@ -88,7 +90,8 @@ The launcher shows what the apps cached, and until this day nothing read the pho
 Now: when the launcher comes up (boot, leaving an app) and a phone is paired and nobody read or tried the relay in the
 last ten minutes of this boot (`inbox::relayCheckDue`, `kLauncherCheckSec`), it reads it in the background 1.5 s later
 (`inbox::checkRelay`: the same read as the inbox's, on the worker; the store, both badges, the agenda and the clipboard
-follow). A tap into an app before that cancels it; a failed try counts as a try (away from the known Wi-Fi a try is a
+follow; a link shared for reading later is queued and counts in the Read tile's badge at once, its page is read
+later: apps/reader.md "Articles", P7-18). A tap into an app before that cancels it; a failed try counts as a try (away from the known Wi-Fi a try is a
 scan of several seconds). When the result is in and the launcher is still on top, the badges, the summary line and the
 agenda line are set again: a tile whose count did not change is not drawn again; only the agenda line appearing or
 going moves the tiles (one pass). Not done: no timer while the launcher just stays on (a device lying on USB does not

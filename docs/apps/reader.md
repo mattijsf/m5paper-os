@@ -20,6 +20,9 @@ bar for refresh quality and battery life.
   chapter is loaded (written before it, the page came 1.9 s late and taps were dropped meanwhile).
 - Title and author come from the book's cache (`meta.json`, once it was opened) or from the file name
   "Title - Author.ext".
+- **Articles** (below) that nobody opened come first under the card, the newest on top, with "New" where a book has its
+  percent; then the books nobody opened, by title. A long press on an article's row asks "Remove this article?"; the card
+  of an article has "Remove" under "Continue" (page 1 then holds 4 rows). Books are never removed on the device.
 - Empty state: "No books yet. Copy .epub or .txt files to the books folder on the SD card."
 - First open of a book: "Preparing book..." while the worker indexes it (below), then the page.
 
@@ -59,6 +62,7 @@ done at a page turn, never mid-page. Requirements checked by `tests/ui/reader.sc
 |---|---|
 | `.txt` | UTF-8 (Windows-1252/Latin-1 fallback). Blank line = paragraph, hard-wrapped lines are joined. `_word_` is italic, a short line starting with CHAPTER / BOOK / PART ... is a heading. Project Gutenberg header and licence are cut. One "chapter" (parts of at most 512 KB for huge files); title and author from "Title - Author.txt", else the Gutenberg header. Task P4-1 (done). |
 | `.epub` (2 and 3) | Unencrypted. Text, paragraphs, headings (h1-h3), bold, italic, line breaks, block quotes, lists as indented paragraphs, horizontal rule. Cover image. Task P4-3/4. |
+| `.md` | Markdown: headings, paragraphs, lists, **bold**, code blocks and table rows as lines (`hackernews::parseArticle`, apps/hackernews.md "The article"). One chapter. An article saved for later (below) is such a file, as the reader service answered it: "Title: ..." lines, "Markdown Content:", then the page; the title comes from that header. Any other Markdown file on the card opens too. |
 | not supported in v1 | DRM, images inside chapters (not built: they leave no placeholder, only real alt text such as a caption stays; inline pictures are a later feature), tables (each cell is a line, the lines of a row stay together), CSS, footnote popups, right-to-left |
 
 ## Pipeline
@@ -138,6 +142,37 @@ The page index file is `"PIX1"`, a u32 page count, then per page u16 chapter, u3
   pages 12.5 s; Frankenstein 440 KB, 922 pages 9.8 s; Max Havelaar 405 KB, 1667 pages 15.7 s; Sherlock Holmes 312 KB, 1240 pages
   9.8 s: about 6-9 ms per page, most of it layout (text measuring is 40-55 % of that), so a 1 MB EPUB would take 20-25 s once.
   The page's text follows 0.3-0.4 s after the book is ready. Ghosting: DISPLAY.md "Reader ghosting".
+
+## Articles: read later (task P7-18, D36)
+
+A link shared from the phone waits on the Paper as an article, read like a book.
+
+- **Sharing**: "Send to Paper" on the phone's share sheet, as for text (COMPANION.md 7.1 `clip`). A `clip` whose text is
+  one http(s) address, alone or as the last word after a title, is a link to read (`readlater::linkFromText`); a note
+  that mentions an address in the middle, or two, stays a note. The text still becomes the Paper's clipboard as before.
+  No change to the phone app or to the protocol's messages. A link counts with the clipboard not shared and however old.
+- **Queue**: `core/readlater`, `/data/readlater.json`: up to 20 links (address, the words before it, when, tries) and
+  the files of the articles nobody opened yet. The relay read queues (`inbox::fetchRelay`, whoever reads).
+- **Reading the page**: `reader::fetchArticles` (`apps/reader/articles`), on the worker: the request of the Hacker News
+  app's article (`POST r.jina.ai`, D34: the link's address goes to that service, nothing else), its answer saved as it
+  is to `/sd/books/Articles/<title> - <host>.md` (`readlater::fileName`: what a FAT name cannot hold is taken out, 70
+  characters, " - " inside the title becomes a dash; a name that is taken gets " (2)"). **When**: in the scheduled refresh, after the relay
+  and the weather (it gives the links 25 s of its 45), and when the library is shown with links waiting ("Reading 2
+  links..." as a toast, then the list again; once per visit). **Not at the launcher's relay check**, which only queues: a
+  page takes seconds, and on the one worker an app opened meanwhile would wait for it.
+- **A link that cannot be read**: no text on the page, a page over 400 KB or a 4xx of the service: dropped at once. No
+  network, a timeout, a 5xx: it waits, six tries, then it is dropped. In the library the reason is a toast
+  ("example.com: No text on the page"); elsewhere it is a log line (`[read] article not read: ...`).
+- **The Read tile's badge is what there is to read**: links that wait plus articles nobody opened
+  (`/data/cache/read/badge`, set by `readlater::save`), so a shared link shows on the launcher at the next relay read,
+  before its page is read, and the Today board shows the book icon with the number. Opening an article takes it off
+  (`articleOpened`); files that are gone from the card are dropped from the list. The launcher's and the plain sleep screen's "N unread" count messages only.
+- **Limits**: text only (no pictures), what the service can read (a paywall gives its notice as the article, with the
+  service's warning as the first line), one chapter, no way back to the page (the address is in the file's header).
+- Tests: `tests/unit/readlater_test.cpp` (the link rule, hosts and names, the queue, reads that answer, never will or
+  find no network, opened and removed, the Markdown import, the library's order), the `clip` case in
+  `companion_test.cpp`; UI script `read-later` (fixture host ha-link.example.test: goldens `read-later-launcher`,
+  `-library`, `-remove-sheet`, `-article`, `-article-p2`, `-library-read`, `-launcher-read`, `-removed`).
 
 ## Later (not v1)
 

@@ -77,6 +77,9 @@ order, comment HTML into text, the thread as paragraphs, the saved copy, the rea
 
 ## The article
 
+(The request and the Markdown conversion below are also what the Read app uses for links shared from the phone: apps/reader.md
+"Articles", P7-18. They still live in `hackernews_model`: moving them to `apps/common` is a note in STATUS.md.)
+
 ```
 +--------------------------------------+
 | <  example.com             [refresh] |  the site

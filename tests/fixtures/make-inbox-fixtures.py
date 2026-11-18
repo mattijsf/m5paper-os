@@ -5,7 +5,8 @@ encrypted with pyca/cryptography (not the Paper's libsodium code), times relativ
 
 Hosts: ha.example.test (a full queue, the pairing hello for the UI scripts' fixed random keys), ha-down.example.test (a short
 queue plus the phone's answer to a reply), ha-empty.example.test (an empty queue; pushes answer 400), ha-gone.example.test (no
-relay at all: 404 / 400), ha-clip.example.test (the phone's clipboard), ha-agenda.example.test (the phone's calendar, D28).
+relay at all: 404 / 400), ha-clip.example.test (the phone's clipboard), ha-agenda.example.test (the phone's calendar, D28),
+ha-link.example.test (a link shared for reading later, P7-18: the page of the Hacker News fixtures' first article).
 
   uv run -q --no-project --with cryptography python -I tests/fixtures/make-inbox-fixtures.py tests/fixtures/http tests/ui/data
 """
@@ -203,9 +204,14 @@ def main(out, presets):
     write(out, a, "GET", to_paper, relay_state("sensor.paperos_relay_to_paper", queue(wa_posts()[-2:] + agenda_msgs())))
     write(out, a, "POST", push, "[]")
     write(out, a, "POST", ack, "[]")
+    l = "ha-link.example.test"  # a link shared with the Paper to read later (P7-18): a `clip` that is a title and an address
+    write(out, l, "GET", to_paper, relay_state("sensor.paperos_relay_to_paper", queue(
+        wa_posts()[-1:] + [{"t": "clip", "text": "A file system that fits on a postcard https://www.example.com/postcard-fs", "ts": NOW - 300}])))
+    write(out, l, "POST", push, "[]")
+    write(out, l, "POST", ack, "[]")
     # The paired state of the UI test presets that read a relay.
     for name in ("inbox", "inbox-mail", "inbox-error", "inbox-wifi", "inbox-empty", "inbox-gone", "inbox-gone-mail", "whatsapp-send",
-                 "whatsapp-reply-result", "whatsapp-send-missing", "sched-refresh", "somdoku", "textfield-phone", "agenda", "agenda-none", "today-board"):
+                 "whatsapp-reply-result", "whatsapp-send-missing", "sched-refresh", "somdoku", "textfield-phone", "agenda", "agenda-none", "today-board", "read-later"):
         os.makedirs(os.path.join(presets, name, "data"), exist_ok=True)
         with open(os.path.join(presets, name, "data", "companion.json"), "w") as f:
             f.write(preset_pairing())

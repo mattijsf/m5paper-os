@@ -22,6 +22,10 @@ struct RelayFetch {
   companion::Notifs notifs;  // the store after applying (also when the GET failed: what was saved before)
   bool clipFromPhone = false;  // the clipboard now holds what the phone sent
   bool agendaChanged = false;  // the phone sent its calendar: /data/cache/agenda/agenda.json is new (core/agenda.h)
+  // Links to read later that this read queued (core/readlater.h): the Read tile's badge counts them at once; their
+  // pages are read by the scheduled refresh and when the library is shown (apps/reader/articles.h), never here: a
+  // page takes seconds and the one worker would keep an app that is opened meanwhile waiting.
+  int links = 0;
   int fresh = 0;               // messages this read brought that are unread and were not there before (the sound, core/sound.h)
 };
 RelayFetch fetchRelay(HaClient& ha, int64_t now, bool takeClip);

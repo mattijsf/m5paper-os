@@ -605,3 +605,25 @@ the budget runs short (sizes from the linker map):
   weather app's saved copy; a copy older than a day is not shown.
 - **Not on it yet**: Home Assistant states (thermostat, a door, the car): they need a choice of items and their own
   reads (ROADMAP P7-17).
+
+## D36. Read later: a link shared from the phone is an article in the books folder
+
+- **Why**: long reading turns up on the phone at the wrong moment, and the Paper is the screen for it. With the scheduled
+  refresh on, the article is on the card before the device is picked up: no Wi-Fi wait, readable anywhere.
+- **No new message, no change on the phone**: the share sheet's "Send to Paper" already sends a `clip`. A `clip` that is
+  one link (alone, or after a title as browsers and news apps share it) is a link to read. Considered: a `link` message
+  with its own share target; left out because it needs a new build on the phone for nothing the user would see. The
+  price: the Quick Settings tile with a link on the phone's clipboard also makes an article (it can be removed).
+- **An article is a file**, `/sd/books/Articles/<title> - <host>.md`, saved as the reader service answers. The Read app
+  opens `.md`, so an article has everything a book has (the reader's type, text size, position, the sleep screen's row)
+  and nothing of its own to keep in step. It can be copied off the card, and any Markdown file put there opens too.
+- **The reader service of D34** (`r.jina.ai`): the same third party, the same limits (text only, what it can read). The
+  link's address leaves the device when the page is read, once.
+- **Removing is for articles only** (a long press, or "Remove" on the card): they pile up by themselves; a book came by
+  hand and stays.
+- **The Read tile's badge counts what there is to read** (links that wait, articles nobody opened); "N unread" on the
+  launcher and the plain sleep screen stay messages.
+- **A page is read while the device is off or when the library opens**, never behind the launcher: a read takes seconds
+  and there is one worker, so an app opened meanwhile would wait. With the scheduled refresh off, the first visit to
+  the library after sharing waits for the page (a toast says so).
+

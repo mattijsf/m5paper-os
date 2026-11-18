@@ -48,7 +48,8 @@ struct Progress {
   int64_t opened = 0;  // unix seconds, 0 = never
 };
 
-bool isBookFile(const std::string& name);   // .txt or .epub, not hidden
+bool isBookFile(const std::string& name);   // .txt, .epub or .md, not hidden
+bool isMarkdownFile(const std::string& name);  // .md: an article saved for later (apps/reader/articles.h) or any Markdown text
 bool isEpubFile(const std::string& name);
 // First 12 hex chars of a 64-bit FNV-1a hash of "name|size|mtime".
 std::string bookId(const std::string& fileName, uint64_t size, int64_t mtime);
@@ -68,6 +69,11 @@ struct TxtImport {
 // turns _word_ into italics and short "CHAPTER ..." lines into headings; splits very long texts into parts at
 // paragraph boundaries (`maxChapterBytes`).
 TxtImport importTxt(const std::string& utf8, size_t maxChapterBytes = 512 * 1024);
+
+// A Markdown text (an article as the reader service answers it: "Title: ...", "Markdown Content:", then the page; or
+// plain Markdown) as one chapter of marked text: headings, lists, bold (hackernews::parseArticle). No chapters when it
+// holds no text.
+TxtImport importMarkdown(const std::string& text);
 
 // ---- EPUB
 
@@ -163,11 +169,13 @@ struct LibraryEntry {
   int percent = 0;     // reading progress
   int64_t opened = 0;  // unix seconds of the last time it was opened, 0 = never
   std::string cover;   // real path of the extracted cover image, "" if none (yet)
+  bool article = false;  // saved for later from a link (apps/reader/articles.h)
+  int64_t added = 0;     // the file's time: when an article was saved
 };
 // Books in /sd/books (.epub, .txt) with title and author (from the cache once a book was opened, else from the
 // file name) and reading progress. Blocking: run on the worker. Sorted by sortLibrary().
 std::vector<LibraryEntry> scanLibrary();
-// Most recently opened first, then never-opened books by title.
+// Most recently opened first; then what was never opened: articles, the newest first, then books by title.
 void sortLibrary(std::vector<LibraryEntry>& entries);
 
 // Opens (and on first use imports) a book. Blocking; run on the worker.

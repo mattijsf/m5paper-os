@@ -1,0 +1,36 @@
+# P7-18: Read later (docs/apps/reader.md "Articles"). The phone shared a link with the Paper (the relay of
+# ha-link.example.test: one chat and a `clip` that is a title and an address); its page is read through the reader
+# service (the Hacker News fixtures' first article) and saved as a book. Today is Thursday 15 January 2026, 13:34.
+wait 2500               # (1.5 s after the launcher came up it read the relay: one link to read, the Read tile's badge)
+shot read-later-launcher
+tap 100 276             # Read: the link's page is read now ("Reading 1 link..."), then the article is first, "New"
+wait 5000
+shot read-later-library
+expect-state books=2|A file system that fits on a postcard|example.com|0
+long 270 200            # a long press on an article: remove it?
+wait 900
+shot read-later-remove-sheet
+tap 150 880             # Cancel
+wait 900
+tap 270 200             # the article
+wait 1500
+shot read-later-article
+tap 400 500             # next page
+wait 900
+shot read-later-article-p2
+tap 270 500             # the menu
+wait 900
+tap 432 900             # Library: the article is the continue card, no longer new
+wait 1500
+shot read-later-library-read
+back
+wait 900
+shot read-later-launcher-read
+tap 100 276             # Read again
+wait 1500
+tap 340 440             # Remove, under Continue
+wait 900
+tap 270 813             # Remove
+wait 1500
+shot read-later-removed
+expect-state books=1|The Fixture Epub

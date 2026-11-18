@@ -5,6 +5,7 @@
 
 #include <memory>
 
+#include "apps/reader/articles.h"
 #include "core/companion.h"
 #include "core/ha.h"
 #include "core/os.h"
@@ -18,6 +19,7 @@ struct RefreshResult {
   int unread = 0;
   int feedsOk = 0;
   bool weather = false;  // the weather's first place answered (its saved copy is new)
+  int articles = 0;      // links to read later that were read and saved (apps/reader/articles.h)
 };
 // Writes both inbox badges (/data/cache/<id>/badge) from the notification store: what is newer than each app's seen marker.
 // `gone`: no feed can exist (not paired, no relay), the badges become 0. Returns the unread total. For every reader of the
@@ -29,6 +31,8 @@ int freshMessages(const companion::Notifs& notifs);
 RefreshResult refreshFeeds(HaClient ha, int64_t now, bool takeClip);
 // The scheduled wake's whole read: the relay, then the weather for the sleep screen's board (`withWeather`: config
 // power.sleepBoard). The weather is not asked when the relay's request found no network: one Wi-Fi attempt a wake.
-RefreshResult refreshForSleep(HaClient ha, int64_t now, bool takeClip, bool withWeather);
+// Last, links that wait to be read later, with what is left of `articleBudgetMs`.
+RefreshResult refreshForSleep(HaClient ha, int64_t now, bool takeClip, bool withWeather, const reader::Transport& send = {},
+                              uint32_t articleBudgetMs = 0);
 
 }  // namespace pos::inbox

@@ -5,6 +5,7 @@
 
 #include "core/agenda.h"
 #include "core/fs.h"
+#include "core/readlater.h"
 #include "core/store.h"
 #include "core/timefmt.h"
 
@@ -170,7 +171,8 @@ std::string sleepNote(int unread, const std::string& updated) {
 
 int cachedUnread() {
   int n = 0;
-  for (const AppEntry* a : AppRegistry::instance().sorted()) n += appBadge(a->info.id);
+  for (const AppEntry* a : AppRegistry::instance().sorted())
+    if (std::string(a->info.id) != readlater::kBadgeApp) n += appBadge(a->info.id);  // the Read tile's badge counts articles, not messages
   return n;
 }
 

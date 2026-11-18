@@ -27,6 +27,8 @@ class LibraryScreen : public Screen {
   void refresh();
   void rebuild();
   void fill(int page);
+  void confirmRemove(const std::string& file, const std::string& title);
+  void fetchWaiting();
 
   std::function<void(const std::string&)> open_;
   std::shared_ptr<Canvas> thumb_;  // the card book's cover, decoded on the worker
@@ -36,6 +38,8 @@ class LibraryScreen : public Screen {
   int firstRows_ = 7;
   bool loaded_ = false;
   bool covered_ = false;  // skip the scan of the first onShow()
+  int waiting_ = 0;          // links to read later that are not read yet
+  bool fetching_ = false, triedFetch_ = false;
   ui::Column* holder_ = nullptr;
   ui::Pager* pager_ = nullptr;
   ui::Column* list_ = nullptr;

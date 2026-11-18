@@ -9,6 +9,7 @@
 #include "core/agenda.h"
 #include "core/fs.h"
 #include "core/log.h"
+#include "core/sleep_screen.h"
 #include "core/store.h"
 #include "core/timefmt.h"
 #include "ui/widgets.h"
@@ -36,8 +37,8 @@ std::string dateLine(hal::Clock& clock) {
 
 // What the summary line is made of: the badges the apps cached (never the network) and the reader's last book.
 std::string computeSummary(const std::vector<const AppEntry*>& apps) {
-  int unread = 0;
-  for (const AppEntry* a : apps) unread += appBadge(a->info.id);
+  (void)apps;
+  const int unread = cachedUnread();  // messages only: the Read tile's own badge counts articles
   Store reader("/data/apps/read.json");
   return summaryLine(unread, reader.get("last.title", std::string()), reader.has("last.percent") ? reader.get("last.percent", -1) : -1);
 }

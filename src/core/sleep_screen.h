@@ -65,7 +65,8 @@ std::string sleepAgendaLine(int64_t now);
 
 // "3 unread - updated 14:05"; parts that are not there are left out.
 std::string sleepNote(int unread, const std::string& updated);
-// Sum of the launcher badges the apps cached (/data/cache/<id>/badge): no network.
+// Sum of the launcher badges the apps cached (/data/cache/<id>/badge): no network. Messages only: the Read app's badge
+// (articles saved for later, P7-18) is left out.
 int cachedUnread();
 // The sleep info of the last power-off, kept in /data/system.json so a scheduled refresh can redraw the same screen.
 void saveSleepInfo(const SleepInfo* info);

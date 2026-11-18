@@ -83,6 +83,9 @@ struct ApplyResult {
   bool hasClip = false;    // the phone sent its clipboard (the newest `clip` wins; only when `takeClip`)
   std::string clip;
   std::vector<std::string> agenda;  // the plaintexts of the `agenda` messages, in counter order (core/agenda.h applies them)
+  // The texts of the `clip` messages that are a link to read later (core/readlater.h linkFromText), in counter order:
+  // whatever `takeClip` says and however old (a link shared for reading is no clipboard).
+  std::vector<std::string> links;
 };
 // `takeClip` false (Settings does not share the clipboard): `clip` envelopes are read and dropped.
 ApplyResult applyQueue(Pairing& pairing, Notifs& notifs, const std::string& stateJson, int64_t now, bool takeClip = true);

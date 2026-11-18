@@ -7,6 +7,7 @@
 #include "apps/inbox/scheduled_refresh.h"
 #include "core/agenda.h"
 #include "core/clipboard.h"
+#include "core/readlater.h"
 #include "core/log.h"
 #include "core/sound.h"
 
@@ -87,6 +88,7 @@ RelayFetch fetchRelay(HaClient& ha, int64_t now, bool takeClip) {
     for (const std::string& plain : f.applied.agenda) f.agendaChanged = agenda::apply(a, plain, now) || f.agendaChanged;
     if (f.agendaChanged) agenda::save(a);
   }
+  if (!f.applied.links.empty()) f.links = readlater::addShared(f.applied.links, now);  // read later (P7-18)
   if (f.applied.hasClip) f.clipFromPhone = clipboard::set(f.applied.clip, clipboard::kFromPhone);  // never pushed back
   if (f.applied.ack) ha.callService("script", "paperos_relay_ack", companion::ackBody("to_paper", pairing.rx));  // best effort
   return f;

@@ -6,6 +6,7 @@
 
 #include "core/agenda.h"
 #include "core/fs.h"
+#include "core/readlater.h"
 #include "core/text_clean.h"
 #include "core/utf8.h"
 
@@ -288,6 +289,8 @@ ApplyResult applyQueue(Pairing& p, Notifs& n, const std::string& stateJson, int6
     } else if (t == "clip") {
       const std::string text = str(m["text"], kMaxClipChars);
       const int64_t ts = num(m["ts"]);
+      std::string url, hint;
+      if (readlater::linkFromText(text, url, hint)) r.links.push_back(text);
       if (takeClip && !text.empty() && (now <= 0 || ts <= 0 || now - ts <= kClipMaxAge)) {
         r.hasClip = true;
         r.clip = text;

@@ -8,6 +8,8 @@
 
 #include <ArduinoJson.h>
 
+#include "apps/hackernews/hackernews_model.h"
+#include "apps/reader/articles.h"
 #include "apps/reader/epub.h"
 #include "apps/reader/xhtml.h"
 #include "core/fs.h"
@@ -91,7 +93,10 @@ bool looksLikeHeading(const std::string& line) {
 }  // namespace
 
 bool isEpubFile(const std::string& name) { return !name.empty() && name[0] != '.' && endsWith(lowerAscii(name), ".epub"); }
-bool isBookFile(const std::string& name) { return !name.empty() && name[0] != '.' && (endsWith(lowerAscii(name), ".epub") || endsWith(lowerAscii(name), ".txt")); }
+bool isMarkdownFile(const std::string& name) { return !name.empty() && name[0] != '.' && endsWith(lowerAscii(name), ".md"); }
+bool isBookFile(const std::string& name) {
+  return !name.empty() && name[0] != '.' && (endsWith(lowerAscii(name), ".epub") || endsWith(lowerAscii(name), ".txt") || isMarkdownFile(name));
+}
 
 // The name without its folder: a book moved into a folder (Files over Wi-Fi) keeps its id, so its cache and reading position.
 static std::string baseName(const std::string& path) { return path.substr(path.rfind('/') == std::string::npos ? 0 : path.rfind('/') + 1); }
@@ -219,6 +224,15 @@ TxtImport importTxt(const std::string& textIn, size_t maxChapterBytes) {
   }
   if (!chapter.empty() || r.chapters.empty()) r.chapters.push_back(std::move(chapter));
   return r;
+}
+
+TxtImport importMarkdown(const std::string& text) {
+  TxtImport out;
+  hackernews::Article a;
+  if (!hackernews::parseArticle(text, a)) return out;
+  out.title = a.title;
+  out.chapters.push_back(a.text);
+  return out;
 }
 
 // ---- EPUB
@@ -662,6 +676,8 @@ std::vector<LibraryEntry> scanLibrary() {
     e.file = b.first;
     e.id = bookId(b.first, size, mtime);
     e.epub = isEpubFile(b.second);
+    e.article = isArticleFile(b.first);
+    e.added = mtime;
     titleFromFileName(b.second, e.title, e.author);
     BookMeta meta;
     if (readMeta(e.id, meta)) {
@@ -683,6 +699,8 @@ std::vector<LibraryEntry> scanLibrary() {
 void sortLibrary(std::vector<LibraryEntry>& entries) {
   std::stable_sort(entries.begin(), entries.end(), [](const LibraryEntry& a, const LibraryEntry& b) {
     if (a.opened != b.opened) return a.opened > b.opened;
+    if (a.opened == 0 && a.article != b.article) return a.article;  // new articles before the books nobody opened
+    if (a.opened == 0 && a.article && a.added != b.added) return a.added > b.added;
     return lowerAscii(a.title) < lowerAscii(b.title);
   });
 }
@@ -728,9 +746,16 @@ OpenResult openBook(const std::string& fileName, const ui::TextStyle& style, ui:
         r.error = "Cannot read " + fileName;
         return r;
       }
-      TxtImport imp = importTxt(txtToUtf8(raw));
+      const bool markdown = isMarkdownFile(fileName);
+      TxtImport imp = markdown ? importMarkdown(txtToUtf8(raw)) : importTxt(txtToUtf8(raw));
       raw.clear();
-      if (baseName(fileName).find(" - ") == std::string::npos) {  // no "Title - Author" in the name: use the file's own header
+      if (markdown) {  // the page's own title: the file name holds it cut and without what a name cannot have
+        if (imp.chapters.empty()) {
+          r.error = "No text in " + baseName(fileName);
+          return r;
+        }
+        if (!imp.title.empty()) meta.title = imp.title;
+      } else if (baseName(fileName).find(" - ") == std::string::npos) {  // no "Title - Author" in the name: use the file's own header
         if (!imp.title.empty()) meta.title = imp.title;
         if (!imp.author.empty()) meta.author = imp.author;
       }

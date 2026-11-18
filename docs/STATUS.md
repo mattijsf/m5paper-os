@@ -277,7 +277,24 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   of today and two of Thursday, emoji in titles drawn); one RTC wake (`poweroff 25`): "2 feed(s), 0 unread, weather
   read, 4201 ms (4969 ms since boot)", the five weather requests 34-60 ms each on the open connection. Not seen: the
   picture on the panel itself (the camera pointed elsewhere): "Pending device checks". **Next: P7-17** (Home Assistant
-  states on the board) waits for the owner's choice of items ("Open questions" 9).
+  states on the board) waits for the owner's choice of items ("Open questions" 9). **Later the same day, with the
+  camera on the panel**: the board on the panel after a real power-off
+  (`poweroff 45 50`: date, weather, four blocks, five agenda rows with emoji, the WhatsApp icon with 1, the rules) and,
+  after the RTC wake, the same with "Updated 14:41" (`out/p7-18/cam-board-off-upright.png`,
+  `cam-board-updated-upright.png`); the wake's line: "2 feed(s), 1 unread, weather read, 0 article(s), 3980 ms".
+- **P7-18 Read later, 2026-11-18**. A link shared from the phone ("Send to Paper": a `clip` whose text is one address, alone or after a
+  title; nothing changed on the phone or in the protocol) is queued on the Paper (`core/readlater`,
+  `/data/readlater.json`), its page is read through the reader service of D34 and saved as
+  `/sd/books/Articles/<title> - <host>.md`. The Read app opens `.md` (Markdown through `hackernews::parseArticle`),
+  lists new articles first with "New", removes an article on a long press or with "Remove" on its card. Pages are read
+  by the scheduled refresh (25 s of its 45) and when the library is shown, not behind the launcher (one worker). The
+  Read tile's badge is what there is to read (links that wait + articles nobody opened), so the Today board counts it;
+  "N unread" stays messages. Code: `core/readlater`, `apps/reader/articles`, `importMarkdown` and the library in
+  `apps/reader`, `companion::ApplyResult::links`, `inbox::refreshForSleep`. Tests: 5 unit tests (355), script
+  `read-later` (8 goldens; fixture host ha-link.example.test); 303 screenshots. Firmware 2,557,763 bytes (+16,756 on
+  P7-16's 2,541,007, with the PaperOS mark of 560caff in it). `make check` parts all green (sim, test, ui-test, fw; run
+  apart because other work built in the same checkout). **On the device: flashed; nothing of Read later checked
+  yet**: "Pending device checks".
 
 ## What works today
 
@@ -514,14 +531,18 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
-- **Today board (P7-16, 2026-11-18)**: (1) the board on the panel after a real power-off (grays of the cover row, the
-  1 px rules, the caption-size hours): a camera still while the device is off; the camera pointed at something else
-  on 2026-11-18, so only the frame dump of the `sleepboard` screen and the wake's log line exist. (2) the board with
-  the book row on the device (the preview screen passes no book; the simulator's `today-board-book` has it). (3)
-  "Updated HH:MM" on the panel after a wake (the wake ran and redrew, log line in "Now"; what the panel shows was not
-  seen). (4) the switch in Settings > Power on the device (simulator only). (5) the hour-long alarm on battery, as for
-  P7-5 below. (6) time awake per wake with the weather: one sample, 4.2 s refresh (P7-5 measured 2.8-5.2 s without
-  it); the weather's share is its five requests, about 0.25 s.
+- **Read later (P7-18, 2026-11-18)**: (1) a link shared from the real phone ("Send to Paper" on a page in the
+  browser): the Read tile's badge after the next relay read, the article in the library after opening Read (or after a
+  scheduled wake: `[sched] ... N article(s)`, the seventh field of `/data/refresh.log`), read on the panel. Needs the
+  user's hand on the phone. (2) a `.md` file with a name outside ASCII on the card (FAT long names in UTF-8 are on in
+  the build, never tried with such a name). (3) removing an article on the device. (4) how long a page takes on the
+  device (Hacker News measured 1.6 s for an article of 145 paragraphs).
+- **Today board (P7-16, 2026-11-18)**: done with the camera on 2026-11-18 ("Now"): the board on the panel after a real
+  power-off, and "Updated HH:MM" after a wake. Open: (2) the board with the book row on the device (the preview screen
+  passes no book; the simulator's `today-board-book` has it). (4) the switch in Settings > Power on the device
+  (simulator only). (5) the hour-long alarm on battery, as for P7-5 below (the user set the wake to 1 h on
+  2026-11-18: `/data/refresh.log` will show it). (6) time awake per wake with the weather: three samples, 4.0-4.2 s
+  refresh (P7-5 measured 2.8-5.2 s without it); the weather's share is its five requests, about 0.25 s.
 - **The second try of a request (2026-11-18, "Now")**: flashed, but no request failed on the device in 9 opens, so the
   second try has run in the unit tests and the simulator only. When the user sees the "Home Assistant not reachable"
   toast again (or does not, for some days): `tools/device.py status` before the device powers off, read the line
@@ -784,6 +805,12 @@ None of these block Phase 1, Phase 2, or the reader.
   runs before and after). The script's 200 ms between the read and the shot is the margin. Not changed. Seen again
   on 2026-11-18 the other way round (P7-15, load 10): the accept run caught the launcher *after* the settle, six runs
   after it before it; the golden is the state before the settle, as it always was.
+- **The article code lives in the Hacker News app (P7-18)**: `apps/reader` includes `apps/hackernews/hackernews_model.h`
+  for `articleRequest` and `parseArticle`. They belong in `apps/common` (with their tests); not moved, to keep the
+  Hacker News app untouched in this task.
+- **Read later, not built (P7-18)**: a `link` message with the page's title and its own share target on the phone
+  (D36: not needed yet); pictures; a count of articles on the plain sleep screen; a morning wake at a fixed hour so
+  articles and the board are fresh at breakfast whatever the interval.
 - **The Today board's date with the scheduled refresh off (P7-16)**: the board is as of the power-off, so the next
   morning it still shows yesterday's date and events (the date on top says so). A wake just after midnight, or one at
   a fixed morning hour instead of every N hours, would fix that for little battery; not built.
@@ -1346,3 +1373,9 @@ None of these block Phase 1, Phase 2, or the reader.
   is back on (frame dump equal to the one before, clock aside). Noticed: `tools/device.py wait-boot` times out after an
   RTC wake (that boot logs "the panel keeps its image: no first refresh", not the line `wait-boot` waits for); the
   device was up. Images: `out/paperos-mark/`.
+- 2026-11-18: P7-18 Read later (D36): a link shared from the phone becomes `/sd/books/Articles/<title> - <host>.md`;
+  the Read app opens Markdown, lists new articles first, removes them; pages read at the scheduled wake and when the
+  library opens; the Read tile's badge counts what there is to read. 355 unit tests, 303 screenshots, firmware 2,557,763
+  bytes. Camera: the Today board on the panel after a power-off and after a wake ("Updated 14:41"). Read later on the
+  device: pending. Images: `out/p7-18/`.
+

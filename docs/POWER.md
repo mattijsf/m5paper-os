@@ -98,8 +98,8 @@ From the top, each part left out when it has nothing:
   events under their name ("Friday 16 January"), six lines in all, never ending on a day's name
   (`sleepAgendaRows`). Times as in the Agenda app's list.
 - **The open book** as one row: cover, title, author and percent.
-- **Unread per app**: the app's icon and a count, nothing else (BACKEND.md "Privacy"); right of it "Updated 15:34"
-  after a scheduled refresh.
+- **Unread per app**: the app's icon and a count, nothing else (BACKEND.md "Privacy"); the book icon counts what there is to read
+  later, links that wait and articles nobody opened (apps/reader.md "Articles"); right of it "Updated 15:34" after a scheduled refresh.
 - "Powered off" and the hint, as on the plain screen.
 
 Nothing on it reads as "now": no clock, no current temperature, no "Today" or "Tomorrow". Forecasts and clock times
@@ -188,12 +188,15 @@ Settings > Power > "While off, wake to update the sleep screen every" Off / 1 h 
   first place as the app does (`weather::refreshSaved`: the entity, two forecasts, the sun, the minute forecast, on the
   connection that is open; not asked when the relay's request found no network), then redraws the sleep screen of the last
   power-off (the book kept as `sleep.*` in `system.json`; date, agenda and weather as of this hour) with "Updated 14:05",
-  in one Quality pass, and powers off with the next alarm. If neither the relay nor the weather answered the panel is left
-  alone. Hard limit: 45 s awake, then off.
+  in one Quality pass, and powers off with the next alarm. Before the redraw, links that wait to be read later are read
+  and saved (apps/reader.md "Articles", P7-18: `reader::fetchArticles` with 25 s; no read starts with under 5 s of that
+  left, and none waits longer than what is left), so an article shared in the evening is on the card in the morning and
+  the board's count is right. If neither the relay nor the weather answered the panel is left alone. Hard limit: 45 s
+  awake, then off.
 - The sleep screen shows a count only, never a sender or text. The count is also drawn at an ordinary power-off when badges are
   cached.
-- Log: one line per wake in `/data/refresh.log`, `unix,msSinceBoot,refreshMs,feedsAnswered,unread,weatherRead`
-  (`tools/device.py cat /data/refresh.log`; lines from before P7-16 have five fields).
+- Log: one line per wake in `/data/refresh.log`, `unix,msSinceBoot,refreshMs,feedsAnswered,unread,weatherRead,articlesSaved`
+  (`tools/device.py cat /data/refresh.log`; lines from before P7-16 have five fields, before P7-18 six).
 - Test without stranding the device: `tools/device.py poweroff N` (RTC wake after N s, the refresh runs, then an ordinary boot) and
   `poweroff N M` (the refresh powers off once more for M s, the wake after that stays on).
 

@@ -26,6 +26,7 @@ struct FeedDef {
 };
 constexpr FeedDef kFeeds[] = {{"whatsapp", companion::kToPaperEntity}, {"mail", companion::kToPaperEntity}};
 constexpr uint32_t kMaxAwakeMs = 45 * 1000;  // whatever happens, the device is off again after this
+constexpr uint32_t kArticleBudgetMs = 25 * 1000;  // of which for links to read later, after the relay and the weather
 
 class RefreshSurface : public Surface {
  public:
@@ -50,7 +51,10 @@ class RefreshSurface : public Surface {
     auto alive = alive_;
     const int64_t now = os_.platform().clock.now();
     const bool clip = os_.config().phone.shareClipboard, board = os_.config().power.sleepBoard;
-    os_.worker().async([ha, now, clip, board]() mutable { return refreshForSleep(ha, now, clip, board); }, [this, alive](RefreshResult r) {
+    NetService* net = &os_.net();
+    const reader::Transport send = [net](const hal::HttpRequest& r) { return net->perform(r); };
+    os_.worker().async([ha, now, clip, board, send]() mutable { return refreshForSleep(ha, now, clip, board, send, kArticleBudgetMs); },
+                       [this, alive](RefreshResult r) {
       if (*alive) finish(r);
     });
     timer_ = os_.timers().after(kMaxAwakeMs, [this] {
@@ -77,11 +81,12 @@ class RefreshSurface : public Surface {
     os_.net().disconnect();
     // Two times: since the boot (the clock starts in setup(), the ROM and bootloader come before it) and the refresh alone.
     const uint32_t sinceBoot = p.clock.millis(), took = sinceBoot - t0_;
-    POS_LOG("sched", "scheduled refresh done: %d feed(s), %d unread, weather %s, %u ms (%u ms since boot)", r.feedsOk, r.unread,
-            r.weather ? "read" : "not read", static_cast<unsigned>(took), static_cast<unsigned>(sinceBoot));
-    // /data/refresh.log: unix,msSinceBoot,refreshMs,feedsAnswered,unread,weatherRead  (tools/device.py cat /data/refresh.log)
+    POS_LOG("sched", "scheduled refresh done: %d feed(s), %d unread, weather %s, %d article(s), %u ms (%u ms since boot)", r.feedsOk,
+            r.unread, r.weather ? "read" : "not read", r.articles, static_cast<unsigned>(took), static_cast<unsigned>(sinceBoot));
+    // /data/refresh.log: unix,msSinceBoot,refreshMs,feedsAnswered,unread,weatherRead,articlesSaved  (tools/device.py cat /data/refresh.log)
     fs::appendFile("/data/refresh.log", std::to_string(now) + "," + std::to_string(sinceBoot) + "," + std::to_string(took) + "," +
-                                            std::to_string(r.feedsOk) + "," + std::to_string(r.unread) + "," + (r.weather ? "1" : "0") + "\n");
+                                            std::to_string(r.feedsOk) + "," + std::to_string(r.unread) + "," + (r.weather ? "1" : "0") + "," +
+                                            std::to_string(r.articles) + "\n");
     if (os_.offAgainAfterRefresh() > 0 && !touched_) {  // a test (>poweroff N M): off once more, the next wake stays on
       os_.powerOffForSleep(os_.offAgainAfterRefresh(), true);
       return;
@@ -148,10 +153,12 @@ RefreshResult refreshFeeds(HaClient ha, int64_t now, bool takeClip) {
   return readFeeds(ha, now, takeClip, reached);
 }
 
-RefreshResult refreshForSleep(HaClient ha, int64_t now, bool takeClip, bool withWeather) {
+RefreshResult refreshForSleep(HaClient ha, int64_t now, bool takeClip, bool withWeather, const reader::Transport& send,
+                              uint32_t articleBudgetMs) {
   bool reached = false;
   RefreshResult out = readFeeds(ha, now, takeClip, reached);
   if (withWeather && reached) out.weather = weather::refreshSaved(ha, now);
+  if (send && reached && reader::waitingLinks() > 0) out.articles = reader::fetchArticles(send, now, articleBudgetMs).saved;
   return out;
 }
 

@@ -343,6 +343,12 @@ TEST_CASE("companion: clip envelopes both ways (D23): the phone's newest clip wi
   CHECK(quotes.size() < 500);
   CHECK(!quotes.empty());
   CHECK(clipEnvelope(pr.paper, "", kNow).empty());
+  // A clip that is a link is also handed over for reading later (P7-18): with the clipboard not shared, and however old.
+  const std::string link = R"({"t":"clip","text":"A page https://example.com/a","ts":)" + std::to_string(kNow - kClipMaxAge - 60) + "}";
+  ApplyResult shared = applyQueue(pr.paper, n, state({{20, pr.fromPhone(20, link)}, {21, pr.fromPhone(21, clipNew)}}), kNow, false);
+  CHECK_FALSE(shared.hasClip);
+  REQUIRE(shared.links.size() == 1);
+  CHECK(shared.links[0] == "A page https://example.com/a");
 }
 
 TEST_CASE("inbox: a message is new for the sound once: unread, and later than what an earlier read brought") {

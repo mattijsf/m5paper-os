@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 
+#include "apps/reader/articles.h"
 #include "core/fs.h"
 #include "ui/image.h"
 #include "ui/root.h"
@@ -70,6 +71,7 @@ void LibraryScreen::onShow() {
     covered_ = false;
     return;
   }
+  triedFetch_ = false;
   refresh();  // also after coming back from a book: progress and order changed
 }
 
@@ -77,6 +79,7 @@ std::string LibraryScreen::debugState() const {
   if (!loaded_) return "loading";
   std::string s = "books=" + std::to_string(entries_.size());
   for (const LibraryEntry& e : entries_) s += "|" + e.title + "|" + e.author + "|" + std::to_string(e.percent);
+  s += "|waiting=" + std::to_string(waiting_) + (fetching_ ? "|fetching" : "");
   return s;
 }
 
@@ -85,6 +88,7 @@ void LibraryScreen::refresh() {
     std::vector<LibraryEntry> entries;
     std::shared_ptr<Canvas> thumb;
     std::string thumbPath;
+    int waiting = 0;
   };
   // The card's cover is decoded once per book: decoding it again on every return from a book kept the worker busy for
   // 2 to 3 s (JPEG of 220-270 KB), and a book tapped meanwhile opened that much later (device, 2026-11-16).
@@ -94,6 +98,7 @@ void LibraryScreen::refresh() {
       [havePath, have] {
         Scan s;
         s.entries = scanLibrary();
+        s.waiting = waitingLinks();
         if (!s.entries.empty() && s.entries[0].opened > 0 && !s.entries[0].cover.empty()) {
           s.thumbPath = s.entries[0].cover;
           s.thumb = (s.thumbPath == havePath && have) ? have : ui::loadImageFit(s.thumbPath, kCoverW, kCoverH);
@@ -105,8 +110,39 @@ void LibraryScreen::refresh() {
         thumb_ = std::move(s.thumb);
         thumbPath_ = std::move(s.thumbPath);
         loaded_ = true;
+        waiting_ = s.waiting;
         rebuild();
+        if (waiting_ > 0 && !triedFetch_) {  // once per visit: a link that cannot be read now waits for the next
+          triedFetch_ = true;
+          fetchWaiting();
+        }
       });
+}
+
+void LibraryScreen::confirmRemove(const std::string& file, const std::string& title) {
+  ui::confirmSheet(*holder_, "Remove this article?", title, "Remove", [this, file] {
+    ctx().async([file] { return removeArticle(file); }, [this](bool ok) {
+      if (!ok) ctx().toast("Could not remove it");
+      refresh();
+    });
+  });
+}
+
+// Links the phone shared wait to be read (core/readlater.h): read them now, then list what was saved.
+void LibraryScreen::fetchWaiting() {
+  if (fetching_) return;
+  fetching_ = true;
+  ctx().toast(waiting_ == 1 ? "Reading 1 link..." : "Reading " + std::to_string(waiting_) + " links...");
+  const auto send = ctx().transport();
+  const int64_t now = ctx().clock.now();
+  ctx().async([send, now] { return fetchArticles(send, now); }, [this](ArticleFetch f) {
+    fetching_ = false;
+    if (!f.note.empty()) ctx().toast(f.note);
+    if (f.saved > 0 || f.dropped > 0 || waiting_ != f.left) {
+      waiting_ = f.left;
+      refresh();
+    }
+  });
 }
 
 void LibraryScreen::rebuild() {
@@ -124,7 +160,8 @@ void LibraryScreen::rebuild() {
   }
   const bool hasCard = entries_[0].opened > 0;
   for (size_t i = hasCard ? 1 : 0; i < entries_.size(); ++i) others_.push_back(entries_[i]);
-  firstRows_ = hasCard ? kRowsFirst : kRowsOther;
+  // An article's card has "Remove" under "Continue": one row less fits under it.
+  firstRows_ = !hasCard ? kRowsOther : entries_[0].article ? kRowsFirst - 1 : kRowsFirst;
   const int n = static_cast<int>(others_.size());
   const int pages = 1 + std::max(0, (n - firstRows_ + kRowsOther - 1) / kRowsOther);
 
@@ -147,6 +184,8 @@ void LibraryScreen::rebuild() {
     text->add<ProgressBar>(e.percent);
     text->add<ui::Label>(std::to_string(e.percent) + "%  read", Type::Caption, ui::secondary);
     text->add<ui::Button>("Continue", [this, file = e.file] { open_(file); });
+    // An article that was read can go (in the list: a long press on its row).
+    if (e.article) text->add<ui::Button>("Remove", [this, file = e.file, title = e.title] { confirmRemove(file, title); }, ui::Button::Kind::Text);
     card_->add<ui::Spacer>(ui::s2);
     card_->add<Rule>();
   }
@@ -173,8 +212,12 @@ void LibraryScreen::fill(int page) {
     item->setSubtitle(e.author);
     item->setSubtitleIsContent(true);
     if (e.opened > 0) item->setTrailingText(std::to_string(e.percent) + "%");
+    else if (e.article) item->setTrailingText("New");
     else item->clearTrailing();
     item->onClick = [this, file = e.file] { open_(file); };
+    // An article goes on a long press (a book stays: it came by hand).
+    if (e.article) item->onLongPress = [this, file = e.file, title = e.title] { confirmRemove(file, title); };
+    else item->onLongPress = nullptr;
   }
   if (list_ && list_->frame.w > 0) list_->layout();  // the card and rows came and went: positions change
 }

@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <memory>
 
+#include "apps/reader/articles.h"
 #include "apps/reader/book.h"
 #include "apps/reader/library.h"
 #include "core/app.h"
@@ -224,6 +225,7 @@ class PageScreen : public Screen {
 
   void open() {
     const std::string file = file_;
+    articleOpened(file);  // an article saved for later is no longer new (the Read tile's badge)
     const ui::TextStyle style = pageStyle(font_);
     const uint32_t t0 = ctx().clock.millis();
     steps_ = std::make_shared<Steps>();
