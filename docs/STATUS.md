@@ -1426,8 +1426,9 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-18: Companion app launcher icon: the app had none (Android's default). The
   PaperOS mark: a P whose bowl is the Paper (sheet with a folded corner), its counter a page of text; ink on paper, adaptive
   with a monochrome layer, vectors only (android/README.md "Launcher icon"). Preview drawn from the shipped drawables:
-  `out/companion-icon/preview.png`. APK built; not installed (no phone on adb, and an install stops the relay service
-  until the app is opened).
+  `out/companion-icon/preview.png`. **Installed on the phone** the same day: the installed APK holds the three
+  icon files; `RelayService` and `CaptureListener` came back by themselves right after the install, `status.json`: stage
+  `ACTIVE`, push and poll 200. The icon on the home screen itself not seen: the phone was locked.
 - 2026-11-18: The PaperOS mark on the plain sleep screen: drawn icon `Icon::Paperos`
   (42 x 64, `assets/icons-drawn/paperos.txt`) where the Lucide open book stood; the open book stays the Read app's icon. 4
   goldens re-accepted. **On the device** (flashed from the shared checkout with other uncommitted read-later
