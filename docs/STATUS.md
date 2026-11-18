@@ -576,7 +576,8 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
 ## Pending device checks
 - **Update over Wi-Fi (P7-3, 2026-11-18)**: done on the device ("Now"): the update, the confirmation, the rollback,
   three refusals, `make flash` afterwards. Open: (1) an update with the device away from USB (the address then comes
-  from `HOST=` or the last update; every run so far had the cable in for watching). (2) a scheduled wake as the first
+  from the last update or the saved usual address: the owner reserved the device's address in the router on
+  2026-11-18, `tools/ota.py host` holds it; every run so far had the cable in for watching). (2) a scheduled wake as the first
   boot of a new firmware (it is off again within 5 s: `confirmUpdateIfPending`). (3) the heap while the page receives.
   (4) a new firmware that crashes by itself in its first seconds (the reset was sent by hand).
 - **Read later (P7-18, 2026-11-18)**: (1) an article saved by a scheduled wake while the device is off (`[sched] ...
@@ -1452,4 +1453,6 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-18: P7-3 on the device: update over Wi-Fi in 25-47 s, confirmed after 15 s, rollback after a reset, bad
   packages refused, `make flash` wins back app0. The tool no longer searches the network (the router blocked the Mac's
   way to the device's port 80 after it did); the update page listens on 8266. Firmware 2,584,523 bytes.
+- 2026-11-18: the device has a reserved address on the home Wi-Fi; `tools/ota.py host ADDRESS` saves it as the
+  tool's last resort, so `make ota` needs no `HOST=`. The router's block of port 80 from this Mac was still there at 18:40.
 

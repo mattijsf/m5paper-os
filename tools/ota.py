@@ -10,7 +10,7 @@
     make ota                builds, signs and sends the firmware to a device that shows
                             Settings > About > Update over Wi-Fi (HOST=192.168.1.23 to name it)
 
-    uv run --script tools/ota.py keygen | pack | send [--host H] [--sim] [--force] | info
+    uv run --script tools/ota.py keygen | pack | send [--host H] [--sim] [--force] | info | host [ADDRESS]
 
 The private key stays on this Mac, outside the repository: ~/.config/paperos/ota-signing.key (PAPEROS_OTA_KEY names
 another file). It is never printed. The device takes only a package signed with it, checks the image's SHA-256 before
@@ -20,7 +20,8 @@ Package: 148-byte header + firmware.bin (src/core/update.h):
   "POSOTA1\\n", build[32], size u32 LE, sha256[32], made u64 LE, Ed25519 signature[64] over the first 84 bytes.
 
 Finding the device: --host, else $OTA_HOST, else the address a device on USB reports, else the address of the last
-update (out/ota/last-host). The update page answers "GET /" with {"paperos":"update",...}. The network is never searched.
+update (out/ota/last-host), else its usual address (`ota.py host ADDRESS` saves it next to the key: a reservation in
+the router keeps it the same). The update page answers "GET /" with {"paperos":"update",...}. The network is never searched.
 """
 import argparse, hashlib, http.client, json, os, re, socket, struct, subprocess, sys, time
 
@@ -29,6 +30,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 KEY_FILE = os.environ.get("PAPEROS_OTA_KEY") or os.path.expanduser("~/.config/paperos/ota-signing.key")
+HOST_FILE = os.path.join(os.path.dirname(KEY_FILE), "ota-host")  # the device's usual address (`ota.py host ADDRESS`)
 KEY_HEADER = os.path.join(ROOT, "src", "core", "update_key.h")
 BIN = os.path.join(ROOT, ".pio", "build", "papers3", "firmware.bin")
 OUT = os.path.join(ROOT, "out", "ota")
@@ -143,7 +145,7 @@ def find(a):
         sys.exit(f"no simulator with the update page open on localhost:{port}")
     tried = []
     for host, why in ((a.host, "--host"), (os.environ.get("OTA_HOST"), "$OTA_HOST"), (usb_address(), "the device on USB"),
-                      (last_host(), "the last update")):
+                      (last_host(), "the last update"), (usual_host(), "its usual address")):
         if not host or host in tried:
             continue
         tried.append(host)
@@ -153,6 +155,21 @@ def find(a):
         say(f"no update page at {host}:{port} ({why})")
     sys.exit("no device to send to: open Settings > About > Update over Wi-Fi on it (it listens for 5 minutes) and give "
              "the address it shows: make ota HOST=<address>")
+
+
+def usual_host():
+    """The address the device usually has (a reservation in the router): `ota.py host ADDRESS` saved it."""
+    return open(HOST_FILE).read().strip() if os.path.exists(HOST_FILE) else None
+
+
+def cmd_host(a):
+    if a.address:
+        if not re.fullmatch(r"[A-Za-z0-9.-]+", a.address):
+            sys.exit("an address or a host name, nothing else")
+        os.makedirs(os.path.dirname(HOST_FILE), mode=0o700, exist_ok=True)
+        with open(HOST_FILE, "w") as f:
+            f.write(a.address + "\n")
+    say("the device's usual address:", usual_host() or "(none saved)")
 
 
 def last_host():
@@ -228,6 +245,7 @@ def cmd_info(a):
     say("key file:", KEY_FILE)
     say("public key:", public_bytes(key).hex())
     say("in src/core/update_key.h:", "yes" if header_key() == public_bytes(key) else "NO (run make ota-key)")
+    say("the device's usual address:", usual_host() or "(none saved)", "| last update:", last_host() or "(none)")
     if os.path.exists(a.bin):
         with open(a.bin, "rb") as f:
             image = f.read()
@@ -247,10 +265,12 @@ def main():
     s.add_argument("--sim", action="store_true", help="the simulator on localhost")
     s.add_argument("--port", type=int, help="the update page's port (8266)")
     s.add_argument("--force", action="store_true", help="send even if the device runs this build")
+    s = sub.add_parser("host", help="save (or show) the address the device usually has, for `make ota` without HOST=")
+    s.add_argument("address", nargs="?")
     s = sub.add_parser("info", help="which key, which build")
     s.add_argument("--bin", default=BIN)
     a = p.parse_args()
-    {"keygen": cmd_keygen, "pack": cmd_pack, "send": cmd_send, "info": cmd_info}[a.cmd](a)
+    {"keygen": cmd_keygen, "pack": cmd_pack, "send": cmd_send, "info": cmd_info, "host": cmd_host}[a.cmd](a)
 
 
 if __name__ == "__main__":

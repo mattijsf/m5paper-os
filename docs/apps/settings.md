@@ -146,7 +146,9 @@ make ota       # from then on: builds, signs and sends (HOST=192.168.1.23 names 
 - It stops listening when the page is left, or after five minutes without a request. A firmware built before a key
   existed says "This firmware has no update key" and does not listen.
 - `tools/ota.py send` takes the device's address from `--host` (`make ota HOST=...`), `$OTA_HOST`, a device on USB
-  (`device.py status`), or the last update (`out/ota/last-host`), and checks it with `GET /` (the page answers
+  (`device.py status`), the last update (`out/ota/last-host`), or its usual address (`tools/ota.py host ADDRESS` saves
+  it in `~/.config/paperos/ota-host`; the owner gave the device a reservation in the router on 2026-11-18, so it is
+  saved on this Mac), and checks it with `GET /` (the page answers
   `{"paperos":"update","build":...}`). It never searches the network: that set a router against the Mac once (D37).
 - Requests (`update::Server`): `GET /` (who this is), `POST /update` (the package; 200, or 400 / 403 / 409 / 413 / 500
   with the reason as text). The package format is in `src/core/update.h`.
