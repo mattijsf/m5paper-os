@@ -49,6 +49,14 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   shared score had its own name (the user set it to "Woordle" later). Seventh app: the launcher now has a second page. The firmware builds with it; not flashed (Pending
   device checks). Open question 7.
 
+- **P7-12 Teletekst under the camera, 2026-11-18: done, on the device**. A page from the network was
+  three passes apart and 440 ms to the driver, now one pass and 189-295 ms; a tap after 45 s of reading 2.4 s, now
+  0.24 s. Changes: "Loading" only for reads over 300 ms; the line under the page and the buttons in ink and paper,
+  pushed with the page (`Hint::Page`); the saved copy written 0.8 s later; Wi-Fi kept about a minute after a page
+  (`ctx.keepWifi()`, new, POWER.md). **For every app** (`core/display_manager`): a page push keeps the part of an
+  older settle that lies outside the page (DISPLAY.md "As implemented"); a Hacker News story's header and first page
+  end crisp for it. Ghost after eight turns 0.86 %. 347 unit tests, 288 screenshots (25 re-accepted), firmware
+  2,531,543 bytes (+1,127). The firmware on the device also carries P7-15 (below): its self-test passed.
 - **P7-15 Inter is drawn as wide as it is measured, 2026-11-18: built, simulator and unit tests; not flashed yet**
   (the fix "Notes for later tasks" asked for; D24 patch 5, UI.md "Type"). M5GFX measured a glyph's fractional advance
   rounded and drew it cut off: every Inter string (Caption, Body, BodyStrong, Title, Headline: 816 of their baked glyphs have
@@ -462,8 +470,11 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
-- **Inter drawn as measured (P7-15, 2026-11-18)**: simulator and unit tests only; the device was in use by the
-  Teletekst work. To do: `rm -rf .pio/libdeps/papers3/M5GFX`, `make fw` (the log must say
+- **Inter drawn as measured (P7-15, 2026-11-18)**: partly done by the Teletekst work the same day, whose firmware
+  (its branch rebased on P7-15, M5GFX removed and patched again: "applied PAPEROS PATCH 1" to "5" in the build log) is
+  on the device: `epd-selftest` says "identical" for Fast and Quality, and a frame dump of Teletekst page 702 has the
+  simulator's title bar and button rows (Inter) pixel for pixel. Still open: the frame dumps of the launcher, Settings
+  and a WhatsApp or Hacker News list against the simulator. The original list: `rm -rf .pio/libdeps/papers3/M5GFX`, `make fw` (the log must say
   "applied PAPEROS PATCH 1" to "5"), `make flash`, `tools/device.py set epd-selftest on` and the log says "identical";
   frame dumps of the launcher, Settings, a WhatsApp or Hacker News list and a Teletekst page, each compared with the
   simulator's render (text positions must be the simulator's). Nothing for the camera: the patch moves glyphs by whole
@@ -473,11 +484,10 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   of `Os::msToNextDeadline()`, as for the settle pass; the unit tests cover the deadline, not the wake). To do: unplug,
   open Weather, leave it; a frame dump after plugging in again shows the launcher and `>log` the line
   `[shell] weather not used for 60 s`. With the camera: how the unasked screen change looks on the panel.
-- **Teletekst on the panel (P7-12, 2026-11-18)**: the app is flashed and checked through the log, frame dumps and injected
-  taps (Log, apps/teletekst.md "On the device"). Open, for a camera session (only the Mac's built-in camera was there):
-  the bitmap letters at 22 px, the striped blocks of the weather map (do the 1 px rows hold or fill in?), a page turn as
-  one pass, ghosting after ten pages of ink bars. `>set screen teletekst`, number pad to 702 (`tap 270 896`, `103 820`,
-  `270 900`, `270 660`).
+- **Teletekst on the panel (P7-12)**: done with the camera on 2026-11-18 (apps/teletekst.md "Speed and flicker").
+  Left for a person's eyes, not urgent: whether the cut (ink or paper) letters of the buttons and of the line under
+  the page read comfortably, and whether the 1 px rows of the weather map's striped blocks hold (the camera sees an
+  even gray; it does not resolve 1 px).
 - **Mark all read without a question, then the launcher**.
   Simulator only: no device on USB. To do: flash, open WhatsApp with messages in it, tap "Mark all read" (`tools/device.py tap 270 918`):
   the frame dump shows the launcher without a badge on WhatsApp, the log says
@@ -1241,3 +1251,14 @@ None of these block Phase 1, Phase 2, or the reader.
   clean tree before accepting anything. (2) `agenda-launcher` flaked in the accept run (Notes for later tasks); its
   golden was put back to the stable state by hand. 346 unit tests, 288 screenshots (all re-accepted), firmware
   2,530,416 bytes (-208). Not flashed: the device was in use for Teletekst (Pending device checks).
+- 2026-11-18: Teletekst under the camera (P7-12, after the Hacker News work's camera run). One session, camera locked at 11:04 by that
+  session, `cam.py target` at 11:35 (144 of 144 dots, 0.21 px), `cam.py around` per tap, before (main at 747deb9)
+  against after. Before: a page from the network was "Loading" (F, F), the page (F, push call 170 ms under the first
+  waveform), the strip below (F) and a Text settle: three visible events over 1.5 s. After: one Fast push 189-295 ms
+  after the tap, one pulse of ~0.15 s on the panel. Found on the way: the saved copy's flash write slowed the drawing
+  (65-99 ms against 33), Wi-Fi went off mid-page (2.4 s for the next tap), and a page push dropped whole settles
+  (DisplayManager, for every app; 14 goldens of Hacker News and the reader's menu changed for the better). Worked in a
+  worktree (`teletekst-cam`): the P7-15 work was changing the shared checkout and its `make ui-test` removed
+  `out/ui` under a run of this one; rebased on P7-15 before the second flash, so the device got patch 5 too
+  (`epd-selftest` identical). Ghost after eight turns 0.86 % (p95 4.3 %). 347 unit tests, 288 screenshots (25
+  re-accepted), firmware 2,531,543 bytes (+1,127 on P7-15's 2,530,416). Images: `out/tt/cam/` in that worktree.

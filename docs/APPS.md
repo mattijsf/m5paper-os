@@ -121,6 +121,7 @@ alone for a minute is closed the same way (above, "Staying open").
 | `ctx.secrets` | read-only secrets by key (`HA_TOKEN`), from `/sd/paperos_config` |
 | `ctx.cache` | `read(name)`, `write(name, text)` under `/data/cache/<id>/`: show stale data first |
 | `ctx.timer(ms, fn)` | one-shot timer on the UI thread; cancelled with the screen |
+| `ctx.keepWifi()` | counts as use of the connection: Wi-Fi, when up, stays up another `net.lingerSec`; never brings it up. For a screen whose next tap is most likely a request (Teletekst), bounded by the caller |
 | `ctx.syncClock(done)` | the clock was lost (battery ran flat): joins Wi-Fi once and waits up to 12 s for the time sync; `done(ok, error)` |
 | `ctx.toast(text)` | 3 s message |
 | `ctx.clock` | `now()`, `millis()` |

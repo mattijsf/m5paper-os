@@ -31,7 +31,10 @@ number pad). Launcher tile "Teletekst", icon `Icon::Teletekst` (the logo redrawn
 - **The row of four** opens the page's own coloured links (`fastTextLinks`); a page with fewer leaves buttons empty.
 - **The bottom row**: the previous and next page by number (empty when there is none); between them the page on screen as
   a filled button, "702/2" on a subpage; a tap on it opens the **number pad**. The two arrows beside it are the previous and
-  next subpage: drawn only on a page that has subpages, gray at the first and last one.
+  next subpage: an arrow is there only when that subpage is (none on a page without subpages, no left one at the first,
+  no right one at the last).
+- **The line under the page and the buttons are ink and paper too** (`cutToInk`, like the page's characters) and change
+  in the page's own pass: "Speed and flicker" below.
 - **Number pad**: a sheet with 0-9, Delete and Cancel. The third digit opens the page; a first digit of 0 or 9 is not
   taken (pages are 100 to 899).
 - **Refresh** (title bar) reads the page again.
@@ -76,16 +79,25 @@ for; a page asked without a subpage that turns out to have them is subpage 1.
 ## Saved copies and reads
 
 - Every page read is kept in `/data/cache/teletekst/p<page>[-<sub>]` (the time of the read on the first line, then the
-  JSON as it came; 3-9 KB), the last 16 pages (`saved` in `/data/apps/teletekst.json`; older files are deleted).
+  JSON as it came; 3-9 KB), the last 16 pages (`saved` in `/data/apps/teletekst.json`; older files are deleted). The
+  file is written 0.8 s after the page arrived (`kSaveAfterMs`; at once when the screen is left): a flash write while
+  the page is drawn holds the drawing up.
 - **Opening the app**: the page that was open if the app was left less than an hour ago (`page`, `left`), else page 100.
   Its saved copy is drawn in the first frame; it is read again unless the copy is under two minutes old.
 - **Going to a page**: a copy under two minutes old is shown without a read (back and forth costs no request). Otherwise
-  the number button shows the new number and the status line "Loading 105..." at once, and the page changes when the
-  answer is there: one change of the page per tap.
+  the page changes when the answer is there: one change of the screen per tap. Only a read that takes longer than 300 ms
+  (`kLoadingAfterMs`: Wi-Fi was off, a slow answer) shows the new number in the number button and "Loading 105..." in
+  the status line while it runs. Shown at once (as it was at first), the words flickered in and out before every page
+  and their waveform held the page up ("Speed and flicker" below).
 - **A read that fails**: the page's saved copy is shown if there is one, with "Saved 13:34: No Wi-Fi: ..." under it. Without
   a copy the page on screen stays and a toast says why ("Page 199 does not exist", "No Wi-Fi: ..."). With nothing on
   screen at all (first open, no network) the reason takes the page's place with a Retry button.
 - Nothing is read in the background, on a timer or from the launcher. Wi-Fi comes up for a read by itself (`ctx.http`).
+- **Wi-Fi stays up for about a minute after a page is shown** (`ctx.keepWifi()` 15, 30 and 45 s after it, then the
+  usual `net.lingerSec` of 20 s; a new page starts the count again, leaving the screen ends it). The next tap is mostly
+  a read, and 20 s is shorter than reading a page: with Wi-Fi gone the tap waited 2.4 s (network 1.3 s, a new TLS
+  session 0.74 s) and showed "Loading", the Wi-Fi icon and the page one after the other; with Wi-Fi kept it is 0.24 s
+  and one pass (measured after a pause of 45 s; the service kept the connection). POWER.md "Wi-Fi policy".
 
 ## Tests
 
@@ -107,6 +119,53 @@ A parsed page (`Page`) is 8 KB: 1000 cells of 8 bytes. It lives on the heap (`st
 and one being parsed at most), never as a local: the UI thread's stack on the device is 8 KB (APPS.md "Threads").
 `parsePage` therefore fills its result field by field instead of assigning a fresh `Page{}`.
 
+## Speed and flicker (camera session, 2026-11-18)
+
+One session with the
+camera locked (`cam.py around`, 640x480 at 30 fps; times on the panel include the camera's own ~0.2 s), the firmware
+before (main at 747deb9) against the changes below. A tap is injected (Down and Up 60 ms apart).
+
+| A tap on "next page" | before | after |
+|---|---|---|
+| passes on the panel, page from the network | three, apart: "Loading 105..." and the number (0.2-0.4 s after the tap), the page (0.60-0.80 s), a ripple in the button rows (1.3-1.5 s) | **one** (0.51-0.69 s) |
+| pushes in the log | 5 (2 Fast, the page, the strip below it, a Text settle) | 1 Fast (507 x 777) |
+| tap to the page handed to the panel driver, network | 440 ms (the page's push call took 170 ms) | **189-295 ms** (the read itself 36-118 ms; push call 65 ms) |
+| the same from a saved copy | 133 ms, visible 0.35-0.48 s | 128 ms, visible 0.37-0.58 s |
+| drawing the page, network | 92-138 ms | 37-54 ms (saved copy: 33-37 ms) |
+| a tap after 45 s of reading | 2.4 s, "Loading", the Wi-Fi icon, then the page | 0.24 s, one pass |
+
+What was wrong and what changed:
+
+- **"Loading 105..." at once.** The words and the new number were pushed on the tap, the answer came 40-160 ms later:
+  the words flickered in and out before every page, and their waveform was still running while the page was drawn and
+  pushed (PSRAM is several times slower then, DISPLAY.md "Navigation speed"). Now only a read that takes over 300 ms
+  says so (`kLoadingAfterMs`).
+- **The buttons and the line under the page were a second and third pass.** They changed as `Content` (a Fast pass of
+  their own, a Text settle 0.6 s later: three pulses in both button rows after every page). They are now drawn as ink
+  or paper (`cutToInk`: the same cut as the page's characters) and invalidate with `Hint::Page`, so the page, the
+  line and the buttons are one Fast pass with nothing to settle. The line under the page is ink for that (gray text
+  inside the box of a Fast pass comes out as dots), and a subpage arrow that leads nowhere is absent instead of gray.
+- **The saved copy was written while the page was drawn** (the worker's flash write holds up everything that reads the
+  flash, fonts included): the drawing took 65-99 ms from the network against 33 ms from a copy. The write waits 0.8 s.
+- **Wi-Fi went off 20 s after a read**: "Saved copies and reads".
+- **Around a page, the Fast look stayed** (found in the simulator's screenshots once the line no longer changed on
+  every page): a page push dropped every pending settle it touched, also the part outside the page. After the number
+  pad closed over the page, the line and the buttons kept the rough look of the pad's closing pass. Fixed in the
+  DisplayManager for every app (DISPLAY.md "As implemented": a page push and older settles).
+
+Also measured, nothing to change: opening the app from the launcher is one Fast pass (visible 0.41-0.62 s after the
+tap; its settle 0.6 s later is not visible); the number pad opens in one pass (0.29-0.49 s); a swipe to a subpage is one
+pass, handed over 229 ms after the gesture. **Ghost** after eight page turns over pages with ink bars, against the
+same page after a Clean: 0.86 % of contrast (p95 4.3 %), 1.5-1.6 % at worst where the lines of earlier pages lie in
+an empty part of the page: what the reader has (DISPLAY.md), the clean every tenth page stays. **The weather map**
+(702, live): letters, map lines and numbers read well in the camera's picture; the striped blocks read as an even
+gray there (the camera does not resolve 1 px, so whether single rows hold is not known; nothing fills in to black).
+A read after Wi-Fi was off still costs ~2.4 s and three small passes ("Loading", the Wi-Fi icon, the page): the
+network's time, shown as it is.
+
+Not for the camera: whether the cut letters of the buttons and the line read comfortably (they are the page's own
+style; the camera shows them legible).
+
 ## On the device
 
 Flashed and run on 2026-11-18 with injected taps, frame dumps and the log (STATUS.md Log):
@@ -114,12 +173,11 @@ Flashed and run on 2026-11-18 with injected taps, frame dumps and the log (STATU
 | | |
 |---|---|
 | TLS to the service | works (its chain ends at USERTrust RSA, among the firmware's 44 roots, D31) |
-| a read, Wi-Fi up | 0.7 s the first request, 38-164 ms after it on the kept connection |
-| render of a page | 92-138 ms from the network, 36-38 ms from a saved copy |
-| tap to the page pushed | ~0.4-0.5 s from the network, 130 ms from a saved copy |
+| a read, Wi-Fi up | 0.7 s the first request, 36-190 ms after it on the kept connection |
+| render of a page | 37-54 ms from the network, 33-37 ms from a saved copy |
+| tap to the page pushed | 189-295 ms from the network, 128 ms from a saved copy |
 | internal heap, lowest | 79 KB (idle 83 KB); nothing stays allocated after leaving |
 | UI thread stack left | 2.9 KB of 8 |
-| frame of page 702 | the simulator's, pixel for pixel (only the time in the status line differs) |
+| frame of page 702 | the simulator's, pixel for pixel (only the time in the status line differs; measured before the buttons changed, the title bar and the button rows again after it: 0 px differ) |
 
-Not seen yet: the panel itself (STATUS.md "Pending device checks"): how the bitmap letters and the 1 px stripes of the
-map look, ghosting after pages with ink bars.
+On the panel: "Speed and flicker" above.

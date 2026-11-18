@@ -102,6 +102,7 @@ std::function<hal::HttpResponse(const hal::HttpRequest&)> AppContext::transport(
 }
 Worker& AppContext::worker() { return shell_.os().worker(); }
 NetService& AppContext::netService() { return shell_.os().net(); }
+void AppContext::keepWifi() { netService().keepAlive(); }
 std::weak_ptr<bool> AppContext::aliveToken() {
   auto* e = shell_.stack_.empty() ? nullptr : &shell_.stack_.back();
   return e ? std::weak_ptr<bool>(e->alive) : std::weak_ptr<bool>();

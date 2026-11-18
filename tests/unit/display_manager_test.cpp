@@ -322,6 +322,36 @@ TEST_CASE("Page: Fast without a settle pass; every Nth page is one full-screen Q
   CHECK(f.count(Refresh::Quality) == 2);
 }
 
+TEST_CASE("Page: a settle that sticks out of the page keeps the part outside it") {
+  Fixture f;
+  // A sheet closed over the lower half: a Screen change with grays (too little for one Text pass), its settle pending.
+  const Rect sheet{0, 534, kScreenW, 403};
+  for (int y = sheet.y; y < sheet.y + sheet.h; y += 40) f.fill(Rect{0, static_cast<int16_t>(y), kScreenW, 1}, gray(9));
+  f.dm.invalidate(sheet, Hint::Screen);
+  f.dm.commit();
+  REQUIRE(f.count(Refresh::Fast) == 1);
+  REQUIRE(f.dm.nextDeadlineMs() != kNoDeadline);
+  // The page under it changes: it ends at row 747, the sheet's rows below it still wait for their settle.
+  const Rect page{23, 133, 507, 614};
+  f.fill(page, kBlack);
+  f.dm.invalidate(page, Hint::Page);
+  f.dm.commit();
+  REQUIRE(f.dm.nextDeadlineMs() != kNoDeadline);
+  for (int i = 0; i < 4; ++i) f.dm.tick(f.clock.ms + 700);  // one settle per tick
+  CHECK(f.dm.nextDeadlineMs() == kNoDeadline);
+  REQUIRE(f.count(Refresh::Text) >= 1);
+  bool below = false;
+  for (const auto& e : f.display.pushes) {
+    if (e.mode != Refresh::Text) continue;
+    // No Text pass over the page itself: beside it or below it only.
+    const bool beside = e.rect.x + e.rect.w <= page.x || e.rect.x >= page.x + page.w;
+    const bool under = e.rect.y >= page.y + page.h;
+    CHECK((beside || under));
+    below = below || (under && e.rect.y + e.rect.h == 935 && e.rect.w == kScreenW);  // the last gray line is row 934
+  }
+  CHECK(below);  // the rows under the page, over the sheet's whole width
+}
+
 TEST_CASE("Page: a page turn drops an older settle in its area; 0 switches the clean off; any full clean restarts the count") {
   DisplayParams p;
   p.pageCleanEvery = 2;

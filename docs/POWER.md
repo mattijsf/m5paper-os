@@ -99,6 +99,9 @@ No Wi-Fi at boot. `>set screen launcher` never resumes.
   also exist on 2.4 GHz (mesh routers normally do).
 - After the last request finishes, Wi-Fi stays up for `net.lingerSec` (default 20 s) in case
   another request follows, then switches off.
+- Teletekst keeps Wi-Fi up for about a minute after a page is shown (`ctx.keepWifi()`, apps/teletekst.md "Saved copies
+  and reads"): the next tap is mostly a read, and a reconnect costs 2 s and a TLS handshake. It ends with the screen
+  (the idle return leaves the app after a minute without a touch).
 - While the Home app is in the foreground and was touched in the last 2 minutes, linger is
   extended so toggles respond fast. The device does not light-sleep during that window.
 - Time sync: SNTP after a connect when the clock was never set or the last sync is over a day old, written to the BM8563 RTC on

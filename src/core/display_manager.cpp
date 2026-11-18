@@ -51,6 +51,28 @@ bool uncovered(Rect& s, const Rect& box) {
   return true;
 }
 
+// The parts of `s` outside `box`, up to four rectangles: the strips above and below over the whole width, the strips
+// left and right beside the box.
+int outside(const Rect& s, const Rect& box, Rect out[4]) {
+  const int sx0 = s.x, sy0 = s.y, sx1 = s.x + s.w, sy1 = s.y + s.h;
+  const int bx0 = std::max<int>(box.x, sx0), by0 = std::max<int>(box.y, sy0);
+  const int bx1 = std::min<int>(box.x + box.w, sx1), by1 = std::min<int>(box.y + box.h, sy1);
+  if (bx0 >= bx1 || by0 >= by1) {  // no overlap: all of it
+    out[0] = s;
+    return 1;
+  }
+  int n = 0;
+  auto add = [&](int x0, int y0, int x1, int y1) {
+    if (x1 > x0 && y1 > y0)
+      out[n++] = Rect{static_cast<int16_t>(x0), static_cast<int16_t>(y0), static_cast<int16_t>(x1 - x0), static_cast<int16_t>(y1 - y0)};
+  };
+  add(sx0, sy0, sx1, by0);
+  add(sx0, by1, sx1, sy1);
+  add(sx0, by0, bx0, by1);
+  add(bx1, by0, sx1, by1);
+  return n;
+}
+
 constexpr float kScreenPixels = static_cast<float>(kScreenW) * kScreenH;
 
 }  // namespace
@@ -271,10 +293,17 @@ void DisplayManager::pushBand(Rect r, Hint hint, int* restY) {
         // 2026-11-16); the user chose black/white text between cleans over that sweep.
         push(box, Refresh::Fast, changed, "page", dms);
         score_ += added;
-          for (size_t i = 0; i < settles_.size();) {  // an older settle inside the page would bring the sweep back
-          if (touches(settles_[i].rect, box)) settles_.erase(settles_.begin() + i);
-          else ++i;
+        // An older settle inside the page would bring the sweep back. What sticks out of the page keeps its settle (a
+        // sheet that closed over the page and the buttons below it: the buttons stayed in the Fast pass's rough look).
+        std::vector<Settle> kept;
+        for (const Settle& old : settles_) {
+          Rect parts[4];
+          const int n = outside(old.rect, box, parts);
+          const float area = static_cast<float>(old.rect.w) * old.rect.h;
+          for (int k = 0; k < n; ++k)
+            kept.push_back(Settle{parts[k], old.dueMs, area > 0 ? old.added * parts[k].w * parts[k].h / area : 0});
         }
+        settles_ = std::move(kept);
       }
       break;
     case Hint::Content:

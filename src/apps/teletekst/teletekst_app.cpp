@@ -28,6 +28,18 @@ constexpr int kGridH = kShownRows * kCellH;  // 624
 constexpr int kSideMargin = (kScreenW - kGridW) / 2;  // 10
 constexpr int kInkBelow = 140;               // a pixel of a character darker than this is ink, the rest paper
 constexpr int64_t kFreshSec = 120;           // a copy this young is shown without a read
+// A read that takes longer than this says "Loading 105..." and shows the new number. Not at once: the answer is mostly
+// there within 40-160 ms, and a push for the words then runs its waveform while the page is drawn and pushed (camera,
+// 2026-11-18: the words flickered in and out before every page, and the page came 0.25 s later for it).
+constexpr uint32_t kLoadingAfterMs = 300;
+// A page that was read is written to the flash this long after it arrived: while the page is drawn and pushed a flash
+// write holds the processor up (fonts are read from the flash), the drawing took 65-99 ms instead of 33.
+constexpr uint32_t kSaveAfterMs = 800;
+// Wi-Fi stays up for about a minute after a page is shown (kKeepWifiSteps times kKeepWifiStepMs, then net.lingerSec):
+// the next tap is mostly a read, and with Wi-Fi gone it waits ~2 s for the network and a new TLS session instead of
+// 0.1 s (camera, 2026-11-18). Without it Wi-Fi goes off 20 s after a read, mid-page for most readers.
+constexpr uint32_t kKeepWifiStepMs = 15000;
+constexpr int kKeepWifiSteps = 3;
 constexpr int64_t kResumeSec = 3600;         // reopened within the hour: the page that was open, else 100
 constexpr int kSavedPages = 16;              // copies kept on the flash (3-9 KB each)
 constexpr const char* kCacheDir = "/data/cache/teletekst/";
@@ -39,6 +51,23 @@ std::string label(const PageRef& ref) {
   std::string s = std::to_string(ref.page);
   if (ref.sub > 0) s += "/" + std::to_string(ref.sub);
   return s;
+}
+
+// What was drawn in `r` (inside the clip) ends as ink or paper with nothing between, like the bitmap letters of a
+// television's teletext: the Fast pass then shows it as it is, with no dithered edges and nothing left to settle
+// (docs/DISPLAY.md). The page, and the buttons that change with it.
+void cutToInk(Canvas& c, Rect r) {
+  auto* buf = static_cast<uint8_t*>(c.getBuffer());
+  if (!buf) return;
+  int32_t cx = 0, cy = 0, cw = 0, ch = 0;
+  c.getClipRect(&cx, &cy, &cw, &ch);
+  const int stride = c.width();
+  const int ax = std::max<int>(r.x, cx), bx = std::min<int>(r.x + r.w, cx + cw);
+  const int ay = std::max<int>(r.y, cy), by = std::min<int>(r.y + r.h, cy + ch);
+  for (int y = ay; y < by; ++y) {
+    uint8_t* p = buf + static_cast<size_t>(y) * stride;
+    for (int x = ax; x < bx; ++x) p[x] = p[x] < kInkBelow ? 0 : 255;
+  }
 }
 
 // A coloured background that is dark on a television is an ink bar here; white, yellow and cyan are paper.
@@ -113,17 +142,7 @@ class PageView : public ui::Widget {
       }
       c.setClipRect(cx, cy, cw, ch);
     }
-    // The characters end as ink or paper with nothing between, like the bitmap letters of a television's teletext: the Fast
-    // pass then shows the page as it is, with no dithered edges and nothing left to settle (docs/DISPLAY.md).
-    if (auto* buf = static_cast<uint8_t*>(c.getBuffer())) {
-      const int stride = c.width();
-      const int ax = std::max<int>(x0, cx), bx = std::min<int>(x0 + kGridW, cx + cw);
-      const int ay = std::max<int>(y0, cy), by = std::min<int>(y0 + kGridH, cy + ch);
-      for (int y = ay; y < by; ++y) {
-        uint8_t* p = buf + static_cast<size_t>(y) * stride;
-        for (int x = ax; x < bx; ++x) p[x] = p[x] < kInkBelow ? 0 : 255;
-      }
-    }
+    cutToInk(c, Rect{static_cast<int16_t>(x0), static_cast<int16_t>(y0), kGridW, kGridH});
   }
 
   bool onTouch(const Gesture& g) override {
@@ -180,18 +199,22 @@ class Holder : public ui::Column {
   ui::Size measure(int availW) override { return {availW, kGridH}; }
 };
 
+// The buttons under the page change with it. They are drawn as ink or paper like the page (cutToInk) and go out in the
+// page's own Fast pass (Hint::Page): one change of the screen for a page, and no settle pass over the button rows 0.6 s
+// later (camera, 2026-11-18: three more pulses in both rows after every page).
+
 // One of the page's four coloured links: an outlined button with a short word ("binnenland"), four to a row.
 class FastButton : public ui::Pressable {
  public:
   void setText(const std::string& t) {
     if (t == text_) return;
     text_ = t;
-    invalidate(Hint::Content);
+    invalidate(Hint::Page);
   }
   void setEnabled(bool on) {
     if (on == enabled) return;
     enabled = on;
-    invalidate(Hint::Content);
+    invalidate(Hint::Page);
   }
   ui::Size measure(int) override { return {96, ui::kTouchMin}; }
   void draw(Canvas& c) override {
@@ -205,35 +228,56 @@ class FastButton : public ui::Pressable {
     const Type type = ui::measureText(c, text_, Type::Body) <= frame.w - 2 * ui::s1 ? Type::Body : Type::Caption;
     ui::drawText(c, ui::ellipsize(c, text_, type, frame.w - 2 * ui::s1), frame.x + frame.w / 2, frame.y + frame.h / 2, type, fg,
                  ui::Anchor::MiddleCenter, back);
+    cutToInk(c, frame);
   }
 
  private:
   std::string text_;
 };
 
-// Previous / next page: the page's number, nothing at all when there is no such page.
+// A button with a number: the page on screen (filled), the previous and the next page (outlined; nothing at all when there
+// is no such page).
 class PageButton : public ui::Button {
  public:
-  PageButton(std::function<void()> fn) : ui::Button("", std::move(fn), ui::Button::Kind::Secondary) {}
+  PageButton(std::function<void()> fn, Kind kind) : ui::Button("", std::move(fn), kind) {}
+  void setNumber(const std::string& t, Hint h) {
+    if (t == text()) return;
+    setText(t);
+    invalidate(h);
+  }
   void draw(Canvas& c) override {
-    if (!text().empty()) ui::Button::draw(c);
+    if (text().empty()) return;
+    ui::Button::draw(c);
+    cutToInk(c, frame);
   }
 };
 
-// Previous / next subpage: an arrow, gray at the first and last one, nothing on a page without subpages.
+// Previous / next subpage: an arrow, nothing where there is no such subpage (the first, the last, a page without).
 class SubButton : public ui::IconButton {
  public:
   using ui::IconButton::IconButton;
-  bool shown = false;
   void draw(Canvas& c) override {
-    if (shown) ui::IconButton::draw(c);
+    if (!enabled) return;
+    ui::IconButton::draw(c);
+    cutToInk(c, frame);
+  }
+};
+
+// The line under the page ("Updated 13:34"). In ink and cut like the rest: it lies between the page and the buttons,
+// inside the box a page's Fast pass covers, and gray text there came out of every such pass as dots.
+class StatusLine : public ui::Label {
+ public:
+  StatusLine() : ui::Label("", Type::Caption, ui::ink) { align = ui::TextAlign::Center; }
+  void draw(Canvas& c) override {
+    ui::Label::draw(c);
+    cutToInk(c, frame);
   }
 };
 
 void setEnabled(ui::Pressable* w, bool on) {
   if (w->enabled == on) return;
   w->enabled = on;
-  w->invalidate(Hint::Content);
+  w->invalidate(Hint::Page);
 }
 
 class TeletekstScreen : public Screen {
@@ -247,8 +291,7 @@ class TeletekstScreen : public Screen {
     });
     holder_ = root.add<Holder>();
     root.add<ui::Spacer>(4);
-    status_ = root.add<ui::Label>("", Type::Caption, ui::secondary);
-    status_->align = ui::TextAlign::Center;
+    status_ = root.add<StatusLine>();
     root.add<ui::Spacer>(6);
 
     auto* fast = root.add<ui::Row>(ui::s1);
@@ -262,14 +305,16 @@ class TeletekstScreen : public Screen {
     root.add<ui::Spacer>(ui::s1);
 
     auto* nav = root.add<ui::Row>(ui::s1);
-    prev_ = nav->add<PageButton>([this] { if (page_) open(page_->prev); });
+    prev_ = nav->add<PageButton>([this] { if (page_) open(page_->prev); }, ui::Button::Kind::Secondary);
     prevSub_ = nav->add<SubButton>(Icon::ChevronLeft);
+    prevSub_->enabled = false;
     prevSub_->onClick = [this] { if (page_) open(page_->prevSub); };
-    number_ = nav->add<ui::Button>("", [this] { openPad(); });
+    number_ = nav->add<PageButton>([this] { openPad(); }, ui::Button::Kind::Primary);
     number_->flex = 1;
     nextSub_ = nav->add<SubButton>(Icon::ChevronRight);
+    nextSub_->enabled = false;
     nextSub_->onClick = [this] { if (page_) open(page_->nextSub); };
-    next_ = nav->add<PageButton>([this] { if (page_) open(page_->next); });
+    next_ = nav->add<PageButton>([this] { if (page_) open(page_->next); }, ui::Button::Kind::Secondary);
 
     // The page to start on, and its saved copy before the first frame.
     PageRef start;
@@ -291,6 +336,7 @@ class TeletekstScreen : public Screen {
   }
 
   void onHide() override {
+    writeSaved();
     ctx().store.set("page", (page_ ? page_->self : want_).id());
     ctx().store.set("left", static_cast<double>(ctx().clock.now()));
   }
@@ -336,21 +382,16 @@ class TeletekstScreen : public Screen {
     if (holder_->host()) holder_->host()->relayout();
   }
 
-  void showControls() {
-    number_->setText(label(busy_ || !page_ ? want_ : page_->self));
+  // `h`: Hint::Page when the page changes too (one pass for both), Hint::Content for the number of a read that takes long.
+  void showControls(Hint h = Hint::Page) {
+    number_->setNumber(label(busy_ || !page_ ? want_ : page_->self), h);
     const PageRef prev = page_ ? page_->prev : PageRef{}, next = page_ ? page_->next : PageRef{};
-    prev_->setText(prev.valid() ? std::to_string(prev.page) : "");
-    next_->setText(next.valid() ? std::to_string(next.page) : "");
+    prev_->setNumber(prev.valid() ? std::to_string(prev.page) : "", h);
+    next_->setNumber(next.valid() ? std::to_string(next.page) : "", h);
     setEnabled(prev_, prev.valid());
     setEnabled(next_, next.valid());
-    const bool subpages = page_ && page_->hasSubpages();
-    for (SubButton* b : {prevSub_, nextSub_}) {
-      const bool on = page_ && (b == prevSub_ ? page_->prevSub : page_->nextSub).valid();
-      if (b->shown == subpages && b->enabled == on) continue;
-      b->shown = subpages;
-      b->enabled = on;
-      b->invalidate(Hint::Content);
-    }
+    setEnabled(prevSub_, page_ && page_->prevSub.valid());
+    setEnabled(nextSub_, page_ && page_->nextSub.valid());
     const size_t links = page_ ? page_->fast.size() : 0;
     for (size_t i = 0; i < 4; ++i) {
       fast_[i]->setText(i < links ? page_->fast[i].title : "");
@@ -358,16 +399,16 @@ class TeletekstScreen : public Screen {
     }
   }
 
-  void showStatus() {
+  void showStatus(Hint h = Hint::Page) {
     const std::string when = clockText(fetched_);
     if (busy_) {
-      status_->setText("Loading " + label(want_) + "...");
+      status_->setText("Loading " + label(want_) + "...", h);
     } else if (!page_) {
-      status_->setText("");
+      status_->setText("", h);
     } else if (!error_.empty()) {
-      status_->setText("Saved" + (when.empty() ? std::string(" copy") : " " + when) + ": " + error_);
+      status_->setText("Saved" + (when.empty() ? std::string(" copy") : " " + when) + ": " + error_, h);
     } else {
-      status_->setText(when.empty() ? "NOS Teletekst" : "Updated " + when);
+      status_->setText(when.empty() ? "NOS Teletekst" : "Updated " + when, h);
     }
   }
 
@@ -409,13 +450,31 @@ class TeletekstScreen : public Screen {
     }
     showControls();
     showStatus();
+    keepWifi(++keepSeq_, kKeepWifiSteps);
+  }
+
+  // Wi-Fi is kept while this page is read (kKeepWifiStepMs); a newer page starts its own count.
+  void keepWifi(unsigned seq, int left) {
+    ctx().timer(kKeepWifiStepMs, [this, seq, left] {
+      if (seq != keepSeq_) return;
+      ctx().keepWifi();
+      if (left > 1) keepWifi(seq, left - 1);
+    });
   }
 
   void fetch(PageRef ref) {
     const unsigned seq = ++seq_;
     busy_ = true;
-    showControls();
-    showStatus();
+    if (page_) {
+      ctx().timer(kLoadingAfterMs, [this, seq] {
+        if (seq != seq_ || !busy_) return;  // answered, or another page was asked for
+        showControls(Hint::Content);
+        showStatus(Hint::Content);
+      });
+    } else {
+      showControls(Hint::Content);  // nothing on screen yet: the number that is on its way
+      showStatus(Hint::Content);
+    }
     hal::HttpRequest req;
     req.url = pageUrl(ref);
     req.timeoutMs = 10000;
@@ -426,8 +485,9 @@ class TeletekstScreen : public Screen {
       if (r.status == 200 && r.body.size() <= kMaxBodyBytes && parsePage(r.body, ref, *p)) {
         const int64_t now = ctx().clock.now();
         ctx().log("page %s: %u bytes", ref.id().c_str(), static_cast<unsigned>(r.body.size()));
-        save(ref, packSaved(now, r.body));
         show(p, now);
+        unsaved_.push_back({ref, packSaved(now, r.body)});
+        ctx().timer(kSaveAfterMs, [this] { writeSaved(); });
         return;
       }
       const bool missing = r.status == 404;
@@ -453,8 +513,8 @@ class TeletekstScreen : public Screen {
     }
     if (page_) {
       want_ = page_->self;
-      showControls();
-      showStatus();
+      showControls(Hint::Content);
+      showStatus(Hint::Content);
       ctx().toast(why);
       return;
     }
@@ -462,6 +522,12 @@ class TeletekstScreen : public Screen {
     fillHolder();
     showControls();
     showStatus();
+  }
+
+  // The pages that arrived and are not on the flash yet (kSaveAfterMs; when the screen is left).
+  void writeSaved() {
+    for (auto& u : unsaved_) save(u.first, std::move(u.second));
+    unsaved_.clear();
   }
 
   // Keeps the copy on the flash and drops the oldest when more than kSavedPages are kept. On the worker.
@@ -555,15 +621,17 @@ class TeletekstScreen : public Screen {
   std::string error_;      // why the last read failed, "" if it did not
   bool busy_ = false;
   unsigned seq_ = 0;
+  unsigned keepSeq_ = 0;   // the page whose Wi-Fi count runs
   std::string digits_;
+  std::vector<std::pair<PageRef, std::string>> unsaved_;  // read, to be written to the flash (kSaveAfterMs)
   Holder* holder_ = nullptr;
   PageView* view_ = nullptr;
-  ui::Label* status_ = nullptr;
+  StatusLine* status_ = nullptr;
   ui::Label* padLabel_ = nullptr;
   FastButton* fast_[4] = {};
   PageButton* prev_ = nullptr;
   PageButton* next_ = nullptr;
-  ui::Button* number_ = nullptr;
+  PageButton* number_ = nullptr;
   SubButton* prevSub_ = nullptr;
   SubButton* nextSub_ = nullptr;
 };

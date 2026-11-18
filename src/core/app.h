@@ -202,6 +202,9 @@ class AppContext {
   // clock is set (done(true) at once). For apps that cannot work without the date (Somdoku, the word game).
   void syncClock(std::function<void(bool ok, const std::string& error)> done);
   static constexpr const char* kNoNetworkTime = "No time from the network";  // syncClock's error when Wi-Fi came up but no time
+  // Counts as use of the connection: Wi-Fi, when it is up, stays up for another net.lingerSec (it is not brought up).
+  // For a screen whose next tap will most likely be a request (Teletekst: the next page); bounded by the caller.
+  void keepWifi();
   // One-shot timer on the UI thread; cancelled when the screen that was on top is destroyed.
   Timers::Id timer(uint32_t ms, std::function<void()> fn);
   void toast(const std::string& text);
