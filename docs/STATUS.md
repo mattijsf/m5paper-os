@@ -299,8 +299,14 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   (meta 0.49 s, chapter write 0.69 s, layout 0.62 s), reads well on the panel (`out/p7-18/cam-article-upright.png`),
   takes its title from the file's header afterwards, and is removed with "Remove" on its card (the file is gone from
   the card). **Found there and fixed**: with a shelf of opened books a new article sorted behind them, on page 2;
-  articles nobody opened now come right under the card (`sortLibrary`). **Not run: a link shared from the real
-  phone** (the queue, the page read on the device, the badge): "Pending device checks".
+  articles nobody opened now come right under the card (`sortLibrary`). **A link shared from the real phone, 14:52**
+  (a tweakers.net page): the relay read took it ("accepted 1"), the Read tile showed 1
+  (`out/p7-18/dev-launcher-link.png`), opening Read showed "Reading 1 link..." and read the page: the reader service
+  answered after **16.8 s** with 837 bytes, the site's "Access Denied" (DPG Media's firewall, "Target URL returned
+  error 403"), and that notice was saved as an article. **Fixed**: a site's refusal is a read that failed ("The site
+  refused the reader (403)"), the link is dropped and nothing is saved (`refusedStatus`, unit test). The notice was
+  removed on the device with a long press on its row. Firmware now 2,558,611 bytes, flashed. **Still not seen: a
+  real shared link that becomes an article** (a site that lets the reader service in): "Pending device checks".
 
 ## What works today
 
@@ -537,12 +543,14 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
-- **Read later (P7-18, 2026-11-18)**: (1) a link shared from the real phone ("Send to Paper" on a page in the
-  browser): the Read tile's badge after the next relay read, the article in the library after opening Read (or after a
-  scheduled wake: `[sched] ... N article(s)`, the seventh field of `/data/refresh.log`), read on the panel. Needs the
-  user's hand on the phone. (2) how long a page takes on the device (Hacker News measured 1.6 s for an article of 145
-  paragraphs). (3) the long press on an article's row (the card's "Remove" was run). Done on 2026-11-18 ("Now"): a
-  `.md` with a name outside ASCII, opening, reading on the panel, removing.
+- **Read later (P7-18, 2026-11-18)**: (1) a link shared from the real phone that becomes an article: a page of a site
+  that lets the reader service in (the first real link, tweakers.net, was refused: "Now"); then the article in the
+  library and on the panel, or saved by a scheduled wake (`[sched] ... N article(s)`, the seventh field of
+  `/data/refresh.log`). Needs a person's hand on the phone. (2) the toast "site: The site refused the reader (403)" on
+  the device (unit test only; the refusal itself was seen with the firmware before the fix). (3) how long a page that
+  is read takes (the refused one: 16.8 s; Hacker News measured 1.6 s for an article of 145 paragraphs). Done on
+  2026-11-18 ("Now"): the relay taking a real shared link, the badge, the read from the library, a `.md` with a name
+  outside ASCII, opening, reading on the panel, removing by the card's button and by a long press.
 - **Today board (P7-16, 2026-11-18)**: done with the camera on 2026-11-18 ("Now"): the board on the panel after a real
   power-off, and "Updated HH:MM" after a wake. Open: (2) the board with the book row on the device (the preview screen
   passes no book; the simulator's `today-board-book` has it). (4) the switch in Settings > Power on the device
@@ -814,6 +822,14 @@ None of these block Phase 1, Phase 2, or the reader.
 - **The article code lives in the Hacker News app (P7-18)**: `apps/reader` includes `apps/hackernews/hackernews_model.h`
   for `articleRequest` and `parseArticle`. They belong in `apps/common` (with their tests); not moved, to keep the
   Hacker News app untouched in this task.
+- **Sites that refuse the reader service (P7-18, 2026-11-18)**: tweakers.net (DPG Media: a firewall and a consent
+  wall) gives no article, and its sister sites will not either. Ways round, none built: the phone reads the page
+  itself (it has the owner's consent cookies in its browser, not in the companion app: a WebView with its own consent
+  would be needed) and sends the text through the relay in pieces; another reader service; the site's RSS feed where
+  it carries the full text. Ask the owner which sites matter before building any of them.
+- **An article that was open when the device was reset shows "New" again** (seen after a flash, 2026-11-18): the
+  reader writes its progress when the book is left; the badge had already dropped. Harmless; a power cut while reading
+  does the same for a book's position (existing behaviour).
 - **Read later, not built (P7-18)**: a `link` message with the page's title and its own share target on the phone
   (D36: not needed yet); pictures; a count of articles on the plain sleep screen; a morning wake at a fixed hour so
   articles and the board are fresh at breakfast whatever the interval.
@@ -1384,4 +1400,7 @@ None of these block Phase 1, Phase 2, or the reader.
   library opens; the Read tile's badge counts what there is to read. 355 unit tests, 303 screenshots, firmware 2,558,339
   bytes. Camera: the Today board on the panel after a power-off and after a wake ("Updated 14:41"). Read later on the
   device: pending. Images: `out/p7-18/`.
+- 2026-11-18: Read later with the real phone: a tweakers.net link came through the relay, the badge showed, the page was
+  read from the library in 16.8 s, and was the site's "Access Denied" (403 for the reader service). A site's refusal is
+  now a failed read, not an article. Long-press removal run on the device. Firmware 2,558,611 bytes.
 

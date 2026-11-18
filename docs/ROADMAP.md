@@ -488,7 +488,9 @@ P6-11 last (it needs the relay and a device that can pair).
   the Today board's count; the launcher's and the plain sleep screen's "N unread" stay
   messages only. Done when: unit tests (the link rule, the queue, file names, the `.md` import), UI script with goldens
   (a shared link arrives, the library, the article, removing it), `make check` green, a link shared from the real phone
-  read on the device. (2026-11-18: built, simulator and unit tests; the device run with the real phone is open.)
+  read on the device. (2026-11-18: built; on the device a pushed article is listed, read and removed, and a link shared from the real
+  phone came through, but its site (tweakers.net) refuses the reader service: no article. Open: a real shared link that
+  becomes an article.)
 
 ## Phase 8: Optional, ask the owner first
 

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 
 #include "apps/hackernews/hackernews_model.h"
 #include "apps/reader/book.h"
@@ -32,6 +33,18 @@ std::string freeName(const std::string& name) {
     if (!fs::exists(folder() + "/" + next)) return next;
   }
   return name;  // a hundred copies of one page: the oldest is replaced
+}
+
+// The status the page's own site answered the reader service with, when it refused it: the service then says "Warning:
+// Target URL returned error 403: Forbidden" before the text and gives the site's notice as the page ("Access Denied",
+// a cookie wall). 0 when there is no such line.
+int refusedStatus(const std::string& body) {
+  static const char kWarning[] = "Warning: Target URL returned error ";
+  const size_t end = std::min(body.find("Markdown Content:"), body.size());
+  const size_t at = body.find(kWarning);
+  if (at == std::string::npos || at >= end || (at > 0 && body[at - 1] != '\n')) return 0;
+  const long code = std::strtol(body.c_str() + at + sizeof kWarning - 1, nullptr, 10);
+  return code >= 400 && code < 600 ? static_cast<int>(code) : 0;
 }
 
 }  // namespace
@@ -70,6 +83,9 @@ ArticleFetch fetchArticles(const Transport& send, int64_t now, uint32_t budgetMs
     if (r.status == 200 && r.error.empty()) {
       if (r.body.size() > hackernews::kMaxArticleBytes) {
         why = "The page is too long";
+        gone = true;
+      } else if (const int refused = refusedStatus(r.body)) {  // the site's refusal is no article
+        why = "The site refused the reader (" + std::to_string(refused) + ")";
         gone = true;
       } else if (!hackernews::parseArticle(r.body, article)) {
         why = "No text on the page";

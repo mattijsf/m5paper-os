@@ -160,15 +160,19 @@ A link shared from the phone waits on the Paper as an article, read like a book.
   and the weather (it gives the links 25 s of its 45), and when the library is shown with links waiting ("Reading 2
   links..." as a toast, then the list again; once per visit). **Not at the launcher's relay check**, which only queues: a
   page takes seconds, and on the one worker an app opened meanwhile would wait for it.
-- **A link that cannot be read**: no text on the page, a page over 400 KB or a 4xx of the service: dropped at once. No
+- **A link that cannot be read**: no text on the page, a page over 400 KB, a 4xx of the service, or **a site that turns
+  the reader service away** (the service then answers 200 with "Warning: Target URL returned error 403" and the site's
+  notice as the page: "The site refused the reader (403)"; seen with tweakers.net on the device, 2026-11-18: DPG Media's
+  firewall, the answer took 16.8 s): dropped at once, nothing is saved. No
   network, a timeout, a 5xx: it waits, six tries, then it is dropped. In the library the reason is a toast
   ("example.com: No text on the page"); elsewhere it is a log line (`[read] article not read: ...`).
 - **The Read tile's badge is what there is to read**: links that wait plus articles nobody opened
   (`/data/cache/read/badge`, set by `readlater::save`), so a shared link shows on the launcher at the next relay read,
   before its page is read, and the Today board shows the book icon with the number. Opening an article takes it off
   (`articleOpened`); files that are gone from the card are dropped from the list. The launcher's and the plain sleep screen's "N unread" count messages only.
-- **Limits**: text only (no pictures), what the service can read (a paywall gives its notice as the article, with the
-  service's warning as the first line), one chapter, no way back to the page (the address is in the file's header).
+- **Limits**: text only (no pictures); only what the service can read: sites behind a firewall or a consent wall that
+  refuse it (DPG Media's: tweakers.net and its sister sites) give no article, and a paywall that answers 200 gives its
+  notice as the article; one chapter; no way back to the page (the address is in the file's header).
 - Tests: `tests/unit/readlater_test.cpp` (the link rule, hosts and names, the queue, reads that answer, never will or
   find no network, opened and removed, the Markdown import, the library's order), the `clip` case in
   `companion_test.cpp`; UI script `read-later` (fixture host ha-link.example.test: goldens `read-later-launcher`,

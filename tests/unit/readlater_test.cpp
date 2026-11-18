@@ -123,22 +123,28 @@ TEST_CASE("read later: a link that answers is saved as an article; one that neve
   add(s, "https://empty.example/b", "", kNow);
   add(s, "https://refused.example/c", "", kNow);
   add(s, "https://slow.example/d", "", kNow);
+  add(s, "https://walled.example/e", "", kNow);
   REQUIRE(save(s));
-  CHECK(reader::waitingLinks() == 4);
+  CHECK(reader::waitingLinks() == 5);
   std::vector<std::string> asked;
   const reader::Transport send = [&](const hal::HttpRequest& req) {
     asked.push_back(req.body);
     if (req.body.find("www.example.com") != std::string::npos) return answer(200, kPage);
     if (req.body.find("empty.example") != std::string::npos) return answer(200, "Title: Empty\n\nMarkdown Content:\n\n");
     if (req.body.find("refused.example") != std::string::npos) return answer(422, "{}");
+    // A site that turns the reader service away: the service answers 200 with the site's notice as the page.
+    if (req.body.find("walled.example") != std::string::npos)
+      return answer(200, "Title: Access Denied\n\nURL Source: https://walled.example/e\n\nWarning: Target URL returned error 403: Forbidden\n\n"
+                         "Markdown Content:\nAccess Denied\n=============\n\nYour request was blocked.\n");
     return answer(503, "busy");
   };
   reader::ArticleFetch f = reader::fetchArticles(send, kNow);
-  CHECK(asked.size() == 4);
+  CHECK(asked.size() == 5);
   CHECK(f.saved == 1);
-  CHECK(f.dropped == 2);  // no text, refused
+  CHECK(f.dropped == 3);  // no text, refused by the service, refused by the site (its notice is not saved as an article)
   CHECK(f.left == 1);     // the busy service is asked again
-  CHECK(f.note == "slow.example: The reader answered 503");
+  CHECK(f.note == "walled.example: The site refused the reader (403)");
+  CHECK_FALSE(fs::exists("/sd/books/Articles/Access Denied - walled.example.md"));
   const std::string file = "Articles/The page a test \xE2\x80\x93 part 1 - example.com.md";
   std::string saved;
   REQUIRE(fs::readFile("/sd/books/" + file, saved));
