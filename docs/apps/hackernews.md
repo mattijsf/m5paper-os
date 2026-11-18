@@ -210,9 +210,10 @@ passes after a list or screen change show no visible change. Where the time went
 - **The network** is what is left of opening a story: Wi-Fi join 1.4-1.7 s when it was off (it is, 20 s after the last
   read: POWER.md), a TLS handshake 0.8-0.9 s a host, the requests 0.8-1.1 s each.
 
-Found on the way, in `ui/textblock` (the gap around a bold word in a line of Inter): LovyanGFX measures a glyph's
-fractional advance rounded and draws it cut off, about half a pixel a character. `ui::penAdvance` is what drawing moves
-the pen by; the text block uses it for Inter. STATUS.md "Notes for later tasks" has the rest.
+Found on the way, in `ui/textblock` (the gap around a bold word in a line of Inter): LovyanGFX measured a glyph's
+fractional advance rounded and drew it cut off, about half a pixel a character. First worked around in the text block
+(`ui::penAdvance`, gone again), then fixed for every Inter string by M5GFX patch 5 (P7-15, D24, UI.md "Type"): Inter
+is now set as wide as the font means, so the fixture thread is five pages where it was four.
 
 ## On the device
 

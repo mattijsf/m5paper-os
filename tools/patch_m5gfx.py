@@ -1,7 +1,9 @@
-# PlatformIO pre-build script (platformio.ini: extra_scripts): patches M5GFX 0.3.0 in .pio/libdeps for the device.
-# Idempotent; fails the build if the library text is not what the patch was written against (a new M5GFX version).
-# Why and what: docs/DISPLAY.md "Tap latency", docs/DECISIONS.md D24. Every patch keeps the panel's pixels identical;
-# patch 4 changes which pixels a waveform drives (not what they end as): docs/DISPLAY.md "Unchanged pixels are left alone".
+# PlatformIO pre-build script (platformio.ini [env]: extra_scripts, so every environment): patches M5GFX 0.3.0 in
+# .pio/libdeps/<env>. Idempotent; fails the build if the library text is not what the patch was written against (a new
+# M5GFX version). Why and what: docs/DISPLAY.md "Tap latency", docs/DECISIONS.md D24. Patches 1 to 3 keep the panel's
+# pixels identical; patch 4 changes which pixels a waveform drives (not what they end as): docs/DISPLAY.md "Unchanged
+# pixels are left alone". Patches 1 to 4 are in the EPD driver (compiled for the device only). Patch 5 is in the font
+# code and moves text: the simulator and the unit tests need it as much as the device (the goldens are drawn with it).
 import os
 import sys
 
@@ -263,6 +265,28 @@ STEP_NEW = """  // PAPEROS PATCH 4 (tools/patch_m5gfx.py): a pixel pair that alr
     if (white != d1 || d1 != s0) {
 """
 PATCHES.append(("src/lgfx/v1/platforms/esp32/Panel_EPD.inl", STEP_OLD, STEP_NEW, "PAPEROS PATCH 4"))
+
+# 5. BFFfont::drawChar moves the pen by the advance the font metric reports (2026-11-18). A baked LVGL font may store its
+#    advances in sixteenths of a pixel (advance_width_format 1: our Inter faces; Literata and JetBrains Mono come out as
+#    whole pixels). updateFontMetric rounds them ((adv + 8) >> 4), drawChar cut them off (>> 20): textWidth was about half
+#    a pixel a character more than the pen moved ("This one is described on a" in Inter 22: measured 274, drawn 264), so
+#    text stood tighter than the font means, centred and right-aligned text stood left of its place, and ellipsis and
+#    wrapping gave up early. Now drawing rounds as measuring does. tests/unit/text_fast_test.cpp "LovyanGFX moves the pen
+#    by the advance it measures" fails on an unpatched library.
+ADVANCE_OLD = """    int32_t xAdvance = info.advance_raw;
+    if (advance_width_format == 1)
+    {
+      xAdvance = (xAdvance * sx) >> 20;
+    }
+"""
+ADVANCE_NEW = """    int32_t xAdvance = info.advance_raw;
+    if (advance_width_format == 1)
+    {
+      // PAPEROS PATCH 5 (tools/patch_m5gfx.py): the rounded advance of updateFontMetric, not the fraction cut off.
+      xAdvance = (((xAdvance + 8) >> 4) * sx) >> 16;
+    }
+"""
+PATCHES.append(("src/lgfx/v1/lgfx_fonts.cpp", ADVANCE_OLD, ADVANCE_NEW, "PAPEROS PATCH 5"))
 
 
 def apply(libdir):

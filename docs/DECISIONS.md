@@ -288,14 +288,24 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
   of a rotated panel (one 4-bit read-modify-write per pixel, column-wise through PSRAM).
 - **Decision**: (1) the glyph path is replaced in our own code (`ui/text.cpp` "Fast text path"): glyphs are rasterised once by
   LovyanGFX itself and cached; `tests/unit/text_fast_test.cpp` requires byte-identical output to LovyanGFX. (2) Driver changes are
-  applied by `tools/patch_m5gfx.py`, a PlatformIO pre-build script for the device that edits `.pio/libdeps/papers3/M5GFX`
-  (idempotent; it fails the build when the library text is not what the patch was written for). Patch 1: tiled, table-driven
+  applied by `tools/patch_m5gfx.py`, a PlatformIO pre-build script that edits `.pio/libdeps/<env>/M5GFX` (idempotent; it
+  fails the build when the library text is not what the patch was written for; since patch 5 it runs in every
+  environment: `extra_scripts` under `[env]`). Patch 1: tiled, table-driven
   frame buffer write for a rotated panel. Patch 2: the update task skips rows whose waveform finished. Patch 3: the
   write of patch 1 runs on both cores (work-stealing counter; the helper runs below the EPD task, so waveform timing is untouched).
   Patch 4 (2026-11-17, the one patch that changes what the panel does, not only how fast): pixel pairs that already have
   their values are not driven again when the refresh mode changes (DISPLAY.md "Unchanged pixels are left alone";
   `>set epd-keep off` is the stock rule). `>set epd-selftest on`
   compares patch 1 with the stock code on the device (identical in Fast and Quality, 2026-11-16).
+  Patch 5 (2026-11-18, P7-15; the first patch outside the EPD driver, and the one the simulator and the unit tests need
+  too): `BFFfont::drawChar` moves the pen by the rounded advance `updateFontMetric` reports. A baked LVGL font may store
+  advances in sixteenths of a pixel (our Inter faces do); stock code measures them rounded (`(adv + 8) >> 4`) and draws
+  them cut off (`>> 20`), so `textWidth` was about half a pixel a character more than the pen moved ("This one is
+  described on a" in Inter 22: measured 274, drawn 264). Rounding in the drawing (not cutting in the measuring) is the
+  side chosen because it is the spacing the font means and because every layout decision already used the measured
+  width: nothing wraps or cuts differently, text only fills the width it was given. A unit test fails on an unpatched
+  library (`text_fast_test.cpp` "LovyanGFX moves the pen by the advance it measures"). The patch moves pixels: every
+  golden with Inter text was re-accepted with it.
 - **Rejected**: vendoring M5GFX (150 MB, mostly fonts); a private-member hack (`#define private public`); our own panel driver (D2).
 - **ESP-IDF settings**: see D25 (the core is now built from source).
 

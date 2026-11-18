@@ -1,6 +1,7 @@
 // The fast text path (ui/text.cpp "Fast text path") must draw exactly what LovyanGFX draws: same pixels, byte for byte.
 #include <doctest.h>
 
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -176,6 +177,101 @@ TEST_CASE("fast text: measuring from the glyph cache gives LovyanGFX's widths, f
   setFastText(true);
   forgetLoadedFont();
   CHECK(checked > 8000);
+}
+
+// M5GFX patch 5 (tools/patch_m5gfx.py, D24): BFFfont::drawChar moves the pen by the rounded advance updateFontMetric
+// reports. Stock M5GFX 0.3.0 cuts a fractional advance off when drawing (the Inter faces store sixteenths of a pixel), so
+// text was measured about half a pixel a character wider than it was drawn.
+TEST_CASE("text: LovyanGFX moves the pen by the advance it measures, for every baked character and face") {
+  Canvas c;
+  c.setColorDepth(lgfx::color_depth_t::grayscale_8bit);
+  c.createSprite(200, 160);
+  forgetLoadedFont();
+  std::vector<uint32_t> cps;
+  for (uint32_t cp = 0x20; cp <= 0x7E; ++cp) cps.push_back(cp);
+  for (uint32_t cp = 0xA0; cp <= 0x17F; ++cp) cps.push_back(cp);
+  for (uint32_t cp = 0x2010; cp <= 0x2027; ++cp) cps.push_back(cp);
+  cps.push_back(0x20AC);
+  int checked = 0;
+  for (int t = 0; t < static_cast<int>(Type::Count); ++t) {
+    lineHeight(c, static_cast<Type>(t));  // loads the face on the canvas
+    const lgfx::IFont* font = c.getFont();
+    lgfx::FontMetrics m{};
+    font->getDefaultMetric(&m);
+    lgfx::TextStyle ts;
+    ts.fore_rgb888 = 0x000000u;
+    ts.back_rgb888 = 0xFFFFFFu;
+    ts.size_x = ts.size_y = 1;
+    int inFace = 0;
+    for (uint32_t cp : cps) {
+      if (!font->updateFontMetric(&m, static_cast<uint16_t>(cp))) continue;  // not baked in this face
+      const int measured = static_cast<int>(m.x_advance);
+      int32_t filled = 1 << 30;
+      const int drawn = static_cast<int>(font->drawChar(&c, 50, 40 - m.y_offset, static_cast<uint16_t>(cp), &ts, &m, filled));
+      if (drawn != measured) {
+        INFO("type " << t << " code point " << cp);
+        CHECK(drawn == measured);
+      }
+      ++inFace;
+    }
+    INFO("type " << t);
+    CHECK(inFace >= 95);  // at least ASCII
+    checked += inFace;
+  }
+  forgetLoadedFont();
+  CHECK(checked > 2000);
+}
+
+TEST_CASE("text: a string covers exactly its measured width, from its anchor (LovyanGFX and the fast path)") {
+  constexpr int kW = 540, kH = 70;
+  constexpr uint8_t kSentinel = 128;  // a gray no black-on-white glyph level gives
+  // The columns a drawText wrote: first and one past the last.
+  const auto span = [&](Type type, const std::string& s, int x, Anchor a, int& first, int& end) {
+    Canvas c;
+    c.setColorDepth(lgfx::color_depth_t::grayscale_8bit);
+    c.createSprite(kW, kH);
+    c.fillScreen(static_cast<Color>(kSentinel) * 0x010101u);
+    drawText(c, s, x, 10, type, kBlack, a, kWhite);
+    forgetLoadedFont();
+    const auto* buf = static_cast<const uint8_t*>(c.getBuffer());
+    first = kW;
+    end = 0;
+    for (int y = 0; y < kH; ++y)
+      for (int col = 0; col < kW; ++col)
+        if (buf[y * kW + col] != kSentinel) {
+          first = std::min(first, col);
+          end = std::max(end, col + 1);
+        }
+  };
+  const std::vector<std::string> lines = {"This one is described on a", "Hello, world!", "Instellingen", "fjord AVAWAY To Ty iiiil",
+                                          "1 / 359", "caf\xC3\xA9 cr\xC3\xA8me \xE2\x82\xAC 12,50", "Wi-Fi  on "};
+  for (bool fast : {true, false}) {
+    for (int t = 0; t < static_cast<int>(Type::Count); ++t) {
+      const Type type = static_cast<Type>(t);
+      for (const std::string& s : lines) {
+        setFastText(fast);
+        Canvas mc;
+        mc.setColorDepth(lgfx::color_depth_t::grayscale_8bit);
+        mc.createSprite(8, 8);
+        const int w = measureText(mc, s, type);
+        forgetLoadedFont();
+        if (w > 440) continue;  // would leave the canvas
+        int first, end;
+        INFO("fast " << fast << " type " << t << " '" << s << "' width " << w);
+        span(type, s, 20, Anchor::TopLeft, first, end);
+        CHECK(first == 20);
+        CHECK(end == 20 + w);
+        span(type, s, 500, Anchor::TopRight, first, end);
+        CHECK(first == 500 - w);
+        CHECK(end == 500);
+        span(type, s, 270, Anchor::TopCenter, first, end);
+        CHECK(first == 270 - w / 2);
+        CHECK(end == 270 - w / 2 + w);
+      }
+    }
+  }
+  setFastText(true);
+  forgetLoadedFont();
 }
 
 TEST_CASE("ellipsize: the longest beginning that fits with its ellipsis, found by halving") {

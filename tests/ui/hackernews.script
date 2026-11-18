@@ -25,29 +25,33 @@ expect-state section=top|stories=30|page=1/5|
 tap 270 269
 wait 1500
 shot hackernews-thread
-expect-state story=38250001|comments=13|Page 1 of 4|next
+expect-state story=38250001|comments=13|Page 1 of 5|next
 # A tap on the right two thirds turns the page, on the left third turns back.
 tap 400 500
 wait 1500
 shot hackernews-thread-page2
-expect-state story=38250001|comments=13|Page 2 of 4|next
+expect-state story=38250001|comments=13|Page 2 of 5|next
 tap 400 500
 wait 1500
 shot hackernews-thread-code
-expect-state story=38250001|comments=13|Page 3 of 4|next
+expect-state story=38250001|comments=13|Page 3 of 5|next
 tap 100 500
 tap 100 500
 wait 1500
-expect-state story=38250001|comments=13|Page 1 of 4|next
+expect-state story=38250001|comments=13|Page 1 of 5|next
 # "Next thread": the page of the next answer to the story that starts after this page.
 tap 427 917
 wait 1500
-expect-state story=38250001|comments=13|Page 2 of 4|next
+expect-state story=38250001|comments=13|Page 2 of 5|next
 tap 427 917
 tap 427 917
 wait 1500
+expect-state story=38250001|comments=13|Page 4 of 5
+# The last thread starts on this page: no next one. Its end is a page further.
+tap 400 500
+wait 1500
 shot hackernews-thread-end
-expect-state story=38250001|comments=13|Page 4 of 4
+expect-state story=38250001|comments=13|Page 5 of 5
 # "Article": the page the story links to, as text from the reader service.
 tap 70 917
 wait 1500
@@ -70,7 +74,7 @@ shot hackernews-link-copied
 wait 3500
 back
 wait 1500
-expect-state story=38250001|comments=13|Page 4 of 4
+expect-state story=38250001|comments=13|Page 5 of 5
 back
 wait 1500
 expect-state section=top|stories=30|page=1/5|Updated 13:34

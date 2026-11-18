@@ -158,7 +158,7 @@ struct Glyph {
   bool ok = false;     // usable by the fast path
   bool metric = false; // the font has the glyph: madv, mxoff, mw are what LovyanGFX's textWidth uses for it
   int16_t madv = 0, mxoff = 0, mw = 0;
-  int16_t adv = 0;     // what drawChar advances the pen by
+  int16_t adv = 0;     // what drawChar advances the pen by (the same as madv: M5GFX patch 5, tools/patch_m5gfx.py)
   int16_t xoff = 0;    // bitmap left relative to the pen (BFF bbox_x)
   int16_t w = 0;       // bitmap width (BFF bbox_w)
   int16_t yoff = 0;    // first bitmap row relative to the string's top (after the datum)
@@ -648,22 +648,6 @@ int measureText(Canvas& c, const std::string& utf8, Type type) {
   if (gFastText && c.getTextSizeX() == 1.0f && fastWidth(id, text, width)) return width;
   useFont(c, id);
   return c.textWidth(text.c_str());
-}
-
-int penAdvance(Canvas& c, const std::string& utf8, Type type) {
-  const std::string text = sanitize(utf8);
-  if (hasSquares(text) || hasEmoji(text)) return measureText(c, text, type);
-  const FontId id = fontFor(type);
-  int sum = 0;
-  for (size_t i = 0; i < text.size();) {
-    uint32_t cp;
-    i += utf8::decode(text, i, cp);
-    if (cp < 0x20 || (cp >= 0xFE00 && cp < 0xFE10)) continue;  // not drawn (fastDraw)
-    const Glyph& g = glyphFor(id, cp);
-    if (!g.ok) return measureText(c, text, type);  // a glyph the cache does not understand: LovyanGFX's own width
-    sum += g.adv;
-  }
-  return sum;
 }
 
 int lineHeight(Canvas& c, Type type) {

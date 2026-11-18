@@ -64,6 +64,13 @@ The fonts (Inter, Literata, JetBrains Mono) are under the SIL Open Font License;
 (also `Lucide-LICENSE.txt`, ISC). API: `ui/text.h` (`drawText`, `measureText`, `lineHeight`,
 `ellipsize`, `sanitize`, `drawIcon`), tokens: `ui/theme.h`. Pitfalls found in P1-6:
 
+- **Text is drawn as wide as it is measured** (P7-15, 2026-11-18). `measureText` is the width `drawText` covers, and
+  where a second piece after it starts: a centred or right-aligned string stands exactly on its anchor, text cut by
+  `ellipsize` ends at the width asked for. This needs M5GFX patch 5 (`tools/patch_m5gfx.py`, D24): the Inter faces
+  store glyph advances in sixteenths of a pixel, and stock M5GFX measures them rounded but draws them cut off, about
+  half a pixel a character narrower (Literata and JetBrains Mono come out in whole pixels and were never affected).
+  `tests/unit/text_fast_test.cpp` checks every baked character of every face, and fails on an unpatched library.
+
 - **Pass the background colour.** M5GFX blends glyph edges between the text colour and an explicit
   background colour (`setTextColor(fg, bg)`); it cannot read the canvas. Without `bg` every glyph
   pixel is solid ink (no anti-aliasing, looks bold). `drawText(..., Anchor, bg)` defaults to paper;
@@ -154,7 +161,7 @@ class Widget {
 | `EmptyState` | 64 px icon + title + hint + optional button | empty lists, errors, loading |
 | `Keyboard` | QWERTY, 3 layers (abc / ABC / 123#), key 54x72 | Wi-Fi password, search |
 | `TextField` | one line (72 px) or `setLines(n)` wrapped lines; long press = Paste / Copy all / Clear | text input with the keyboard |
-| `TextBlock` | paginated rich text (paragraphs, bold/italic, headings; `Paragraph::margin` moves a paragraph right, heading 4 is a byline: bold at the body size, kept with its text; with `Type::Body` as the body, bold is `BodyStrong`, headings 1 and 2 are `Headline` and `Title`, and pieces of a line are placed by `ui::penAdvance`, what drawing moves the pen by) | reader, message/mail detail, Hacker News comments and articles |
+| `TextBlock` | paginated rich text (paragraphs, bold/italic, headings; `Paragraph::margin` moves a paragraph right, heading 4 is a byline: bold at the body size, kept with its text; with `Type::Body` as the body, bold is `BodyStrong`, headings 1 and 2 are `Headline` and `Title`, and pieces of a line are placed by `ui::measureText`, as in the reader) | reader, message/mail detail, Hacker News comments and articles |
 
 Loading is shown with `EmptyState` ("Loading..." + icon), never a spinner. Stale cached data is
 shown immediately with a "Updated 12:30" caption, then replaced when the fetch finishes.

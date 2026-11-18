@@ -446,6 +446,13 @@ P6-11 last (it needs the relay and a device that can pair).
   (2026-11-18: done; on the device a thread of 236 comments, an article of 145 paragraphs; camera: page turns and list
   changes are one Fast pass, 105-120 ms from the tap to the panel driver, apps/hackernews.md "Speed and flicker".)
 
+- [~] **P7-15 Inter drawn as wide as it is measured** (2026-11-18, from STATUS "Notes for later tasks": found with the
+  Hacker News app). Read: D24, UI.md "Type". M5GFX patch 5 in `tools/patch_m5gfx.py` (`BFFfont::drawChar` rounds a
+  fractional advance as `updateFontMetric` does), in every environment; `ui::penAdvance` and the text block's special
+  case for Inter go; every golden with Inter text re-accepted after a look. Done when: a unit test proves measured
+  width = pen advance for every baked character in every face, `make check` green, the EPD self-test says identical on
+  the device, docs true. (2026-11-18: all but the device: STATUS "Pending device checks".)
+
 ## Phase 8: Optional, ask the owner first
 
 - [ ] **P8-1 Notification-sensor feeds** (DECISIONS.md D8) as a replacement if the WhatsApp

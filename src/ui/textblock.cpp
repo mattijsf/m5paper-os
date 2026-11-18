@@ -28,9 +28,6 @@ Type CanvasMetrics::faceFor(Type type, bool bold, bool italic, bool& fakeBold) {
 int CanvasMetrics::width(const std::string& utf8, Type type, bool bold, bool italic) {
   bool fake;
   Type face = faceFor(type, bold, italic, fake);
-  // The interface's font: what drawing moves the pen by (ui::penAdvance says why), so a bold word in a line stands where
-  // the text before it ends. The reader's faces measure as they draw.
-  if (face == Type::Body || face == Type::BodyStrong || face == Type::Title || face == Type::Headline) return penAdvance(c_, utf8, face);
   return measureText(c_, utf8, face) + (fake ? 1 : 0);
 }
 

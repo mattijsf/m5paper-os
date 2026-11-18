@@ -49,6 +49,32 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   shared score had its own name (the user set it to "Woordle" later). Seventh app: the launcher now has a second page. The firmware builds with it; not flashed (Pending
   device checks). Open question 7.
 
+- **P7-15 Inter is drawn as wide as it is measured, 2026-11-18: built, simulator and unit tests; not flashed yet**
+  (the fix "Notes for later tasks" asked for; D24 patch 5, UI.md "Type"). M5GFX measured a glyph's fractional advance
+  rounded and drew it cut off: every Inter string (Caption, Body, BodyStrong, Title, Headline: 816 of their baked glyphs have
+  an advance that rounds up) was drawn about half a pixel a character narrower than `measureText` said. `tools/patch_m5gfx.py` patch 5
+  makes `BFFfont::drawChar` round as the metric does, and the script now runs in **every** environment
+  (`extra_scripts` under `[env]` in `platformio.ini`): the simulator and the unit tests draw with the same patched
+  library as the device. What it looks like: Inter is set a little wider (as the font means), centred text stands on
+  its centre (a launcher tile's name was 2-5 px left), right-aligned text reaches its edge (times in the inbox list,
+  values in Settings), a text field's caret stands at the end of the text. Nothing wraps or cuts differently: every
+  layout decision already used the measured width. The one exception is the text block with Inter (Hacker News
+  comments and articles), which had measured by `ui::penAdvance` (the narrow, drawn width): that function and the
+  special case in `CanvasMetrics::width` are gone, so those pages hold a little less (the fixture thread is 5 pages,
+  was 4; scripts `hackernews` and `hackernews-resume` follow, `hackernews-thread-end` is now page 5 of 5). Literata
+  and JetBrains Mono are whole pixels: the reader's text and Teletekst's 13 px grid are pixel for pixel what they were
+  (checked: a reader page differs only in its footer line, a Teletekst page only in the title, "Updated" and the
+  buttons). **All 288 goldens re-accepted** (every screen has Inter on it) after a look at old and new side by side:
+  launcher, Settings list and Power, WhatsApp list, Weather, Agenda day, Widgets 3, keyboard, Teletekst, a reader
+  page, Hacker News list, thread and article. Unit tests: "LovyanGFX moves the pen by the advance it measures, for
+  every baked character and face" and "a string covers exactly its measured width, from its anchor" (both fail on an
+  unpatched library: 1,014 failed assertions before the patch); the fast text path is byte-identical as before (it
+  probes the patched `drawChar`). 346 unit tests, 288 screenshots; firmware 2,530,416 bytes (-208).
+  **Mind in other checkouts and worktrees**: after merging this, the first build wipes `.pio/build` (a
+  `platformio.ini` change) and patches that checkout's own `.pio/libdeps/<env>/M5GFX`; goldens made with an
+  unpatched simulator will not match. **Device: Pending device checks** (the device was in use by the Teletekst
+  work; user: wait for it).
+
 - **P7-14 Hacker News, 2026-11-18: built, runs on the device, checked with the camera**. App `hackernews`, the eleventh tile of launcher page 1 (a Y in a filled
   square, drawn; its name is set in the caption size: wider than the tile's 137 px). Lists Top / New / Ask / Show: thirty
   stories, six a page, in the site's order; a story: its own text and every comment as pages of text (`ui::TextBlock`,
@@ -70,7 +96,7 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   instead of asking LovyanGFX (identical, tested for every baked character and face); `ui::ellipsize` finds its cut by
   halving; glyph probing skips untouched rows. Ten goldens of Settings and the Display lab re-accepted (their counters
   show fewer passes). New in `ui/textblock`: `Paragraph::margin`, heading 4 (a byline), with `Type::Body` real bold
-  (`BodyStrong`), headings in Inter and pieces placed by `ui::penAdvance`.
+  (`BodyStrong`), headings in Inter and pieces placed by `ui::penAdvance` (gone again with P7-15: `measureText`).
   **On the device (flashed, injected taps, frame dumps in `out/dev-hn/`, log, camera)**: TLS to the three services
   works; the live Top list; a story of 236 comments is 710 paragraphs and 116 pages; an article of 145 paragraphs in
   1.6 s; internal heap lowest 79 KB, 115 KB free with a story open and after leaving; UI stack 2.8 KB left, worker
@@ -436,6 +462,12 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Inter drawn as measured (P7-15, 2026-11-18)**: simulator and unit tests only; the device was in use by the
+  Teletekst work. To do: `rm -rf .pio/libdeps/papers3/M5GFX`, `make fw` (the log must say
+  "applied PAPEROS PATCH 1" to "5"), `make flash`, `tools/device.py set epd-selftest on` and the log says "identical";
+  frame dumps of the launcher, Settings, a WhatsApp or Hacker News list and a Teletekst page, each compared with the
+  simulator's render (text positions must be the simulator's). Nothing for the camera: the patch moves glyphs by whole
+  pixels, it does not change how they are driven.
 - **Idle return on battery (P7-13, 2026-11-18)**: checked on USB only, where the device does not light-sleep. Open: on
   battery the idle return's timer must wake the device from light sleep a minute after the last touch (timers are part
   of `Os::msToNextDeadline()`, as for the settle pass; the unit tests cover the deadline, not the wake). To do: unplug,
@@ -670,15 +702,11 @@ None of these block Phase 1, Phase 2, or the reader.
 
 ## Notes for later tasks
 
-- **LovyanGFX measures the Inter faces wider than it draws them (found 2026-11-18, not fixed)**: the baked Inter fonts
-  (measured: Caption, Body, BodyStrong, Title) store glyph advances in sixteenths of a pixel. `BFFfont::
-  updateFontMetric` rounds them (`(adv + 8) >> 4`), `BFFfont::drawChar` cuts them off (`>> 20`): `textWidth` is about
-  half a pixel a character more than the pen moves ("This one is described on a": measured 274, drawn 264; Literata's
-  advances are whole pixels, so the reader is not affected). Consequences today: text is set a little tighter than the
-  font means, centred text stands 2-5 px left of centre, ellipsis cuts and wrapping give up a few pixels early. The
-  text block works around it for Inter (`ui::penAdvance`, 2026-11-18). The real fix is one line in M5GFX (round in
-  `drawChar` as in the metric; `tools/patch_m5gfx.py`, D24): every Inter glyph then moves by its rounded advance, so
-  **every golden changes** and the EPD self-test and a look at the panel are due. A task of its own; ask the owner first.
+- **LovyanGFX measured the Inter faces wider than it drew them: fixed 2026-11-18 (P7-15)**. M5GFX patch 5
+  (`tools/patch_m5gfx.py`, D24): `BFFfont::drawChar` rounds a fractional advance as `updateFontMetric` does. Left over
+  for whoever updates M5GFX: the patch fails the build when the library text changed, and the unit test "LovyanGFX
+  moves the pen by the advance it measures" says whether a new version still needs it. Not looked for: code that
+  compensated for the old offset by hand (a `- 2` next to a centred label); none was seen in the screenshots.
 - **A pressed look in flight delays what follows** (2026-11-18, camera): fixed for `PagerBar` and `Segmented`. Not looked
   at: `Stepper`, `LevelBar`, the keyboard's keys (they draw on Down by design: a key's letter), `TabBar`.
 - **Story open is network-bound** (Hacker News, 2026-11-18): Wi-Fi join 1.4-1.7 s when the radio was off (20 s after the
@@ -691,7 +719,9 @@ None of these block Phase 1, Phase 2, or the reader.
   Wi-Fi up for another `lingerSec`, by design.
 - **`agenda-launcher` golden under load (2026-11-18)**: with the Mac at load 20+ (other builds running) the shot at
   1700 ms sometimes catches the launcher before the settle pass that follows the relay read (2 of 5 runs; none in three
-  runs before and after). The script's 200 ms between the read and the shot is the margin. Not changed.
+  runs before and after). The script's 200 ms between the read and the shot is the margin. Not changed. Seen again
+  on 2026-11-18 the other way round (P7-15, load 10): the accept run caught the launcher *after* the settle, six runs
+  after it before it; the golden is the state before the settle, as it always was.
 - **Weather on the launcher or the sleep screen** (P7-11, 2026-11-16): the weather app wants neither yet. A line like
   "6° Partly cloudy, rain 70 % at 17:00" can come from the saved copy (`/data/cache/weather/weather.thuis.json`, `weather_model`
   `fromJson` + `nextHours`) without a read; keeping it fresh needs a scheduled wake (POWER.md). Left out because the agenda
@@ -1200,3 +1230,14 @@ None of these block Phase 1, Phase 2, or the reader.
   with the page, lists fresh for 15 minutes). After: list turn 105 ms one pass, list switch 120 ms one pass, page turn
   110 ms one pass; camera: visible 0.38 s after the tap, done at 0.51 s, no visible settle. Ten goldens of Settings and
   the Display lab re-accepted (pass counters). 344 unit tests, 288 screenshots; firmware 2,530,624 bytes.
+- 2026-11-18: P7-15 Inter drawn as measured (M5GFX patch 5). The unit tests first, against the stock library: 816
+  glyphs of the five Inter faces move the pen by one pixel less than they measure, none of Literata, JetBrains Mono or
+  the icon fonts. The patch is one line (`(((adv + 8) >> 4) * sx) >> 16`); the fast text path needed nothing (it probes
+  `drawChar`). The script had to run for the simulator and the test program too, so `extra_scripts` moved to `[env]`
+  (the EPD patches are applied to every environment's copy as well; only the device compiles that file). `ui::
+  penAdvance` removed; the text block measures Inter as it measures Literata. Surprises: (1) the first simulator build
+  held other uncommitted `display_manager.cpp` edit (shared checkout; it moved to a worktree minutes
+  later): the Hacker News thread came out settled where the golden is not. Seen in the side-by-side, rebuilt from the
+  clean tree before accepting anything. (2) `agenda-launcher` flaked in the accept run (Notes for later tasks); its
+  golden was put back to the stable state by hand. 346 unit tests, 288 screenshots (all re-accepted), firmware
+  2,530,416 bytes (-208). Not flashed: the device was in use for Teletekst (Pending device checks).
