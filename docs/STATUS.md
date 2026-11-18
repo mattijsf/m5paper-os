@@ -1337,3 +1337,12 @@ None of these block Phase 1, Phase 2, or the reader.
   with a monochrome layer, vectors only (android/README.md "Launcher icon"). Preview drawn from the shipped drawables:
   `out/companion-icon/preview.png`. APK built; not installed (no phone on adb, and an install stops the relay service
   until the app is opened).
+- 2026-11-18: The PaperOS mark on the plain sleep screen: drawn icon `Icon::Paperos`
+  (42 x 64, `assets/icons-drawn/paperos.txt`) where the Lucide open book stood; the open book stays the Read app's icon. 4
+  goldens re-accepted. **On the device** (flashed from the shared checkout with other uncommitted read-later
+  work in the tree, 2,557,763 bytes): Today board switched off in Settings > Power, `>poweroff 50`, webcam still of the
+  panel while off: the mark with its fold, the gap and the three lines of text are there above "PaperOS"
+  (`out/paperos-mark/cam-sleep-mark.png`, the crop without the agenda line); the device woke by its alarm and the switch
+  is back on (frame dump equal to the one before, clock aside). Noticed: `tools/device.py wait-boot` times out after an
+  RTC wake (that boot logs "the panel keeps its image: no first refresh", not the line `wait-boot` waits for); the
+  device was up. Images: `out/paperos-mark/`.
