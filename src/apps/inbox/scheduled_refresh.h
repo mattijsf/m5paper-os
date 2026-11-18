@@ -1,5 +1,6 @@
-// Scheduled refresh (task P7-5, docs/POWER.md): the RTC woke the switched-off device. Fetch the inbox feeds, update the launcher badges
-// and the sleep screen's summary line, and switch off again until the next alarm. Nothing else runs: no launcher, no app.
+// Scheduled refresh (tasks P7-5 and P7-16, docs/POWER.md): the RTC woke the switched-off device. Read the relay (inbox feeds,
+// agenda) and the weather, update the launcher badges and the sleep screen, and switch off again until the next alarm.
+// Nothing else runs: no launcher, no app.
 #pragma once
 
 #include <memory>
@@ -16,6 +17,7 @@ std::unique_ptr<Surface> createRefreshSurface(Os& os);
 struct RefreshResult {
   int unread = 0;
   int feedsOk = 0;
+  bool weather = false;  // the weather's first place answered (its saved copy is new)
 };
 // Writes both inbox badges (/data/cache/<id>/badge) from the notification store: what is newer than each app's seen marker.
 // `gone`: no feed can exist (not paired, no relay), the badges become 0. Returns the unread total. For every reader of the
@@ -25,5 +27,8 @@ int writeBadges(const companion::Notifs& notifs, bool gone = false);
 int freshMessages(const companion::Notifs& notifs);
 // Reads the companion relay (relay_fetch.h) and writes both inbox badges. Blocking (worker thread).
 RefreshResult refreshFeeds(HaClient ha, int64_t now, bool takeClip);
+// The scheduled wake's whole read: the relay, then the weather for the sleep screen's board (`withWeather`: config
+// power.sleepBoard). The weather is not asked when the relay's request found no network: one Wi-Fi attempt a wake.
+RefreshResult refreshForSleep(HaClient ha, int64_t now, bool takeClip, bool withWeather);
 
 }  // namespace pos::inbox

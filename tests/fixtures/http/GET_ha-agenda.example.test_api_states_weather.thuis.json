@@ -1,0 +1,33 @@
+{
+ "entity_id": "weather.thuis",
+ "state": "partlycloudy",
+ "attributes": {
+  "temperature": 6.4,
+  "apparent_temperature": 2.9,
+  "dew_point": 4.1,
+  "temperature_unit": "°C",
+  "humidity": 85,
+  "cloud_coverage": 62,
+  "uv_index": 1,
+  "pressure": 1011.8,
+  "pressure_unit": "hPa",
+  "wind_bearing": 225,
+  "wind_gust_speed": 41.0,
+  "wind_speed": 22.0,
+  "wind_speed_unit": "km/h",
+  "visibility": 16.0,
+  "visibility_unit": "km",
+  "precipitation_unit": "mm",
+  "attribution": "Data from Google Weather",
+  "friendly_name": "Thuis",
+  "supported_features": 7
+ },
+ "last_changed": "2026-01-15T11:54:00Z",
+ "last_reported": "2026-01-15T12:30:00Z",
+ "last_updated": "2026-01-15T12:30:00Z",
+ "context": {
+  "id": "01KF0000000000000000000000",
+  "parent_id": null,
+  "user_id": null
+ }
+}

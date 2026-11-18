@@ -1,0 +1,55 @@
+# P7-16: the Today board on the sleep screen (docs/POWER.md "Sleep screen"). One Home Assistant with the phone's calendar
+# (the relay, fixture ha-agenda.example.test) and the weather (weather.thuis); today is Thursday 15 January 2026, 13:34.
+# The board at power-off, after a scheduled refresh two hours later, with a book open, and switched off in Settings.
+wait 1700               # (1.5 s after the launcher came up it read the relay: the agenda and "4 unread" are there)
+tap 438 628             # the Weather tile: the first place is read and saved
+wait 1500
+back
+wait 900
+power-off
+shot today-board
+restart
+wait 1700
+tap 270 452             # Settings
+wait 900
+tap 270 364             # Power
+wait 900
+tap 270 425             # wake to update the sleep screen every: 2 h
+wait 900
+shot today-board-setting
+back
+wait 900
+back
+wait 900
+timer-wake              # sleep screen, two hours pass, the alarm boots the device: the relay and the weather are read
+wait 4000
+shot today-board-refreshed
+expect-off 7200
+restart
+wait 1700
+tap 100 276             # Read
+wait 900
+tap 270 178             # the book
+wait 1500
+power-off
+shot today-board-book
+restart
+wait 2000               # the book is open again
+tap 270 500             # its menu
+wait 900
+tap 432 900             # Library
+wait 900
+back                    # the launcher
+wait 900
+tap 270 452             # Settings
+wait 900
+tap 270 364             # Power
+wait 900
+tap 470 525             # Today on the sleep screen: off
+wait 900
+back
+wait 900
+back
+wait 900
+power-off               # the plain screen: the mark, one agenda line, the unread count
+shot today-board-off

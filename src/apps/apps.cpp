@@ -4,12 +4,15 @@
 #include "apps/inbox/scheduled_refresh.h"
 #include "apps/launcher/launcher.h"
 #include "apps/uitest/uitest.h"
+#include "apps/weather/weather_fetch.h"
 #include "core/shell.h"
+#include "core/sleep_screen.h"
 #include "core/store.h"
 
 namespace pos::apps {
 
 std::unique_ptr<Surface> createSurface(const std::string& name, Os& os, bool resume) {
+  setSleepWeatherSource(weather::sleepBoardSource);  // the Today board's weather (core does not include apps); idempotent
   if (name.empty() || AppRegistry::instance().find(name)) {
     auto shell = std::make_unique<Shell>(os);
     launcher::install(*shell);
@@ -35,7 +38,10 @@ std::unique_ptr<Surface> createSurface(const std::string& name, Os& os, bool res
 std::unique_ptr<Surface> createBootSurface(const std::string& name, Os& os) {
   inbox::installClipboardSync(os);  // the clipboard shared with a paired phone (D23); idempotent
   const bool scheduled = os.takeScheduledWake();  // always asked: it also forgets the remembered wake time
-  if (scheduled && name.empty()) return inbox::createRefreshSurface(os);
+  if (scheduled && name.empty()) {
+    setSleepWeatherSource(weather::sleepBoardSource);
+    return inbox::createRefreshSurface(os);
+  }
   return createSurface(name, os, true);
 }
 

@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "core/sleep_screen.h"
 #include "gen/icons.h"
 
 namespace pos::weather {
@@ -132,6 +133,11 @@ bool isNight(const Step& s);
 // Hours that are past are left out, so today's first block can be short; a day with no hours left is left out, and so is
 // a last block the forecast ends in the middle of.
 std::vector<DayBlocks> dayBlocks(const std::vector<Step>& hourly, int64_t now, int span, int maxDays);
+// The weather part of the sleep screen's Today board (POWER.md "Sleep screen") at `now`: today's forecast (high and low,
+// condition, rain chance) and the next kSleepBlocks blocks of three hours. Forecasts only, no "now": the screen stays for
+// hours. Nothing is filled when the copy has no forecast for today or was read more than kBoardStaleSec ago.
+constexpr int64_t kBoardStaleSec = 24 * 3600;
+void fillSleepBoard(SleepBoard& board, const Weather& w, int64_t now);
 // Local date as a day number (days since 1970-01-01) of a unix time, using the process time zone.
 int localDay(int64_t t);
 

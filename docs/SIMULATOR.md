@@ -189,6 +189,8 @@ A task is done only when `make check` passes.
   **The tool never hangs**: a serial write times out after 5 s, an unanswered command is sent again with a line on stderr, and the whole
   run ends with exit code 3 after `--limit` seconds (default 90; a script: its waits + 20 s per step + 60). `-v` prints every script step.
   `tools/device.py scripts` lists what can run:
+  - `sleepboard` is no script: a test screen (`>set screen sleepboard`) that draws the sleep screen as a power-off would
+    now, to read the Today board back from a device (POWER.md "Today board").
   - **compare** (no card data, no fixtures): `textblock`, `widgets1`, `widgets2`, `widgets2list`, `widgets2rows`, `widgets3`; also `launcher` and
     `display-lab`, which cannot match on a real device (live date line, counters and summary line; with a book open the Read tile goes
     straight to the book, so `launcher` goes off its path). Device run 2026-11-15: the first five identical, `widgets3` 6 of 12 (STATUS.md).
@@ -196,7 +198,7 @@ A task is done only when `make check` passes.
     `launcher-summary`, `library`, `reader-menu`, `settings`.
   - **cannot**: scripts with `type` / `type-max` (key positions are not exposed: `keyboard`, `wifi`, `textfield-menu`, `whatsapp-send`,
     `whatsapp-send-refused`, `whatsapp-send-missing`), `wifi on|off|hiccup` (simulator only: `home-offline`,
-    `inbox-error`, `inbox-hiccup`, `inbox-mail`), `restart` (`epub`, `inbox`, `inbox-wifi`, `reader`), `power-off` (`sleep`, `sleep-reader`), `timer-wake` (`sched-refresh`; on the device: `poweroff N M`), and `fonts` (drawn by the Os).
+    `inbox-error`, `inbox-hiccup`, `inbox-mail`), `restart` (`epub`, `inbox`, `inbox-wifi`, `reader`), `power-off` (`sleep`, `sleep-reader`, `today-board`), `timer-wake` (`sched-refresh`, `today-board`; on the device: `poweroff N M`), and `fonts` (drawn by the Os).
   Time is real on the device: a shot right after a tap can catch the frame before or after the settle pass, so it may differ from the golden by a few
   hundred anti-aliased pixels (seen in `widgets3-stepper` and `-level` even against the simulator's remote mode).
 - **An app left open goes back to the launcher after a minute without a touch** (the idle return, apps/launcher.md; injected

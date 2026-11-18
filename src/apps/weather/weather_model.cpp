@@ -340,6 +340,37 @@ std::string amount(double v, const std::string& unit) {
   return buf;
 }
 
+void fillSleepBoard(SleepBoard& board, const Weather& w, int64_t now) {
+  if (now <= 0 || w.fetched <= 0 || now - w.fetched > kBoardStaleSec) return;
+  const std::vector<Step> days = nextDays(w.daily, now, 1);
+  if (days.empty() || localDay(days[0].time) != localDay(now) || days[0].condition.empty()) return;
+  const Step& d = days[0];
+  board.weather = true;
+  board.weatherIcon = conditionIcon(d.condition);
+  board.temps = tempText(d.temperature);
+  if (d.templow != kNone) board.temps += (board.temps.empty() ? "" : " / ") + tempText(d.templow);
+  board.summary = conditionText(d.condition);
+  if (d.precipProbability != kNone && d.precipProbability >= 1) {  // "Rain, 80%", "Cloudy, rain 30%"
+    const std::string& k = d.condition;  // a condition that says what falls needs no "rain" before the chance
+    const bool wet = k.find("rain") != std::string::npos || k == "pouring" || k == "snowy" || k == "hail";
+    board.summary += std::string(wet ? ", " : ", rain ") + std::to_string(std::lround(d.precipProbability)) + "%";
+  }
+  board.blocks.clear();
+  for (const DayBlocks& day : dayBlocks(w.hourly, now, 3, 2)) {
+    for (const Block& k : day.blocks) {
+      if (static_cast<int>(board.blocks.size()) >= kSleepBlocks) return;
+      SleepBoard::Block out;
+      char range[24];
+      std::snprintf(range, sizeof range, "%02d\xE2\x80\x93%02d", k.fromHour, k.toHour);
+      out.label = range;
+      out.icon = conditionIcon(k.condition, k.night);
+      out.temp = tempText(k.temperature);
+      if (k.precipProbability != kNone && k.precipProbability >= 1) out.rain = std::to_string(std::lround(k.precipProbability)) + "%";
+      board.blocks.push_back(out);
+    }
+  }
+}
+
 int localDay(int64_t t) {
   int days = 0;
   return pos::localDay(t, days) ? days : static_cast<int>(t / 86400);

@@ -100,7 +100,7 @@ class PowerPage : public Page {
       cfg().launcher.homeAfterSec = kSec[i];  // the Shell reads it at its next look (within a minute)
       save();
     };
-    caption(root, "While off, wake to check the inbox every");
+    caption(root, "While off, wake to update the sleep screen every");
     const int h = cfg().power.refreshHours;
     auto* refresh = root.add<ui::Segmented>(std::vector<std::string>{"Off", "1 h", "2 h", "4 h", "8 h"}, h == 1 ? 1 : h == 2 ? 2 : h == 4 ? 3 : h == 8 ? 4 : 0);
     refresh->onChange = [this](int i) {
@@ -109,6 +109,11 @@ class PowerPage : public Page {
       save();
     };
     root.add<ui::Spacer>(ui::s2);
+    auto* board = root.add<ui::ListItem>("Today on the sleep screen", "Weather and agenda while off", true, ui::Icon::Calendar);
+    board->setToggle(cfg().power.sleepBoard, [this](bool on) {
+      cfg().power.sleepBoard = on;
+      save();
+    });
     auto* usb = root.add<ui::ListItem>("Stay awake on USB", "Sleeping would cut the serial link", true, ui::Icon::Power);
     usb->setToggle(cfg().power.stayAwakeOnUsb, [this](bool on) {
       cfg().power.stayAwakeOnUsb = on;

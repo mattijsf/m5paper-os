@@ -4,7 +4,10 @@ The weather at home from Home Assistant's **Google Weather** integration (task P
 only: the app never changes anything in Home Assistant.
 
 Code: `src/apps/weather/` (`weather_model.*` parsing, saved copy and texts, unit tested in `tests/unit/weather_test.cpp`;
-`weather_app.cpp` the screen and its three pages). Launcher tile "Weather", icon `cloud-sun`, order 98 (after the agenda:
+`weather_fetch.*` the read of one place, shared with the scheduled refresh, and the sleep screen's weather source;
+`weather_app.cpp` the screen and its three pages). **Outside the app**: the first place's saved copy is the weather on
+the sleep screen's Today board (POWER.md "Today board": today's high and low, the day's condition, the next four blocks;
+`fillSleepBoard`), and a scheduled refresh reads that place while the device is off (`refreshSaved`). Launcher tile "Weather", icon `cloud-sun`, order 98 (after the agenda:
 page 2).
 
 ## Places
@@ -143,5 +146,5 @@ UI scripts (goldens in `tests/ui/golden/`): `weather` (fixtures, both places; sh
 `weather-stale-hours`), `weather-dry` (one place, no switcher, a rain sensor without rain), `weather-unset` (no card config), `weather-denied` (401), `weather-missing` (the second place's entity in
 `/data/apps/weather.json` does not exist: 404, Thuis works). Fixtures: `tests/fixtures/make-weather-fixtures.py` (writes the HTTP fixtures:
 both places' entity and two forecasts, sun, the rain sensor with a shower and one without, the 404 and the 401, and the
-stale script's saved copy). The two forecast POSTs share a URL, so their fixtures carry a
+stale script's saved copy, and the first place once more for ha-agenda.example.test, the Today board's host). The two forecast POSTs share a URL, so their fixtures carry a
 body hash (SIMULATOR.md "HTTP fixtures").

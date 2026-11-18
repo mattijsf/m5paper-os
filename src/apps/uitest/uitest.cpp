@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "core/sleep_screen.h"
+
 #include "ui/controls.h"
 #include "ui/inputs.h"
 #include "ui/keyboard.h"
@@ -383,6 +385,18 @@ class CalibrationTarget : public Widget {
   }
 };
 
+// sleepboard (P7-16): the sleep screen as a power-off would draw it now, from what is saved on the device (the Today
+// board, or the plain screen when there is nothing for it). A power-off takes the USB link with it, so this is how the
+// board is read back from the device: `tools/device.py set screen sleepboard`, then `shot`.
+class SleepBoardPreview : public Widget {
+ public:
+  explicit SleepBoardPreview(Os& os) : os_(os) {}
+  void draw(Canvas& c) override { drawSleepScreenFor(c, nullptr, os_.platform().clock.now(), true, ""); }
+
+ private:
+  Os& os_;
+};
+
 }  // namespace
 
 std::unique_ptr<Root> create(const std::string& name, Os& os) {
@@ -396,8 +410,9 @@ std::unique_ptr<Root> create(const std::string& name, Os& os) {
   if (name == "widgets6") root = widgets6();
   if (name == "widgets2list") root = widgets2list();
   if (name == "emoji") root = emojiScreen();
-  const bool target = name == "camcal";
-  if (target) root = std::make_unique<CalibrationTarget>();
+  const bool target = name == "camcal" || name == "sleepboard";  // one Quality pass, as the sleep screen gets
+  if (name == "camcal") root = std::make_unique<CalibrationTarget>();
+  if (name == "sleepboard") root = std::make_unique<SleepBoardPreview>(os);
   if (!root) return nullptr;
   auto screen = std::make_unique<Root>(os.canvas(), os.displayManager(), &os.timers());
   screen->setRoot(std::move(root));

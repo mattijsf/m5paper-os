@@ -3,10 +3,57 @@
 // keeps its picture without power: nothing else tells off from on). No clock: it stays for hours.
 #pragma once
 
+#include <string>
+#include <vector>
+
+#include "core/agenda.h"
 #include "core/app.h"
 #include "core/gfx.h"
 
 namespace pos {
+
+// The Today board (POWER.md "Sleep screen", task P7-16): what the sleep screen shows of the day when there is something
+// to show. Plain text and icons: core draws it, the parts are filled from the saved agenda (core/agenda) and, through
+// the weather source, from the weather app's saved copy. Forecasts and clock times only: the screen stays for hours.
+struct SleepBoard {
+  std::string date;  // "Thursday 15 January": the day the board was drawn on
+  // Weather: today's forecast and the next blocks of three hours.
+  struct Block {
+    std::string label;  // "15–18"
+    Icon icon = Icon::Cloud;
+    std::string temp, rain;  // "7°", "70%" ("" when dry)
+  };
+  bool weather = false;
+  Icon weatherIcon = Icon::Cloud;
+  std::string temps;    // "7° / 1°": high and low
+  std::string summary;  // "Rain, 80%"
+  std::vector<Block> blocks;  // at most kSleepBlocks
+  // Agenda: today's events that are not over, then the next days' under a heading with the day's name.
+  struct Row {
+    bool heading = false;
+    std::string time, title;  // heading: the day in `title`
+    bool operator==(const Row& o) const { return heading == o.heading && time == o.time && title == o.title; }
+  };
+  std::vector<Row> agenda;
+  bool empty() const { return !weather && agenda.empty(); }
+};
+constexpr int kSleepBlocks = 4, kSleepAgendaRows = 6;
+
+// The agenda rows of the board at `today` / `minute` (core/agenda localNow): at most `maxRows` lines, headings included,
+// never ending on a heading. Pure.
+std::vector<SleepBoard::Row> sleepAgendaRows(const agenda::Agenda& a, int today, int minute, int maxRows = kSleepAgendaRows);
+// Fills the weather part of a board for `now` (the weather app's saved copy; no network). Set once by the composition
+// root (apps/apps.cpp): core does not include apps.
+using SleepWeatherSource = void (*)(SleepBoard& board, int64_t now);
+void setSleepWeatherSource(SleepWeatherSource source);
+// The board for `now` from what is saved on the device. Empty when the clock is not set.
+SleepBoard buildSleepBoard(int64_t now);
+// Draws the whole canvas: the board, the open book as one row (`info`, may be null; `thumb` its cover at kSleepThumbW x
+// kSleepThumbH, may be null), the unread counts per app and `updated` ("14:05", "" for none), then "Powered off".
+void drawSleepBoard(Canvas& c, const SleepBoard& board, const SleepInfo* info, Canvas* thumb, const std::string& updated);
+// What power-off and the scheduled refresh call: the board when `board` is set (config power.sleepBoard) and there is
+// something for it, else the plain screen below. Loads the cover itself.
+void drawSleepScreenFor(Canvas& c, const SleepInfo* info, int64_t now, bool board, const std::string& updated);
 
 // Draws the whole canvas. `info` may be null (PaperOS mark); `image` is the decoded picture of info->image (may be null).
 // `note` is one caption line above the hint ("3 unread - updated 14:05"), "" for none; `agenda` is one line above it: what
@@ -25,5 +72,6 @@ void saveSleepInfo(const SleepInfo* info);
 bool loadSleepInfo(SleepInfo& info);
 
 constexpr int kSleepImageW = 240, kSleepImageH = 360;
+constexpr int kSleepThumbW = 54, kSleepThumbH = 81;
 
 }  // namespace pos

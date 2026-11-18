@@ -80,6 +80,37 @@ then keeps whatever was on it. Task P3-6 (simulator part done): `Shell::prepareF
 `core/sleep_screen` into the canvas and calls `forceClean()` (one Quality pass); the Shell draws nothing after that.
 One caption-sized line above the hint shows the cached unread count (and the time of the last scheduled refresh, see below);
 above it, what the phone's agenda has on now or next (`sleepAgendaLine`, D28), as of the moment the screen was drawn.
+That is the **plain screen**: what the device shows when there is nothing for the board below, or with the board
+switched off.
+
+### Today board (task P7-16, D35)
+
+The device is off most of the day and the panel keeps its picture: with something to show, the sleep screen is a board
+of the day instead (`drawSleepBoard`; Settings > Power > "Today on the sleep screen", `power.sleepBoard`, default on).
+From the top, each part left out when it has nothing:
+
+- **The date** the board was drawn on ("Thursday 15 January", headline).
+- **Weather** of the app's first place, from its saved copy (no read at power-off): today's high and low, the day's
+  condition and rain chance ("Rain, 80%", "Cloudy, rain 30%"), and the next four blocks of three hours as on the app's
+  second page (hours, icon, temperature, rain chance). Left out when the copy was read more than 24 hours ago or has
+  no forecast for today (`weather::fillSleepBoard`).
+- **Agenda**: today's events that are not over (an event that is on stays until its end), then the next days with
+  events under their name ("Friday 16 January"), six lines in all, never ending on a day's name
+  (`sleepAgendaRows`). Times as in the Agenda app's list.
+- **The open book** as one row: cover, title, author and percent.
+- **Unread per app**: the app's icon and a count, nothing else (BACKEND.md "Privacy"); right of it "Updated 15:34"
+  after a scheduled refresh.
+- "Powered off" and the hint, as on the plain screen.
+
+Nothing on it reads as "now": no clock, no current temperature, no "Today" or "Tomorrow". Forecasts and clock times
+stay true while the picture stands; the date tells how old it is. With no clock, or with neither weather nor agenda,
+the plain screen is drawn. Layering: `core/sleep_screen` draws a plain `SleepBoard` (texts and icons) and builds its
+agenda part; the weather part comes through `setSleepWeatherSource`, set to the weather app's
+`weather::sleepBoardSource` in `apps/apps.cpp` (core does not include apps). Shell and the scheduled refresh both call
+`drawSleepScreenFor`. A power-off takes the USB link with it, so the board is read back from a device through the
+test screen `sleepboard` (`tools/device.py set screen sleepboard`, then `shot`): the sleep screen as a power-off
+would draw it at that moment, without a book. Goldens: `today-board`, `today-board-refreshed`, `today-board-book`, `today-board-off`,
+`agenda-sleep` (agenda only), `sched-refreshed` (weather only).
 
 ### Resume after power-off
 
@@ -141,9 +172,9 @@ info are cached by the net service: the stack's locks are held during connects a
 (`https phases: dns= tls+tcp= request+headers= body= cpu= reused=`) and `[perf] UI loop gap` for passes later than 400 ms.
 The handshake itself is ~0.6 s, well under the 2 s worry; the request/response of the Home Assistant server is the rest.
 
-## Scheduled refresh (task P7-5, `apps/inbox/scheduled_refresh`)
+## Scheduled refresh (tasks P7-5 and P7-16, `apps/inbox/scheduled_refresh`)
 
-Settings > Power > "While off, wake to check the inbox every" Off / 1 h / 2 h / 4 h / 8 h (`power.refreshHours`, default 0 = off).
+Settings > Power > "While off, wake to update the sleep screen every" Off / 1 h / 2 h / 4 h / 8 h (`power.refreshHours`, default 0 = off).
 
 - Every power-off for sleep (auto-off, "Sleep now") goes through `Os::powerOffForSleep()`: with the setting on **and the clock set** it
   powers off with an RTC alarm (`power.powerOff(hours * 3600)`) and remembers the alarm time as `wakeAt` in `/data/system.json`.
@@ -151,15 +182,18 @@ Settings > Power > "While off, wake to check the inbox every" Off / 1 h / 2 h / 
 - Boot (`apps::createBootSurface`): if the clock is within -90 s .. +180 s of `wakeAt` the boot is a scheduled wake
   (`isScheduledWake`; the RTC flag is not read, so a side-button press inside that window also counts: a touch during the refresh
   ends it in a normal boot). `wakeAt` is forgotten at every boot, so an earlier side-button press is an ordinary boot.
-- A scheduled wake builds no launcher and no app. It keeps the panel as it is (no first Quality refresh), fetches both inbox feed
-  sensors (`GET /api/states/<entity>`, one Wi-Fi attempt as always), writes each feed's cache and badge file
-  (`/data/cache/<id>/badge` = items newer than that app's seen marker), then redraws the sleep screen of the last power-off (kept as
-  `sleep.*` in `system.json`) with one more line, "3 unread - updated 14:05", in one Quality pass, and powers off with the next
-  alarm. If no feed answered the panel is left alone. Hard limit: 45 s awake, then off.
-- The sleep screen shows a count only, never a sender or text. The line is also drawn at an ordinary power-off when badges are
-  cached ("3 unread").
-- Log: one line per wake in `/data/refresh.log`, `unix,msSinceBoot,refreshMs,feedsAnswered,unread`
-  (`tools/device.py cat /data/refresh.log`).
+- A scheduled wake builds no launcher and no app. It keeps the panel as it is (no first Quality refresh), reads the relay
+  (`GET /api/states/<entity>`, one Wi-Fi attempt as always: the inbox feeds and the agenda), writes each feed's cache and badge file
+  (`/data/cache/<id>/badge` = items newer than that app's seen marker), then, with the Today board on, reads the weather's
+  first place as the app does (`weather::refreshSaved`: the entity, two forecasts, the sun, the minute forecast, on the
+  connection that is open; not asked when the relay's request found no network), then redraws the sleep screen of the last
+  power-off (the book kept as `sleep.*` in `system.json`; date, agenda and weather as of this hour) with "Updated 14:05",
+  in one Quality pass, and powers off with the next alarm. If neither the relay nor the weather answered the panel is left
+  alone. Hard limit: 45 s awake, then off.
+- The sleep screen shows a count only, never a sender or text. The count is also drawn at an ordinary power-off when badges are
+  cached.
+- Log: one line per wake in `/data/refresh.log`, `unix,msSinceBoot,refreshMs,feedsAnswered,unread,weatherRead`
+  (`tools/device.py cat /data/refresh.log`; lines from before P7-16 have five fields).
 - Test without stranding the device: `tools/device.py poweroff N` (RTC wake after N s, the refresh runs, then an ordinary boot) and
   `poweroff N M` (the refresh powers off once more for M s, the wake after that stays on).
 
@@ -168,6 +202,10 @@ refresh 2.8 / 5.2 / 2.9 / 3.0 s from the first loop pass to "done" (Wi-Fi join 1
 TLS 0.6-2.9 s, second request 37 ms on the kept-alive connection); 3.5 / 6.1 / 3.6 / 3.7 s since `setup()`. Not in those numbers:
 ROM and bootloader before `setup()` (about 1.3 s, from the time between two chained wakes) and the Quality refresh that plays
 before the power goes (1.5-1.9 s). Total per wake: **about 6.5 s, up to 9 s** with a slow TLS handshake.
+
+**With the weather (P7-16, 2026-11-18, one RTC wake on USB power)**: refresh 4.2 s (5.0 s since `setup()`): the relay's
+request 1.0 s with its TLS handshake, then the weather's five requests 34-60 ms each on the same connection, about
+0.25 s together. Inside the range above; the estimate below stands.
 
 **Estimate (not measured: there is no current meter)**: at an assumed 120 mA average while awake with Wi-Fi up, one wake costs
 about 0.2 mAh (0.15-0.3). Per day: 1 h = ~5 mAh, 2 h = ~2.5 mAh, 4 h = ~1.3 mAh, 8 h = ~0.6 mAh, against 1800 mAh: well under

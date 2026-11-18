@@ -143,6 +143,63 @@ TEST_CASE("weather: today and tomorrow in blocks of three hours") {
   CHECK(dayBlocks({}, kNow, 3, 2).empty());
 }
 
+TEST_CASE("weather: the sleep screen's board has today's forecast and the next four blocks, never a stale one") {
+  pos::applyTimezone("CET-1CEST,M3.5.0,M10.5.0/3");
+  const std::string url = "https://ha.example.test/api/services/weather/get_forecasts?return_response";
+  Weather w;
+  REQUIRE(parseForecast(readFixture(pos::fixtureFileName("POST", url, R"({"entity_id":"weather.thuis","type":"hourly"})")), "weather.thuis", w.hourly));
+  REQUIRE(parseForecast(readFixture(pos::fixtureFileName("POST", url, R"({"entity_id":"weather.thuis","type":"daily"})")), "weather.thuis", w.daily));
+  w.now.condition = "partlycloudy";
+  w.fetched = kNow;
+
+  pos::SleepBoard b;
+  fillSleepBoard(b, w, kNow);  // 13:34 local
+  REQUIRE(b.weather);
+  CHECK(b.temps == "7\xC2\xB0 / 1\xC2\xB0");  // the day's high and low, not the 6.4 of now
+  CHECK(b.summary == "Rain, 80%");
+  CHECK(b.weatherIcon == conditionIcon("rainy"));
+  REQUIRE(b.blocks.size() == 4);
+  CHECK(b.blocks[0].label == "13\xE2\x80\x93" "15");
+  CHECK(b.blocks[0].rain == "10%");
+  CHECK(b.blocks[3].label == "21\xE2\x80\x93" "24");
+
+  // Two hours later (a scheduled refresh that got no answer still draws from this copy): the blocks moved on, into tomorrow.
+  pos::SleepBoard later;
+  fillSleepBoard(later, w, kNow + 2 * 3600);
+  REQUIRE(later.blocks.size() == 4);
+  CHECK(later.blocks[0].label == "15\xE2\x80\x93" "18");
+  CHECK(later.blocks[3].label == "00\xE2\x80\x93" "03");
+  CHECK(later.blocks[3].icon == conditionIcon("partlycloudy", true));
+
+  // A dry day says so by leaving the chance out; a cloudy one names what the chance is of.
+  Weather dry = w;
+  dry.daily[0].condition = "cloudy";
+  dry.daily[0].precipProbability = 30;
+  pos::SleepBoard d;
+  fillSleepBoard(d, dry, kNow);
+  CHECK(d.summary == "Cloudy, rain 30%");
+  dry.daily[0].precipProbability = 0;
+  pos::SleepBoard d0;
+  fillSleepBoard(d0, dry, kNow);
+  CHECK(d0.summary == "Cloudy");
+
+  // Not shown: a copy read over a day ago, a copy with no forecast for today, no clock, a copy never read.
+  pos::SleepBoard none;
+  fillSleepBoard(none, w, kNow + kBoardStaleSec + 60);
+  CHECK_FALSE(none.weather);
+  Weather old = w;
+  old.daily.erase(old.daily.begin());
+  fillSleepBoard(none, old, kNow);
+  CHECK_FALSE(none.weather);
+  fillSleepBoard(none, w, 0);
+  CHECK_FALSE(none.weather);
+  Weather never = w;
+  never.fetched = 0;
+  fillSleepBoard(none, never, kNow);
+  CHECK_FALSE(none.weather);
+  CHECK(none.empty());
+}
+
 TEST_CASE("weather: the sun's next rise and set") {
   int64_t rise = 1, set = 1;
   REQUIRE(parseSun(readFixture("GET_ha.example.test_api_states_sun.sun.json"), rise, set));

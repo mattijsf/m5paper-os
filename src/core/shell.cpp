@@ -6,7 +6,6 @@
 #include "core/quick_panel.h"
 #include "core/sleep_screen.h"
 #include "core/timefmt.h"
-#include "ui/image.h"
 
 #include "ui/widgets.h"
 
@@ -345,12 +344,9 @@ void Shell::prepareForPowerOff() {
   SleepInfo info;
   const bool haveInfo = app_ && app_->sleepInfo(info);
   if (app_) closeApp();
-  std::shared_ptr<Canvas> image;
-  if (haveInfo && !info.image.empty()) image = ui::loadImageFit(info.image, kSleepImageW, kSleepImageH);
   sleeping_ = true;  // nothing else draws over the sleep screen
-  saveSleepInfo(haveInfo ? &info : nullptr);  // a scheduled refresh redraws the same screen with a new summary
-  drawSleepScreen(os_.canvas(), haveInfo ? &info : nullptr, image.get(), sleepNote(cachedUnread(), ""),
-                  sleepAgendaLine(os_.platform().clock.now()));
+  saveSleepInfo(haveInfo ? &info : nullptr);  // a scheduled refresh redraws the same screen with what it read
+  drawSleepScreenFor(os_.canvas(), haveInfo ? &info : nullptr, os_.platform().clock.now(), os_.config().power.sleepBoard, "");
   os_.displayManager().forceClean();
 }
 

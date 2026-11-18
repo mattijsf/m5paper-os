@@ -259,6 +259,25 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   TLS connect took and mbedTLS's reason. Simulator: script command `wifi hiccup N`, `tests/ui/inbox-hiccup.script` (goldens
   `inbox-hiccup`: read at the second try, no toast; `inbox-hiccup-twice`: the toast). 348 unit tests, 290 screenshots; firmware
   2,533,671 bytes (+1,575 on 2,532,096). Flashed.
+- **P7-16 Today board on the sleep screen, 2026-11-18**. The sleep screen shows the day when there is something to
+  show: the date, the weather of the first place from its saved copy (today's high and low, the day's condition and
+  rain chance, the next four blocks of three hours), the agenda's next events (today's that are not over, then the
+  next days under their name, six lines), the open book as one row, an icon and a count per app with unread, then
+  "Powered off" as before. Nothing on it is "now". With no clock, or with neither weather nor agenda, or with the
+  switch off (Settings > Power > "Today on the sleep screen", `power.sleepBoard`, default on) the plain screen is
+  drawn as it was. The scheduled refresh (still off by default; its label is now "While off, wake to update the sleep
+  screen every") reads the weather after the relay and redraws when either answered. Code: `core/sleep_screen`
+  (`SleepBoard`, `sleepAgendaRows`, `drawSleepBoard`, `drawSleepScreenFor`), `apps/weather/weather_fetch` (the read of
+  a place, taken out of the app and shared with the wake; `sleepBoardSource`), `weather::fillSleepBoard`,
+  `inbox::refreshForSleep`; test screen `sleepboard` (`>set screen sleepboard`: the sleep screen as a power-off would
+  draw it now, for a frame dump). Tests: 2 unit tests (350), script `today-board` (5 goldens), 6 goldens re-accepted
+  (`agenda-sleep` and `sched-refreshed` are boards now; four Settings > Power shots have the new label and switch);
+  295 screenshots. Firmware 2,541,007 bytes (+7,336). **On the device** (flashed 14:08): the board read back with the
+  live weather and the phone's agenda (`out/p7-16/dev-board.png`: 10° / 7°, "Rain, 40%", four blocks, three events
+  of today and two of Thursday, emoji in titles drawn); one RTC wake (`poweroff 25`): "2 feed(s), 0 unread, weather
+  read, 4201 ms (4969 ms since boot)", the five weather requests 34-60 ms each on the open connection. Not seen: the
+  picture on the panel itself (the camera pointed elsewhere): "Pending device checks". **Next: P7-17** (Home Assistant
+  states on the board) waits for the owner's choice of items ("Open questions" 9).
 
 ## What works today
 
@@ -495,6 +514,14 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Today board (P7-16, 2026-11-18)**: (1) the board on the panel after a real power-off (grays of the cover row, the
+  1 px rules, the caption-size hours): a camera still while the device is off; the camera pointed at something else
+  on 2026-11-18, so only the frame dump of the `sleepboard` screen and the wake's log line exist. (2) the board with
+  the book row on the device (the preview screen passes no book; the simulator's `today-board-book` has it). (3)
+  "Updated HH:MM" on the panel after a wake (the wake ran and redrew, log line in "Now"; what the panel shows was not
+  seen). (4) the switch in Settings > Power on the device (simulator only). (5) the hour-long alarm on battery, as for
+  P7-5 below. (6) time awake per wake with the weather: one sample, 4.2 s refresh (P7-5 measured 2.8-5.2 s without
+  it); the weather's share is its five requests, about 0.25 s.
 - **The second try of a request (2026-11-18, "Now")**: flashed, but no request failed on the device in 9 opens, so the
   second try has run in the unit tests and the simulator only. When the user sees the "Home Assistant not reachable"
   toast again (or does not, for some days): `tools/device.py status` before the device powers off, read the line
@@ -729,6 +756,10 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
    Assistant in the browser pane); `weather.office` reads on the device. The pin is approximate: move it
    in Home Assistant if it matters.
 
+9. **Home Assistant states on the Today board (P7-17, asked 2026-11-18)**: which two or three items of the Home app
+   should the sleep screen show (the thermostat's temperature, a door or window, the car, something else)? They are read
+   at a scheduled wake, so they are as old as the board.
+
 None of these block Phase 1, Phase 2, or the reader.
 
 ## Notes for later tasks
@@ -753,7 +784,10 @@ None of these block Phase 1, Phase 2, or the reader.
   runs before and after). The script's 200 ms between the read and the shot is the margin. Not changed. Seen again
   on 2026-11-18 the other way round (P7-15, load 10): the accept run caught the launcher *after* the settle, six runs
   after it before it; the golden is the state before the settle, as it always was.
-- **Weather on the launcher or the sleep screen** (P7-11, 2026-11-16): the weather app wants neither yet. A line like
+- **The Today board's date with the scheduled refresh off (P7-16)**: the board is as of the power-off, so the next
+  morning it still shows yesterday's date and events (the date on top says so). A wake just after midnight, or one at
+  a fixed morning hour instead of every N hours, would fix that for little battery; not built.
+- **Weather on the launcher** (P7-11, 2026-11-16; the sleep screen has it since P7-16): the launcher has no weather line yet. A line like
   "6° Partly cloudy, rain 70 % at 17:00" can come from the saved copy (`/data/cache/weather/weather.thuis.json`, `weather_model`
   `fromJson` + `nextHours`) without a read; keeping it fresh needs a scheduled wake (POWER.md). Left out because the agenda
   work was changing the launcher's summary line and the sleep screen at the same time.
@@ -1294,3 +1328,7 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-18: "Home Assistant not reachable" when WhatsApp is opened with Wi-Fi off. Not reproduced on the device (16
   opens). One more try for a request that failed at once before it was sent (`NetService::perform`), the cause kept for
   `>status` and in the log, `wifi hiccup N` in the simulator. Flashed; "Now" and "Pending device checks".
+- 2026-11-18: P7-16 Today board on the sleep screen (D35): date, weather, agenda, the open book, unread per app; the
+  scheduled refresh reads the weather too; switch in Settings > Power. `weather_fetch` shared by the app and the wake,
+  test screen `sleepboard`. 350 unit tests, 295 screenshots, firmware 2,541,007 bytes (+7,336). Flashed: the board read
+  back with live data, one RTC wake with "weather read". Images: `out/p7-16/`.

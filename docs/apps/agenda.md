@@ -59,7 +59,9 @@ the agenda" is off there), List only: "Nothing planned".
 - **Launcher**: one ink line under the date with what is on now or next (`agenda::nextLine`): "Now: Lunch until 14:00",
   "14:00 Lunch with Carla", "Today: Anna's birthday", "Tomorrow 09:30 Dentist", "Wed 21 Jan: Holiday"; gone when nothing is
   left. From the saved file only (no network).
-- **Sleep screen**: the same line above the unread note, drawn at power-off and by a scheduled refresh (POWER.md).
+- **Sleep screen**: on the Today board (POWER.md "Today board", P7-16) today's events that are not over and the next
+  days', six lines; on the plain screen (board off, or the clock not set) the same line as the launcher's above the unread
+  note. Drawn at power-off and by a scheduled refresh.
 - **Reading the relay**: the Agenda app reads `to_paper` on open (stale after a minute) and on refresh; the inbox apps, the
   scheduled refresh and the clipboard pull apply `agenda` messages too (`inbox::fetchRelay`). The Agenda app's read also
   writes the inbox badges, since the read acks the whole queue.

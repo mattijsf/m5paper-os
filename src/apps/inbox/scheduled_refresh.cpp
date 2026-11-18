@@ -7,13 +7,13 @@
 #include "apps/apps.h"
 #include "apps/inbox/inbox_model.h"
 #include "apps/inbox/relay_fetch.h"
+#include "apps/weather/weather_fetch.h"
 #include "core/fs.h"
 #include "core/ha.h"
 #include "core/log.h"
 #include "core/sleep_screen.h"
 #include "core/store.h"
 #include "core/timefmt.h"
-#include "ui/image.h"
 
 namespace pos::inbox {
 
@@ -45,12 +45,12 @@ class RefreshSurface : public Surface {
     started_ = true;
     c.fillScreen(kWhite);  // nothing is pushed until the feeds answered
     t0_ = os_.platform().clock.millis();
-    POS_LOG("sched", "scheduled refresh: fetching the inbox feeds");
+    POS_LOG("sched", "scheduled refresh: reading the relay and the weather");
     HaClient ha = HaClient::fromNet(os_.net(), os_.secrets());
     auto alive = alive_;
     const int64_t now = os_.platform().clock.now();
-    const bool clip = os_.config().phone.shareClipboard;
-    os_.worker().async([ha, now, clip]() mutable { return refreshFeeds(ha, now, clip); }, [this, alive](RefreshResult r) {
+    const bool clip = os_.config().phone.shareClipboard, board = os_.config().power.sleepBoard;
+    os_.worker().async([ha, now, clip, board]() mutable { return refreshForSleep(ha, now, clip, board); }, [this, alive](RefreshResult r) {
       if (*alive) finish(r);
     });
     timer_ = os_.timers().after(kMaxAwakeMs, [this] {
@@ -66,25 +66,22 @@ class RefreshSurface : public Surface {
     finished_ = true;
     const bool touched_ = touched();
     hal::Platform& p = os_.platform();
-    // The same sleep screen as at power-off, with the new summary.
+    // The same sleep screen as at power-off, with what was read (and, on the board, the date and agenda of this hour).
     SleepInfo info;
     const bool have = loadSleepInfo(info);
-    std::shared_ptr<Canvas> image;
-    if (have && !info.image.empty()) image = ui::loadImageFit(info.image, kSleepImageW, kSleepImageH);
     const int64_t now = p.clock.now();
-    const std::string updated = r.feedsOk > 0 ? clockText(now) : std::string();
-    if (r.feedsOk > 0) {  // nothing answered: the panel keeps what it shows (no flash, less time awake)
-      drawSleepScreen(os_.canvas(), have ? &info : nullptr, image.get(), sleepNote(cachedUnread(), updated), sleepAgendaLine(now));
+    if (r.feedsOk > 0 || r.weather) {  // nothing answered: the panel keeps what it shows (no flash, less time awake)
+      drawSleepScreenFor(os_.canvas(), have ? &info : nullptr, now, os_.config().power.sleepBoard, clockText(now));
       os_.displayManager().forceClean();
     }
     os_.net().disconnect();
     // Two times: since the boot (the clock starts in setup(), the ROM and bootloader come before it) and the refresh alone.
     const uint32_t sinceBoot = p.clock.millis(), took = sinceBoot - t0_;
-    POS_LOG("sched", "scheduled refresh done: %d feed(s), %d unread, %u ms (%u ms since boot)", r.feedsOk, r.unread,
-            static_cast<unsigned>(took), static_cast<unsigned>(sinceBoot));
-    // /data/refresh.log: unix,msSinceBoot,refreshMs,feedsAnswered,unread  (tools/device.py cat /data/refresh.log)
+    POS_LOG("sched", "scheduled refresh done: %d feed(s), %d unread, weather %s, %u ms (%u ms since boot)", r.feedsOk, r.unread,
+            r.weather ? "read" : "not read", static_cast<unsigned>(took), static_cast<unsigned>(sinceBoot));
+    // /data/refresh.log: unix,msSinceBoot,refreshMs,feedsAnswered,unread,weatherRead  (tools/device.py cat /data/refresh.log)
     fs::appendFile("/data/refresh.log", std::to_string(now) + "," + std::to_string(sinceBoot) + "," + std::to_string(took) + "," +
-                                            std::to_string(r.feedsOk) + "," + std::to_string(r.unread) + "\n");
+                                            std::to_string(r.feedsOk) + "," + std::to_string(r.unread) + "," + (r.weather ? "1" : "0") + "\n");
     if (os_.offAgainAfterRefresh() > 0 && !touched_) {  // a test (>poweroff N M): off once more, the next wake stays on
       os_.powerOffForSleep(os_.offAgainAfterRefresh(), true);
       return;
@@ -128,14 +125,33 @@ int freshMessages(const companion::Notifs& notifs) {
   return fresh;
 }
 
-RefreshResult refreshFeeds(HaClient ha, int64_t now, bool takeClip) {
+namespace {
+
+// `reached`: false when the relay's request found no network or no server (the weather then need not try).
+RefreshResult readFeeds(HaClient& ha, int64_t now, bool takeClip, bool& reached) {
   RefreshResult out;
   RelayFetch f = fetchRelay(ha, now, takeClip);  // one queue for both apps (docs/COMPANION.md)
   const bool ok = f.paired && f.http.ok() && f.applied.parsed;
   const bool gone = !f.paired || f.http.error == HaError::NotFound;  // no badge for a feed that cannot exist
+  const HaError e = f.http.error;
+  reached = !f.paired || !(e == HaError::NoWifi || e == HaError::Timeout || e == HaError::Other || e == HaError::NoUrl || e == HaError::NoToken);
   if (!ok && !gone) return out;  // an error: keep the badges as they were
   out.unread = writeBadges(f.notifs, gone);
   if (ok) out.feedsOk = static_cast<int>(sizeof kFeeds / sizeof kFeeds[0]);
+  return out;
+}
+
+}  // namespace
+
+RefreshResult refreshFeeds(HaClient ha, int64_t now, bool takeClip) {
+  bool reached = false;
+  return readFeeds(ha, now, takeClip, reached);
+}
+
+RefreshResult refreshForSleep(HaClient ha, int64_t now, bool takeClip, bool withWeather) {
+  bool reached = false;
+  RefreshResult out = readFeeds(ha, now, takeClip, reached);
+  if (withWeather && reached) out.weather = weather::refreshSaved(ha, now);
   return out;
 }
 

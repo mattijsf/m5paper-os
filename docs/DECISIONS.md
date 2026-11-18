@@ -590,3 +590,18 @@ the budget runs short (sizes from the linker map):
   glyph cache, the ellipsis cut is found by halving. Those are in `ui/`, so every app's lists and labels gain
   (apps/hackernews.md "Speed and flicker"; DISPLAY.md "Tap latency").
 
+## D35. The sleep screen is a board of the day
+
+- **Why**: the panel keeps its picture with no power and the device is off most of the day. A logo and "Powered off" use
+  none of that; the date, the weather and the agenda make the device useful without a touch.
+- **Only what stays true**: the picture stands for hours, so nothing on it is "now". Today's high and low and blocks of
+  three hours instead of the current temperature; events with their times instead of "in 5 minutes"; the next days by
+  name instead of "Tomorrow"; the date on top tells how old the picture is. No clock.
+- **Fresh by the scheduled refresh**, which is off by default as before (POWER.md): with it on, the wake reads the weather
+  too and the date follows midnight within the interval. With it off the board is as of the power-off.
+- **Privacy**: the inbox stays a count per app (BACKEND.md). Event titles were on the sleep screen since D28 (one line);
+  the board shows up to five. One switch takes the board away: Settings > Power > "Today on the sleep screen".
+- **Nothing new is fetched at power-off** (no Wi-Fi join for a picture): the board is drawn from the saved agenda and the
+  weather app's saved copy; a copy older than a day is not shown.
+- **Not on it yet**: Home Assistant states (thermostat, a door, the car): they need a choice of items and their own
+  reads (ROADMAP P7-17).

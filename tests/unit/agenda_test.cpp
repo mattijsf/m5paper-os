@@ -9,6 +9,7 @@
 #include "core/agenda.h"
 #include "core/companion.h"
 #include "core/fs.h"
+#include "core/sleep_screen.h"
 #include "core/timefmt.h"
 
 using namespace pos;
@@ -148,6 +149,36 @@ TEST_CASE("agenda: texts for times, days and the next line") {
   CHECK(nextLine(a, kThu - 2, 600) == "Thu 15 Jan: Birthday");
   CHECK(nextLine(a, kThu + 3, 600) == "");
   CHECK(nextLine(Agenda{}, kThu, 600) == "");
+}
+
+TEST_CASE("sleep board: today's events that are not over, then the next days under their name") {
+  using Row = SleepBoard::Row;
+  Agenda a;
+  REQUIRE(apply(a, kRun1, 0));
+  // Thursday morning: everything of today (the board's date is its heading), then Saturday.
+  std::vector<Row> rows = sleepAgendaRows(a, kThu, 8 * 60);
+  REQUIRE(rows.size() == 5);
+  CHECK(rows[0] == Row{false, "All day", "Birthday"});
+  CHECK(rows[1] == Row{false, "09:30 - 10:15", "Dentist"});
+  CHECK(rows[2] == Row{false, "13:00 - 14:00", "Lunch"});
+  CHECK(rows[3] == Row{true, "", "Saturday 17 January"});
+  CHECK(rows[4] == Row{false, "From 22:00", "Night train"});
+  // 13:34: the dentist is over, lunch is on (it stays until it ends).
+  rows = sleepAgendaRows(a, kThu, 13 * 60 + 34);
+  REQUIRE(rows.size() == 4);
+  CHECK(rows[1].title == "Lunch");
+  CHECK(sleepAgendaRows(a, kThu, 14 * 60).size() == 3);  // over at its end
+  // A day later nothing is left of Thursday: the first row is Saturday's heading.
+  rows = sleepAgendaRows(a, kThu + 1, 600);
+  REQUIRE(rows.size() == 2);
+  CHECK(rows[0].heading);
+  // Never more than the rows asked for, and never a heading with nothing under it.
+  rows = sleepAgendaRows(a, kThu, 8 * 60, 4);
+  REQUIRE(rows.size() == 3);
+  CHECK_FALSE(rows.back().heading);
+  CHECK(sleepAgendaRows(a, kThu, 8 * 60, 2).size() == 2);
+  CHECK(sleepAgendaRows(a, kThu + 3, 600).empty());
+  CHECK(sleepAgendaRows(Agenda{}, kThu, 600).empty());
 }
 
 TEST_CASE("agenda: the day grid widens around the events and splits overlapping blocks into columns") {

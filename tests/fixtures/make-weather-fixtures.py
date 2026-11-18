@@ -6,7 +6,9 @@ over REST. Values are made up, January weather in the Netherlands; times relativ
 entity that does not exist (weather.nowhere, the missing script) and the 401 of a host that refuses the token
 (ha-denied.example.test, the denied script).
 
-Host ha.example.test (the Home app's test host; the weather entity is the only one of this domain there).
+Host ha.example.test (the Home app's test host; the weather entity is the only one of this domain there). The first
+place's answers are also written for ha-agenda.example.test, the host with the phone's calendar: the Today board's
+script (tests/ui/today-board.script) needs the agenda and the weather from one Home Assistant.
 
   python3 -I tests/fixtures/make-weather-fixtures.py tests/fixtures/http tests/ui/data
 """
@@ -194,6 +196,14 @@ def main():
     write(os.path.join(http, name("GET", "/api/states/" + ENTITY, host="ha-denied.example.test")), "401: Unauthorized", 401)
     for kind, fc in (("daily", DAILY), ("hourly", HOURLY)):
         write(os.path.join(http, name("POST", "/api/services/weather/get_forecasts", "return_response", forecast_body(kind))),
+              response(fc))
+    # The Today board's host: the first place once more (the other place's read fails there, the script never opens it).
+    board = "ha-agenda.example.test"
+    write(os.path.join(http, name("GET", "/api/states/" + ENTITY, host=board)), STATE)
+    write(os.path.join(http, name("GET", "/api/states/sun.sun", host=board)), SUN)
+    write(os.path.join(http, name("GET", "/api/states/" + RAIN, host=board)), rain_state(RAIN, RAIN_MM))
+    for kind, fc in (("daily", DAILY), ("hourly", HOURLY)):
+        write(os.path.join(http, name("POST", "/api/services/weather/get_forecasts", "return_response", forecast_body(kind), host=board)),
               response(fc))
     # The stale script: a copy saved at 07:10 local (06:10Z), no Wi-Fi since. The app's own format (weather_model.cpp toJson).
     saved_at = calendar.timegm((2026, 1, 15, 6, 10, 0))

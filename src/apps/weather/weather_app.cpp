@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "apps/common/ha_error_state.h"
+#include "apps/weather/weather_fetch.h"
 #include "apps/weather/weather_model.h"
 #include "core/app.h"
 #include "core/fs.h"
@@ -274,13 +275,6 @@ class WeatherView : public ui::Widget {
   std::vector<DayBlocks> blocks_;
 };
 
-struct Fetched {
-  int place = 0;
-  HaError error = HaError::None;  // of the entity's state; forecasts that fail keep the saved ones
-  bool parsed = false, daily = false, hourly = false;
-  Weather weather;
-};
-
 class WeatherScreen : public Screen {
  public:
   void build(ui::Column& root) override {
@@ -401,57 +395,14 @@ class WeatherScreen : public Screen {
     busy_ = true;
     showStatus();
     HaClient ha = ctx().ha();
-    const std::string entity = place().entity, rainEntity = place().rain;
-    const bool withSun = place().sun;
+    const Place where = place();
     const int index = place_;
     const Weather old = weather_;
     const int64_t now = ctx().clock.now();
     ctx().async(
-        [ha, entity, rainEntity, withSun, index, old, now]() mutable {
-          Fetched f;
+        [ha, where, index, old, now]() mutable {
+          Fetched f = fetchPlace(ha, where, old, now);
           f.place = index;
-          HaResult st = ha.get("/api/states/" + entity);
-          f.error = st.error;
-          if (!st.ok()) return f;
-          f.weather = old;
-          if (!parseState(st.body, f.weather.now)) {
-            f.error = HaError::NotFound;  // no weather entity, or it is unavailable
-            return f;
-          }
-          f.parsed = true;
-          f.weather.fetched = now;
-          const std::string body = "{\"entity_id\":\"" + entity + "\",\"type\":\"";
-          std::vector<Step> steps;
-          HaResult daily = ha.callService("weather", "get_forecasts", body + "daily\"}", true);
-          if (daily.ok() && parseForecast(daily.body, entity, steps)) {
-            f.weather.daily = steps;
-            f.daily = true;
-          }
-          HaResult hourly = ha.callService("weather", "get_forecasts", body + "hourly\"}", true);
-          if (hourly.ok() && parseForecast(hourly.body, entity, steps)) {
-            f.weather.hourly = steps;
-            f.hourly = true;
-          }
-          // The sun's next rise and set (sun.sun: Home Assistant's own location, so only for the place that is there);
-          // without an answer the saved times stay.
-          if (withSun) {
-            HaResult sun = ha.get("/api/states/sun.sun");
-            if (sun.ok()) parseSun(sun.body, f.weather.sunrise, f.weather.sunset);
-          } else {
-            f.weather.sunrise = f.weather.sunset = 0;
-          }
-          // The minute forecast of the place, if it has one: only a fresh one is kept, and only what is still ahead.
-          f.weather.rain.clear();
-          if (!rainEntity.empty()) {
-            HaResult rain = ha.get("/api/states/" + rainEntity);
-            std::vector<RainBlock> blocks;
-            int64_t reported = 0;
-            if (rain.ok() && parseRain(rain.body, blocks, reported) && (reported <= 0 || now <= 0 || now - reported <= kRainStaleSec)) {
-              for (const RainBlock& b : blocks)
-                if (b.end > now && b.start < now + 6 * 3600 && f.weather.rain.size() < 96) f.weather.rain.push_back(b);
-            }
-          }
-          fs::writeFile(cacheFile(entity), toJson(f.weather));
           return f;
         },
         [this](Fetched f) {

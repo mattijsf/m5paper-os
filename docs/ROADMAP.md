@@ -454,6 +454,27 @@ P6-11 last (it needs the relay and a device that can pair).
   the device, docs true. (2026-11-18: done; on the device the EPD self-test says identical for Fast and Quality, frame dumps of the
   test screens, Settings and the launcher are the simulator's pixel for pixel.)
 
+- [x] **P7-16 Today board on the sleep screen**. Read: POWER.md "Sleep screen" and "Scheduled
+  refresh", D28, apps/weather.md, apps/agenda.md. The panel keeps its picture without power, and the device is off most
+  of the day: the sleep screen shows the day instead of a logo. From the top: the date; the weather of the first place
+  (today's high and low, condition, rain chance, the next four blocks of three hours) from the saved copy; the agenda's
+  next events (today's that are not over, then the next day's, five rows); the open book as one row (cover, title,
+  percent); unread counts per app (counts only, as before); "Powered off" and the hint as they are. Forecasts and clock
+  times only, nothing that reads as "now": the screen stays for hours. A section with nothing to show is left out; with
+  neither weather nor agenda the screen is the one it was (cover or mark). `core/sleep_screen` draws a plain
+  `SleepBoard`; the weather part is filled by the weather app's model through a source set in `apps/apps.cpp` (core
+  does not include apps). The scheduled refresh also reads the weather (`apps/weather/weather_fetch`, shared with the
+  app) and redraws when the relay or the weather answered. Settings > Power: the wake's label names the sleep screen,
+  and a switch "Today on the sleep screen" (`power.sleepBoard`, default on). Done when: unit tests for the board's rows
+  and blocks, UI script `today-board` with goldens (power-off, scheduled refresh), `make check` green, a frame dump of
+  the board from the device and one RTC wake that redraws it. (2026-11-18: done; on the device the board was read back
+  through the test screen `sleepboard` with live weather and agenda, and one RTC wake logged "weather read"; the
+  picture on the panel itself is a pending check: the camera pointed elsewhere.)
+
+- [ ] **P7-17 Home Assistant states on the Today board** (follows P7-16; ask the owner which). Two or three states from
+  `home.json` (thermostat, a door, the car) as a row on the board: needs a way to mark the items (a key in `home.json`),
+  their reads in the scheduled refresh, and a text per item type.
+
 ## Phase 8: Optional, ask the owner first
 
 - [ ] **P8-1 Notification-sensor feeds** (DECISIONS.md D8) as a replacement if the WhatsApp

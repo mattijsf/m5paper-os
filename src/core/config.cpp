@@ -62,6 +62,7 @@ bool Config::load() {
   if (p["stayAwakeOnUsb"].is<bool>()) power.stayAwakeOnUsb = p["stayAwakeOnUsb"].as<bool>();
   if (p["log"].is<bool>()) power.log = p["log"].as<bool>();
   readInt(p["refreshHours"], power.refreshHours, 0, 24);
+  if (p["sleepBoard"].is<bool>()) power.sleepBoard = p["sleepBoard"].as<bool>();
 
   JsonVariantConst n = doc["net"];
   readInt(n["lingerSec"], net.lingerSec, 0, 600);
@@ -92,6 +93,7 @@ bool Config::save() const {
   doc["power"]["stayAwakeOnUsb"] = power.stayAwakeOnUsb;
   doc["power"]["log"] = power.log;
   doc["power"]["refreshHours"] = power.refreshHours;
+  doc["power"]["sleepBoard"] = power.sleepBoard;
   doc["net"]["lingerSec"] = net.lingerSec;
   doc["net"]["timezone"] = net.timezone;
   doc["reader"]["fontSize"] = reader.fontSize;
