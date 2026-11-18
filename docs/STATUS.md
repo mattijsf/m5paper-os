@@ -291,8 +291,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   Read tile's badge is what there is to read (links that wait + articles nobody opened), so the Today board counts it;
   "N unread" stays messages. Code: `core/readlater`, `apps/reader/articles`, `importMarkdown` and the library in
   `apps/reader`, `companion::ApplyResult::links`, `inbox::refreshForSleep`. Tests: 5 unit tests (355), script
-  `read-later` (8 goldens; fixture host ha-link.example.test); 303 screenshots. Firmware 2,557,763 bytes (+16,756 on
-  P7-16's 2,541,007, with the PaperOS mark of 560caff in it). `make check` parts all green (sim, test, ui-test, fw; run
+  `read-later` (8 goldens; fixture host ha-link.example.test); 303 screenshots. Firmware 2,558,339 bytes (+17,332 on
+  P7-16's 2,541,007, with the PaperOS mark of 560caff in it; 2,557,763 before the library's order was fixed). `make check` parts all green (sim, test, ui-test, fw; run
   apart because other work built in the same checkout). **On the device** (flashed 14:48, camera on the panel): a
   Markdown article pushed to `/sd/books/Articles/` with a name outside ASCII ("Een café – postcard test -
   example.com.md": FAT long names in UTF-8 work) is listed under the card with "New", opens in about 2 s the first time
@@ -1381,7 +1381,7 @@ None of these block Phase 1, Phase 2, or the reader.
   device was up. Images: `out/paperos-mark/`.
 - 2026-11-18: P7-18 Read later (D36): a link shared from the phone becomes `/sd/books/Articles/<title> - <host>.md`;
   the Read app opens Markdown, lists new articles first, removes them; pages read at the scheduled wake and when the
-  library opens; the Read tile's badge counts what there is to read. 355 unit tests, 303 screenshots, firmware 2,557,763
+  library opens; the Read tile's badge counts what there is to read. 355 unit tests, 303 screenshots, firmware 2,558,339
   bytes. Camera: the Today board on the panel after a power-off and after a wake ("Updated 14:41"). Read later on the
   device: pending. Images: `out/p7-18/`.
 
