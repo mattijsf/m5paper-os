@@ -8,3 +8,9 @@ wait 1500
 shot mail-detail
 back
 wait 900
+tap 270 918             # Mark all read: no question, the mails are cleared, back to the launcher (no badge on Mail)
+wait 1200
+shot mail-markall-launcher
+tap 100 424             # Mail again: nothing left
+wait 1500
+expect-state rows=0

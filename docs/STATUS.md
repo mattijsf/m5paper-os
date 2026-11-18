@@ -382,6 +382,10 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Mark all read without a question, then the launcher**.
+  Simulator only: no device on USB. To do: flash, open WhatsApp with messages in it, tap "Mark all read" (`tools/device.py tap 270 918`):
+  the frame dump shows the launcher without a badge on WhatsApp, the log says
+  `[inbox] mark all read: dismiss for N notification(s) to the phone: pushed`. The same in Mail.
 - **Sound for new messages**.
   Simulator only: nothing was flashed, the device was unplugged, and the buzzer has never sounded under this firmware.
   To do: flash, `tools/device.py set chime 1` and listen (the webcam's microphone can record it: `tools/cam.py` lists
@@ -1046,3 +1050,8 @@ None of these block Phase 1, Phase 2, or the reader.
   and "Press the side button to start" under the agenda line and "4 unread" (`out/power/cam-sleep.png`); the RTC alarm
   booted it, scheduled refresh 5.9 s, and the panel shows the launcher again (`out/power/cam-after-wake.png`). The tap
   on the icon itself: Pending device checks.
+
+- 2026-11-18: "Mark all read" in WhatsApp and Mail asks nothing and goes back to the launcher. The `dismiss` to the phone is a background job (the app is closed
+  by then) and logs its result. Golden `inbox-markall-sheet` gone; new `inbox-markall-launcher`, `mail-markall-launcher`;
+  `inbox-cleared` is now WhatsApp opened again. 312 unit tests, 244 screenshots; firmware 2,436,160 bytes (-576).
+  Not flashed: no device attached (Pending device checks).

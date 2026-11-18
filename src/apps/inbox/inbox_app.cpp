@@ -1,6 +1,6 @@
 // WhatsApp and Mail: one implementation, registered twice (docs/apps/inbox.md). The phone's notifications, decrypted from the
 // Home Assistant relay (docs/COMPANION.md, relay_fetch.h), as a list: chat conversations, mails (sender, subject, the preview the
-// notification showed), "Mark all read". WhatsApp can reply to a chat whose notification is still on the phone (compose.h).
+// notification showed), "Mark all read" (clears the list and goes back to the launcher). WhatsApp can reply to a chat whose notification is still on the phone (compose.h).
 #include <algorithm>
 #include <cstdio>
 #include <memory>
@@ -14,6 +14,7 @@
 #include "core/companion.h"
 #include "core/app.h"
 #include "core/fs.h"
+#include "core/log.h"
 #include "core/os.h"
 #include "core/text_clean.h"
 #include "core/timefmt.h"
@@ -144,7 +145,7 @@ class ListScreen : public Screen {
     status_ = root.add<ui::Label>("", Type::Caption, ui::secondary);
     status_->align = ui::TextAlign::Center;
     markAll_ = root.add<ui::Button>("Mark all read", ui::Button::Kind::Secondary);
-    markAll_->onClick = [this] { confirmMarkAll(); };
+    markAll_->onClick = [this] { markAllRead(); };  // no question first: nothing is lost, the notifications stay on the phone
     root.add<ui::Spacer>(ui::s1);
     notPaired_ = !companion::pairedPhone();
     companion::Notifs saved;
@@ -305,12 +306,8 @@ class ListScreen : public Screen {
 
   void writeBadge(int n) { setAppBadge(ctx().appId(), n); }
 
-  void confirmMarkAll() {
-    ui::confirmSheet(*holder_, "Mark all read?", "The list is cleared here. The notifications stay on your phone.", "Mark all read",
-                     [this] { markAllRead(); });
-  }
-
-  // Clears this app's notifications on the Paper and tells the phone (`dismiss`, best effort: COMPANION.md 7.2).
+  // Clears this app's notifications on the Paper, tells the phone (`dismiss`, best effort: COMPANION.md 7.2) and leaves
+  // for the launcher: the list is done with.
   void markAllRead() {
     companion::Notifs n;
     companion::loadNotifs(n);
@@ -320,16 +317,17 @@ class ListScreen : public Screen {
       if (x.app == app) keys.push_back(x.key);
     n.items.erase(std::remove_if(n.items.begin(), n.items.end(), [&](const companion::Notif& x) { return x.app == app; }), n.items.end());
     companion::saveNotifs(n);
-    feed_.items.clear();
     writeBadge(0);
-    rebuild();
-    ctx().toast("All read");
+    ctx().nav.home();
     companion::Pairing pairing;
     if (keys.empty() || !companion::loadPairing(pairing)) return;
     const std::string body = companion::dismissEnvelope(pairing, keys);
     if (body.empty() || !companion::savePairing(pairing)) return;
     HaClient ha = ctx().ha();
-    ctx().async([ha, body]() mutable { return ha.callService("script", "paperos_relay_push", body); }, [](HaResult) {});
+    ctx().background([ha, body, n = keys.size()]() mutable {  // (the app is closed by the time this runs)
+      const HaResult r = ha.callService("script", "paperos_relay_push", body);
+      POS_LOG("inbox", "mark all read: dismiss for %u notification(s) to the phone: %s", static_cast<unsigned>(n), r.ok() ? "pushed" : haErrorText(r.error));
+    });
   }
 
   const Kind& kind_;

@@ -25,8 +25,9 @@ with `POS_REGISTER_APP`.
     messages and a bullet when new; the latest message; the time at the right.
   - Mail: **sender**, the subject, the time.
 - Footer caption: "Updated 14:05". Empty: "No new messages" with the app icon.
-- Bottom button "Mark all read" > confirmation sheet ("The list is cleared here. The notifications stay on your phone.") > clears
-  this app's notifications on the Paper and sends `dismiss` with their keys to the phone (best effort).
+- Bottom button "Mark all read": no question. It clears this app's notifications on the Paper, sends `dismiss` with their keys to the phone (best
+  effort, after the app has closed; the log says `[inbox] mark all read: dismiss for N notification(s) to the phone: pushed`)
+  and goes back to the launcher, where the app has no badge. The notifications stay on the phone.
 - **No phone paired** (no `/data/companion.json`): `EmptyState` "No phone paired" / "Messages come from the PaperOS app on your
   phone. Pair it in Settings > Home Assistant > Phone." Nothing is requested.
 - **Not set up yet** (Home Assistant answers 404 for the relay): `EmptyState` "Not set up yet" / "The relay for your phone's
