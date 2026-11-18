@@ -293,8 +293,14 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   `apps/reader`, `companion::ApplyResult::links`, `inbox::refreshForSleep`. Tests: 5 unit tests (355), script
   `read-later` (8 goldens; fixture host ha-link.example.test); 303 screenshots. Firmware 2,557,763 bytes (+16,756 on
   P7-16's 2,541,007, with the PaperOS mark of 560caff in it). `make check` parts all green (sim, test, ui-test, fw; run
-  apart because other work built in the same checkout). **On the device: flashed; nothing of Read later checked
-  yet**: "Pending device checks".
+  apart because other work built in the same checkout). **On the device** (flashed 14:48, camera on the panel): a
+  Markdown article pushed to `/sd/books/Articles/` with a name outside ASCII ("Een café – postcard test -
+  example.com.md": FAT long names in UTF-8 work) is listed under the card with "New", opens in about 2 s the first time
+  (meta 0.49 s, chapter write 0.69 s, layout 0.62 s), reads well on the panel (`out/p7-18/cam-article-upright.png`),
+  takes its title from the file's header afterwards, and is removed with "Remove" on its card (the file is gone from
+  the card). **Found there and fixed**: with a shelf of opened books a new article sorted behind them, on page 2;
+  articles nobody opened now come right under the card (`sortLibrary`). **Not run: a link shared from the real
+  phone** (the queue, the page read on the device, the badge): "Pending device checks".
 
 ## What works today
 
@@ -534,9 +540,9 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
 - **Read later (P7-18, 2026-11-18)**: (1) a link shared from the real phone ("Send to Paper" on a page in the
   browser): the Read tile's badge after the next relay read, the article in the library after opening Read (or after a
   scheduled wake: `[sched] ... N article(s)`, the seventh field of `/data/refresh.log`), read on the panel. Needs the
-  user's hand on the phone. (2) a `.md` file with a name outside ASCII on the card (FAT long names in UTF-8 are on in
-  the build, never tried with such a name). (3) removing an article on the device. (4) how long a page takes on the
-  device (Hacker News measured 1.6 s for an article of 145 paragraphs).
+  user's hand on the phone. (2) how long a page takes on the device (Hacker News measured 1.6 s for an article of 145
+  paragraphs). (3) the long press on an article's row (the card's "Remove" was run). Done on 2026-11-18 ("Now"): a
+  `.md` with a name outside ASCII, opening, reading on the panel, removing.
 - **Today board (P7-16, 2026-11-18)**: done with the camera on 2026-11-18 ("Now"): the board on the panel after a real
   power-off, and "Updated HH:MM" after a wake. Open: (2) the board with the book row on the device (the preview screen
   passes no book; the simulator's `today-board-book` has it). (4) the switch in Settings > Power on the device

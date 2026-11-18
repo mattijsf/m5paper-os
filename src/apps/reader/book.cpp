@@ -699,10 +699,14 @@ std::vector<LibraryEntry> scanLibrary() {
 void sortLibrary(std::vector<LibraryEntry>& entries) {
   std::stable_sort(entries.begin(), entries.end(), [](const LibraryEntry& a, const LibraryEntry& b) {
     if (a.opened != b.opened) return a.opened > b.opened;
-    if (a.opened == 0 && a.article != b.article) return a.article;  // new articles before the books nobody opened
+    if (a.opened == 0 && a.article != b.article) return a.article;
     if (a.opened == 0 && a.article && a.added != b.added) return a.added > b.added;
     return lowerAscii(a.title) < lowerAscii(b.title);
   });
+  // Articles nobody opened go right under the book being read (the library's card), before the other books that were
+  // opened: with a shelf of opened books they would be on the second page (device, 2026-11-18).
+  const auto first = entries.begin() + ((!entries.empty() && entries[0].opened > 0) ? 1 : 0);
+  std::stable_partition(first, entries.end(), [](const LibraryEntry& e) { return e.article && e.opened == 0; });
 }
 
 OpenResult openBook(const std::string& fileName, const ui::TextStyle& style, ui::TextMetrics& metrics,

@@ -175,7 +175,8 @@ struct LibraryEntry {
 // Books in /sd/books (.epub, .txt) with title and author (from the cache once a book was opened, else from the
 // file name) and reading progress. Blocking: run on the worker. Sorted by sortLibrary().
 std::vector<LibraryEntry> scanLibrary();
-// Most recently opened first; then what was never opened: articles, the newest first, then books by title.
+// The most recently opened first (the library's card); then the articles nobody opened, the newest first; then the
+// other opened books by recency; then the books nobody opened, by title.
 void sortLibrary(std::vector<LibraryEntry>& entries);
 
 // Opens (and on first use imports) a book. Blocking; run on the worker.

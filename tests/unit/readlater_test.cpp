@@ -210,7 +210,9 @@ TEST_CASE("read later: the reader opens Markdown, and the library lists new arti
   REQUIRE(plain.chapters.size() == 1);
   CHECK(importMarkdown("").chapters.empty());
 
-  std::vector<LibraryEntry> entries(5);
+  std::vector<LibraryEntry> entries(6);
+  entries[5].title = "Read last week";
+  entries[5].opened = 20;
   entries[0].title = "Zebra book";
   entries[1].title = "Old article";
   entries[1].article = true;
@@ -222,9 +224,16 @@ TEST_CASE("read later: the reader opens Markdown, and the library lists new arti
   entries[3].added = 200;
   entries[4].title = "Alpha book";
   sortLibrary(entries);
-  CHECK(entries[0].title == "Being read");
-  CHECK(entries[1].title == "New article");
+  CHECK(entries[0].title == "Being read");  // the card
+  CHECK(entries[1].title == "New article");  // right under it, before the other books that were opened
   CHECK(entries[2].title == "Old article");
-  CHECK(entries[3].title == "Alpha book");
-  CHECK(entries[4].title == "Zebra book");
+  CHECK(entries[3].title == "Read last week");
+  CHECK(entries[4].title == "Alpha book");
+  CHECK(entries[5].title == "Zebra book");
+  std::vector<LibraryEntry> fresh(2);  // nothing opened yet: no card, the article first
+  fresh[0].title = "A book";
+  fresh[1].title = "An article";
+  fresh[1].article = true;
+  sortLibrary(fresh);
+  CHECK(fresh[0].title == "An article");
 }
