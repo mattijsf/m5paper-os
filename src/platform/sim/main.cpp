@@ -62,10 +62,47 @@ MemoryInfo memoryInfo() { return MemoryInfo{250000, 330000, 6400000, 8388608}; }
 void restart() { std::exit(0); }
 void chime() { POS_LOG("sound", "chime"); }  // nothing to hear: core/sound.h counts them (the script's expect-chimes)
 std::string boardName() { return "simulator"; }
+std::string buildId() { return "simulator"; }
 std::string macAddress() { return ""; }
 }  // namespace pos::hal
 
 namespace {
+
+// Firmware update in the simulator (hal/update.h): the image goes to /data/ota/image.bin, so the upload path can be
+// run against it (tools/ota.py --sim, the unit tests use their own fake).
+class SimUpdater : public hal::Updater {
+ public:
+  uint32_t slotSize() override { return 0x500000; }
+  bool begin(uint32_t, std::string&) override {
+    image_.clear();
+    open_ = true;
+    return true;
+  }
+  bool write(const uint8_t* data, size_t n) override {
+    if (!open_) return false;
+    image_.append(reinterpret_cast<const char*>(data), n);
+    return true;
+  }
+  bool finish(std::string& error) override {
+    open_ = false;
+    fs::mkdirs("/data/ota");
+    if (fs::writeFile("/data/ota/image.bin", image_)) return true;
+    error = "cannot write the image";
+    return false;
+  }
+  void abort() override {
+    open_ = false;
+    image_.clear();
+  }
+  bool pendingVerify() override { return false; }
+  void confirm() override {}
+  bool rolledBack() override { return false; }
+  std::string runningSlot() override { return "app0"; }
+
+ private:
+  std::string image_;
+  bool open_ = false;
+};
 
 class SimPower : public hal::Power {
  public:
@@ -149,7 +186,8 @@ int main(int argc, char** argv) {
   net.setFixturesDir(fixtures == "none" ? "" : fixtures);
   SimPower power;
   platform::PosixHttpServer http(8080);  // 80 needs root on the Mac
-  hal::Platform platform{display, input, clock, net, power, name.c_str(), &http};
+  SimUpdater updater;
+  hal::Platform platform{display, input, clock, net, power, name.c_str(), &http, &updater};
 
   display.setOutDir(outDir);
   fs::setRoots(dataDir + "/sd", dataDir + "/data");

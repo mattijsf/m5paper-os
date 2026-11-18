@@ -17,6 +17,7 @@ MemoryInfo memoryInfo() { return MemoryInfo{1, 2, 3, 4}; }
 void restart() {}
 void chime() {}  // core/sound.h counts them
 std::string boardName() { return "test"; }
+std::string buildId() { return "testbuild"; }
 std::string macAddress() { return "00:11:22:33:44:55"; }
 }  // namespace pos::hal
 

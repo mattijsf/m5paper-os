@@ -19,7 +19,7 @@ Decisions and their reasons are in `DECISIONS.md`. Read that before proposing a 
 |            DisplayManager, services: net, config, storage,    |  docs/APPS.md, DISPLAY.md,
 |            time, power policy, log                            |  POWER.md
 +---------------------------------------------------------------+
-| hal/       interfaces only: Display, Input, Net, Power, Clock |
+| hal/       interfaces only: Display, Input, Net, Power, Clock, HttpServer, Updater |
 +-------------------------------+-------------------------------+
 | platform/device/              | platform/sim/                 |
 | M5Unified, Arduino, ESP-IDF   | SDL2, libcurl, host files     |  docs/SIMULATOR.md
@@ -212,7 +212,7 @@ missing file or key never crashes. Schema: `docs/apps/settings.md`.
 |---|---|---|
 | nvs | 20 KB | Wi-Fi calibration, Arduino preferences |
 | otadata | 8 KB | which app slot boots |
-| app0 / app1 | 5 MB each | firmware, two slots for over-the-air update (task P7-3) |
+| app0 / app1 | 5 MB each | firmware, two slots: an update over Wi-Fi goes to the one that is not running, the bootloader falls back to the other if the new image is reset before it is confirmed (DECISIONS.md D37); `make flash` writes app0 and resets `otadata` |
 | storage (LittleFS) | 5.9 MB | `/data` |
 | coredump | 64 KB | crash dumps |
 

@@ -9,6 +9,7 @@
 #include "hal/input.h"
 #include "hal/net.h"
 #include "hal/power.h"
+#include "hal/update.h"
 
 namespace pos::device {
 
@@ -89,5 +90,27 @@ StorageInfo mountStorage();
 // Returns when no chime is playing (hal::chime, sound.cpp), after a second at most: before light sleep and power-off.
 void waitForSound();
 void chime();  // hal::chime
+
+// Firmware update over Wi-Fi: ESP-IDF's OTA slots (platform/device/update.cpp).
+class Updater : public hal::Updater {
+ public:
+  uint32_t slotSize() override;
+  bool begin(uint32_t size, std::string& error) override;
+  bool write(const uint8_t* data, size_t n) override;
+  bool finish(std::string& error) override;
+  void abort() override;
+  bool pendingVerify() override;
+  void confirm() override;
+  bool rolledBack() override;
+  std::string runningSlot() override;
+
+ private:
+  uint32_t handle_ = 0;  // esp_ota_handle_t
+  bool open_ = false;
+};
+
+// Confirms a new firmware that is in its first boot (hal::Updater::confirm), before the firmware switches the device off
+// or restarts it itself.
+void confirmUpdateIfPending();
 
 }  // namespace pos::device

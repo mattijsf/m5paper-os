@@ -382,8 +382,11 @@ P6-11 last (it needs the relay and a device that can pair).
 - [x] **P7-2 UI scripts on the device.** (`tools/device.py script` / `scripts`, `>state`; which scripts run and compare: SIMULATOR.md) `tools/device.py script tests/ui/<name>.script` runs
   the simulator's script commands against the device through the P1-8 commands and compares
   the frame dumps with the goldens (pixel-identical expected: same code, same fonts).
-- [ ] **P7-3 Over-the-air update.** `make ota` uploads to the device over Wi-Fi (ArduinoOTA or
-  an HTTP upload endpoint), using the second app slot; rollback if the new image does not boot.
+- [~] **P7-3 Over-the-air update.** `make ota` uploads to the device over Wi-Fi (ArduinoOTA or
+  an HTTP upload endpoint), using the second app slot; rollback if the new image does not boot. (2026-11-18, D37: built
+  as a push while Settings > About > Update over Wi-Fi is open, signed with a key on the Mac, the bootloader's rollback;
+  unit tests, UI script, the real tool against the simulator. Open: the run on the device, STATUS "Pending device
+  checks".)
 - [x] **P7-4 Book upload over Wi-Fi.** (2026-11-16; D30) Settings > Storage > Files over Wi-Fi: while
   the page is open the books folder is served as WebDAV (Finder, Android file managers) and as an upload page for a browser,
   behind a one-time code; on the device tested from the Mac (curl, a WebDAV client library); Finder and Android not tried

@@ -5,7 +5,7 @@ PIO   ?= $(shell command -v pio || echo $(HOME)/.local/bin/pio)
 SIM   := .pio/build/sim/program
 PORT  ?= $(firstword $(wildcard /dev/cu.usbmodem*))
 
-.PHONY: help emoji sim run shot test ui-test ui-accept gallery fw flash monitor device-shot view cam-shot cam-video cam-compare cam-target backup books clean check
+.PHONY: help emoji sim run shot test ui-test ui-accept gallery fw flash ota ota-key monitor device-shot view cam-shot cam-video cam-compare cam-target backup books clean check
 
 help:
 	@echo "make sim      build the simulator"
@@ -17,6 +17,8 @@ help:
 	@echo "make gallery   out/gallery.html: every UI test screenshot"
 	@echo "make fw       build the device firmware"
 	@echo "make flash    build + flash the device (PORT=$(PORT))"
+	@echo "make ota      build + send the firmware over Wi-Fi to a device showing Settings > About > Update over Wi-Fi (HOST=address)"
+	@echo "make ota-key  once: make the key that signs updates, then make flash"
 	@echo "make monitor  serial log from the device"
 	@echo "make device-shot  dump the frame from the device over USB to out/device.png (tools/device.py)"
 	@echo "make view         live view of the device in a browser, click = tap (tools/view.py; ARGS=--sim, ARGS=--lan)"
@@ -44,6 +46,15 @@ fw:
 
 flash:
 	$(PIO) run -e papers3 -t upload --upload-port $(PORT)
+
+# Firmware update over Wi-Fi (tools/ota.py, DECISIONS.md D37): the device must show Settings > About > Update over Wi-Fi.
+# HOST=192.168.1.23 names it; without it the last address, then this Mac's /24, is tried.
+ota: fw
+	uv run --script tools/ota.py send $(if $(HOST),--host $(HOST)) $(ARGS)
+
+# Once: the signing key (kept outside the repository) and its public half in src/core/update_key.h. Then make flash.
+ota-key:
+	uv run --script tools/ota.py keygen
 
 monitor:
 	$(PIO) device monitor -p $(PORT) -b 115200

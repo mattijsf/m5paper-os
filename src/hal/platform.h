@@ -8,6 +8,7 @@
 #include "hal/input.h"
 #include "hal/net.h"
 #include "hal/power.h"
+#include "hal/update.h"
 
 namespace pos::hal {
 
@@ -19,6 +20,7 @@ struct Platform {
   Power& power;
   const char* name;  // shown in the demo footer: "simulator", "M5PaperS3"
   HttpServer* http = nullptr;  // the local file server (Settings > Storage > Files over Wi-Fi); null where there is none
+  Updater* update = nullptr;   // firmware update over Wi-Fi (Settings > About); null where there is none
 };
 
 // Log sink, implemented by each platform: one complete line (ends with '\n').

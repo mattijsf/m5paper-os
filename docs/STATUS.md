@@ -310,6 +310,20 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   saved as "A Perfect SimCity · Articles - jeffquast.com.md", listed under the card with "New", opened in 2.05 s the
   first time (23 pages; convert 1.65 s, paginate 0.39 s), read on the panel (`out/p7-18/dev-link2-article.png`,
   `cam-link2-article-upright.png`). Card P7-18 is done.
+- **P7-3 Update over Wi-Fi, 2026-11-18**. Settings > About > Update over Wi-Fi listens on the home Wi-Fi while the page
+  is open (5 minutes without a request at most); `make ota` on the Mac builds, signs, finds the device and sends. A
+  package is the image behind a header signed with Ed25519 (libsodium); the public key is in
+  `src/core/update_key.h` (`make ota-key`, done on this Mac), the private key in `~/.config/paperos/ota-signing.key`
+  (never in the repository, never printed). Header checked before anything is written, the image's SHA-256 before it
+  boots; written to the slot that is not running; the bootloader's rollback (already on in the build) brings the old
+  firmware back if the new one is reset before it has run 15 s or switched the device off itself. `hal::buildId()`
+  (12 hex digits of the ELF's SHA-256) names a build: Settings > About, `device.py status` (a `build:` line with the
+  slot), `make ota`. Code: `hal/update.h`, `core/update`, `platform/device/update.cpp`, the simulator's `SimUpdater`,
+  `UpdatePage` in Settings, `tools/ota.py`, `make ota` / `make ota-key`. Tests: 3 unit tests (358), script `update`
+  (golden `update-page`; `settings-about` re-accepted), and the real tool against the simulator (the page opened with
+  `--remote`, `ota.py send --sim`: 2,585,040 bytes arrived identical to `firmware.bin`, the simulator "restarted").
+  304 screenshots. Firmware 2,584,487 bytes (+25,876). **Not on the device yet**: it was not on USB when this was
+  built, and the first firmware with the key has to go over USB: "Pending device checks".
 
 ## What works today
 
@@ -546,6 +560,15 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Update over Wi-Fi (P7-3, 2026-11-18)**: nothing ran on the device. In order: (1) `make flash` once over USB (the
+  key), `device.py status` shows `build: <id> slot=app0`. (2) Settings > About > Update over Wi-Fi, `make ota` with a
+  changed build: the page's progress, the restart, `status` shows the new build in `slot=app1` and, after 15 s, no
+  "not confirmed yet"; time for the 2.5 MB. (3) rollback: an update, then a reset inside the first 15 s (the remote
+  `reboot` does not confirm): the old build is back and the page says so. (4) a package that is refused (a changed
+  byte: `ota.py pack`, edit, `curl --data-binary`): the reason on the page, the running firmware untouched. (5) a
+  scheduled wake as the first boot of a new firmware (it is off again within 5 s: `confirmUpdateIfPending`). (6) `make
+  flash` after an update: app0 boots again. (7) the heap while the page receives (TLS is not in play; Wi-Fi and the
+  server are).
 - **Read later (P7-18, 2026-11-18)**: (1) an article saved by a scheduled wake while the device is off (`[sched] ...
   N article(s)`, the seventh field of `/data/refresh.log`): the wake ran with nothing waiting only. (2) the toast
   "site: The site refused the reader (403)" on the device (unit test only; the refusal itself was seen with the
@@ -753,7 +776,8 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
 3. ~~**Proton**: paid plan (needed for Bridge)? OK to run Bridge as a Home Assistant add-on?~~ **Closed 2026-11-16**: Bridge is removed
    (D22); mail comes from Proton Mail notifications on the phone.
 
-4. **P7-3 OTA update: how should it be protected?** Not built; pick one (or "no OTA").
+4. ~~**P7-3 OTA update: how should it be protected?**~~ **Answered 2026-11-18: "Push in update mode"** (option b,
+   signed, without the code: D37), built. The options as they were asked:
    - **a. Pull only, signed** (recommended if OTA is wanted): Settings > "Check for update" downloads an image over HTTPS from one fixed
      address (a key on the card), checks an Ed25519 signature against a public key compiled into the firmware, then switches the boot
      slot; the new image must confirm a good boot or the old one comes back. No open port on the device. Needs a signing key on the Mac
@@ -1406,4 +1430,7 @@ None of these block Phase 1, Phase 2, or the reader.
   now a failed read, not an article. Long-press removal run on the device. Firmware 2,558,611 bytes.
 - 2026-11-18: Read later, a second real link (jeffquast.com): read in 1.9 s, saved, listed with "New", 23 pages, read on
   the panel. P7-18 done.
+- 2026-11-18: P7-3 update over Wi-Fi (D37): the update page, signed packages, two slots with the bootloader's rollback,
+  `make ota` / `make ota-key`, `hal::buildId()`. 358 unit tests, 304 screenshots, firmware 2,584,487 bytes. Run against
+  the simulator with the real tool; not on the device yet (it has to be flashed over USB once).
 

@@ -26,6 +26,9 @@ namespace pos {
 // Whether a boot at `now` is the RTC wake that was set for `wakeAt` (unix seconds; 0 = none set).
 bool isScheduledWake(int64_t now, int64_t wakeAt);
 
+// How long a new firmware must run before it is confirmed (hal/update.h): long enough for the first screen, Wi-Fi off.
+constexpr uint32_t kConfirmUpdateAfterMs = 15000;
+
 class Os {
  public:
   explicit Os(hal::Platform& platform)
@@ -115,6 +118,7 @@ class Os {
   bool stayOn_ = false;
   uint32_t thenOff_ = 0;
   bool ready_ = false;
+  bool updateChecked_ = false;  // the look at hal::Updater::pendingVerify() after kConfirmUpdateAfterMs was done
   std::string screen_;
 };
 

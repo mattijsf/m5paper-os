@@ -51,6 +51,7 @@ hal::Wake Power::lightSleep(uint32_t maxMs) {
 }
 
 void Power::powerOff(uint32_t wakeAfterSec) {
+  confirmUpdateIfPending();
   POS_LOG("power", "power off, wake after %us (0 = side button only)", static_cast<unsigned>(wakeAfterSec));
   waitForSound();  // a scheduled refresh switches off right after it read the relay
   Serial.flush();

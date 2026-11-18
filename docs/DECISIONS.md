@@ -627,3 +627,35 @@ the budget runs short (sizes from the linker map):
   and there is one worker, so an app opened meanwhile would wait. With the scheduled refresh off, the first visit to
   the library after sharing waits for the page (a toast says so).
 
+## D37. Firmware update over Wi-Fi: pushed from the Mac while a Settings page is open, signed
+
+Answers STATUS.md open question 4 with its option b. Asked once more with the two ways side by side (pull at the hourly
+wake, announced through Home Assistant; or push while a page is open): the owner chose the push.
+
+- **Where**: Settings > About > Update over Wi-Fi. The device joins Wi-Fi and listens on port 80 only while that page is
+  open, five minutes without a request at most; leaving the page stops it. On the Mac: `make ota` (builds, signs, finds
+  the device, sends). The same HTTP server as Files over Wi-Fi (D30), with another handler (`core/update`).
+- **Signed, not a code**: a package is the firmware image behind a 148-byte header (build, size, SHA-256, time) signed
+  with Ed25519 (libsodium, already in the firmware for the companion protocol: no new library). The public key is
+  compiled in (`src/core/update_key.h`, written by `make ota-key`); the private key is on the Mac at
+  `~/.config/paperos/ota-signing.key`, outside the repository, never printed. The header is checked before a byte is
+  written, the image's hash before it is made the one that boots. So nobody else on the Wi-Fi can put firmware on the
+  device, whatever they hear: the page needs no code (D30's code keeps others out of the files; here the signature
+  does, and it stands up to a listener, which the code does not). The image itself travels in the clear: it is the
+  firmware, no secret is in it (secrets are on the card).
+- **Not protected against**: an older image signed by the same key sent again (no version check: going back to an
+  earlier build is wanted during development); someone who has the Mac's key file.
+- **Two slots, and the way back**: the image is written to the app slot that is not running (ESP-IDF OTA, sequential
+  writes), the chip checks it, the boot slot is switched, the device restarts. The bootloader's rollback was already on
+  in the build (`CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE`): a new image starts "pending" and is confirmed after it has run
+  15 s (`Os::loopOnce`, `kConfirmUpdateAfterMs`) or when the firmware switches the device off or restarts it itself (a
+  scheduled refresh is off again within seconds). A crash, a reset or a power cut before that: the bootloader boots
+  the firmware from before, and the update page says so. The Arduino core would confirm at once; `verifyRollbackLater()`
+  tells it not to. `make flash` over USB writes slot app0 and resets the choice of slot, so USB always wins.
+- **Which build runs**: `hal::buildId()`, the first 12 hex digits of the ELF's SHA-256 that the build tools put into the
+  image (`esp_app_get_elf_sha256`); `tools/ota.py` reads the same from `firmware.bin`. Settings > About and
+  `tools/device.py status` show it; `make ota` sends nothing when the device already runs that build.
+- **Left out**: the pull at the hourly wake (zero touch, but it needs a token for Home Assistant on the Mac and the Mac
+  awake when the device wakes); a version check; TLS (the firmware has no TLS server, D31).
+- **Cost**: firmware +26 KB (2,584,487 bytes).
+

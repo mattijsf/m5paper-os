@@ -79,7 +79,10 @@ StorageInfo storageInfo(const char* which) {
 MemoryInfo memoryInfo() {
   return MemoryInfo{ESP.getFreeHeap(), ESP.getHeapSize(), ESP.getFreePsram(), ESP.getPsramSize()};
 }
-void restart() { esp_restart(); }
+void restart() {
+  device::confirmUpdateIfPending();
+  esp_restart();
+}
 std::string boardName() { return M5.getBoard() == m5::board_t::board_M5PaperS3 ? "M5PaperS3" : "unknown board"; }
 std::string macAddress() {
   uint8_t m[6];
@@ -98,7 +101,8 @@ device::Clock gClock;
 device::Net gNet;
 device::Power gPower;
 platform::PosixHttpServer gHttp(80);
-hal::Platform gPlatform{gDisplay, gInput, gClock, gNet, gPower, "M5PaperS3", &gHttp};
+device::Updater gUpdater;
+hal::Platform gPlatform{gDisplay, gInput, gClock, gNet, gPower, "M5PaperS3", &gHttp, &gUpdater};
 Os gOs(gPlatform);
 
 // Idle step: PowerPolicy light-sleeps when everything allows it (core/power_policy.h), else a short delay.
@@ -470,6 +474,7 @@ void loop() {
       if (Surface* s = gOs.surface()) s->prepareForPowerOff();
       M5.Display.waitDisplay();
       Serial.flush();
+      device::confirmUpdateIfPending();  // the firmware's own restart, not a failed start (hal/update.h)
       esp_restart();
     }
     POS_LOG("beat", "up=%us board=%d display=%dx%d psram=%u/%u heap=%u battery=%dmV %d%% charging=%d temp=%.1fC",

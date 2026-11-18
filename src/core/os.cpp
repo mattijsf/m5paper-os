@@ -109,6 +109,15 @@ void Os::loopOnce() {
     lastPass = now;
   }
   powerLog_.tick();
+  // A new firmware (Settings > About > Update over Wi-Fi) is confirmed once it has run this long: a crash or a reset
+  // before that makes the bootloader go back to the firmware from before (hal/update.h, DECISIONS.md D37).
+  if (!updateChecked_ && p_.clock.millis() >= kConfirmUpdateAfterMs) {
+    updateChecked_ = true;
+    if (p_.update && p_.update->pendingVerify()) {
+      p_.update->confirm();
+      POS_LOG("update", "new firmware confirmed: build %s in %s", hal::buildId().c_str(), p_.update->runningSlot().c_str());
+    }
+  }
   // 1. input
   hal::TouchEvent ev;
   std::vector<Gesture> gs;
@@ -227,6 +236,13 @@ std::string Os::statusText() {
            (t.retried ? (t.recovered ? ", second try answered" : ", second try failed too") : ", not sent again") + ", at " + std::to_string(t.unix) + " (" +
            std::to_string(t.count) + " since boot)\n";
   hal::MemoryInfo m = hal::memoryInfo();
+  out += "build: " + hal::buildId();
+  if (p_.update) {
+    out += " slot=" + p_.update->runningSlot();
+    if (p_.update->pendingVerify()) out += " (new: not confirmed yet)";
+    if (p_.update->rolledBack()) out += " (the last update did not start: this is the firmware from before)";
+  }
+  out += "\n";
   out += "heap: " + std::to_string(m.heapFree) + "/" + std::to_string(m.heapTotal) + " psram: " + std::to_string(m.psramFree) + "/" + std::to_string(m.psramTotal) + "\n";
   {  // Does any secret value (first 8 characters) appear in the log ring or in this very output? Counts only.
     const std::string log = logTail(50);

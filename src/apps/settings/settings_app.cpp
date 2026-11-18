@@ -7,6 +7,7 @@
 #include "core/app.h"
 #include "core/companion.h"
 #include "core/file_server.h"
+#include "core/update.h"
 #include "core/fs.h"
 #include "core/os.h"
 #include "core/paired_owed.h"
@@ -1048,6 +1049,172 @@ class DeveloperPage : public Page {
   ui::Label* log_ = nullptr;
 };
 
+// Update over Wi-Fi (docs/apps/settings.md, DECISIONS.md D37): while this page is open the Paper takes a new firmware
+// from the Mac (`make ota`) on the home Wi-Fi. Only a package signed with the key whose public half is in this firmware
+// is written, to the slot that is not running; then the device restarts into it. Leaving the page stops listening; so
+// do five minutes without a request.
+class UpdatePage : public Page {
+ public:
+  static constexpr uint32_t kIdleStopMs = 5u * 60 * 1000;
+
+  void build(ui::Column& root) override {
+    setTitle("Update over Wi-Fi");
+    root.add<ui::Spacer>(ui::s2);
+    state_ = root.add<ui::Label>("", Type::Body);
+    state_->maxLines = 3;
+    root.add<ui::Spacer>(ui::s2);
+    addrCap_ = root.add<ui::Label>("Address", Type::Caption, ui::secondary);
+    addr_ = root.add<ui::Label>("", Type::Title);
+    root.add<ui::Spacer>(ui::s2);
+    help_ = root.add<ui::Label>("On the Mac, in the PaperOS folder:\nmake ota", Type::Body);
+    help_->maxLines = 3;
+    help_->keepLineBreaks = true;
+    root.add<ui::Spacer>(ui::s2);
+    activity_ = root.add<ui::Label>("", Type::Body);
+    activity_->maxLines = 3;
+    root.add<ui::Spacer>(0, 1);
+    hal::Updater* up = ctx().os().platform().update;
+    std::string running = "This firmware: build " + hal::buildId();
+    if (up && !up->runningSlot().empty()) running += ", slot " + up->runningSlot();
+    if (up && up->rolledBack()) running += "\nThe last update did not start: this is the firmware from before.";
+    auto* build = root.add<ui::Label>(running, Type::Caption, ui::secondary);
+    build->maxLines = 3;
+    build->keepLineBreaks = true;
+    root.add<ui::Spacer>(ui::s2);
+    button_ = root.add<ui::Button>("Stop", [this] {
+      if (running_) ctx().nav.pop();  // leaving stops listening (onHide)
+      else start();
+    }, ui::Button::Kind::Secondary);
+    root.add<ui::Spacer>(ui::s2);
+    showRunning(false);
+  }
+  void onShow() override {
+    if (!running_ && !starting_) start();
+  }
+  void onHide() override { stopServer(""); }
+  bool staysOpen() const override { return running_ || starting_; }
+  // As FilesPage: a screen can go without onHide; stop through the pointers kept at start.
+  ~UpdatePage() override {
+    if (!running_) return;
+    if (http_) http_->stop();
+    if (radio_) radio_->setPowerSave(true);
+  }
+
+  std::string debugState() const override {
+    return std::string(running_ ? "running" : "stopped") + "|" + state_->text() + "|" + activity_->text();
+  }
+
+ private:
+  void showRunning(bool on) {
+    addrCap_->visible = addr_->visible = help_->visible = on;
+    button_->setText(on ? "Stop" : "Start again");
+    button_->visible = (on || !starting_) && !restarting_;
+    if (auto* h = state_->host()) h->relayout();
+  }
+
+  void start() {
+    hal::HttpServer* http = ctx().os().platform().http;
+    hal::Updater* up = ctx().os().platform().update;
+    if (!http || !up || up->slotSize() == 0) {
+      state_->setText("Not available on this device");
+      return;
+    }
+    if (!update::keySet(update::firmwareKey())) {
+      state_->setText("This firmware has no update key. On the Mac: make ota-key, then flash once over USB.");
+      showRunning(false);
+      button_->visible = false;
+      return;
+    }
+    starting_ = true;
+    state_->setText("Joining Wi-Fi...");
+    activity_->setText("");
+    showRunning(false);
+    NetService* net = &ctx().os().net();
+    hal::Net* radio = &ctx().os().platform().net;
+    ctx().async([net, radio] {
+      NetService::Result r = net->ensureConnected();
+      if (r.ok) radio->setPowerSave(false);  // full speed while receiving
+      return r;
+    }, [this, http, up](NetService::Result r) {
+      starting_ = false;
+      if (!r.ok) {
+        state_->setText("No Wi-Fi: " + r.error);
+        showRunning(false);
+        return;
+      }
+      hal::Clock* clock = &ctx().os().platform().clock;
+      server_ = std::make_shared<update::Server>(*up, update::firmwareKey(), hal::buildId(), [clock] { return clock->millis(); });
+      auto srv = server_;
+      http_ = http;
+      radio_ = &ctx().os().platform().net;
+      if (!http->start([srv](hal::ServerRequest& q) { return srv->handle(q); })) {
+        state_->setText("Could not start listening");
+        showRunning(false);
+        return;
+      }
+      running_ = true;
+      const bool sim = std::string(ctx().os().platform().name) == "simulator";
+      const std::string ip = sim ? "localhost" : ctx().os().net().link().ip;
+      addr_->setText(ip + (http->port() == 80 ? "" : ":" + std::to_string(http->port())));
+      state_->setText("Waiting for an update while this page is open. Only firmware signed with this device's key is taken.");
+      showRunning(true);
+      tick();
+    });
+  }
+
+  // Once a second: what arrives, Wi-Fi and the device kept up, the idle stop, the restart into the new firmware.
+  void tick() {
+    if (!running_ || !server_) return;
+    ctx().os().net().keepAlive();
+    ctx().os().keepAwake();
+    const update::Stats s = server_->stats();
+    std::string a;
+    if (s.done) a = "Build " + s.build + " received. Restarting...";
+    else if (s.busy && s.size > 0) a = "Receiving build " + s.build + ": " + bytesText(s.received) + " of " + bytesText(s.size);
+    else if (s.busy) a = "Receiving...";
+    else a = s.last;
+    if (a != activity_->text()) activity_->setText(a);
+    if (s.done) {  // the answer to the sender is on its way: stop listening, show the line, restart
+      restarting_ = true;
+      state_->setText("The new firmware is in place.");
+      showRunning(false);
+      ctx().timer(2500, [this] {
+        ctx().os().flushConfig();
+        if (http_) http_->stop();
+        running_ = false;
+        hal::restart();
+      });
+      return;
+    }
+    const uint32_t idle = ctx().os().platform().clock.millis() - server_->lastRequestMs();
+    if (!s.busy && idle >= kIdleStopMs) {
+      stopServer("Stopped after 5 minutes without an update");
+      return;
+    }
+    ctx().timer(1000, [this] { tick(); });
+  }
+
+  void stopServer(const std::string& why) {
+    if (!running_) return;
+    running_ = false;
+    if (http_) http_->stop();
+    hal::Net* radio = &ctx().os().platform().net;
+    ctx().background([radio] { radio->setPowerSave(true); });
+    server_.reset();
+    if (!why.empty()) {
+      state_->setText(why);
+      showRunning(false);
+    }
+  }
+
+  ui::Label *state_ = nullptr, *addrCap_ = nullptr, *addr_ = nullptr, *help_ = nullptr, *activity_ = nullptr;
+  ui::Button* button_ = nullptr;
+  std::shared_ptr<update::Server> server_;
+  hal::HttpServer* http_ = nullptr;
+  hal::Net* radio_ = nullptr;
+  bool running_ = false, starting_ = false, restarting_ = false;
+};
+
 class AboutPage : public Page {
  public:
   void build(ui::Column& root) override {
@@ -1055,10 +1222,13 @@ class AboutPage : public Page {
     root.add<ui::Spacer>(ui::s2);
     const std::string board = hal::boardName();
     root.add<ui::ListItem>("PaperOS", kVersion, true, ui::Icon::Info);
-    root.add<ui::ListItem>("Build", board == "simulator" ? std::string("simulator build") : std::string(__DATE__ " " __TIME__), false);
+    root.add<ui::ListItem>("Build", board == "simulator" ? std::string("simulator build") : std::string(__DATE__ " " __TIME__) + ", " + hal::buildId(), false);
     root.add<ui::ListItem>("Board", board, false);
     const std::string mac = hal::macAddress();
     root.add<ui::ListItem>("Wi-Fi MAC", mac.empty() ? "not available" : mac, false);
+    auto* update = root.add<ui::ListItem>("Update over Wi-Fi", "New firmware from the Mac: make ota", false);
+    update->setChevron();
+    update->onClick = [this] { ctx().nav.push<UpdatePage>(); };
     caption(root, "Licences");
     auto* l = root.add<ui::Label>(
         "Inter, Literata: SIL Open Font License 1.1. Lucide icons: ISC. M5GFX, M5Unified, ArduinoJson: MIT.", Type::Body);

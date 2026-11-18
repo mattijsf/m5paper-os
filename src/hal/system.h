@@ -25,6 +25,9 @@ void restart();
 // Board name and the Wi-Fi MAC address ("" if unknown).
 std::string boardName();
 std::string macAddress();
+// What tells one build of the firmware from another: the first 12 hex digits of the SHA-256 of its ELF file (the build
+// tools put it into the image; tools/ota.py reads the same from .pio/build). "simulator" in the simulator.
+std::string buildId();
 
 // The one sound: two short notes for "something new" (device: the buzzer; the simulator only logs it). Does not block and
 // may be called from any thread; a call while it plays is dropped. Use core/sound.h, which holds the setting.

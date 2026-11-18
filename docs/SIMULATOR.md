@@ -189,6 +189,8 @@ A task is done only when `make check` passes.
   **The tool never hangs**: a serial write times out after 5 s, an unanswered command is sent again with a line on stderr, and the whole
   run ends with exit code 3 after `--limit` seconds (default 90; a script: its waits + 20 s per step + 60). `-v` prints every script step.
   `tools/device.py scripts` lists what can run:
+  - `tools/ota.py send --sim` sends a signed firmware package to a simulator whose update page is open
+    (apps/settings.md "Update over Wi-Fi"); no script does it (a script's clock is not the tool's).
   - `sleepboard` is no script: a test screen (`>set screen sleepboard`) that draws the sleep screen as a power-off would
     now, to read the Today board back from a device (POWER.md "Today board").
   - **compare** (no card data, no fixtures): `textblock`, `widgets1`, `widgets2`, `widgets2list`, `widgets2rows`, `widgets3`; also `launcher` and
