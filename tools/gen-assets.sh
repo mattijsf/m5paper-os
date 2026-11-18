@@ -28,6 +28,7 @@ conv literata_regular_32     Literata-Regular.ttf     32 "$RANGES"
 conv literata_regular_38     Literata-Regular.ttf     38 "$RANGES"
 conv literata_italic_28      Literata-Italic.ttf      28 "$RANGES"
 conv literata_bold_28        Literata-Bold.ttf        28 "$RANGES"
+conv jetbrains_mono_medium_22 JetBrainsMono-Medium.ttf 22 "$RANGES"   # Teletekst's 40-column grid: 13 px a character
 
 # Icons: code points of the names in assets/icons.txt.
 ICON_RANGES=$(python3 tools/gen_assets.py icon-ranges)

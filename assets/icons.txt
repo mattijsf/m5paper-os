@@ -69,3 +69,4 @@ list
 sunrise
 sunset
 lamp-floor
+tv

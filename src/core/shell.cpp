@@ -207,7 +207,7 @@ void Shell::push(std::unique_ptr<Screen> s, bool launcher) {
   Entry e;
   e.launcher = launcher;
   e.full = s->fullScreen();
-  const int margin = e.full ? 0 : ui::kMargin;
+  const int margin = e.full ? 0 : s->sideMargin();
   auto* pad = content_->add<ui::Padding>(margin, 0, margin, 0);
   auto* col = pad->add<ui::Column>(0);
   e.wrapper = pad;

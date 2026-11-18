@@ -49,6 +49,19 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   shared score had its own name (the user set it to "Woordle" later). Seventh app: the launcher now has a second page. The firmware builds with it; not flashed (Pending
   device checks). Open question 7.
 
+- **P7-12 Teletekst, 2026-11-18: built, simulator only**. App `teletekst`,
+  the tenth tile of launcher page 1 (icon `tv`): NOS Teletekst read from the JSON the service's own site uses
+  (`teletekst-data.nos.nl/json/<page>`, checked live on 2026-11-18 from the Mac: 25 lines of 40 cells, 404 for a page that
+  does not exist), drawn as the 40 x 24 grid in ink and paper only: a new font token `Type::Mono` (JetBrains Mono Medium 22,
+  13 px a character, +21.5 KB), dark backgrounds as ink bars, mosaic colours as solid or striped ink, characters cut to
+  ink or paper, so a page is one Fast pass (`Hint::Page`). A tap on a row opens its link, the page's four coloured links
+  are buttons, previous / next page, subpage arrows and swipes, a number pad; the last 16 pages are kept and shown first
+  and when a read fails. `Screen::sideMargin()` is new in `core/app.h` (the grid is 520 px wide). Fixtures are made-up pages
+  (`tests/fixtures/make-teletekst-fixtures.py`); UI scripts `teletekst`, `teletekst-offline`, `teletekst-saved` (13 new
+  goldens); 18 goldens re-accepted (17 show the launcher with its new tile or its ghost score, `fonts-sheet` has one more icon).
+  320 unit tests, 257 screenshots; firmware 2,479,376 bytes (+43,216: the font 21.5 KB, the app and its parser the rest).
+  **Not flashed: no device attached** (Pending device checks).
+
 - **P7-11 weather, 2026-11-16: done, live read checked on the device.** App `weather` (docs/apps/weather.md): Home Assistant's Google Weather
   entity `weather.thuis` for now, `weather.get_forecasts` (`?return_response`, daily and hourly) and `sun.sun`; three pages
   (D29): now with the next 16 hours and 4 days, today and tomorrow in blocks of three hours with sunrise and sunset, all ten
@@ -382,6 +395,15 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Teletekst (P7-12, 2026-11-18)**: simulator only, no device on USB. To do: flash, `tools/device.py set screen teletekst`
+  (or tap the tile at 100, 776), then (1) the log says `[teletekst] page 100: N bytes`: the TLS connection works (the
+  service's chain ends at USERTrust RSA, expected among the firmware's 44 roots, D31; if the log says status 0 with a
+  certificate error, that root is missing); (2) `[net] perform` times of the first read and of a second page over the
+  kept connection; (3) `tools/memory.py --only teletekst`: internal heap during a read (a page is 3-9 KB of JSON,
+  parsed by ArduinoJson: expect it like the weather app's) and the `[memstack]` line's `loopTask` figure after a few
+  pages (the page is parsed on the UI thread, whose stack is 8 KB; the 8 KB `Page` itself is on the heap); (4) frame dumps of 100, 101, 702 against the live site;
+  (5) the camera on the panel: the bitmap letters at 22 px, the striped blocks of the weather map (do the 1 px rows hold
+  or fill in?), a page turn as one pass; (6) taps: a headline row at `tools/device.py tap 200 350`, the number pad.
 - **Mark all read without a question, then the launcher**.
   Simulator only: no device on USB. To do: flash, open WhatsApp with messages in it, tap "Mark all read" (`tools/device.py tap 270 918`):
   the frame dump shows the launcher without a badge on WhatsApp, the log says
@@ -1055,3 +1077,7 @@ None of these block Phase 1, Phase 2, or the reader.
   by then) and logs its result. Golden `inbox-markall-sheet` gone; new `inbox-markall-launcher`, `mail-markall-launcher`;
   `inbox-cleared` is now WhatsApp opened again. 312 unit tests, 244 screenshots; firmware 2,436,160 bytes (-576).
   Not flashed: no device attached (Pending device checks).
+- 2026-11-18: Teletekst (P7-12, D32): NOS Teletekst from the service's own JSON as a 40 x 24
+  grid in ink and paper, `Type::Mono` (JetBrains Mono Medium 22), `Screen::sideMargin()`, icon `tv`. Simulator, 8 unit test
+  cases, 3 UI scripts with made-up pages; 320 unit tests, 257 screenshots; firmware 2,479,376 bytes (+43,216). Not flashed:
+  no device attached (Pending device checks).

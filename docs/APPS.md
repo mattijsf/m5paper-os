@@ -61,6 +61,8 @@ the Os shows), `core/store.{h,cpp}` (`Store`, `Cache`), `ui/chrome` (StatusBar, 
   title bar (back arrow, title; long press on the arrow = launcher) is shown for every app screen
   and hidden for the launcher. A screen that returns `true` from `fullScreen()` gets the whole panel instead: no
   status bar, no title bar, no side margins (the reader's page); it then draws its own way out (the reader's menu).
+  `Screen::sideMargin()` changes the side margins of a screen that keeps the bars (Teletekst: 10 px, its grid of 40
+  characters is 520 px wide); everything else stays at 24.
   `Screen::debugState()` is a one-line description for UI scripts (`expect-state`, `page-through`).
 - `nav.push/pop/home` run after the current gesture or callback returns, so a button can pop its own
   screen. Back from an app's first screen leaves the app. Order when leaving: top screen `onHide`,
@@ -141,6 +143,11 @@ What goes where:
 | writing a file after a refresh, switching the radio back, cleaning up | `ctx.background` | a write to the flash is ~35 ms; and it must happen even when the user leaves at that moment |
 | the phone pairing with its keys (`companion::loadPairing`), making or opening envelopes | `ctx.async` | deriving the session keys is ~50 ms; a screen that only asks "is a phone paired?" uses `companion::pairedPhone()` |
 
+**The UI thread's stack is 8 KB on the device** (`CONFIG_ARDUINO_LOOP_STACK_SIZE`; the worker's is 16 KB) and the
+simulator's is not: a local of a few KB in screen code (a parsed page, a big array) works in every test and overflows on
+the device. Keep such things on the heap (`std::make_shared`, a `std::vector`, a member of the screen); Teletekst's 8 KB
+`Page` is the example (2026-11-18, found by reading, not by a crash).
+
 **On this panel every extra pass shows** (DISPLAY.md), so the order matters more than on an LCD:
 
 1. **Read what is saved before the first frame, not after it.** "Draw empty, load in the background, draw again" is two
@@ -203,3 +210,4 @@ the first guess there (cleaning the saved messages) cost nothing measurable on t
 | Word game (daily five-letter word game in Dutch) | `apps/wordgame.md` | P7 |
 | Weather (Google Weather through Home Assistant) | `apps/weather.md` | P7 |
 | Agenda (the phone's calendar, one way) | `apps/agenda.md` | P7 |
+| Teletekst (NOS Teletekst, page by page) | `apps/teletekst.md` | P7 |

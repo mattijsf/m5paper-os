@@ -508,3 +508,26 @@ the budget runs short (sizes from the linker map):
 - newlib's small printf (about 30 KB; loses `%llu` and friends, which the code uses).
 - WPA3 (about 15 KB; WPA3-only networks would stop working).
 
+## D32. Teletekst: the service's own JSON, drawn as a grid in ink and paper
+
+- **Source**: `https://teletekst-data.nos.nl/json/<page>[-<subpage>]`, the JSON the NOS Teletekst site reads itself (25
+  lines of 40 cells with colour classes, links and mosaics; apps/teletekst.md "Data"). It is not a documented API: if its
+  shape changes the app shows "Unexpected answer" and the parser (`teletekst_model`, unit tested) is the one place to
+  change. Read straight from the Paper, not through Home Assistant: public pages, no key, nothing to keep secret, and the
+  request carries nothing but the page number. Scraping the site's HTML or its page images was not considered.
+- **A grid, not reflowed text**: tables, sports results and the weather map only work in their 40 columns. That needs a
+  font with one width: **JetBrains Mono Medium 22** (SIL OFL, `assets/fonts/`), 13 px a character, 520 px for the row;
+  the screen takes 10 px side margins for it (`Screen::sideMargin()`, the one change outside the app besides the font
+  and the `tv` icon). Cost: 21.5 KB of font. The rows are 26 px high (a television's are lower in proportion: mosaic
+  pictures are a little tall).
+- **Ink and paper only**: a television's black background is paper, dark backgrounds are ink bars with paper text, the
+  mosaic colours are solid or striped ink (apps/teletekst.md "Colours"), and the characters are cut to ink or paper after
+  drawing. So a page is one Fast pass with nothing to settle (`Hint::Page`), like the reader's page turn. Sixteen grays for
+  the eight colours were not used: flat gray on a screen that changes with every tap is a second pass every time
+  (DISPLAY.md "Gray areas cost a flicker").
+- **Navigation without a remote**: a tap on a row opens the row's link (index pages are lists of headlines ending in a
+  page number), the four coloured links are four buttons, a number pad opens from the page number, swipes and arrows go
+  through subpages (a television turns them by itself on a timer; nothing here moves by itself).
+- **Reads**: only when a page is asked for (a copy under two minutes old is shown instead). The last 16 pages are kept on
+  the flash, shown first when the app opens and when a read fails. No background refresh, nothing on the launcher.
+- **Test pages are made up** (`tests/fixtures/make-teletekst-fixtures.py`): the repository holds no text of the service.

@@ -1,0 +1,46 @@
+# app: teletekst
+# Teletekst (docs/apps/teletekst.md): pages from the fixtures (tests/fixtures/make-teletekst-fixtures.py, made-up text).
+# Opens on page 100.
+wait 1500
+shot teletekst
+expect-state page=100|want=100|Updated 13:34
+# A tap on a headline's row opens its page (the link is the number at the end of the row).
+tap 200 350
+wait 1500
+shot teletekst-article
+expect-state page=104|
+# The number in the middle opens the number pad; the third digit opens the page.
+tap 270 896
+wait 400
+shot teletekst-pad
+tap 103 820
+tap 270 900
+wait 300
+shot teletekst-pad-typed
+tap 270 660
+wait 1500
+shot teletekst-map
+expect-state page=702/1|
+# A swipe to the left: the second subpage. Its arrow back is the left one beside the number.
+swipe 400 400 100 400
+wait 1500
+shot teletekst-subpage
+expect-state page=702/2|
+tap 150 896
+wait 1500
+expect-state page=702/1|want=702/1|Updated 13:34
+# A page that does not exist: the page stays, a toast says so.
+tap 270 896
+wait 400
+tap 103 660
+tap 436 820
+tap 436 820
+wait 1000
+shot teletekst-missing
+expect-state page=702/1|want=702/1|
+wait 3500
+# The first of the page's four links.
+tap 70 822
+wait 1500
+shot teletekst-news
+expect-state page=101|

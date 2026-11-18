@@ -19,7 +19,7 @@ namespace {
 enum class FontId : uint8_t {
   InterRegular18, InterRegular22, InterSemiBold22, InterSemiBold28, InterSemiBold40,
   LiterataRegular24, LiterataRegular28, LiterataRegular32, LiterataRegular38, LiterataItalic28, LiterataBold28,
-  Lucide32, Lucide64, None
+  JetBrainsMono22, Lucide32, Lucide64, None
 };
 
 const uint8_t* fontData(FontId id) {
@@ -35,6 +35,7 @@ const uint8_t* fontData(FontId id) {
     case FontId::LiterataRegular38: return gen::kLiterataRegular38;
     case FontId::LiterataItalic28: return gen::kLiterataItalic28;
     case FontId::LiterataBold28: return gen::kLiterataBold28;
+    case FontId::JetBrainsMono22: return gen::kJetbrainsMonoMedium22;
     case FontId::Lucide32: return gen::kLucide32;
     case FontId::Lucide64: return gen::kLucide64;
     default: return nullptr;
@@ -54,6 +55,7 @@ FontId fontFor(Type t) {
     case Type::ReadXL: return FontId::LiterataRegular38;
     case Type::ReadItalicM: return FontId::LiterataItalic28;
     case Type::ReadBoldM: return FontId::LiterataBold28;
+    case Type::Mono: return FontId::JetBrainsMono22;
     default: return FontId::InterRegular22;
   }
 }
@@ -71,7 +73,7 @@ void useFont(Canvas& c, FontId id) {
 
 // Pixel size of a font (the emoji drawn in it come from the nearest atlas below it); 0: no emoji (icon fonts).
 int fontPx(FontId id) {
-  static const uint8_t kPx[] = {18, 22, 22, 28, 40, 24, 28, 32, 38, 28, 28, 0, 0, 0};
+  static const uint8_t kPx[] = {18, 22, 22, 28, 40, 24, 28, 32, 38, 28, 28, 22, 0, 0, 0};
   return kPx[static_cast<int>(id)];
 }
 

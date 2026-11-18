@@ -56,10 +56,11 @@ Fonts are baked to 4-bit anti-aliased bitmaps by `tools/gen-assets.sh` (task P1-
 | `title` | Inter SemiBold | 28 | screen titles, tile labels |
 | `headline` | Inter SemiBold | 40 | big numbers (temperature), launcher clock |
 | `read-S/M/L/XL` | Literata Regular | 24 / 28 / 32 / 38 | book text (plus Italic and Bold at M only; other sizes fake them) |
+| `mono` | JetBrains Mono Medium | 22 | a grid of characters: every one is 13 px wide (Teletekst's 40 columns; unit tested). Not for other text |
 
 Glyph ranges: U+0020-007E, U+00A0-00FF, U+0100-017F, U+2010-2027, U+20AC. Unknown code points
 draw as `?`; emoji come from the emoji atlases (below).
-Both fonts are under the SIL Open Font License; their licence files are in `assets/fonts/`
+The fonts (Inter, Literata, JetBrains Mono) are under the SIL Open Font License; their licence files are in `assets/fonts/`
 (also `Lucide-LICENSE.txt`, ISC). API: `ui/text.h` (`drawText`, `measureText`, `lineHeight`,
 `ellipsize`, `sanitize`, `drawIcon`), tokens: `ui/theme.h`. Pitfalls found in P1-6:
 
@@ -82,7 +83,7 @@ Initial set: arrow-left, chevron-left, chevron-right, house, book-open, library,
 lightbulb-off, sofa, utensils, blocks, cooking-pot, lamp-wall-down, lamp-wall-up, car, bed, thermometer,
 droplets, fan, wind, message-circle, mail, mail-open, settings, wifi, wifi-off, battery,
 battery-low, battery-charging, refresh-cw, moon, power, sun, check, x, plus, minus, clock,
-folder, file-text, type, info, triangle-alert, door-open, air-vent.
+folder, file-text, type, info, triangle-alert, door-open, air-vent. Later: tv (Teletekst's tile).
 Weather conditions (P7-11, apps/weather.md): sun, moon, cloud, cloud-sun, cloud-moon, cloud-rain, cloud-rain-wind, cloud-snow,
 cloud-lightning, cloud-fog, cloud-hail, wind, umbrella, droplets, sunrise, sunset.
 The Home app reuses the names of the icons in the user's Home Assistant dashboard so rooms look familiar.

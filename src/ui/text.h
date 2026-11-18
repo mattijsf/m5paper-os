@@ -21,6 +21,7 @@ enum class Type : uint8_t {
   ReadXL,       // Literata Regular 38
   ReadItalicM,  // Literata Italic 28
   ReadBoldM,    // Literata Bold 28
+  Mono,         // JetBrains Mono Medium 22: every character 13 px wide (Teletekst's 40-column grid)
   Count
 };
 

@@ -1,0 +1,35 @@
+# app: teletekst
+# Teletekst's saved copies. Page 100 and an article are read and kept; then Wi-Fi goes away and the app starts again ten
+# minutes later: the article that was open shows at once from its copy, and the line under it says why it may be old.
+wait 1500
+tap 200 350
+wait 1500
+expect-state page=104|want=104|Updated 13:34
+wifi off
+wait 600000
+restart
+wait 200
+shot teletekst-saved-first      # drawn from the saved copy before the read ended
+wait 1500
+shot teletekst-saved
+expect-state page=104|want=104|Saved 13:34: No Wi-Fi
+# A page that was never read: the page on screen stays, a toast says why.
+tap 480 896
+wait 1000
+shot teletekst-saved-toast
+expect-state page=104|want=104|Saved 13:34: No Wi-Fi
+wait 3500
+# A page with a copy: shown from it.
+tap 70 822
+wait 1500
+expect-state page=104|
+tap 60 896
+wait 1500
+expect-state page=104|
+# Left and opened again more than an hour later: page 100 again (its copy; still no Wi-Fi).
+back
+wait 3700000
+tap 100 776
+wait 1500
+shot teletekst-saved-index
+expect-state page=100|want=100|Saved 13:34: No Wi-Fi
