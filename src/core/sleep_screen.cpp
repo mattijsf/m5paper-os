@@ -228,7 +228,7 @@ void drawSleepScreen(Canvas& c, const SleepInfo* info, Canvas* image, const std:
       ui::drawText(c, std::to_string(info->percent) + "% read", cx, y + 32, Type::Caption, ui::secondary, Anchor::MiddleCenter, kWhite);
     }
   } else {
-    ui::drawIcon(c, Icon::BookOpen, cx, 360, 64, ui::ink, kWhite);
+    ui::drawIcon(c, Icon::Paperos, cx, 360, 64, ui::ink, kWhite);  // the PaperOS mark (assets/icons-drawn/paperos.txt)
     ui::drawText(c, "PaperOS", cx, 450, Type::Headline, ui::ink, Anchor::MiddleCenter, kWhite);
   }
   if (!agenda.empty()) {  // content: ink. With no note below it, it takes the note's place

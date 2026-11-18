@@ -98,9 +98,15 @@ The Home app reuses the names of the icons in the user's Home Assistant dashboar
 **Drawn icons** (2026-11-18) are for a mark that no line icon stands for: `assets/icons-drawn/<name>.txt`, 64 rows of `X`
 (ink) and `.`, any width up to 255 (lines starting with `//` are comments). The generator adds `Icon::<Name>` after the
 Lucide ones and the bitmap (a bit a pixel) to `src/gen/icons.h` (`gen::kDrawnIcons`); `drawIcon` draws it as it is at 64 and
-at half size at 32, ink only, centred like a glyph. Two so far: `Icon::Hackernews` (a Y in a filled square,
-apps/hackernews.md "Icon") and `Icon::Teletekst`, the NOS Teletekst logo redrawn by hand
+at half size at 32, ink only, centred like a glyph. Three so far: `Icon::Paperos`, the PaperOS mark (below),
+`Icon::Hackernews` (a Y in a filled square, apps/hackernews.md "Icon") and `Icon::Teletekst`, the NOS Teletekst logo redrawn by hand
 on a 97 x 64 grid for the launcher tile. The logo is the NOS's mark: for this private device, not to be published.
+
+**The PaperOS mark** (2026-11-18) is a P whose bowl is the Paper (a sheet with a folded corner) and whose counter is its page
+of text (three lines, the last one short). `Icon::Paperos`, 42 x 64 (`assets/icons-drawn/paperos.txt`): strokes 11 px, the
+fold an 8 px ink triangle behind a 2 px gap (one bit a pixel: no gray). It stands above "PaperOS" on the plain sleep screen
+(`core/sleep_screen`), where the Lucide open book stood; the open book stays the icon of the Read app and of a book without
+a cover. The companion app's launcher icon is the same mark as vectors, with the fold in gray (android/README.md).
 
 ## Screen anatomy
 
