@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The PaperOS mark for themed icons: the launcher tints it, so only alpha counts (the fold at half). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="38.5"
+        android:translateY="28">
+        <path
+            android:fillColor="#000000"
+            android:fillType="evenOdd"
+            android:pathData="M4 0 H24 V7 a3 3 0 0 0 3 3 H34 V32 a4 4 0 0 1 -4 4 H9 V48 a4 4 0 0 1 -4 4 H4 a4 4 0 0 1 -4 -4 V4 a4 4 0 0 1 4 -4 Z M9 9 H23 a2 2 0 0 1 2 2 V25 a2 2 0 0 1 -2 2 H9 Z" />
+        <path
+            android:fillAlpha="0.5"
+            android:fillColor="#000000"
+            android:pathData="M24 0 V7 a3 3 0 0 0 3 3 H34 Z" />
+        <path
+            android:pathData="M13 14 H21 M13 18 H21 M13 22 H17.5"
+            android:strokeColor="#000000"
+            android:strokeLineCap="round"
+            android:strokeWidth="2" />
+    </group>
+</vector>

@@ -20,6 +20,7 @@
     <application
         android:allowBackup="false"
         android:dataExtractionRules="@xml/no_backup"
+        android:icon="@mipmap/ic_launcher"
         android:label="PaperOS Companion"
         android:usesCleartextTraffic="false"
         android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">

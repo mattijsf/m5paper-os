@@ -1332,3 +1332,8 @@ None of these block Phase 1, Phase 2, or the reader.
   scheduled refresh reads the weather too; switch in Settings > Power. `weather_fetch` shared by the app and the wake,
   test screen `sleepboard`. 350 unit tests, 295 screenshots, firmware 2,541,007 bytes (+7,336). Flashed: the board read
   back with live data, one RTC wake with "weather read". Images: `out/p7-16/`.
+- 2026-11-18: Companion app launcher icon: the app had none (Android's default). The
+  PaperOS mark: a P whose bowl is the Paper (sheet with a folded corner), its counter a page of text; ink on paper, adaptive
+  with a monochrome layer, vectors only (android/README.md "Launcher icon"). Preview drawn from the shipped drawables:
+  `out/companion-icon/preview.png`. APK built; not installed (no phone on adb, and an install stops the relay service
+  until the app is opened).

@@ -42,6 +42,10 @@ and the P6 cards in `docs/ROADMAP.md`.
 - Look: the PaperOS "Ink" style (`Ink.kt`, docs/UI.md): the panel's 16 grays from its warm paper (`#E4E4DF`, measured on photos
   of the PaperS3) to its ink (`#1E1E1E`), Inter and Lucide icons (`res/font`, licences in `assets/licenses`), list rows with
   dividers, ink and outline buttons, the Paper's pill toggle; light only, edge to edge with the system-bar insets.
+- Launcher icon: the PaperOS mark, a P whose bowl is the Paper (a sheet with a folded corner) and whose counter is its page of
+  text, ink on paper. Adaptive icon from vector drawables only (`res/mipmap-anydpi/ic_launcher.xml`,
+  `res/drawable/ic_launcher_foreground.xml`, `ic_launcher_monochrome.xml` for themed icons, background `ic_launcher_background`
+  in `res/values/colors.xml`); the mark is 34 x 52 of the 108 box, inside the 66 dp safe zone.
 - Backup and device transfer are off. No accessibility service.
 
 Notification contents are the user's private messages: never log, print or commit them. Check the app
