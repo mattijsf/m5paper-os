@@ -831,11 +831,12 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
    should the sleep screen show (the thermostat's temperature, a door or window, the car, something else)? They are read
    at a scheduled wake, so they are as old as the board.
 
-10. **The router blocks this Mac's connections to the Paper's port 80 (2026-11-18, 18:10)**: caused by `tools/ota.py`'s
-   first version, which asked every address of the home network on port 80 (D37; removed). Since then Files over Wi-Fi
-   (port 80) cannot be reached from this Mac; other devices are probably not affected, and updates use port 8266. If it
-   does not lift by itself: the mesh's app (its security or intrusion log) should list the Mac or the event; unblock it
-   there. Note whether it lifted.
+10. ~~**The router blocks this Mac's connections to the Paper's port 80 (2026-11-18, 18:10)**~~ **Gone 2026-11-19
+   07:40**: after a restart of the Mac with every VPN disconnected (Tailscale, OpenVPN,
+   ProtonVPN), port 80 answers again (Files over Wi-Fi: 401 to a request without the code, in 0.01 s). Which of the
+   three lifted it is not known: the restart, the VPN (OpenVPN's system extension had stayed connected after its app
+   was quit), or the router's block running out overnight. Port 80 had worked with that VPN up until the scan at
+   18:10, so the router stays the likelier cause.
 
 None of these block Phase 1, Phase 2, or the reader.
 
@@ -1456,4 +1457,6 @@ None of these block Phase 1, Phase 2, or the reader.
   way to the device's port 80 after it did); the update page listens on 8266. Firmware 2,584,523 bytes.
 - 2026-11-18: the device has a reserved address on the home Wi-Fi; `tools/ota.py host ADDRESS` saves it as the
   tool's last resort, so `make ota` needs no `HOST=`. The router's block of port 80 from this Mac was still there at 18:40.
+- 2026-11-19: port 80 from this Mac to the Paper works again (after a Mac restart with all VPNs off; cause not
+  pinned down: STATUS "Open questions" 10).
 
