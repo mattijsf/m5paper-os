@@ -4,7 +4,7 @@
 Run with PlatformIO's Python (it has pyserial):
     ~/.platformio/penv/bin/python tools/device.py shot out/device.png
     ~/.platformio/penv/bin/python tools/device.py tap 140 300
-Commands: ls [DIR] | cat /data/power.csv | rm PATH | status (key names + lengths, Wi-Fi, heap) | diff A.png B.png [FIRST_ROW] | shot OUT.png | tap X Y | long X Y | swipe X1 Y1 X2 Y2 | log | refresh | set KEY VALUE | poweroff SECONDS [THEN_SECONDS] | wait-boot | diff A.png B.png
+Commands: ls [DIR] | cat /data/power.csv | rm PATH | status (key names + lengths, Wi-Fi, heap) | diff A.png B.png [FIRST_ROW] | shot OUT.png | tap X Y | long X Y | swipe X1 Y1 X2 Y2 | log | refresh | set KEY VALUE | reboot | poweroff SECONDS [THEN_SECONDS] | wait-boot | diff A.png B.png
 Options:  --port /dev/cu.usbmodemXXXX (default: the first /dev/cu.usbmodem*)
           --limit N   the whole run ends after N seconds with exit code 3 (it never hangs): default 90, script: from its length
           --sim   talk to .pio/build/sim/program --headless --remote instead of a device
@@ -470,7 +470,7 @@ def main():
     ap.add_argument("--host", help="--wifi: the device's address (default: $PAPEROS_HOST, the saved one, the last update's)")
     ap.add_argument("--sim-data", help="--sim: the simulator's data root (default sim-data/), e.g. a test card with a Wi-Fi network")
     ap.add_argument("-v", "--verbose", action="store_true")
-    ap.add_argument("cmd", choices=["shot", "tap", "long", "swipe", "log", "refresh", "status", "ls", "cat", "rm", "set", "poweroff", "wait-boot", "diff", "script", "scripts"])
+    ap.add_argument("cmd", choices=["shot", "tap", "long", "swipe", "log", "refresh", "status", "ls", "cat", "rm", "set", "reboot", "poweroff", "wait-boot", "diff", "script", "scripts"])
     ap.add_argument("--out", default="out/device-ui", help="script: where the frame dumps go")
     ap.add_argument("--golden", default="tests/ui/golden", help="script: goldens to compare with")
     ap.add_argument("--limit", type=int, default=0, help="give up after this many seconds (default: 90, wait-boot and poweroff 120, script: its waits + 20 s per step + 60)")
@@ -574,6 +574,13 @@ def main():
             sys.stdout.write((payload or b"").decode(errors="replace"))
             if not status.startswith("#ok"):
                 sys.exit(status)
+        elif a.cmd == "reboot":
+            # A restart the firmware does not confirm an update for (D37): the way to test the rollback by hand.
+            try:
+                status, _, _ = request(link, ">reboot", a.verbose, timeout=5, retries=0)
+                print(status)
+            except TimeoutError:
+                print("no reply (it restarted first)")
         elif a.cmd == "set":
             if len(a.args) != 2:
                 sys.exit("usage: set KEY VALUE")

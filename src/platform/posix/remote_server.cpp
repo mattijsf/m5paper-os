@@ -45,7 +45,9 @@ RemoteServer::~RemoteServer() {
 }
 
 void RemoteServer::poll() {
-  if (client_ < 0 && remote_) remote_.reset();
+  // A Remote outlives its connection until it has nothing left to do: a tap's finger is lifted ~80 ms after the "#ok",
+  // and the tool hangs up at once (2026-11-19: taps over Wi-Fi did nothing, the finger stayed down).
+  if (client_ < 0 && remote_ && !remote_->busy()) remote_.reset();
   WirelessStatus& st = wirelessStatus();
   st.on = os_.config().developer.wireless;
   st.port = port_;
@@ -84,8 +86,10 @@ void RemoteServer::poll() {
   st.listening = listen_ >= 0;
   accept();
   read();
-  if (client_ >= 0 && !authed_ && now - connectedMs_ > kSignInMs) closeClient("no sign-in");
-  if (remote_ && connected()) remote_->tick();
+  // A fresh reading: `now` is from before accept(), and a connection accepted since started later than it (now -
+  // connectedMs_ then wrapped around and closed every such connection at once: 2026-11-19, found with the log below).
+  if (client_ >= 0 && !authed_ && clock_.millis() - connectedMs_ > kSignInMs) closeClient("no sign-in");
+  if (remote_ && (connected() || remote_->busy())) remote_->tick();
   st.client = connected();
 }
 
@@ -116,11 +120,11 @@ void RemoteServer::stopListening() {
 
 void RemoteServer::closeClient(const char* why) {
   if (client_ < 0) return;
+  POS_LOG("remote", "wireless: t=%u closing socket %d (%s)", static_cast<unsigned>(clock_.millis()), client_, why ? why : "-");
   ::close(client_);
   client_ = -1;
   authed_ = false;
   line_.clear();  // (the Remote goes at the next poll: this may run from inside one of its replies)
-  if (why) POS_LOG("remote", "wireless: connection closed (%s)", why);
 }
 
 void RemoteServer::accept() {
@@ -137,6 +141,11 @@ void RemoteServer::accept() {
   client_ = fd;
   authed_ = false;
   connectedMs_ = clock_.millis();
+  sockaddr_in peer{};
+  socklen_t plen = sizeof peer;
+  ::getpeername(fd, reinterpret_cast<sockaddr*>(&peer), &plen);
+  POS_LOG("remote", "wireless: t=%u connection on socket %d from port %u", static_cast<unsigned>(connectedMs_), fd,
+          static_cast<unsigned>(ntohs(peer.sin_port)));
   uint8_t nonce[update::kNonceBytes];
   companion::randomBytes(nonce, sizeof nonce);
   const std::string hello = update::helloLine(hal::buildId(), nonce, nonceHex_) + "\n";
@@ -153,7 +162,10 @@ void RemoteServer::read() {
       return;
     }
     if (n < 0) {
-      if (errno != EAGAIN && errno != EWOULDBLOCK) closeClient("read failed");
+      if (errno != EAGAIN && errno != EWOULDBLOCK) {
+        POS_LOG("remote", "wireless: read on socket %d failed, errno %d", client_, errno);
+        closeClient("read failed");
+      }
       return;
     }
     if (authed_) {
@@ -174,6 +186,8 @@ void RemoteServer::read() {
       }
       authed_ = true;
       line_.clear();
+      if (remote_) remote_->tick();  // what the last connection left (a tap's finger) goes out first
+      POS_LOG("remote", "wireless: t=%u socket %d signed in", static_cast<unsigned>(clock_.millis()), client_);
       remote_ = std::make_unique<Remote>(os_, clock_, *this);
       static const char kOk[] = "#ok\n";
       reply(kOk, sizeof kOk - 1);

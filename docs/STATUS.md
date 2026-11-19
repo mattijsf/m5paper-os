@@ -1489,11 +1489,19 @@ None of these block Phase 1, Phase 2, or the reader.
   10-minute check's log had scrolled away; STATUS "Pending device checks", P7-19).
 - 2026-11-19: wireless development with the USB cable out: on battery, Wi-Fi up,
   status over Wi-Fi in 0.1-0.25 s, frame dumps in 0.4-1.5 s (one 4.3 s). But after two or three sessions every new
-  connection failed its sign-in: the Mac saw the connection closed 10 ms after the device's greeting, while the device
-  never saw it close and timed it out 10 s later ("no sign-in") without having received the sign-in line. So the
-  connection is cut on the Mac, not by the device or the router. Active on the Mac, with every VPN disconnected:
-  Proton VPN's "Split Tunneling (experimental)" transparent proxy and the OpenVPN network extension (system
-  extensions); a transparent proxy takes over the Mac's TCP connections. Not proven (it needs the owner to switch it
-  off); it may also be what blocked port 80 on 2026-11-18 (open question 10 blamed the router). device.py: `--wifi` is
+  connection failed its sign-in. **Cause found (my bug, not the Mac)**: the server read the clock once at the start of
+  its pass, and a connection accepted later in that pass had a start time after it, so `now - connectedMs_` wrapped
+  around and the "no sign-in within 10 s" check closed it at once (the log with peer ports: socket 51 accepted at
+  t=17282, closed "no sign-in" at t=17283). It hit when accepting took a millisecond, mostly right after the previous
+  connection was closed. Fixed (a fresh clock reading). My first suspicion, Proton VPN's transparent proxy on the Mac,
+  was wrong. device.py: `--wifi` is
   a flag now and the address is `--host` (`--wifi status` took "status" for the address).
+- 2026-11-19: wireless development without USB, after two fixes in `remote_server`: (1) the clock wrap above; (2) a tap
+  over Wi-Fi did nothing: the tool hangs up right after "#ok" and the server stopped ticking that Remote, so the
+  finger was never lifted; a Remote now lives until it has nothing left to do. On battery, USB out: 60 of 60
+  back-to-back sessions (frame dump and status) signed in and answered; frame dumps 0.4-0.5 s; taps open Settings
+  and Weather; `make ota` 25-29 s each (four updates this way). `device.py reboot` added. **Note**: on battery a boot
+  that never saw USB switches off after the idle time (auto-off), and wireless development ends there until the side
+  button; `>set idle-min 1` on battery would power it off after a minute (it was set by mistake and taken back within a
+  minute). Not run: the idle sleep screen's first network read on the device (needs USB power or a long idle time).
 
