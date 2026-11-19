@@ -11,6 +11,7 @@
 #include "apps/inbox/compose.h"
 #include "apps/inbox/inbox_model.h"
 #include "apps/inbox/relay_fetch.h"
+#include "apps/inbox/scheduled_refresh.h"
 #include "core/companion.h"
 #include "core/app.h"
 #include "core/fs.h"
@@ -306,27 +307,32 @@ class ListScreen : public Screen {
 
   void writeBadge(int n) { setAppBadge(ctx().appId(), n); }
 
-  // Clears this app's notifications on the Paper, tells the phone (`dismiss`, best effort: COMPANION.md 7.2) and leaves
-  // for the launcher: the list is done with.
+  // Clears what the list showed, on the Paper and on the phone (`dismiss`, best effort: COMPANION.md 7.2), and leaves for
+  // the launcher: the list is done with. The seen marker moves to the newest message shown and the badge is 0 at once.
+  // The store itself is changed on the worker, after any read of the relay that is still running there (one worker, in
+  // order): done here, that read saved the messages it had loaded before the tap back over it, with their badge
+  //.
   void markAllRead() {
-    companion::Notifs n;
-    companion::loadNotifs(n);
-    std::vector<std::string> keys;
-    const std::string app = kind_.mail ? "mail" : "whatsapp";
-    for (const companion::Notif& x : n.items)
-      if (x.app == app) keys.push_back(x.key);
-    n.items.erase(std::remove_if(n.items.begin(), n.items.end(), [&](const companion::Notif& x) { return x.app == app; }), n.items.end());
-    companion::saveNotifs(n);
+    const int64_t upTo = newestTs(feed_.items);
+    if (upTo > ctx().store.get("seen", 0)) ctx().store.set("seen", static_cast<int>(upTo));
+    ctx().store.save();  // the worker's badge count reads the marker from the file
     writeBadge(0);
-    ctx().nav.home();
-    companion::Pairing pairing;
-    if (keys.empty() || !companion::loadPairing(pairing)) return;
-    const std::string body = companion::dismissEnvelope(pairing, keys);
-    if (body.empty() || !companion::savePairing(pairing)) return;
+    const bool mail = kind_.mail;
     HaClient ha = ctx().ha();
-    ctx().background([ha, body, n = keys.size()]() mutable {  // (the app is closed by the time this runs)
+    ctx().nav.home();
+    ctx().background([ha, mail, upTo]() mutable {  // (the app is closed by the time this runs)
+      companion::Notifs n;
+      companion::loadNotifs(n);
+      const std::vector<std::string> keys = clearUpTo(n, mail, upTo);
+      companion::saveNotifs(n);
+      writeBadges(n);
+      companion::Pairing pairing;
+      if (keys.empty() || !companion::loadPairing(pairing)) return;
+      const std::string body = companion::dismissEnvelope(pairing, keys);
+      if (body.empty() || !companion::savePairing(pairing)) return;
       const HaResult r = ha.callService("script", "paperos_relay_push", body);
-      POS_LOG("inbox", "mark all read: dismiss for %u notification(s) to the phone: %s", static_cast<unsigned>(n), r.ok() ? "pushed" : haErrorText(r.error));
+      POS_LOG("inbox", "mark all read: dismiss for %u notification(s) to the phone: %s", static_cast<unsigned>(keys.size()),
+              r.ok() ? "pushed" : haErrorText(r.error));
     });
   }
 

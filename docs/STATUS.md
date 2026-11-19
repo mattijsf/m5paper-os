@@ -574,6 +574,10 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Mark all read during a running read (2026-11-19)**: fixed and run in the simulator (`inbox-markall-race`); on the
+  device the fix is installed (build 62c15a183fa2, by `make ota`) but there was nothing in WhatsApp or Mail to mark. To
+  do when a message is there: open WhatsApp, tap Mark all read at once (before "Updated"), then the launcher after the
+  next relay read, and the app again: no badge, no rows.
 - **Update over Wi-Fi (P7-3, 2026-11-18)**: done on the device ("Now"): the update, the confirmation, the rollback,
   three refusals, `make flash` afterwards. Open: (1) an update with the device away from USB (the address then comes
   from the last update or the saved usual address: the owner reserved the device's address in the router on
@@ -1459,4 +1463,8 @@ None of these block Phase 1, Phase 2, or the reader.
   tool's last resort, so `make ota` needs no `HOST=`. The router's block of port 80 from this Mac was still there at 18:40.
 - 2026-11-19: port 80 from this Mac to the Paper works again (after a Mac restart with all VPNs off; cause not
   pinned down: STATUS "Open questions" 10).
+- 2026-11-19: Mark all read with a read of the relay still running: the read saved what it had loaded back over the cleared store and rewrote the
+  badge; the seen marker did not move. The store is now cleared on the worker after that read, up to the newest message
+  shown (`clearUpTo`), and the marker moves at the tap. Script command `wifi slow MS`, script `inbox-markall-race` (2
+  goldens), unit test. 359 unit tests, 306 screenshots, firmware 2,584,447 bytes. Installed with `make ota` (26 s).
 

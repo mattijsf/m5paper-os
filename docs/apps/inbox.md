@@ -25,9 +25,14 @@ with `POS_REGISTER_APP`.
     messages and a bullet when new; the latest message; the time at the right.
   - Mail: **sender**, the subject, the time.
 - Footer caption: "Updated 14:05". Empty: "No new messages" with the app icon.
-- Bottom button "Mark all read": no question. It clears this app's notifications on the Paper, sends `dismiss` with their keys to the phone (best
-  effort, after the app has closed; the log says `[inbox] mark all read: dismiss for N notification(s) to the phone: pushed`)
-  and goes back to the launcher, where the app has no badge. The notifications stay on the phone.
+- Bottom button "Mark all read": no question. It moves the seen marker to the newest message the list showed, sets the badge to 0 and goes back to
+  the launcher; then, on the worker, it clears this app's notifications up to that message from the store and sends
+  `dismiss` with their keys to the phone (best effort; the log says `[inbox] mark all read: dismiss for N notification(s)
+  to the phone: pushed`). The notifications stay on the phone. **On the worker, not at the tap** (2026-11-19): opening the list starts a read of the
+  relay (2 to 6 s with the Wi-Fi join); a tap in that time cleared the store, then the read saved what it had loaded
+  before back over it and rewrote the badge, and the seen marker had not moved. The worker runs one job at a time, so the
+  clearing now comes after that read; a message that arrives after what the list showed stays (`clearUpTo`). UI script
+  `inbox-markall-race` (with `wifi slow 3000`), unit test "mark all read drops what the list showed".
 - **No phone paired** (no `/data/companion.json`): `EmptyState` "No phone paired" / "Messages come from the PaperOS app on your
   phone. Pair it in Settings > Home Assistant > Phone." Nothing is requested.
 - **Not set up yet** (Home Assistant answers 404 for the relay): `EmptyState` "Not set up yet" / "The relay for your phone's

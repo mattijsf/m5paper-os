@@ -1,5 +1,7 @@
 // Simulator Net: a small fake Wi-Fi world (so the Wi-Fi logic runs without a radio) and HTTP from fixtures
 // (tests/fixtures/http) or, with --fixtures none, from the real network through libcurl.
+#include <thread>
+#include <chrono>
 #include <curl/curl.h>
 
 #include <cstdio>
@@ -74,6 +76,7 @@ hal::HttpResponse Net::request(const hal::HttpRequest& req) {
     r.error = "not connected";
     return r;
   }
+  if (const int ms = slowMs_.load(); ms > 0) std::this_thread::sleep_for(std::chrono::milliseconds(ms));  // script `wifi slow MS`
   if (hiccups_ > 0) {  // script `wifi hiccup N`
     --hiccups_;
     r.error = "DNS failed";

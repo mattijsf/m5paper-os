@@ -104,6 +104,20 @@ std::string firstLine(const std::string& text) {
   return nl == std::string::npos ? text : text.substr(0, nl);
 }
 
+std::vector<std::string> clearUpTo(companion::Notifs& notifs, bool mail, int64_t upTo) {
+  std::vector<std::string> keys;
+  auto gone = [&](const companion::Notif& n) {
+    if ((n.app == "mail") != mail) return false;
+    int64_t newest = n.msgs.empty() ? n.ts : 0;
+    for (const companion::NotifMsg& m : n.msgs) newest = std::max(newest, m.ts > 0 ? m.ts : n.ts);  // as feedFromNotifs dates them
+    if (newest > upTo) return false;
+    keys.push_back(n.key);
+    return true;
+  };
+  notifs.items.erase(std::remove_if(notifs.items.begin(), notifs.items.end(), gone), notifs.items.end());
+  return keys;
+}
+
 Feed feedFromNotifs(const companion::Notifs& notifs, bool mail) {
   Feed f;
   for (const companion::Notif& n : notifs.items) {

@@ -44,6 +44,10 @@ std::vector<Conversation> groupChats(const std::vector<Msg>& items, int64_t seen
 
 // "14:02" for today, "Yesterday", the weekday name within the last six days, else "12 Nov"; "" if ts <= 0 or in the far future.
 std::string relativeTime(int64_t ts, int64_t now);
+// "Mark all read" in the store: drops the notifications of one app whose messages are all at or before `upTo` (the
+// newest message the list showed) and returns their keys (for `dismiss` to the phone). A notification with a message
+// after `upTo` stays: that message was never on the screen.
+std::vector<std::string> clearUpTo(companion::Notifs& notifs, bool mail, int64_t upTo);
 // Number of items newer than the seen marker (the launcher badge).
 int newCount(const std::vector<Msg>& items, int64_t seen);
 int64_t newestTs(const std::vector<Msg>& items);

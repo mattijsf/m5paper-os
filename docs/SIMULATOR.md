@@ -111,7 +111,8 @@ accept it and commit the golden with the code.
 
 The simulator's `hal::Net` is a small fake Wi-Fi world: HomeNet (two access points, channels 6 and 11), Neighbour, CafeFree
 (open); script commands `wifi off` / `wifi on` make no network reachable, `wifi hiccup N` fails the next N requests before they
-are sent (the net service's one more try, `tests/ui/inbox-hiccup.script`), `wifi crowd N` puts N more networks in range
+are sent (the net service's one more try, `tests/ui/inbox-hiccup.script`), `wifi slow MS` makes every request MS ms
+longer in real time (a tap while a read still runs, `tests/ui/inbox-markall-race.script`), `wifi crowd N` puts N more networks in range
 ("Flat 01".., weaker than the four) of which the first scan hears every second one (the scan page's paging and
 rescans, `tests/ui/wifi-scan.script`). A script can come with preset data:
 `tests/ui/data/<script name>/` is copied into that script's data root before the run (`sd/paperos_config` with fake values

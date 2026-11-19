@@ -148,3 +148,22 @@ TEST_CASE("inbox: feeds from the phone's notifications (one app each, newest fir
   CHECK(mail.items[0].subject == "Your order");
   CHECK_FALSE(mail.items[0].canReply);
 }
+
+TEST_CASE("inbox: mark all read drops what the list showed, not what came after it, and only that app's") {
+  pos::companion::Notifs n;
+  n.items.push_back({"wa-1", "whatsapp", "Family", true, 100, {{"Anna", "", "Six?", 90}, {"Bram", "", "Yes", 100}}});
+  n.items.push_back({"wa-2", "whatsapp", "", false, 120, {{"Carla", "", "Hi", 120}}});
+  n.items.push_back({"wa-3", "whatsapp", "", false, 130, {{"Dirk", "", "Old", 80}, {"Dirk", "", "New", 130}}});  // a message after the list
+  n.items.push_back({"mail-1", "mail", "", false, 110, {{"Shop", "Your order", "Ready", 110}}});
+  n.items.push_back({"wa-4", "whatsapp", "", false, 95, {}});  // no messages: its own time counts
+  // The list showed everything up to 120 (Carla's message).
+  const std::vector<std::string> keys = clearUpTo(n, false, 120);
+  CHECK(keys == std::vector<std::string>{"wa-1", "wa-2", "wa-4"});
+  REQUIRE(n.items.size() == 2);
+  CHECK(n.items[0].key == "wa-3");    // Dirk's newer message was never on the screen
+  CHECK(n.items[1].key == "mail-1");  // the other app is untouched
+  // Mail: its own items only.
+  CHECK(clearUpTo(n, true, 200) == std::vector<std::string>{"mail-1"});
+  CHECK(n.items.size() == 1);
+  CHECK(clearUpTo(n, true, 200).empty());
+}
