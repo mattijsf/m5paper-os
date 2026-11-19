@@ -277,6 +277,18 @@ TEST_CASE("PowerPolicy::idle: auto-off after the idle time, resumes only a book 
   CHECK(u.power.offs.empty());
 }
 
+TEST_CASE("PowerPolicy::idle: no auto-off while wireless development is on (D39)") {
+  Env e;
+  e.os.config().power.autoOffMin = 1;
+  e.os.config().developer.wireless = true;
+  e.clock.ms += 60 * 60 * 1000;  // an hour without input, on battery, USB never seen
+  e.policy.idle(1000);
+  CHECK(e.power.offs.empty());
+  e.os.config().developer.wireless = false;  // switched off: the idle time counts again
+  e.policy.idle(1000);
+  CHECK(e.power.offs.size() == 1);
+}
+
 TEST_CASE("PowerPolicy::idle: the reader has its own, longer auto-off limit") {
   Env e;
   e.os.config().power.autoOffMin = 15;

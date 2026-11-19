@@ -1504,4 +1504,8 @@ None of these block Phase 1, Phase 2, or the reader.
   that never saw USB switches off after the idle time (auto-off), and wireless development ends there until the side
   button; `>set idle-min 1` on battery would power it off after a minute (it was set by mistake and taken back within a
   minute). Not run: the idle sleep screen's first network read on the device (needs USB power or a long idle time).
+- 2026-11-19: wireless development keeps the device on:
+  no auto-off while it is on (`PowerPolicy::idle`); the idle sleep screen still comes, the device on. Checked on the
+  device on battery, USB out: with a 1-minute idle time the sleep screen came (live board) and the device kept
+  answering over Wi-Fi. Unit test. Firmware 2,593,003 bytes.
 

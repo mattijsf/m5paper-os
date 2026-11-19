@@ -144,7 +144,8 @@ Settings > Developer > Wireless development (`WirelessPage`), one switch (`devel
   Anything else is answered `#err not signed with this device's key` and closed; ten seconds without a sign-in close
   it too. One connection at a time; a new one replaces the old.
 - **While on**, Wi-Fi is kept up (`NetService::keepAlive` every second; joined again every 30 s when it drops, from the
-  boot on), so the device does not light-sleep: development only, it costs battery. Auto-off on battery still applies.
+  boot on), so the device does not light-sleep, and it never switches itself off (no auto-off: `PowerPolicy::idle`);
+  the idle time still brings the sleep screen, the device on. Development only: it costs battery.
 - The page shows the address with the port and the state ("Joining Wi-Fi...", "Waiting for the Mac.", "A Mac is
   connected.", an update's progress); only that line is looked at again, every 2 s, and drawn only when it changed.
 - The Mac finds the device by `HOST=` / `--host`, `$PAPEROS_HOST` (device.py) or `$OTA_HOST` (ota.py), the address

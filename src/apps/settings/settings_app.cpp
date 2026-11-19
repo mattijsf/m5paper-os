@@ -987,8 +987,8 @@ class WirelessPage : public Page {
     help->maxLines = 3;
     help->keepLineBreaks = true;
     root.add<ui::Spacer>(ui::s2);
-    auto* note = root.add<ui::Label>("Only the Mac with this firmware's signing key gets in. While on, Wi-Fi stays up, from the start "
-                                     "of the device on: it costs battery.",
+    auto* note = root.add<ui::Label>("Only the Mac with this firmware's signing key gets in. While on, Wi-Fi stays up and the device "
+                                     "does not switch itself off: it costs battery.",
                                      Type::Caption, ui::secondary);
     note->maxLines = 3;
     refresh();

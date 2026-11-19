@@ -60,6 +60,7 @@ Shell writes `lastApp` to `/data/system.json` and closes the app so it saves), t
 
 - After `power.autoOffMin` minutes without input (default 15, reader 30, 0 = never while on USB):
   draw the sleep screen (below), `display.wait()`, then `power.powerOff(0)` (or with an RTC alarm: "Scheduled refresh" below).
+- Not while Settings > Developer > Wireless development is on (D39): the device must stay reachable.
 - Not while USB (a host on the data link, or the charger) was seen in the last 12 hours of this boot (`kUsbGraceMs`): a Mac
   suspends a port nobody has open, the device then sees no host, and only the side button could undo an unwanted power-off.
 - Before power-off every app gets `onPause()` to save state (reading position).

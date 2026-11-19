@@ -711,8 +711,9 @@ wake, announced through Home Assistant; or push while a page is open): the owner
   connection could send commands into it. Accepted for a development switch that is off by default; the firmware has
   no TLS server (D31).
 - **One switch** (Settings > Developer > Wireless development, `developer.wireless`, off by default). While on, Wi-Fi
-  stays up from the boot on (against "no Wi-Fi at boot" in POWER.md, for this switch only), and the device does not
-  light-sleep: battery. Auto-off on battery still applies.
+  stays up from the boot on (against "no Wi-Fi at boot" in POWER.md, for this switch only), the device does not
+  light-sleep, and **it does not switch itself off**. The idle sleep screen still comes, the device on.
+  Battery.
 - **The Developer page is a menu**: Wireless development and Status have their own pages; nothing on the menu redraws
   itself. Status has an Update button instead of a timer (a page that redraws itself counts its own refreshes).
 - **Found on the device**: Arduino's loop task had 8 KB of stack; checking a valid Ed25519 signature on it restarted

@@ -47,7 +47,10 @@ void PowerPolicy::idle(uint32_t maxWaitMs) {
     usbSeen_ = true;
     usbSeenMs_ = now;
   }
-  if (autoOffDue(sinceInput, limit, p.power.usbConnected(), usbSeen_ ? now - usbSeenMs_ : kUsbNeverSeen)) {
+  // Wireless development keeps the device on:
+  // switched off, nobody could reach it until the side button. The idle sleep screen still comes (the Shell), on.
+  const bool keepOn = cfg.developer.wireless;
+  if (!keepOn && autoOffDue(sinceInput, limit, p.power.usbConnected(), usbSeen_ ? now - usbSeenMs_ : kUsbNeverSeen)) {
     powerOffNow();
     return;
   }
@@ -69,7 +72,7 @@ void PowerPolicy::idle(uint32_t maxWaitMs) {
   in.msSinceInput = sinceInput;
   // Next thing the loop must do: the earliest of its own deadlines and the auto-off time.
   uint32_t toDeadline = os_.msToNextDeadline();
-  if (limit > 0 && !in.usbConnected) {
+  if (limit > 0 && !in.usbConnected && !keepOn) {
     const uint32_t limitMs = static_cast<uint32_t>(limit) * 60u * 1000u;
     const uint32_t left = sinceInput >= limitMs ? 0 : limitMs - sinceInput;
     toDeadline = std::min(toDeadline, left);
