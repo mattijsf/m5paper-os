@@ -1,6 +1,7 @@
 # app: hackernews
-# Hacker News left with a story open (the idle return does that after a minute): opened again within the hour, the story
+# Hacker News left with a story open (a power-off, or the idle sleep screen: D38): opened again within the hour, the story
 # is back at the page it was left at. Back from it: the list. Left from the list: the list next time.
+# (data/config.json: power.autoOffMin 0, so the hour without a touch brings no sleep screen: D38)
 wait 1500
 tap 270 269
 wait 1500
@@ -39,10 +40,10 @@ expect-state story=38250001|comments=13|Page 1 of 5|next
 back
 wait 1500
 expect-state section=top|stories=30|page=1/5|
-# More than an hour later: the list.
+# More than an hour later: the list. (Left with a story open by a power-off, an hour off, then started.)
 tap 270 269
 wait 1500
-restart
+power-off
 wait 3700000
 restart
 wait 1500

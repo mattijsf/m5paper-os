@@ -30,7 +30,7 @@ bool autoOffDue(uint32_t idleMs, int limitMin, bool usbConnected, uint32_t msSin
 
 void PowerPolicy::powerOffNow() {
   POS_LOG("power", "auto-off: saving state and powering off");
-  if (Surface* s = os_.surface()) s->prepareForPowerOff();
+  if (Surface* s = os_.surface()) s->prepareForIdleOff();
   os_.powerOffForSleep();
 }
 

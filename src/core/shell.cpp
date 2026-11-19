@@ -178,6 +178,7 @@ Shell::Shell(Os& os) : os_(os), root_(os.canvas(), os.displayManager(), &os.time
   updateStatus();
   os_.net().onChange = [this] { updateStatus(); };  // Wi-Fi came up or went off, the clock was synced
   os_.net().onChangeOwner = this;
+  idleTimer_ = os_.timers().after(kIdleRecheckMs, [this] { idleCheck(); });
   statusTimer_ = os_.timers().every(60000, [this] { updateStatus(); });
 }
 
@@ -186,8 +187,10 @@ Shell::~Shell() {
     os_.net().onChange = nullptr;
     os_.net().onChangeOwner = nullptr;
   }
+  *alive_ = false;
   os_.timers().cancel(statusTimer_);
   if (idleTimer_) os_.timers().cancel(idleTimer_);
+  if (sleepTimer_) os_.timers().cancel(sleepTimer_);
   if (app_) app_->onStop();
   // The widget tree dies with root_; screens must go first (their widgets may be referenced).
   while (!stack_.empty()) stack_.pop_back();
@@ -265,39 +268,44 @@ bool Shell::openApp(const std::string& id) {
   app_ = entry->create();
   app_->onStart(*ctx_);
   runDeferred();  // the first screen push
-  idleHomeCheck();  // starts the idle return's timer
   return true;
 }
 
-void Shell::idleHomeCheck() {
+void Shell::idleCheck() {
   idleTimer_ = 0;
-  if (!app_ || appStaysOpen_ || sleeping_ || stack_.size() <= appBase_) return;
-  const int sec = os_.config().launcher.homeAfterSec;  // read each time: Settings may have changed it
-  uint32_t wait = kIdleHomeRecheckMs;
+  uint32_t wait = kIdleRecheckMs;
+  const Config& cfg = os_.config();  // read each time: Settings may have changed it
+  const int minutes = appId_ == "read" ? cfg.power.autoOffMinReader : cfg.power.autoOffMin;
+  const bool home = cfg.power.idleShow == IdleShow::Home;
   // In use without a touch: the screen says so, something is half typed, a finger rests on the panel.
-  const bool held = stack_.back().screen->staysOpen() || root_.keyboardShowing() || os_.touching();
-  if (sec > 0 && !held) {
+  const bool held = os_.touching() || root_.keyboardShowing() || (!stack_.empty() && stack_.back().screen->staysOpen());
+  const bool nothingToDo = sleeping_ || (home && (!app_ || appStaysOpen_));
+  if (minutes > 0 && !held && !nothingToDo) {
     const uint32_t now = os_.platform().clock.millis();
-    const uint32_t limit = static_cast<uint32_t>(sec) * 1000u;
-    const uint32_t idle = std::min(now - os_.lastInputMs(), now - appOpenedMs_);
+    const uint32_t limit = static_cast<uint32_t>(minutes) * 60000u;
+    uint32_t idle = now - os_.lastInputMs();
+    if (app_) idle = std::min(idle, now - appOpenedMs_);  // an app opened without a touch (boot, remote) is not idle yet
     if (idle >= limit) {
-      POS_LOG("shell", "%s not used for %d s: back to the launcher", appId_.c_str(), sec);
-      // After the timers have run (this is one of them), like every other navigation.
-      deferForApp([this] {
-        root_.closeOverlays();  // a sheet of the app, the quick panel, a toast: nothing of the app stays on the launcher
-        closeApp();
-      });
-      return;
+      if (home) {
+        POS_LOG("shell", "%s not used for %d min: back to the launcher", appId_.c_str(), minutes);
+        // After the timers have run (this is one of them), like every other navigation.
+        deferForApp([this] {
+          root_.closeOverlays();  // a sheet of the app, the quick panel, a toast: nothing of the app stays on the launcher
+          closeApp();
+        });
+      } else {
+        POS_LOG("shell", "not used for %d min: the sleep screen", minutes);
+        defer([this] { showSleepScreen(); });
+      }
+    } else {
+      wait = std::min(wait, limit - idle);
     }
-    wait = std::min(wait, limit - idle);
   }
-  idleTimer_ = os_.timers().after(wait, [this] { idleHomeCheck(); });
+  idleTimer_ = os_.timers().after(wait, [this] { idleCheck(); });
 }
 
 void Shell::closeApp() {
   if (!app_) return;
-  if (idleTimer_) os_.timers().cancel(idleTimer_);
-  idleTimer_ = 0;
   hal::Clock& clock = os_.platform().clock;
   const uint32_t t0 = clock.millis();
   if (stack_.size() > appBase_) stack_.back().screen->onHide();  // lifecycle: onHide, then onStop
@@ -333,21 +341,94 @@ void Shell::runDeferred() {
   }
 }
 
-void Shell::prepareForPowerOff() {
-  if (sleeping_) return;
+void Shell::prepareForPowerOff() { prepareSleep(false, false); }
+void Shell::prepareForIdleOff() { prepareSleep(true, false); }
+
+void Shell::prepareSleep(bool idle, bool stayOn) {
+  if (sleeping_) return;  // (a sleep screen that stays on is there already: what it saved stands)
   os_.flushConfig();  // a setting changed in the last second (Os::saveConfigSoon)
-  // Remember what was open (the next boot resumes it), ask the app what the sleep screen should show, then leave the app so it
-  // saves its state, and leave the sleep screen on the panel.
+  // Remember what was open (the next start resumes it), ask the app what the sleep screen should show, then leave the app
+  // so it saves its state, and leave the sleep screen on the panel. An app left without anyone asking comes back only if
+  // it is a book or a game: an unused Weather or Mail starts as the launcher (what the idle return did, D33, D38).
   Store sys("/data/system.json");
-  sys.set("lastApp", appId_);
+  sys.set("lastApp", idle && !appStaysOpen_ ? std::string() : appId_);
   sys.save();
   SleepInfo info;
   const bool haveInfo = app_ && app_->sleepInfo(info);
+  root_.closeOverlays();
   if (app_) closeApp();
   sleeping_ = true;  // nothing else draws over the sleep screen
   saveSleepInfo(haveInfo ? &info : nullptr);  // a scheduled refresh redraws the same screen with what it read
-  drawSleepScreenFor(os_.canvas(), haveInfo ? &info : nullptr, os_.platform().clock.now(), os_.config().power.sleepBoard, "");
+  drawSleepScreenFor(os_.canvas(), haveInfo ? &info : nullptr, os_.platform().clock.now(), os_.config().power.sleepBoard, "", stayOn);
   os_.displayManager().forceClean();
+}
+
+void Shell::showSleepScreen() {
+  if (sleeping_) return;
+  prepareSleep(true, true);
+  dozing_ = true;
+  sleepUpdated_.clear();
+  lastReadMs_ = os_.platform().clock.millis();
+  SleepInfo info;
+  const bool have = loadSleepInfo(info);
+  sleepKey_ = sleepScreenKey(have ? &info : nullptr, os_.platform().clock.now(), os_.config().power.sleepBoard, "");
+  sleepTimer_ = os_.timers().after(kSleepScreenTickMs, [this] { sleepScreenTick(); });
+}
+
+void Shell::sleepScreenTick() {
+  sleepTimer_ = 0;
+  if (!dozing_) return;
+  const int hours = os_.config().power.refreshHours;
+  const uint32_t now = os_.platform().clock.millis();
+  SleepReadMaker make = sleepReadMaker();
+  if (hours > 0 && make && !reading_ && now - lastReadMs_ >= static_cast<uint32_t>(hours) * 3600000u) {
+    // What a scheduled wake reads (the relay, the weather, articles), then the picture.
+    reading_ = true;
+    lastReadMs_ = now;
+    SleepReadJob job = make(os_);
+    auto alive = alive_;
+    POS_LOG("shell", "sleep screen: reading the relay and the weather");
+    os_.worker().async([job] { return job(); }, [this, alive](bool answered) {
+      if (!*alive) return;
+      reading_ = false;
+      if (answered) sleepUpdated_ = clockText(os_.platform().clock.now());
+      redrawSleepScreen();
+    });
+  } else {
+    redrawSleepScreen();
+  }
+  sleepTimer_ = os_.timers().after(kSleepScreenTickMs, [this] { sleepScreenTick(); });
+}
+
+void Shell::redrawSleepScreen() {
+  if (!dozing_) return;
+  SleepInfo info;
+  const bool have = loadSleepInfo(info);
+  const int64_t now = os_.platform().clock.now();
+  const bool board = os_.config().power.sleepBoard;
+  const std::string key = sleepScreenKey(have ? &info : nullptr, now, board, sleepUpdated_);
+  if (key == sleepKey_) return;  // the same picture: no flash
+  sleepKey_ = key;
+  POS_LOG("shell", "sleep screen: drawn again (what it shows changed)");
+  drawSleepScreenFor(os_.canvas(), have ? &info : nullptr, now, board, sleepUpdated_, true);
+  os_.displayManager().forceClean();
+}
+
+void Shell::wake() {
+  dozing_ = false;
+  sleeping_ = false;
+  if (sleepTimer_) os_.timers().cancel(sleepTimer_);
+  sleepTimer_ = 0;
+  // As at a start: the book or game that was open comes back (prepareSleep kept only those).
+  Store sys("/data/system.json");
+  const std::string last = sys.get("lastApp", std::string());
+  if (!last.empty()) {
+    sys.set("lastApp", std::string());
+    sys.save();
+  }
+  POS_LOG("shell", "sleep screen left by a tap%s%s", last.empty() ? "" : ": back to ", last.c_str());
+  showTop();  // the launcher, its badges and lines as they are now, the whole panel
+  if (!last.empty() && AppRegistry::instance().find(last)) requestOpen(last);
 }
 
 void Shell::sleepNow() {
@@ -356,6 +437,13 @@ void Shell::sleepNow() {
 }
 
 void Shell::onGesture(const Gesture& g) {
+  if (sleeping_) {  // a sleep screen that stays on is left by a tap (or any gesture that ends); one that is off takes nothing
+    if (dozing_ && g.type != Gesture::Down && g.type != Gesture::Cancel) {
+      wake();
+      runDeferred();
+    }
+    return;
+  }
   // A swipe down that started in the status bar opens the quick panel (not on full-screen pages, which have no status bar).
   if (g.type == Gesture::SwipeDown && g.startY < ui::kStatusBarH && status_->visible && !sleeping_ && !root_.hasOverlay()) {
     openQuickPanel(*this);
@@ -376,6 +464,7 @@ void Shell::onGesture(const Gesture& g) {
 void Shell::render(Canvas& canvas, DisplayManager& dm) {
   if (sleeping_) return;
   runDeferred();
+  if (sleeping_) return;  // a deferred step put the sleep screen on the panel (the idle check): nothing draws over it
   root_.render(canvas, dm);
 }
 

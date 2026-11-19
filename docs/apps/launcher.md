@@ -44,32 +44,36 @@ Since the word game (2026-11-16) there are seven apps: the pager bar shows ("1 /
   there is nothing; from the saved agenda only. Golden `agenda-launcher-line`.
 - The status bar clock updates once per minute with `Hint::Content` on its own rect only.
 
-## Idle return (P7-13, 2026-11-18)
+## When unused (P7-19, D38; replaces the idle return of P7-13, D33)
 
-An app nobody touched for `launcher.homeAfterSec` seconds (default 60; Settings > Power: Never / 30 s / 1 min / 2 min /
-5 min) is left as with the home button (`onHide`, `onStop`, state saved) and the launcher shows: one screen change, by
-itself. `Shell::idleHomeCheck()`, a one-shot timer started when an app opens; it wakes the device from light sleep like
-any timer. The log says `[shell] <app> not used for 60 s: back to the launcher`.
+`Shell::idleCheck()`, one timer for the whole Shell (it rechecks at least once a minute). Nobody touched the device for
+`power.autoOffMin` minutes (Settings > Power "When unused for": 5 / 15 / 30 / Never; while the reader is open
+`autoOffMinReader`, 30):
 
+- **"Then show: Sleep screen"** (`power.idleShow`, the default): the open app is left (state saved) and the sleep screen
+  goes on the panel (`Shell::showSleepScreen`), footer "Tap to start". The device stays on (on battery the PowerPolicy
+  switches it off at the same moment: POWER.md "Auto-off"). A tap (any gesture that ends) leaves it: the launcher, or
+  the book or game that was open (`Shell::wake`). Every 10 minutes it is drawn again if what it shows changed, and every
+  `power.refreshHours` it reads the relay, the weather and links to read later first. Log: `[shell] not used for 15
+  min: the sleep screen`, `[shell] sleep screen left by a tap: back to read`.
+- **"Then show: Home"**: an app that is no book or game is left for the launcher (`[shell] mail not used for 15 min:
+  back to the launcher`).
 - **Idle** = the time since the last touch event (`Os::lastInputMs()`, which `Os::keepAwake()` also moves), but never
   longer than the app has been open: an app opened without a touch (the boot that resumes it, `>set screen`) gets its
   whole time.
-- **Not for apps registered with `.stayOpen = true`**: Read, Somdoku, the word game (something one looks at for minutes).
-- **Not while the screen on top says `Screen::staysOpen()`**: Settings > Phone while a pairing waits for the phone,
-  Files over Wi-Fi while it serves (it stops by itself after ten minutes without a request), the Display lab.
-- **Not while the on-screen keyboard shows** (a reply or a password half typed) **or a finger is down**.
-- Open overlays close first, each its own way (`ui::Root::closeOverlays()`: a sheet runs its `onClose`, so Home's light
-  sheet still sends what was set; the quick panel and a toast go too): nothing of the app stays over the launcher.
-- A change of the setting counts for the app that is open, at the Shell's next look (at most a minute later).
-- Consequence for power-off: after 15 idle minutes the device is on the launcher, so the next boot shows the launcher;
-  it resumes only a book or a game (or any app with the setting on Never). Home's two minutes of polling after a touch
-  (apps/home.md) end with the app after one.
-- For a session that needs an app left open on the device (camera work): `tools/device.py set home-after 0` (seconds;
-  until the next boot, not saved).
+- **Not while the screen on top says `Screen::staysOpen()`** (pairing, Files over Wi-Fi, Update over Wi-Fi, the
+  Display lab), the on-screen keyboard shows, or a finger is down. Open overlays close first, each its own way
+  (`ui::Root::closeOverlays()`).
+- Books and games (`.stayOpen = true`: Read, Somdoku, the word game) are never left with "Home"; with "Sleep screen"
+  they come back after the tap.
+- For a device check: `tools/device.py set idle-min N` (minutes until the idle check acts, 0 = never; until the next
+  boot, not saved; on battery it also sets the switch-off time).
 
-Tests: six unit cases "idle return: ..." (`app_test.cpp`), UI script `idle-home` (goldens `idle-home-before`,
-`-launcher`, `-read-stays`, `-never`). On the device (2026-11-18): Settings > Power left alone went to the launcher after
-60 s (log line, frame dump), the reader's library was still there after 70 s (`out/dev-idle-home/`).
+Tests: unit cases "idle ..." (`app_test.cpp`: Home, the touch, 0 and the reader's time, stayOpen and staysOpen, a sheet,
+the keyboard, the sleep screen and the tap, the network read every refreshHours), "auto-off ... resumes only a book or a
+game" (`power_policy_test.cpp`); UI scripts `idle-home` (goldens `idle-before`, `idle-sleep-screen`, `idle-woken`,
+`idle-read-sleep`, `idle-read-back`, `idle-power-setting`, `idle-home-launcher`) and `idle-board` (the Today board with
+agenda and weather, "Tap to start").
 
 ## Quick panel (P7-6, as built)
 

@@ -433,7 +433,7 @@ P6-11 last (it needs the relay and a device that can pair).
   Fixtures with made-up pages, UI scripts `teletekst*`, unit tests. Done when: goldens accepted, `make check` green, a
   live page read on the device. (2026-11-18: built, tested in the simulator, flashed and read live pages on the device; the panel's look is a pending camera check.)
 
-- [x] **P7-13 Idle return to the launcher**. Read: apps/launcher.md "Idle return", D33. The Shell
+- [x] **P7-13 Idle return to the launcher** (replaced by P7-19 on 2026-11-19). Read: apps/launcher.md "Idle return", D33. The Shell
   leaves an app nobody touched for `launcher.homeAfterSec` (default 60; Settings > Power); not Read, Somdoku or the word
   game (`.stayOpen`), not a screen that says `staysOpen()`, not while the keyboard shows. Unit tests, UI script `idle-home`.
   Done when: `make check` green, seen on the device. (2026-11-18: done; on the device Settings went to the launcher after
@@ -494,6 +494,13 @@ P6-11 last (it needs the relay and a device that can pair).
   read on the device. (2026-11-18: built; on the device a pushed article is listed, read and removed, and a link shared from the real
   phone came through, but its site (tweakers.net) refuses the reader service: no article. A second real link (jeffquast.com) was read in
   1.9 s, saved and read on the panel: done.)
+
+- [~] **P7-19 When unused: the sleep screen, staying on**.
+  Read: D38, apps/launcher.md "When unused", POWER.md. One idle time (`power.autoOffMin`), one choice (`power.idleShow`:
+  Home | Sleep screen, default the sleep screen); the idle return's own setting goes. The sleep screen staying on (USB):
+  "Tap to start", drawn again when it changes, the network read every refreshHours; an idle power-off resumes only a
+  book or a game. A tap on a part of the board opens that app at that place. Done when: unit tests, UI scripts with
+  goldens, `make check` green, seen on the device and on the panel (camera).
 
 ## Phase 8: Optional, ask the owner first
 

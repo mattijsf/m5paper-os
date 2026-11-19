@@ -204,10 +204,11 @@ A task is done only when `make check` passes.
     `inbox-error`, `inbox-hiccup`, `inbox-mail`), `restart` (`epub`, `inbox`, `inbox-wifi`, `reader`), `power-off` (`sleep`, `sleep-reader`, `today-board`), `timer-wake` (`sched-refresh`, `today-board`; on the device: `poweroff N M`), and `fonts` (drawn by the Os).
   Time is real on the device: a shot right after a tap can catch the frame before or after the settle pass, so it may differ from the golden by a few
   hundred anti-aliased pixels (seen in `widgets3-stepper` and `-level` even against the simulator's remote mode).
-- **An app left open goes back to the launcher after a minute without a touch** (the idle return, apps/launcher.md; injected
-  taps count as touches, frame dumps do not). For a check that needs an app to stay (camera work on one screen):
-  `tools/device.py set home-after 0` (seconds, 0 = never; until the next boot). UI scripts: a `wait` of a minute or more inside
-  an app (not the reader or a game) ends on the launcher.
+- **After 15 minutes without a touch the sleep screen comes** (apps/launcher.md "When unused", D38; injected taps count
+  as touches, frame dumps do not). For a check that needs a screen to stay (camera work): `tools/device.py set idle-min 0`
+  (minutes, 0 = never; until the next boot). UI scripts: a `wait` of 15 minutes or more ends on the sleep screen (30 in
+  the reader); a script that must sit still longer brings `data/config.json` with `"power": {"autoOffMin": 0}`
+  (`hackernews-resume`, `hackernews-saved`, `teletekst-saved`).
 - **Live view (2026-11-16)**: `make view` (`tools/view.py`) serves a page on `http://127.0.0.1:8137/` with the device's frame; a click is a
   tap, holding 600 ms a long press, a drag a swipe (pointer events, so a finger on a phone works too). One thread owns the link: it polls
   `>refresh` every 0.15 s and takes a `>shot` when the refresh log changed, after every input, and every 5 s; the page long-polls for the

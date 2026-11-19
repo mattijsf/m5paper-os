@@ -18,6 +18,7 @@ namespace pos {
 namespace {
 
 SleepWeatherSource gWeatherSource = nullptr;
+SleepReadMaker gReadMaker = nullptr;
 
 // "Friday 16 January"
 std::string dayName(int date) {
@@ -25,11 +26,16 @@ std::string dayName(int date) {
   return std::string(weekdayName(weekdayOf(date))) + " " + std::to_string(d.day) + " " + monthName(d.month - 1);
 }
 
-// The state, in words: the panel keeps its picture without power, so nothing else tells off from on.
-void drawPoweredOff(Canvas& c) {
+// The state, in words: the panel keeps its picture without power, so nothing else tells off from on. `on`: the device stays
+// on (idle on USB, DECISIONS.md D38) and a tap leaves the sleep screen.
+void drawPoweredOff(Canvas& c, bool on) {
   using ui::Anchor;
   using ui::Type;
   const int cx = kScreenW / 2;
+  if (on) {
+    ui::drawText(c, "Tap to start", cx, 852, Type::Title, ui::ink, Anchor::MiddleCenter, kWhite);
+    return;
+  }
   const std::string state = "Powered off";
   const int iconW = 32, gap = 12, textW = ui::measureText(c, state, Type::Title);
   const int left = cx - (iconW + gap + textW) / 2;
@@ -41,6 +47,24 @@ void drawPoweredOff(Canvas& c) {
 }  // namespace
 
 void setSleepWeatherSource(SleepWeatherSource source) { gWeatherSource = source; }
+void setSleepReadMaker(SleepReadMaker maker) { gReadMaker = maker; }
+SleepReadMaker sleepReadMaker() { return gReadMaker; }
+
+std::string sleepScreenKey(const SleepInfo* info, int64_t now, bool board, const std::string& updated) {
+  std::string k = updated + "|";
+  if (info) k += info->title + "|" + info->subtitle + "|" + std::to_string(info->percent) + "|" + info->image + "|";
+  for (const AppEntry* a : AppRegistry::instance().sorted()) k += std::to_string(appBadge(a->info.id)) + ",";
+  if (board) {
+    const SleepBoard b = buildSleepBoard(now);
+    if (!b.empty()) {
+      k += "B|" + b.date + "|" + (b.weather ? b.temps + "|" + b.summary : std::string("-"));
+      for (const SleepBoard::Block& x : b.blocks) k += "|" + x.label + x.temp + x.rain + std::to_string(static_cast<int>(x.icon));
+      for (const SleepBoard::Row& r : b.agenda) k += "|" + std::string(r.heading ? "H" : "") + r.time + r.title;
+      return k;
+    }
+  }
+  return k + "P|" + sleepAgendaLine(now) + "|" + std::to_string(cachedUnread());
+}
 
 std::vector<SleepBoard::Row> sleepAgendaRows(const agenda::Agenda& a, int today, int minute, int maxRows) {
   std::vector<SleepBoard::Row> rows;
@@ -76,7 +100,7 @@ SleepBoard buildSleepBoard(int64_t now) {
   return b;
 }
 
-void drawSleepBoard(Canvas& c, const SleepBoard& b, const SleepInfo* info, Canvas* thumb, const std::string& updated) {
+void drawSleepBoard(Canvas& c, const SleepBoard& b, const SleepInfo* info, Canvas* thumb, const std::string& updated, bool on) {
   using ui::Anchor;
   using ui::Type;
   c.fillRect(0, 0, kScreenW, kScreenH, kWhite);
@@ -143,23 +167,23 @@ void drawSleepBoard(Canvas& c, const SleepBoard& b, const SleepInfo* info, Canva
     x += 38 + ui::measureText(c, count, Type::Body) + 28;
   }
   if (!updated.empty()) ui::drawText(c, "Updated " + updated, x1, 800, Type::Body, ui::secondary, Anchor::MiddleRight, kWhite);
-  drawPoweredOff(c);
+  drawPoweredOff(c, on);
 }
 
-void drawSleepScreenFor(Canvas& c, const SleepInfo* info, int64_t now, bool board, const std::string& updated) {
+void drawSleepScreenFor(Canvas& c, const SleepInfo* info, int64_t now, bool board, const std::string& updated, bool on) {
   const bool withImage = info && !info->image.empty();
   if (board) {
     const SleepBoard b = buildSleepBoard(now);
     if (!b.empty()) {
       std::shared_ptr<Canvas> thumb;
       if (withImage) thumb = ui::loadImageFit(info->image, kSleepThumbW, kSleepThumbH);
-      drawSleepBoard(c, b, info, thumb.get(), updated);
+      drawSleepBoard(c, b, info, thumb.get(), updated, on);
       return;
     }
   }
   std::shared_ptr<Canvas> image;
   if (withImage) image = ui::loadImageFit(info->image, kSleepImageW, kSleepImageH);
-  drawSleepScreen(c, info, image.get(), sleepNote(cachedUnread(), updated), sleepAgendaLine(now));
+  drawSleepScreen(c, info, image.get(), sleepNote(cachedUnread(), updated), sleepAgendaLine(now), on);
 }
 
 std::string sleepNote(int unread, const std::string& updated) {
@@ -202,7 +226,7 @@ bool loadSleepInfo(SleepInfo& info) {
   return !info.title.empty();
 }
 
-void drawSleepScreen(Canvas& c, const SleepInfo* info, Canvas* image, const std::string& note, const std::string& agenda) {
+void drawSleepScreen(Canvas& c, const SleepInfo* info, Canvas* image, const std::string& note, const std::string& agenda, bool on) {
   using ui::Anchor;
   using ui::Type;
   c.fillRect(0, 0, kScreenW, kScreenH, kWhite);
@@ -237,7 +261,7 @@ void drawSleepScreen(Canvas& c, const SleepInfo* info, Canvas* image, const std:
     ui::drawText(c, ui::ellipsize(c, agenda, Type::Body, 492), cx, note.empty() ? 800 : 756, Type::Body, ui::ink, Anchor::MiddleCenter, kWhite);
   }
   if (!note.empty()) ui::drawText(c, ui::ellipsize(c, note, Type::Body, 492), cx, 800, Type::Body, ui::ink, Anchor::MiddleCenter, kWhite);  // content: ink
-  drawPoweredOff(c);
+  drawPoweredOff(c, on);
 }
 
 }  // namespace pos

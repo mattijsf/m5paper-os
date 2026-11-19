@@ -225,11 +225,10 @@ TEST_CASE("PowerPolicy::idle: on USB the device stays awake unless the config al
   CHECK(e.power.sleeps.size() == 1);
 }
 
-TEST_CASE("PowerPolicy::idle: auto-off after the idle time, remembers the open app, never on USB") {
+TEST_CASE("PowerPolicy::idle: auto-off after the idle time, resumes only a book or a game, never on USB") {
   Env e;
   e.os.config().power.autoOffMin = 15;
   e.os.config().power.autoOffMinReader = 30;
-  e.os.config().launcher.homeAfterSec = 0;  // no idle return: the app stays open until the power goes (below: with it)
   REQUIRE(e.shell->openApp("settings"));
   e.clock.ms += 14 * 60 * 1000 + 30 * 1000;  // 14.5 minutes without input
   e.os.loopOnce();                            // runs the overdue status timer
@@ -246,22 +245,27 @@ TEST_CASE("PowerPolicy::idle: auto-off after the idle time, remembers the open a
   CHECK(e.display.waits > 0);           // the panel was allowed to finish first
   CHECK_FALSE(e.shell->appOpen());      // the app was stopped (state saved)
   Store sys("/data/system.json");
-  CHECK(sys.get("lastApp", std::string("")) == "settings");
+  CHECK(sys.get("lastApp", std::string("x")) == "");  // an unused Settings: the next start shows the launcher (D38)
 
-  // With the idle return (the default, a minute) the app was left long before: the power goes from the launcher and the
-  // next boot shows the launcher.
+  // A book or a game comes back at the next start.
   {
-    Env h;
-    h.os.config().power.autoOffMin = 15;
-    REQUIRE(h.shell->openApp("settings"));
-    h.clock.ms += 2 * 60 * 1000;
-    h.os.loopOnce();
-    CHECK_FALSE(h.shell->appOpen());
-    h.clock.ms += 14 * 60 * 1000;
-    h.policy.idle(1000);
-    REQUIRE(h.power.offs.size() == 1);
+    Env g;
+    g.os.config().power.autoOffMin = 15;
+    REQUIRE(g.shell->openApp("somdoku"));
+    REQUIRE(AppRegistry::instance().find("somdoku")->info.stayOpen);
+    g.clock.ms += 16 * 60 * 1000;
+    g.policy.idle(1000);
+    REQUIRE(g.power.offs.size() == 1);
     Store after("/data/system.json");
-    CHECK(after.get("lastApp", std::string("x")) == "");
+    CHECK(after.get("lastApp", std::string("")) == "somdoku");
+  }
+  // "Sleep now" (asked for) keeps whatever was open, as before.
+  {
+    Env s;
+    REQUIRE(s.shell->openApp("settings"));
+    s.shell->sleepNow();
+    Store after("/data/system.json");
+    CHECK(after.get("lastApp", std::string("")) == "settings");
   }
 
   // on USB: never

@@ -38,7 +38,7 @@ TEST_CASE("config: defaults when there is no file") {
   CHECK(c.reader.fontSize == "M");
   CHECK(c.reader.lineSpacing == doctest::Approx(1.35f));
   CHECK(c.launcher.resumeLastApp);
-  CHECK(c.launcher.homeAfterSec == 60);  // the idle return: a minute
+  CHECK(c.power.idleShow == IdleShow::SleepScreen);  // unused: the sleep screen (D38)
   CHECK_FALSE(c.phone.sound);  // the buzzer is silent until Settings switches it on
 }
 
@@ -53,7 +53,7 @@ TEST_CASE("config: save and load round trip") {
   a.reader.lineSpacing = 1.5f;
   a.ha.baseUrl = "http://192.168.1.5:8123";
   a.launcher.resumeLastApp = false;
-  a.launcher.homeAfterSec = 0;
+  a.power.idleShow = IdleShow::Home;
   a.net.timezone = "UTC0";
   a.phone.sound = true;
   REQUIRE(a.save());
@@ -67,7 +67,7 @@ TEST_CASE("config: save and load round trip") {
   CHECK(b.reader.lineSpacing == doctest::Approx(1.5f));
   CHECK(b.ha.baseUrl == "http://192.168.1.5:8123");
   CHECK_FALSE(b.launcher.resumeLastApp);
-  CHECK(b.launcher.homeAfterSec == 0);
+  CHECK(b.power.idleShow == IdleShow::Home);
   CHECK(b.net.timezone == "UTC0");
   CHECK(b.phone.sound);
 }
@@ -76,7 +76,7 @@ TEST_CASE("config: missing keys, wrong types and out-of-range values never crash
   TempRoots t;
   fs::writeFile("/data/config.json", R"({
     "display": {"ghostLimit": 99, "settleMs": "fast", "idleCleanMs": 1},
-    "power": {"autoOffMin": -5},
+    "power": {"autoOffMin": -5, "idleShow": 3},
     "reader": {"fontSize": "XXL", "margins": 3, "lineSpacing": 9.0},
     "ha": {"baseUrl": ""},
     "launcher": {"resumeLastApp": "yes", "homeAfterSec": 99999},
@@ -93,7 +93,7 @@ TEST_CASE("config: missing keys, wrong types and out-of-range values never crash
   CHECK(c.reader.lineSpacing == doctest::Approx(1.8f));
   CHECK(c.ha.baseUrl == "http://homeassistant.local:8123");  // empty: default
   CHECK(c.launcher.resumeLastApp);
-  CHECK(c.launcher.homeAfterSec == 3600);                 // clamped
+  CHECK(c.power.idleShow == IdleShow::SleepScreen);       // not a word: default (and the old homeAfterSec is ignored)
 
   fs::writeFile("/data/config.json", "{ this is not json");
   Config d;

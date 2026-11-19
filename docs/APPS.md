@@ -48,8 +48,8 @@ That is the whole app. `POS_REGISTER_APP` adds it to a static registry that the 
 (The registry uses a static initialiser; `platformio.ini` keeps app object files from being
 dropped by the linker. If a new app does not show up in the launcher, check that first.)
 
-**Staying open** (apps/launcher.md "Idle return"): an app nobody touches for a minute (`launcher.homeAfterSec`) is left
-for the launcher. An app one looks at for minutes without a touch, a book or a game, registers with one more field,
+**Staying open** (apps/launcher.md "When unused", D38): an app nobody touches for the idle time (`power.autoOffMin`) is
+left for the sleep screen or the launcher, and an auto-off resumes it at the next start only if it stays open. An app one looks at for minutes without a touch, a book or a game, registers with one more field,
 `.stayOpen = true` (after `.order`). A single screen that is in use without a finger (a code being compared with the
 phone, files arriving) overrides `bool staysOpen() const` instead; it is asked at every look, so it may change. Text
 being typed is safe by itself: nothing leaves while the on-screen keyboard shows.

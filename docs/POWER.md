@@ -51,7 +51,8 @@ long press, auto-off), at most 60 s, and not at all if that is within 50 ms. Rea
 sleep kills the USB serial session and drops everything sent during it (HARDWARE.md), so a sleeping device
 cannot be driven by `tools/device.py`. Setting it to false (Settings > Power, or in `config.json`) lets the
 device sleep on USB too. Auto-off: `power.autoOffMin` (default 15), `autoOffMinReader` (30, while the reader app
-`read` is open), 0 = never; **never while a USB host is connected**; then `Surface::prepareForPowerOff()` (the
+`read` is open), 0 = never; **never while a USB host is connected** (then the Shell shows the sleep screen or the
+launcher instead: D38); then `Surface::prepareForIdleOff()` (the
 Shell writes `lastApp` to `/data/system.json` and closes the app so it saves), the panel finishes, and
 `power.powerOff(0)`. Resuming the last app and the sleep screen come with P3-6.
 
@@ -62,8 +63,11 @@ Shell writes `lastApp` to `/data/system.json` and closes the app so it saves), t
 - Not while USB (a host on the data link, or the charger) was seen in the last 12 hours of this boot (`kUsbGraceMs`): a Mac
   suspends a port nobody has open, the device then sees no host, and only the side button could undo an unwanted power-off.
 - Before power-off every app gets `onPause()` to save state (reading position).
-- Since the idle return (apps/launcher.md, default a minute) an unused app is closed long before auto-off: the device
-  switches off from the launcher, except in a book or a game (or with the idle return on Never).
+- The next start after an auto-off resumes only a book or a game (`Surface::prepareForIdleOff`, D38); "Sleep now" and
+  the launcher's power button resume whatever was open.
+- **On USB** (or USB seen in the last 12 hours) the device does not switch off: at the same idle time it shows what
+  Settings > Power "Then show" says, the sleep screen staying on (default) or the launcher (apps/launcher.md "When
+  unused", D38).
 - Boot after power-off is a cold start. Target: **under 2.5 s from button to the previous
   screen** (task P3-6): the launcher restores the last app and the app restores its state from
   `/data`. Do not connect Wi-Fi during boot.

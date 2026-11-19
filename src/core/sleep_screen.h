@@ -3,6 +3,7 @@
 // keeps its picture without power: nothing else tells off from on). No clock: it stays for hours.
 #pragma once
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -50,15 +51,29 @@ void setSleepWeatherSource(SleepWeatherSource source);
 SleepBoard buildSleepBoard(int64_t now);
 // Draws the whole canvas: the board, the open book as one row (`info`, may be null; `thumb` its cover at kSleepThumbW x
 // kSleepThumbH, may be null), the unread counts per app and `updated` ("14:05", "" for none), then "Powered off".
-void drawSleepBoard(Canvas& c, const SleepBoard& board, const SleepInfo* info, Canvas* thumb, const std::string& updated);
+// `on`: the device stays on (idle on USB, D38): "Tap to start" instead of "Powered off" and the side button.
+void drawSleepBoard(Canvas& c, const SleepBoard& board, const SleepInfo* info, Canvas* thumb, const std::string& updated, bool on = false);
+// What the sleep screen would show now, as text: the same text means the same picture (the Shell redraws a sleep screen
+// that stays on only when this changes).
+std::string sleepScreenKey(const SleepInfo* info, int64_t now, bool board, const std::string& updated);
+
+// The read of the network a sleep screen that stays on does now and then (the relay, the weather, articles: what a
+// scheduled wake reads). Made on the UI thread from what it needs; the returned job runs on the worker and says whether
+// anything answered. Set once by the composition root (apps/apps.cpp): core does not include apps.
+class Os;
+using SleepReadJob = std::function<bool()>;
+using SleepReadMaker = SleepReadJob (*)(Os& os);
+void setSleepReadMaker(SleepReadMaker maker);
+SleepReadMaker sleepReadMaker();
+
 // What power-off and the scheduled refresh call: the board when `board` is set (config power.sleepBoard) and there is
 // something for it, else the plain screen below. Loads the cover itself.
-void drawSleepScreenFor(Canvas& c, const SleepInfo* info, int64_t now, bool board, const std::string& updated);
+void drawSleepScreenFor(Canvas& c, const SleepInfo* info, int64_t now, bool board, const std::string& updated, bool on = false);
 
 // Draws the whole canvas. `info` may be null (PaperOS mark); `image` is the decoded picture of info->image (may be null).
 // `note` is one caption line above the hint ("3 unread - updated 14:05"), "" for none; `agenda` is one line above it: what
 // the phone's agenda has next ("Tomorrow 09:30 Dentist", core/agenda nextLine), "" for none.
-void drawSleepScreen(Canvas& c, const SleepInfo* info, Canvas* image, const std::string& note = "", const std::string& agenda = "");
+void drawSleepScreen(Canvas& c, const SleepInfo* info, Canvas* image, const std::string& note = "", const std::string& agenda = "", bool on = false);
 // The agenda line for the sleep screen, from the saved agenda and the clock (no network). The screen stays for hours: the
 // line names what comes next at the moment it is drawn (power-off, a scheduled refresh).
 std::string sleepAgendaLine(int64_t now);

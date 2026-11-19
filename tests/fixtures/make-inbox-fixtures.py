@@ -211,7 +211,7 @@ def main(out, presets):
     write(out, l, "POST", ack, "[]")
     # The paired state of the UI test presets that read a relay.
     for name in ("inbox", "inbox-mail", "inbox-error", "inbox-wifi", "inbox-empty", "inbox-gone", "inbox-gone-mail", "whatsapp-send",
-                 "whatsapp-reply-result", "whatsapp-send-missing", "sched-refresh", "somdoku", "textfield-phone", "agenda", "agenda-none", "today-board", "read-later"):
+                 "whatsapp-reply-result", "whatsapp-send-missing", "sched-refresh", "somdoku", "textfield-phone", "agenda", "agenda-none", "today-board", "read-later", "idle-board"):
         os.makedirs(os.path.join(presets, name, "data"), exist_ok=True)
         with open(os.path.join(presets, name, "data", "companion.json"), "w") as f:
             f.write(preset_pairing())

@@ -29,6 +29,8 @@ class Surface {
   // Screen points to tap, in order, to type `text` on the on-screen keyboard that is showing (UI scripts).
   // Called before an auto power-off: save state (the open app gets onStop) and remember what was open.
   virtual void prepareForPowerOff() {}
+  // The same for a power-off nobody asked for (auto-off): the Shell then resumes only a book or a game at the next start.
+  virtual void prepareForIdleOff() { prepareForPowerOff(); }
   // True if the panel already shows what this surface wants (the sleep screen, after an RTC wake): Os::setup() then skips the
   // full Quality refresh of the first frame.
   virtual bool keepsPanelAtBoot() const { return false; }

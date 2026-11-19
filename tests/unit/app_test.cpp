@@ -2,6 +2,8 @@
 // and work as written.
 #include <doctest.h>
 
+#include <chrono>
+
 #include <cstdio>
 #include <cstdlib>
 #include <thread>
@@ -13,6 +15,7 @@
 #include "apps/apps.h"
 #include "apps/launcher/launcher.h"
 #include "core/shell.h"
+#include "core/sleep_screen.h"
 #include "ui/widgets.h"
 
 // ---- hello, verbatim from docs/APPS.md -------------------------------------------------------
@@ -712,7 +715,7 @@ TEST_CASE("launcher: the summary line leaves out what is not there") {
   CHECK(summaryLine(0, "Dune", 250) == "Reading: Dune, 100%");
 }
 
-// ---- idle return (config launcher.homeAfterSec, apps/launcher.md "Idle return") -----------------
+// ---- idle (config power.autoOffMin and power.idleShow, DECISIONS.md D38) ---------------------------------
 namespace pos::apps::idletest {
 
 bool gStay = false;  // what StayScreen::staysOpen() answers
@@ -757,53 +760,63 @@ void pass(Env& env, uint32_t ms) {
 }
 }  // namespace
 
-TEST_CASE("idle return: an app nobody touches for a minute is left for the launcher") {
+TEST_CASE("idle, Home: an app nobody touches for power.autoOffMin is left for the launcher") {
   Env env;
+  env.os.config().power.idleShow = IdleShow::Home;
+  env.os.config().power.autoOffMin = 5;
   REQUIRE(env.shell->openApp("hello"));
-  pass(env, 59000);
+  pass(env, 299000);
   CHECK(env.shell->appOpen());
   pass(env, 1000);
   CHECK_FALSE(env.shell->appOpen());
   CHECK(env.shell->depth() == 1);  // the launcher
-  CHECK(logTail(5).find("hello not used for 60 s") != std::string::npos);
-  // the launcher itself is never left
-  pass(env, 180000);
+  CHECK(logTail(5).find("hello not used for 5 min") != std::string::npos);
+  // the launcher itself is never left, and no sleep screen comes
+  pass(env, 3600000);
   CHECK(env.shell->depth() == 1);
+  CHECK_FALSE(env.shell->showingSleepScreen());
 }
 
-TEST_CASE("idle return: a touch starts the minute again; an app opened long after the last touch gets its minute") {
+TEST_CASE("idle: a touch starts the time again; an app opened long after the last touch gets its own") {
   Env env;
-  pass(env, 300000);  // five minutes on the launcher, no touch
+  env.os.config().power.idleShow = IdleShow::Home;
+  env.os.config().power.autoOffMin = 5;
+  pass(env, 240000);  // four minutes on the launcher, no touch
   REQUIRE(env.shell->openApp("hello"));  // opened without one (a boot that resumes, the remote)
-  pass(env, 50000);
+  pass(env, 250000);
   CHECK(env.shell->appOpen());
   env.os.keepAwake();  // what a touch event does to Os::lastInputMs()
-  pass(env, 59000);
-  CHECK(env.shell->appOpen());  // 109 s after it opened, 59 s after the touch
-  pass(env, 1000);
-  CHECK_FALSE(env.shell->appOpen());
-}
-
-TEST_CASE("idle return: the setting; 0 is never, a change counts for the app that is open") {
-  Env env;
-  env.os.config().launcher.homeAfterSec = 0;
-  REQUIRE(env.shell->openApp("hello"));
-  pass(env, 600000);
-  CHECK(env.shell->appOpen());
-  env.os.config().launcher.homeAfterSec = 30;  // Settings: seen at the next look, within a minute
-  pass(env, 60000);
-  CHECK_FALSE(env.shell->appOpen());
-
-  env.os.config().launcher.homeAfterSec = 300;
-  REQUIRE(env.shell->openApp("hello"));
   pass(env, 299000);
   CHECK(env.shell->appOpen());
   pass(env, 1000);
   CHECK_FALSE(env.shell->appOpen());
 }
 
-TEST_CASE("idle return: not an app registered with stayOpen (the reader, the games), not a screen that says staysOpen") {
+TEST_CASE("idle: 0 is never; a change counts for the app that is open; the reader has its own time") {
   Env env;
+  env.os.config().power.idleShow = IdleShow::Home;
+  env.os.config().power.autoOffMin = 0;
+  REQUIRE(env.shell->openApp("hello"));
+  pass(env, 3600000);
+  CHECK(env.shell->appOpen());
+  env.os.config().power.autoOffMin = 5;  // Settings: seen at the next look, within a minute
+  pass(env, 60000);
+  CHECK_FALSE(env.shell->appOpen());
+
+  env.os.config().power.idleShow = IdleShow::SleepScreen;
+  env.os.config().power.autoOffMinReader = 30;
+  REQUIRE(env.shell->openApp("read"));
+  pass(env, 1799000);
+  CHECK(env.shell->appOpen());
+  CHECK_FALSE(env.shell->showingSleepScreen());
+  pass(env, 2000);
+  CHECK(env.shell->showingSleepScreen());
+}
+
+TEST_CASE("idle, Home: not an app registered with stayOpen (the reader, the games), not a screen that says staysOpen") {
+  Env env;
+  env.os.config().power.idleShow = IdleShow::Home;
+  env.os.config().power.autoOffMin = 5;
   REQUIRE(AppRegistry::instance().find("read")->info.stayOpen);
   REQUIRE(AppRegistry::instance().find("somdoku")->info.stayOpen);
   REQUIRE(AppRegistry::instance().find("wordgame")->info.stayOpen);
@@ -824,23 +837,94 @@ TEST_CASE("idle return: not an app registered with stayOpen (the reader, the gam
   CHECK_FALSE(env.shell->appOpen());
 }
 
-TEST_CASE("idle return: an open sheet closes as on a tap beside it and does not stay on the launcher") {
+TEST_CASE("idle, Home: an open sheet closes as on a tap beside it and does not stay on the launcher") {
   Env env;
+  env.os.config().power.idleShow = IdleShow::Home;
+  env.os.config().power.autoOffMin = 5;
   pos::apps::idletest::StayScreen::closed = 0;
   REQUIRE(env.shell->openApp("idle-screen"));
   auto* b = findButton(env.shell->root().root(), "Sheet");
   REQUIRE(b != nullptr);
   env.tapAt(b->frame.x + 10, b->frame.y + 10);
   REQUIRE(env.shell->root().hasOverlay());
-  pass(env, 61000);
+  pass(env, 301000);
   CHECK_FALSE(env.shell->appOpen());
   CHECK_FALSE(env.shell->root().hasOverlay());
   CHECK(pos::apps::idletest::StayScreen::closed == 1);
   pass(env, 2000);  // the closed sheet is destroyed at the next render: nothing of the app is called
 }
 
-TEST_CASE("idle return: not while the on-screen keyboard shows (something is half typed)") {
+TEST_CASE("idle, Sleep screen: the sleep screen comes, the device stays on, a tap brings back the launcher or the book") {
   Env env;
+  env.os.config().power.autoOffMin = 5;
+  REQUIRE(env.os.config().power.idleShow == IdleShow::SleepScreen);  // the default
+  // From the launcher.
+  env.os.keepAwake();  // (the time starts now, not at the fake clock's zero)
+  pass(env, 299000);
+  CHECK_FALSE(env.shell->showingSleepScreen());
+  pass(env, 2000);
+  CHECK(env.shell->showingSleepScreen());
+  CHECK_FALSE(env.shell->dirty());  // nothing draws over it
+  CHECK(env.power.offs.empty());    // (the Shell never switches off: on battery the PowerPolicy does)
+  env.tapAt(270, 500);
+  CHECK_FALSE(env.shell->showingSleepScreen());
+  CHECK_FALSE(env.shell->appOpen());
+  CHECK(env.shell->depth() == 1);
+
+  // From an app that is no book or game: back to the launcher.
+  REQUIRE(env.shell->openApp("hello"));
+  pass(env, 301000);
+  CHECK(env.shell->showingSleepScreen());
+  CHECK_FALSE(env.shell->appOpen());
+  env.tapAt(270, 500);
+  env.step();
+  CHECK_FALSE(env.shell->appOpen());
+
+  // From a game: the game again.
+  REQUIRE(env.shell->openApp("idle-game"));
+  pass(env, 301000);
+  CHECK(env.shell->showingSleepScreen());
+  env.tapAt(270, 500);
+  env.step();
+  CHECK(env.shell->appOpen());
+  CHECK(env.shell->appId() == "idle-game");
+}
+
+namespace {
+int gSleepReads = 0;
+SleepReadJob countingRead(Os&) {
+  return [] {
+    ++gSleepReads;
+    return true;
+  };
+}
+}  // namespace
+
+TEST_CASE("idle, Sleep screen: it reads the network every power.refreshHours, not more often, and never when that is off") {
+  Env env;
+  env.os.config().power.autoOffMin = 5;
+  env.os.config().power.refreshHours = 1;
+  setSleepReadMaker(countingRead);
+  gSleepReads = 0;
+  pass(env, 301000);
+  REQUIRE(env.shell->showingSleepScreen());
+  pass(env, 50 * 60000);
+  CHECK(gSleepReads == 0);  // not yet an hour
+  pass(env, 20 * 60000);
+  for (int i = 0; i < 200 && env.os.worker().pending() > 0; ++i) std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  env.step();
+  CHECK(gSleepReads == 1);
+  env.os.config().power.refreshHours = 0;
+  pass(env, 3 * 3600000);
+  for (int i = 0; i < 200 && env.os.worker().pending() > 0; ++i) std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  CHECK(gSleepReads == 1);
+  setSleepReadMaker(nullptr);
+}
+
+TEST_CASE("idle: not while the on-screen keyboard shows (something is half typed)") {
+  Env env;
+  env.os.config().power.idleShow = IdleShow::Home;
+  env.os.config().power.autoOffMin = 5;
   REQUIRE(env.shell->openApp("hello"));
   auto panel = std::make_unique<ui::KeyboardPanel>();
   ui::Widget* raw = env.shell->root().addOverlay(std::move(panel));

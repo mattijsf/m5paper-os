@@ -18,9 +18,12 @@ namespace pos {
 
 // A swipe up that starts this close to the bottom edge cleans the whole screen (Shell::onGesture).
 constexpr int kCleanEdgeH = 60;
-// The idle return (config launcher.homeAfterSec) looks again this often while it has no time to wait for: the setting is
-// off, or the screen on top stays open. No extra wake-ups: the loop ticks once a minute anyway (kMaxSleepMs).
-constexpr uint32_t kIdleHomeRecheckMs = 60000;
+// The idle check (config power.autoOffMin and power.idleShow, DECISIONS.md D38) looks again this often while it has no
+// time to wait for. No extra wake-ups: the loop ticks once a minute anyway (kMaxSleepMs).
+constexpr uint32_t kIdleRecheckMs = 60000;
+// A sleep screen that stays on (on USB) is looked at this often: drawn again when what it shows changed (the date, an
+// event that is over, a badge), and the network read every power.refreshHours.
+constexpr uint32_t kSleepScreenTickMs = 10u * 60 * 1000;
 
 class Shell : public Surface {
  public:
@@ -56,6 +59,9 @@ class Shell : public Surface {
   void render(Canvas& canvas, DisplayManager& dm) override;
   bool dirty() const override { return !sleeping_ && (!deferred_.empty() || root_.dirty()); }
   void prepareForPowerOff() override;
+  void prepareForIdleOff() override;
+  // The sleep screen is on the panel and the device stays on (idle on USB, power.idleShow): a tap leaves it.
+  bool showingSleepScreen() const { return dozing_; }
   std::string currentAppId() const override { return appId_; }
   std::string debugState() const override { return stack_.empty() ? std::string() : stack_.back().screen->debugState(); }
   std::vector<KeyTap> keyboardTaps(const std::string& text) override { return root_.keyboardTaps(text); }
@@ -84,9 +90,18 @@ class Shell : public Surface {
   }
   void runDeferred();
   void showTop();          // title bar, visibility, onShow
-  // Idle return: leaves an app nobody touched for config launcher.homeAfterSec and shows the launcher. Not an app
-  // registered with `.stayOpen`, not while the top screen says staysOpen(), a keyboard is showing or a finger is down.
-  void idleHomeCheck();
+  // Idle check: nobody touched the device for power.autoOffMin (the reader: autoOffMinReader). power.idleShow Home: the
+  // open app is left for the launcher (not one registered with `.stayOpen`); SleepScreen: the sleep screen, the device
+  // staying on (on battery the PowerPolicy switches it off at the same moment). Not while the top screen says
+  // staysOpen(), a keyboard is showing or a finger is down.
+  void idleCheck();
+  // The sleep screen on the panel. `idle`: nobody asked for it, so the next start resumes only a book or a game.
+  // `stayOn`: the device stays on (its footer says "Tap to start").
+  void prepareSleep(bool idle, bool stayOn);
+  void showSleepScreen();   // idle on USB: the sleep screen, staying on
+  void sleepScreenTick();   // see kSleepScreenTickMs
+  void redrawSleepScreen();
+  void wake();              // a tap on a sleep screen that stays on
   void updateStatus();
 
   Os& os_;
@@ -98,6 +113,12 @@ class Shell : public Surface {
   std::vector<std::function<void()>> deferred_;
   Timers::Id statusTimer_ = 0;
   bool sleeping_ = false;  // the sleep screen is on the panel
+  bool dozing_ = false;    // ... and the device stays on: a tap leaves it (showSleepScreen)
+  bool reading_ = false;   // its network read runs on the worker
+  uint32_t lastReadMs_ = 0;
+  std::string sleepKey_, sleepUpdated_;  // what the sleep screen on the panel shows (sleepScreenKey), "14:05" of its last read
+  Timers::Id sleepTimer_ = 0;
+  std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
 
   // The running app.
   std::unique_ptr<App> app_;
@@ -110,7 +131,7 @@ class Shell : public Surface {
   unsigned appRun_ = 0;  // changes whenever an app opens or closes: tells the actions of one run from the next
   bool appStaysOpen_ = false;   // AppInfo::stayOpen of the running app
   uint32_t appOpenedMs_ = 0;    // clock.millis() when it opened: an app opened without a touch (boot, remote) is not idle yet
-  Timers::Id idleTimer_ = 0;    // the next idleHomeCheck(), 0 = none
+  Timers::Id idleTimer_ = 0;    // the next idleCheck(), 0 = none
 };
 
 }  // namespace pos

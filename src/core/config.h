@@ -2,6 +2,7 @@
 // optional; a missing or unreadable file, or a value of the wrong type or range, gives the default.
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 namespace pos {
@@ -12,9 +13,19 @@ struct DisplayConfig {
   int idleCleanMs = 2000;    // 500..30000
   int pageCleanEvery = 10;   // 0..100, 0 = off: a Quality pass every N full-page changes (page turns)
 };
+// What the device does when nobody touched it for PowerConfig::autoOffMin (DECISIONS.md D38). On battery it switches off
+// either way, the sleep screen on the panel; this is what it shows while it stays on (on USB, or USB seen in the last
+// 12 hours: power_policy.h kUsbGraceMs).
+enum class IdleShow : uint8_t {
+  Home,         // the open app is left for the launcher (not a book or a game: AppInfo::stayOpen)
+  SleepScreen,  // the sleep screen (the Today board); a tap brings back the launcher, or the book or game that was open
+};
+
 struct PowerConfig {
-  int autoOffMin = 15;        // 0 = never (on USB)
-  int autoOffMinReader = 30;
+  // Minutes without a touch until the device switches off (on battery) or shows what `idleShow` says (on USB).
+  int autoOffMin = 15;        // 0 = never
+  int autoOffMinReader = 30;  // the same while the reader is open
+  IdleShow idleShow = IdleShow::SleepScreen;
   // Do not light-sleep while a USB host is connected: sleep breaks the serial link (tools/device.py). Auto-off
   // never happens on USB either.
   bool stayAwakeOnUsb = true;
@@ -41,9 +52,6 @@ struct HaConfig {
 };
 struct LauncherConfig {
   bool resumeLastApp = true;
-  // Idle return: an app nobody touched for this many seconds is left for the launcher (Shell, apps/launcher.md "Idle return").
-  // 0 = never. Not for apps registered with `.stayOpen` (the reader, the games).
-  int homeAfterSec = 60;
 };
 struct PhoneConfig {
   bool shareClipboard = true;  // the clipboard goes to and comes from the paired phone (DECISIONS.md D23)

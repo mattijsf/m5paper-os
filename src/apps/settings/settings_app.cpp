@@ -84,7 +84,7 @@ class PowerPage : public Page {
  public:
   void build(ui::Column& root) override {
     setTitle("Power");
-    caption(root, "Switch off after");
+    caption(root, "When unused for");
     const int m = cfg().power.autoOffMin;
     auto* off = root.add<ui::Segmented>(std::vector<std::string>{"5 min", "15 min", "30 min", "Never"}, m == 5 ? 0 : m == 15 ? 1 : m == 30 ? 2 : m == 0 ? 3 : 1);
     off->onChange = [this](int i) {
@@ -92,13 +92,11 @@ class PowerPage : public Page {
       cfg().power.autoOffMin = kMin[i];
       save();
     };
-    caption(root, "Back to home when unused for (not books or games)");
-    const int hs = cfg().launcher.homeAfterSec;
-    auto* home = root.add<ui::Segmented>(std::vector<std::string>{"Never", "30 s", "1 min", "2 min", "5 min"},
-                                         hs == 0 ? 0 : hs <= 30 ? 1 : hs <= 60 ? 2 : hs <= 120 ? 3 : 4);
-    home->onChange = [this](int i) {
-      static const int kSec[] = {0, 30, 60, 120, 300};
-      cfg().launcher.homeAfterSec = kSec[i];  // the Shell reads it at its next look (within a minute)
+    caption(root, "Then show (on battery it also switches off)");
+    auto* show = root.add<ui::Segmented>(std::vector<std::string>{"Home", "Sleep screen"},
+                                         cfg().power.idleShow == IdleShow::Home ? 0 : 1);
+    show->onChange = [this](int i) {
+      cfg().power.idleShow = i == 0 ? IdleShow::Home : IdleShow::SleepScreen;  // the Shell reads it at its next look
       save();
     };
     caption(root, "While off, wake to update the sleep screen every");

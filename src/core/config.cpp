@@ -63,6 +63,7 @@ bool Config::load() {
   if (p["log"].is<bool>()) power.log = p["log"].as<bool>();
   readInt(p["refreshHours"], power.refreshHours, 0, 24);
   if (p["sleepBoard"].is<bool>()) power.sleepBoard = p["sleepBoard"].as<bool>();
+  if (p["idleShow"].is<const char*>()) power.idleShow = p["idleShow"].as<std::string>() == "home" ? IdleShow::Home : IdleShow::SleepScreen;
 
   JsonVariantConst n = doc["net"];
   readInt(n["lingerSec"], net.lingerSec, 0, 600);
@@ -76,7 +77,6 @@ bool Config::load() {
   readString(doc["ha"]["baseUrl"], ha.baseUrl);
 
   if (doc["launcher"]["resumeLastApp"].is<bool>()) launcher.resumeLastApp = doc["launcher"]["resumeLastApp"].as<bool>();
-  readInt(doc["launcher"]["homeAfterSec"], launcher.homeAfterSec, 0, 3600);
   if (doc["phone"]["clipboard"].is<bool>()) phone.shareClipboard = doc["phone"]["clipboard"].as<bool>();
   if (doc["phone"]["sound"].is<bool>()) phone.sound = doc["phone"]["sound"].as<bool>();
   return true;
@@ -94,6 +94,7 @@ bool Config::save() const {
   doc["power"]["log"] = power.log;
   doc["power"]["refreshHours"] = power.refreshHours;
   doc["power"]["sleepBoard"] = power.sleepBoard;
+  doc["power"]["idleShow"] = power.idleShow == IdleShow::Home ? "home" : "sleepScreen";
   doc["net"]["lingerSec"] = net.lingerSec;
   doc["net"]["timezone"] = net.timezone;
   doc["reader"]["fontSize"] = reader.fontSize;
@@ -101,7 +102,6 @@ bool Config::save() const {
   doc["reader"]["lineSpacing"] = reader.lineSpacing;
   doc["ha"]["baseUrl"] = ha.baseUrl;
   doc["launcher"]["resumeLastApp"] = launcher.resumeLastApp;
-  doc["launcher"]["homeAfterSec"] = launcher.homeAfterSec;
   doc["phone"]["clipboard"] = phone.shareClipboard;
   doc["phone"]["sound"] = phone.sound;
   std::string out;

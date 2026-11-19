@@ -1,20 +1,34 @@
-# Idle return (apps/launcher.md): an app nobody touches for a minute is left for the launcher; a book stays open; the
-# setting on Settings > Power.
+# Idle (DECISIONS.md D38; Settings > Power "When unused for", "Then show"). Nothing touched for 15 minutes: the sleep
+# screen comes and the device stays on (on USB; the simulator is), a tap brings back the launcher; a book (or a game)
+# comes back by itself, after its own 30 minutes. With "Then show: Home" an unused app is left for the launcher.
 wait 300
 tap 100 424             # Mail tile
-wait 59000
-shot idle-home-before   # 59 s without a touch: still Mail
-wait 2500
-shot idle-home-launcher # a minute: the launcher, by itself (settled)
-tap 100 248             # Read tile: books (and games) stay open
-wait 300000
-shot idle-home-read-stays
+wait 890000
+shot idle-before        # 14 min 50 s without a touch: still Mail
+wait 12000
+shot idle-sleep-screen  # 15 minutes: the sleep screen, by itself
+tap 270 500             # a tap: the launcher (Mail is no book or game)
+wait 1500
+shot idle-woken
+tap 100 248             # Read: the library (a book, for the idle check)
+wait 1802000            # 30 minutes in the reader: the sleep screen
+shot idle-read-sleep
+tap 270 500             # a tap: the reader again
+wait 1500
+shot idle-read-back
 back
 wait 900
 tap 270 424             # Settings
 wait 900
 tap 270 364             # Power
 wait 900
-tap 72 322              # back to home when unused for: Never
-wait 400000
-shot idle-home-never    # still Settings > Power
+shot idle-power-setting
+tap 145 315             # Then show: Home
+wait 900
+back
+wait 900
+back
+wait 900
+tap 100 424             # Mail tile
+wait 902000             # 15 minutes: back to the launcher, no sleep screen
+shot idle-home-launcher

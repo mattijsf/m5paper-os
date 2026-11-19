@@ -1,0 +1,5 @@
+# Fake values for the idle sleep screen UI test.
+HA_TOKEN=fake-token-for-tests-only
+HA_URL=https://ha-agenda.example.test
+WIFI_SSID=HomeNet
+WIFI_PASSWORD=home-password

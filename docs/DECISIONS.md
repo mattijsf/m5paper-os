@@ -543,7 +543,7 @@ the budget runs short (sizes from the linker map):
   the flash, shown first when the app opens and when a read fails. No background refresh, nothing on the launcher.
 - **Test pages are made up** (`tests/fixtures/make-teletekst-fixtures.py`): the repository holds no text of the service.
 
-## D33. Idle return: an unused app goes back to the launcher
+## D33. Idle return: an unused app goes back to the launcher (superseded by D38 on 2026-11-19: one idle time, the sleep screen or the launcher)
 
 
 
@@ -669,4 +669,29 @@ wake, announced through Home Assistant; or push while a page is open): the owner
   a reset inside those 15 s: the old slot is back and the page says so; a changed header 403, a changed image 400 after
   it was written (never made the one that boots), text that is no package 400; `make flash` afterwards boots app0.
 - **Cost**: firmware +26 KB (2,584,523 bytes).
+
+## D38. When unused: the sleep screen, staying on
+
+- **Why**: the device sits on USB most of the time, and on USB it never switched off (D-power, `kUsbGraceMs`), so the
+  Today board (D35) was never seen there: the idle return (D33) left it on the launcher instead.
+- **One time, one choice** (Settings > Power): "When unused for" 5 / 15 / 30 min / Never (`power.autoOffMin`, the reader
+  `autoOffMinReader`, as before), and "Then show" **Home** | **Sleep screen** (`power.idleShow`, default Sleep screen).
+  The separate "Back to home when unused for" (`launcher.homeAfterSec`) is gone; a `homeAfterSec` in an old config.json
+  is ignored.
+- **Sleep screen**: after the time the Shell puts the sleep screen on the panel (`Shell::showSleepScreen`) and the
+  device stays on; its footer says "Tap to start" instead of "Powered off" and the side button. A tap leaves it: the
+  launcher, or the book or game that was open. On battery the PowerPolicy switches off at the same moment, as before,
+  and the picture is the same but for the footer. While it stays on it is looked at every 10 minutes and drawn again
+  only when what it shows changed (`sleepScreenKey`: the date, an event that is over, a badge: no flash for nothing),
+  and every `power.refreshHours` it reads what a scheduled wake reads (the relay, the weather, articles), then shows
+  "Updated HH:MM".
+- **Home**: after the time an app that is no book or game is left for the launcher, as the idle return did, now at
+  the one idle time instead of its own minute.
+- **The next start after an idle power-off resumes only a book or a game** (`prepareForIdleOff`); an asked power-off
+  ("Sleep now", the launcher's button) resumes whatever was open, as before. This keeps what D33 was for: an unused
+  Weather or Mail does not come back hours later.
+- **Not while** the top screen says `staysOpen()` (pairing, Files over Wi-Fi, the update page, the Display lab), the
+  keyboard shows, or a finger is down: kept from D33.
+- Interpretation (mine, not the owner's words): "switching off" read as "the idle time"; on battery nothing changes but
+  the resume rule, because a device that stays on with a board would drain it.
 

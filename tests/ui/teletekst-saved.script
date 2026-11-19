@@ -1,6 +1,7 @@
 # app: teletekst
 # Teletekst's saved copies. Page 100 and an article are read and kept; then Wi-Fi goes away and the app starts again ten
 # minutes later: the article that was open shows at once from its copy, and the line under it says why it may be old.
+# (data/config.json: power.autoOffMin 0, so the hour without a touch brings no sleep screen: D38)
 wait 1500
 tap 200 350
 wait 1500

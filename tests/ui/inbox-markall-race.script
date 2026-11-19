@@ -6,7 +6,7 @@ wifi slow 3000          # from here every request takes 3 s
 tap 438 248             # WhatsApp: the saved list at once, its read starts
 wait 600
 tap 270 918             # Mark all read, the read still running: back to the launcher
-wait 4800               # the read lands, then the worker clears what the list showed
+wait 30000              # the read lands (its two requests and the dismiss: 9 s in real time), then the worker clears
 wifi slow 0
 tap 438 248             # WhatsApp again: nothing left
 wait 1500
