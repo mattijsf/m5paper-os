@@ -4,6 +4,7 @@
 #include <WiFi.h>
 #include <esp_sntp.h>
 
+#include <atomic>
 #include <ctime>
 
 #include "core/timefmt.h"
@@ -218,13 +219,24 @@ int64_t Net::syncTime(uint32_t timeoutMs) {
       }
     }
   } restore{savedTz};
-  configTime(0, 0, "pool.ntp.org", "time.google.com");
+  // Wait for SNTP's own answer, not for a system time that "looks set": the ESP's system time survives a restart (an
+  // update, a crash) and runs on the internal RC oscillator in between, minutes off after a day. Taking that as the synced
+  // time wrote it into the RTC: the Paper ran 4 minutes behind after "time sync ok" (2026-11-19).
+  static std::atomic<int64_t> synced{0};
+  synced = 0;
+  sntp_set_time_sync_notification_cb([](struct timeval* tv) { synced = tv ? static_cast<int64_t>(tv->tv_sec) : 0; });
+  configTime(0, 0, "pool.ntp.org", "time.google.com");  // stops and restarts SNTP: a fresh request
   const uint32_t t0 = millis();
   while (millis() - t0 < timeoutMs) {
-    const time_t now = time(nullptr);
-    if (clockIsSet(now)) return now;
-    delay(100);
+    const int64_t t = synced.load();
+    if (clockIsSet(t)) {
+      // The callback ran when the system time was set; a few ms may have passed since: read it again.
+      const time_t now = time(nullptr);
+      return clockIsSet(now) ? static_cast<int64_t>(now) : t;
+    }
+    delay(50);
   }
+  esp_sntp_stop();  // no late answer that would change the system time behind the Os's back
   return 0;
 }
 

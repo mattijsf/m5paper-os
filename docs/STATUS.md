@@ -574,6 +574,12 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Clock sync (2026-11-19)**: the fix (wait for SNTP's own answer) is built, not yet on the device (it was not reachable
+  over Wi-Fi). Check: after the install the log says `clock was ... s off` then `time sync ok`, and the status bar matches
+  the Mac's clock; again the next day.
+- **Calendars to the Paper (2026-11-19)**: Paper > Calendars in the companion app is built and installed on the Pixel, not
+  yet looked at (the phone was locked). Check: the page lists the calendars, all on; one off empties its events on the
+  Paper after the next relay read; on again brings them back.
 - **Remote control and firmware update from the phone (P7-21, 2026-11-19)**: done on the device (Pixel 9 Pro, Paper on
   battery over Wi-Fi): after `make ota` the Paper pushed its address ("address to the phone: pushed"), the app showed
   "at 192.168.1.60" a minute later, the live screen came up, a tap from the phone opened Weather (`[touch] x=437 y=626`),
@@ -1537,3 +1543,12 @@ None of these block Phase 1, Phase 2, or the reader.
   also the cause of the restart in the first update of the day (the sleep screen's network work during the flash
   writes): not proven, the log had gone with the restart. `tools/push.py --wifi`. 371 unit tests; firmware 2,596,719
   bytes; installed (build 89530dc33ae9), the device restarted afterwards so the user's own idle time applies again.
+- 2026-11-19: clock drift. The Paper ran about 4 minutes behind after "time sync ok". Cause: `Net::syncTime` took any
+  system time that looked set as the synced one, and the ESP's system time survives a restart (an update, a crash) and
+  runs on the internal RC oscillator in between: SNTP was asked, but the old system time was returned at once and written
+  to the RTC. It now waits for SNTP's notification (`sntp_set_time_sync_notification_cb`), stops SNTP when none came, and
+  `NetService::tick` logs how far the RTC was off (`clock was N s off`). Firmware 2,596,975 bytes. Not yet on the device.
+- 2026-11-19: calendars to the Paper. Companion app: Paper > Calendars (`CalendarsActivity`), one switch per calendar the calendar app shows,
+  grouped by account. The app keeps the ones switched off (`agenda_skip`), so a new calendar is on; `Agenda.selection`
+  leaves them out of the query; a change sends the whole window. JVM test `calendarsSwitchedOffAreLeftOut`. Installed on
+  the Pixel, not yet looked at. D28, COMPANION.md 7.1, apps/agenda.md, android/README.md.

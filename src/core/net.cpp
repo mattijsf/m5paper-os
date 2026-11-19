@@ -199,6 +199,8 @@ void NetService::tick() {
   const int64_t t = pendingTime_.exchange(0);
   bool changed = false;
   if (t > 0) {
+    const int64_t was = p_.clock.now();
+    if (was > 0) POS_LOG("net", "clock was %+lld s off", static_cast<long long>(was - t));
     p_.clock.set(t);
     applyTimezone(config_.net.timezone);  // wall time is formatted in the configured zone; the RTC stays UTC
     changed = true;
