@@ -28,7 +28,9 @@ order, comment HTML into text, the thread as paragraphs, the saved copy, the rea
 - **Thirty stories** of the chosen list, in the site's order: one page of the site, five pages here. Job adverts are
   left out ("Data").
 - **Top / New / Ask / Show**: the choice is kept (`section` in `/data/apps/hackernews.json`).
-- **A tap on a story** opens its comments. **Refresh** (title bar) reads the list again.
+- **A tap on a story** opens the page it links to as text ("The article"); its comments are a button away there. A story without a link (Ask
+  HN) opens its comments. **A long press** on a story opens its comments straight away. **Refresh** (title bar) reads
+  the list again.
 - Opening the app shows the saved copy of the chosen list in the first frame, then reads it again unless the copy is
   under a quarter of an hour old (a read moves the rows under the reader's eyes three or four seconds after the list
   appeared; Refresh is there for sooner). Another list: its copy at once, a read if that is old.
@@ -63,8 +65,9 @@ order, comment HTML into text, the thread as paragraphs, the saved copy, the rea
   the reader (DISPLAY.md). The page number under it is ink and goes in the same pass.
 - **Next thread** goes to the page of the next answer to the story that starts after this page: the way past a long
   exchange of replies. Gray when there is none.
-- **Article** opens the page the story links to as text ("The article"). A story without a link (Ask HN) has **Link**
-  there instead: its page on the site (`news.ycombinator.com/item?id=...`) as a QR code for the phone.
+- **Article** goes back to the article when the comments were opened from it, else opens it over them ("The article").
+  A story without a link (Ask HN) has **Link** there instead: its page on the site (`news.ycombinator.com/item?id=...`)
+  as a QR code for the phone.
 - **Refresh** reads the story again; the place in the text stays (by comment, "Opened again").
 - While it loads, a line of ink stands in the place of the text ("Loading comments...": nothing gray, so the screen's
   first pass already shows it as it is); when it has no comments or the read fails, a message with a picture (and Retry
@@ -89,14 +92,18 @@ order, comment HTML into text, the thread as paragraphs, the saved copy, the rea
 | Most file systems are described in   |  text: Inter 22, **bold** as semibold
 | books. This one is described on a    |
 | ...                                  |
-| [Link]        Page 1 of 4            |
+| [Link]     Page 1 of 4  [14 comments]|
 +--------------------------------------+
 ```
+
+- What a tap on a story with a link opens (since 2026-11-19; before, the comments came first).
+- **"14 comments"** opens the comments over the article; when the article was opened from the comments it goes back to
+  them. So the screens never pile up: list, article, comments at most, in either order.
 
 - The page a story links to, as text from a **reader service**: `POST https://r.jina.ai/` with `{"url": "<the link>"}`
   (Jina Reader, no key; headers `X-Retain-Images: none`, `X-Md-Link-Style: discarded`, `Accept: text/plain`). It fetches
   the page and answers a few lines about it (`Title:`, `URL Source:`, sometimes `Warning:`) and the page as Markdown.
-  **What leaves the device is the article's address, to that service**, and only when Article is tapped; nothing about
+  **What leaves the device is the article's address, to that service**, and only when an article is opened; nothing about
   the user. D34 says why a third party.
 - `articleMarked` turns the Markdown into the reader's marked text: headings (`#` and `##` level 2, deeper ones level 3;
   a line underlined with `=` or `-`), paragraphs, list items with a bullet or their number (a list in a list moved in),
@@ -108,16 +115,18 @@ order, comment HTML into text, the thread as paragraphs, the saved copy, the rea
   link too long for the code (over about 210 characters) gives the story's page on the site.
 - **Failures**: the service's own sentence when it gives one ("Domain 'x' could not be resolved"), else "The reader
   answered 503", "No text on the page", "The page is too long" (over 400 KB), or the network's reason; with Retry.
-- The article is not kept: without a network "Article not loaded".
+- The article is not kept: without a network "Article not loaded" (the comments button still works).
 
 ## Opened again
 
 The app follows the idle return (D33: a minute without a touch and the launcher is back; it is not exempt, the user
 named books and games only). So the story that was open comes back: an app left with a story open (idle return, the
-launcher, power-off) and opened again within the hour shows that story at the page it was left at, without the list in
-between; back from it gives the list. The place is kept as a comment and how far into it (`open`, `at` in the app's
-store), so it is still right when comments came or the order changed meanwhile. Left with the article open: the
-article again at its page (`article`), back from it the comments, back again the list. Left from the list: the list.
+launcher, power-off) and opened again within the hour shows what was open at the page it was left at, with what was
+under it, without the list in between. Kept in the app's store: `open` (the story), `stack` (the screens over the list
+in order: `a` the article, `t` the comments, so `a`, `at`, `t` or `ta`), `article` (the place in the article) and `at`
+(the place in the comments, as a comment and how far into it, so it is still right when comments came or the order
+changed meanwhile). Back from the top screen gives the one under it, as before the app was left. Left from the list:
+the list, and the four keys are emptied.
 
 ## Data
 
@@ -171,10 +180,11 @@ as text like the Teletekst logo (UI.md "Icons"). The site's mark: for this priva
 - Fixtures: `tests/fixtures/make-hackernews-fixtures.py` writes four lists, the story search answers, four items and
   three comment answers in the services' shapes. **Stories, names and comments are made up**; nothing of the real site is
   in the repository. Times count back from the moment the UI scripts start, so the ages on the screenshots stay.
-- UI scripts: `hackernews` (the list and its pages, a story's pages, Next thread, the article and its pages, the link
-  sheet, a story with its own text, one without comments, one whose comments and article fail, the other lists),
-  `hackernews-offline` (nothing saved, no network), `hackernews-saved` (saved lists without Wi-Fi),
-  `hackernews-resume` (the story and the article that were open come back).
+- UI scripts: `hackernews` (the list and its pages, a story's article and its pages, the link sheet, its comments and
+  their pages, Next thread, back to the article; a long press to the comments and the article over them; a story with
+  its own text, one without comments, one whose article and comments fail, the other lists), `hackernews-offline`
+  (nothing saved, no network), `hackernews-saved` (saved lists without Wi-Fi, a story's article and comments without
+  it), `hackernews-resume` (the article, the comments over the article, the comments of a long press come back).
 - Unit tests: addresses, ids, stories in the order of the ids, an item, comment HTML, the tree (order, depth, replies,
   deleted, orphans, a thousand deep), ages and lines, paragraphs and margins, a place that survives a new read, the saved
   copy, the reads through a transport that answers from the fixtures and one that fails, the order of a story's two
@@ -219,6 +229,10 @@ fractional advance rounded and drew it cut off, about half a pixel a character. 
 is now set as wide as the font means, so the fixture thread is five pages where it was four.
 
 ## On the device
+
+2026-11-19, the article first (`out/dev-hn2/`): a live story opened its article as text (36 pages), "55 comments" the
+comments, "Article" back to the page it was on. A site that refuses the reader service (reuters.com) shows "No text on
+the page" after up to 17 s; the comments button works there too.
 
 Flashed and run on 2026-11-18 with injected taps, frame dumps (`out/dev-hn/`), the log and the camera:
 

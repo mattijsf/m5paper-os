@@ -863,6 +863,13 @@ None of these block Phase 1, Phase 2, or the reader.
 
 ## Notes for later tasks
 
+- **A restart and a 7 s UI stall during a long HTTPS read while the Mac polls over Wi-Fi** (2026-11-19, Hacker News,
+  wireless development on, no USB): the reader service took 16.9 s for a reuters.com page; with `tools/device.py --wifi
+  log` called about once a second meanwhile the log showed `UI loop gap 6926ms`, and on the first such try the device
+  restarted (boot count up, no reset reason: the boot log prints none). The same read without polling: no gap. Likely
+  the radio lock net.h warns about (the remote server's socket work on the UI thread while the worker holds TLS: 8 s was
+  measured before), and a watchdog when it lasts. To do: log `esp_reset_reason()` at boot (`platform/device`), then
+  reproduce with polling and a slow URL.
 - **LovyanGFX measured the Inter faces wider than it drew them: fixed 2026-11-18 (P7-15)**. M5GFX patch 5
   (`tools/patch_m5gfx.py`, D24): `BFFfont::drawChar` rounds a fractional advance as `updateFontMetric` does. Left over
   for whoever updates M5GFX: the patch fails the build when the library text changed, and the unit test "LovyanGFX
@@ -1552,3 +1559,15 @@ None of these block Phase 1, Phase 2, or the reader.
   list, a switch off and on, the whole window sent (screenshots out/phone-main.png, out/phone-calendars.png). On the Paper
   with two calendars off: the Agenda ("From your phone: 20:50") no longer lists that calendar's all-day event of today
   (out/device-agenda-list.png). D28, COMPANION.md 7.1, apps/agenda.md, android/README.md.
+- 2026-11-19: Hacker News opens the article first. A tap on a story with a link shows its article (reader service); "14 comments" on it opens the comments,
+  whose "Article" goes back (and the other way round), so the screens never pile up; a long press on a story opens
+  its comments straight away; Ask HN opens its comments. Opened again within the hour: what was open with what was
+  under it (store keys `open`, `stack` a / at / t / ta, `article`, `at`). Scripts `hackernews`, `hackernews-saved`,
+  `hackernews-resume` rewritten for it; 9 goldens re-accepted, 1 new (`hackernews-saved-article`). 371 unit tests, 315
+  screenshots; firmware 2,599,472 bytes. **On the device** (installed with `make ota`, off USB; frame dumps in
+  `out/dev-hn2/`): a story opened its article (anthropic.com, 36 pages), a page turn, "55 comments" opened the comments
+  (67 read: the button shows the list's count), "Article" went back to page 2 of the article. A reuters.com story gave
+  "No text on the page" after 16.9 s (the site refuses the reader service). **Once the device restarted** while that
+  Reuters read was running and the Mac polled `>log` over Wi-Fi about once a second; no reset reason in the log, not seen
+  again in three more tries (Notes for later tasks).
+

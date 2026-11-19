@@ -22,10 +22,14 @@ tap 331 173
 wait 1500
 shot hackernews-saved-none
 expect-state section=ask|stories=0|page=0/0||error=No Wi-Fi
-# A story from a saved list: its comments are not kept.
+# A story from a saved list: its article and its comments are not kept.
 tap 85 173
 wait 1500
 tap 270 269
+wait 1500
+shot hackernews-saved-article
+expect-state article=38250001||error=No Wi-Fi
+tap 430 917
 wait 1500
 shot hackernews-saved-thread
 expect-state story=38250001|comments=0||error=No Wi-Fi

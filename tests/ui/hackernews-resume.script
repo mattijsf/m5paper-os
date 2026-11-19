@@ -1,28 +1,10 @@
 # app: hackernews
-# Hacker News left with a story open (a power-off, or the idle sleep screen: D38): opened again within the hour, the story
-# is back at the page it was left at. Back from it: the list. Left from the list: the list next time.
+# Hacker News left with a story open (a power-off, or the idle sleep screen: D38): opened again within the hour, what was
+# open is back at the page it was left at, with what was under it. Left from the list: the list next time.
 # (data/config.json: power.autoOffMin 0, so the hour without a touch brings no sleep screen: D38)
 wait 1500
+# Left with the article open: the article again, at its page; back gives the list.
 tap 270 269
-wait 1500
-tap 400 500
-tap 400 500
-wait 1500
-expect-state story=38250001|comments=13|Page 3 of 5|next
-restart
-wait 1500
-shot hackernews-resume
-expect-state story=38250001|comments=13|Page 3 of 5|next
-back
-wait 1500
-expect-state section=top|stories=30|page=1/5|Updated 13:34
-restart
-wait 1500
-expect-state section=top|stories=30|page=1/5|
-# Left with the article open: the article again, at its page; back gives the comments, back again the list.
-tap 270 269
-wait 1500
-tap 70 917
 wait 1500
 tap 400 500
 wait 1500
@@ -33,10 +15,39 @@ shot hackernews-resume-article
 expect-state article=38250001|Page 2 of 4
 back
 wait 1500
-expect-state story=38250001|comments=13|Page 1 of 5|next
+expect-state section=top|stories=30|page=1/5|Updated 13:34
 restart
 wait 1500
-expect-state story=38250001|comments=13|Page 1 of 5|next
+expect-state section=top|stories=30|page=1/5|
+# Left with the comments open over the article: the comments at their page; back gives the article, back again the list.
+tap 270 269
+wait 1500
+tap 400 500
+wait 1500
+tap 430 917
+wait 1500
+tap 400 500
+tap 400 500
+wait 1500
+expect-state story=38250001|comments=13|Page 3 of 5|next
+restart
+wait 1500
+shot hackernews-resume
+expect-state story=38250001|comments=13|Page 3 of 5|next
+tap 70 917
+wait 1500
+expect-state article=38250001|Page 2 of 4
+back
+wait 1500
+expect-state section=top|stories=30|page=1/5|
+# Left with the comments opened by a long press: the comments; their Article opens the article over them.
+long 270 269
+wait 1500
+tap 400 500
+wait 1500
+restart
+wait 1500
+expect-state story=38250001|comments=13|Page 2 of 5|next
 back
 wait 1500
 expect-state section=top|stories=30|page=1/5|

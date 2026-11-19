@@ -579,8 +579,11 @@ the budget runs short (sizes from the linker map):
 - **The article through a reader service**: `r.jina.ai` (Jina Reader, no key) fetches the linked page and answers it as Markdown,
   which becomes pages of text (apps/hackernews.md "The article"). Turning any web page into readable text on the device
   would need an HTML parser and the rules of a reader mode in 2.5 MB of firmware; the service does that. The cost: the
-  article's address goes to a third party (only when Article is tapped, nothing else with it), and the feature lives as
+  article's address goes to a third party (only when an article is opened, nothing else with it), and the feature lives as
   long as the service answers without a key (20 requests a minute). The link as a QR code stays, on the article screen.
+  **The article is what a story opens**: a tap on a story with a link shows the article, its comments are a button on it ("14 comments"); a long
+  press opens the comments straight away; a story without a link opens its comments. So the third party is asked
+  for every story opened that has a link.
 - **Job adverts are not shown** (the search does not know them), comments are not saved (20 to 300 KB a thread), no
   login, votes or replies.
 - **Test stories are made up** (`tests/fixtures/make-hackernews-fixtures.py`): the repository holds no text of the site.

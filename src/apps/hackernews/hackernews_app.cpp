@@ -244,11 +244,28 @@ class TextScreen : public Screen {
   std::string error_;     // why the last read failed, "" if it did not
 };
 
-// The page a story links to, as text from the reader service (docs/apps/hackernews.md "The article").
+// Where to open a story again (docs/apps/hackernews.md "Opened again"): which screens were open over the list, in order
+// ('a' the article, 't' the comments: "a", "at", "t", "ta"), and the place in each.
+struct Resume {
+  std::string chain;  // the screens still to open after this one
+  Anchor at;          // in the comments
+  ui::TextPos articleAt;
+};
+
+class ThreadScreen;
+void pushThread(AppContext& ctx, const Story& story, bool overArticle, Resume resume);
+
+// "141 comments": what the article's button says.
+std::string commentsLabel(int n) { return n == 1 ? std::string("1 comment") : std::to_string(std::max(0, n)) + " comments"; }
+
+// The page a story links to, as text from the reader service (docs/apps/hackernews.md "The article"). What a tap on a story
+// with a link opens; its comments are a button away.
 class ArticleScreen : public TextScreen {
  public:
-  // `at`: where to open it (the article that was open when the app was left).
-  explicit ArticleScreen(Story story, ui::TextPos at = {}) : story_(std::move(story)), at_(at) {}
+  // `overThread`: opened from the comments (Comments then goes back to them). `resume`: where to open it, and what was
+  // open over it, when the app was left with it open.
+  ArticleScreen(Story story, bool overThread, Resume resume = {})
+      : story_(std::move(story)), overThread_(overThread), at_(resume.articleAt), resume_(std::move(resume)) {}
 
   void build(ui::Column& root) override {
     const std::string site = hostOfUrl(story_.url);
@@ -262,19 +279,28 @@ class ArticleScreen : public TextScreen {
     pageLabel_ = bottom->add<ui::Label>("", Type::Caption);  // ink: it changes with the page, in the page's Fast pass, and is not settled
     pageLabel_->align = ui::TextAlign::Center;
     pageLabel_->flex = 1;
-    bottom->add<ui::Spacer>(96);  // as wide as the button: the page stands in the middle
+    comments_ = bottom->add<ui::Button>(commentsLabel(story_.comments), [this] { openComments(); }, ui::Button::Kind::Secondary);
     root.add<ui::Spacer>(ui::s1);
     showLoading("Loading the article...");
   }
 
   void onShow() override {
+    ctx().store.set("stack", overThread_ ? "ta" : "a");
+    if (!resume_.chain.empty()) {  // the comments were open over it when the app was left: straight to them
+      Resume next = resume_;
+      next.chain.erase(0, 1);
+      resume_.chain.clear();
+      pushThread(ctx(), story_, true, next);  // (the article is read when the user comes back to it)
+      return;
+    }
     if (!hasText_ && !busy_) load();
   }
 
-  // Kept for the next time the app opens: the place in the article. (Back to the comments drops it: their onShow.)
+  // Kept for the next time the app opens: the place in the article.
   void onHide() override {
     if (reading()) at_ = block_->position();
-    ctx().store.set("article", joinInts({1, at_.para, at_.byte}));
+    ctx().store.set("open", packList(ctx().clock.now(), {story_}));
+    ctx().store.set("article", joinInts({at_.para, at_.byte}));
   }
 
   std::string debugState() const override {
@@ -321,10 +347,19 @@ class ArticleScreen : public TextScreen {
 
   void showPage() override { pageLabel_->setText(pageText(), Hint::Page); }  // with the page: one pass, no settle after it
 
+  // The comments: back to them when the article was opened from them, else opened over the article.
+  void openComments() {
+    if (overThread_) ctx().nav.pop();
+    else pushThread(ctx(), story_, true, Resume{});
+  }
+
   Story story_;
+  bool overThread_;
   ui::TextPos at_;  // where to open the text once it is read
+  Resume resume_;
   ui::Label* pageLabel_ = nullptr;
   ui::Button* link_ = nullptr;
+  ui::Button* comments_ = nullptr;
 };
 
 // What the worker hands back for a story: the story as read just now and its text and comments as paragraphs.
@@ -336,19 +371,15 @@ struct Loaded {
   std::shared_ptr<ThreadText> text;
 };
 
-// Where to open a story again: the place in its comments, and the place in its article if that was open.
-struct Resume {
-  Anchor at;
-  bool article = false;
-  ui::TextPos articleAt;
-};
 
 // A story: its title, then its own text and the comments, a page at a time. "Next thread" skips the replies to the next
 // answer to the story; "Article" opens the page the story links to as text ("Link", its address as a QR code, for a
 // story without one).
 class ThreadScreen : public TextScreen {
  public:
-  explicit ThreadScreen(Story story, Resume resume = {}) : story_(std::move(story)), at_(resume.at), resume_(resume) {}
+  // `overArticle`: opened from the article (Article then goes back to it). `resume`: as for the article.
+  ThreadScreen(Story story, bool overArticle, Resume resume = {})
+      : story_(std::move(story)), overArticle_(overArticle), at_(resume.at), resume_(std::move(resume)) {}
 
   void build(ui::Column& root) override {
     setTitle("Hacker News");
@@ -374,12 +405,14 @@ class ThreadScreen : public TextScreen {
   }
 
   void onShow() override {
-    if (resume_.article && !story_.url.empty()) {  // the article was open when the app was left: straight to it
-      resume_.article = false;
-      ctx().nav.push<ArticleScreen>(story_, resume_.articleAt);  // (the comments are read when the user comes back to them)
+    ctx().store.set("stack", overArticle_ ? "at" : "t");
+    if (!resume_.chain.empty() && !story_.url.empty()) {  // the article was open over it when the app was left: straight to it
+      Resume next = resume_;
+      next.chain.erase(0, 1);
+      resume_.chain.clear();
+      ctx().nav.push<ArticleScreen>(story_, true, next);  // (the comments are read when the user comes back to them)
       return;
     }
-    ctx().store.set("article", "");  // no article is open
     if (!hasText_ && !busy_) load();
   }
 
@@ -485,12 +518,16 @@ class ThreadScreen : public TextScreen {
     showPage();
   }
 
+  // The article: back to it when the comments were opened from it, else opened over them. A story without a link: its
+  // page on the site as a QR code.
   void openArticle() {
     if (story_.url.empty()) openLinkSheet(ctx(), *link_, story_);
-    else ctx().nav.push<ArticleScreen>(story_);
+    else if (overArticle_) ctx().nav.pop();
+    else ctx().nav.push<ArticleScreen>(story_, true);
   }
 
   Story story_;
+  bool overArticle_;
   Anchor at_;                         // where to open the text once it is read (a story opened again)
   Resume resume_;
   std::shared_ptr<ThreadText> text_;  // null until a read ended; its paragraphs are in the block
@@ -501,6 +538,10 @@ class ThreadScreen : public TextScreen {
   ui::Button* link_ = nullptr;
   ui::Button* next_ = nullptr;
 };
+
+void pushThread(AppContext& ctx, const Story& story, bool overArticle, Resume resume) {
+  ctx.nav.push<ThreadScreen>(story, overArticle, std::move(resume));
+}
 
 // The lists. The saved copy of the chosen list is on screen in the first frame; a read follows unless the copy is young.
 class ListScreen : public Screen {
@@ -526,14 +567,14 @@ class ListScreen : public Screen {
     int64_t left = 0;
     std::vector<Story> open;
     const int64_t now = ctx().clock.now();
-    if (unpackList(ctx().store.get("open", ""), left, open) && open.size() == 1 && now >= left && now - left < kResumeSec) {
+    const std::string stack = ctx().store.get("stack", "");
+    const bool known = stack == "a" || stack == "at" || stack == "t" || stack == "ta";
+    if (known && unpackList(ctx().store.get("open", ""), left, open) && open.size() == 1 && now >= left && now - left < kResumeSec) {
       const std::vector<int> at = splitInts(ctx().store.get("at", ""));
       if (at.size() == 3) resumeAt_.at = Anchor{static_cast<uint32_t>(at[0]), at[1], at[2]};
       const std::vector<int> article = splitInts(ctx().store.get("article", ""));
-      if (article.size() == 3) {
-        resumeAt_.article = true;
-        resumeAt_.articleAt = ui::TextPos{article[1], article[2]};
-      }
+      if (article.size() == 2) resumeAt_.articleAt = ui::TextPos{article[0], article[1]};
+      resumeAt_.chain = stack;
       resume_ = std::move(open);
     }
   }
@@ -543,10 +584,17 @@ class ListScreen : public Screen {
     if (!resume_.empty()) {
       const Story story = resume_[0];
       resume_.clear();
-      ctx().nav.push<ThreadScreen>(story, resumeAt_);  // (the list is read when the user comes back to it)
+      Resume next = resumeAt_;
+      next.chain.erase(0, 1);
+      if (resumeAt_.chain[0] == 'a' && !story.url.empty()) ctx().nav.push<ArticleScreen>(story, false, next);
+      else pushThread(ctx(), story, false, next);  // (the list is read when the user comes back to it)
       return;
     }
-    ctx().store.set("open", "");  // no story is open
+    // No story is open: what was kept of the last one goes.
+    ctx().store.set("open", "");
+    ctx().store.set("stack", "");
+    ctx().store.set("at", "");
+    ctx().store.set("article", "");
     if (stale_) fill();  // an answer came while a story was open
     if (!busy_ && !fresh()) refresh();
     else showRows();     // the ages move on
@@ -606,7 +654,8 @@ class ListScreen : public Screen {
         auto* rows = pager_->add<ui::Column>(0);
         for (int i = 0; i < kRowsPerPage; ++i) {
           rows_[i] = rows->add<StoryRow>();
-          rows_[i]->onClick = [this, i] { open(pager_->page() * kRowsPerPage + i); };
+          rows_[i]->onClick = [this, i] { open(pager_->page() * kRowsPerPage + i, false); };
+          rows_[i]->onLongPress = [this, i] { open(pager_->page() * kRowsPerPage + i, true); };
         }
         pager_->onPage = [this](int) { showRows(); };
       } else if (!error_.empty()) {
@@ -702,9 +751,13 @@ class ListScreen : public Screen {
     });
   }
 
-  void open(int index) {
+  // A story: the page it links to (its comments are a button away there); a story without a link (Ask HN), or a long
+  // press: its comments.
+  void open(int index, bool comments) {
     if (index < 0 || index >= static_cast<int>(stories_.size())) return;
-    ctx().nav.push<ThreadScreen>(stories_[static_cast<size_t>(index)]);
+    const Story& story = stories_[static_cast<size_t>(index)];
+    if (story.url.empty() || comments) pushThread(ctx(), story, false, Resume{});
+    else ctx().nav.push<ArticleScreen>(story, false);
   }
 
   Section section_ = Section::Top;
