@@ -20,6 +20,8 @@
 //                               (tools/ota.py; "#ack <total>" after every 4096 bytes, as >put), then "#ok" and a restart
 //                               into it, or "#err <why>" (not signed with this device's key, the image changed, ...).
 // Every command ends with "#ok" or "#err <reason>" on its own line.
+// A session of the paired phone (core/remote_phone.h, signed in with ">auth-phone") may only send >shot, >refresh, >tap,
+// >long and >swipe; anything else gets "#err not from the phone".
 //
 // Transports: the USB serial port; the simulator's stdin; and Wi-Fi while Settings > Developer > Wireless development is on
 // (platform/posix/remote_server, port 8266, a signed handshake first: core/update.h helloLine / authOk).
@@ -79,7 +81,8 @@ bool remotePathAllowed(const std::string& virtualPath);
 struct WirelessStatus {
   bool on = false;         // the setting
   bool listening = false;  // on the Wi-Fi, port `port`
-  bool client = false;     // a Mac is connected (signed in)
+  bool client = false;     // a Mac or the paired phone is connected (signed in)
+  bool phone = false;      // the client is the phone (core/remote_phone.h: screen and touch only)
   std::string address;     // "192.168.1.60"
   uint16_t port = 0;
   std::string activity;    // "Receiving build 3fa9c1d2e4b7: 1.2 MB of 2.5 MB", "" for none
@@ -88,7 +91,8 @@ WirelessStatus& wirelessStatus();
 
 class Remote {
  public:
-  Remote(Os& os, hal::Clock& clock, RemoteHost& host) : os_(os), clock_(clock), host_(host) {}
+  // `phone`: a session of the paired phone (core/remote_phone.h): only the screen and touch commands.
+  Remote(Os& os, hal::Clock& clock, RemoteHost& host, bool phone = false) : os_(os), clock_(clock), host_(host), phone_(phone) {}
 
   // What the transport received (serial port, the simulator's stdin), in any chunking: command lines, and during an
   // upload the file's bytes. A line longer than kMaxLine is not run: cut short it would be another command
@@ -126,6 +130,7 @@ class Remote {
   Os& os_;
   hal::Clock& clock_;
   RemoteHost& host_;
+  bool phone_ = false;
   std::vector<Timed> timed_;
   struct Put {
     bool active = false;

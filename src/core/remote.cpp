@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "core/remote_phone.h"
 #include "core/strings.h"
 
 namespace pos {
@@ -256,6 +257,10 @@ void Remote::handleLine(const std::string& line) {
   if (line.empty() || line[0] != '>') return;
   RemoteCommand c = parseRemoteCommand(line);
   const uint32_t now = clock_.millis();
+  if (phone_ && c.kind != RemoteCommand::None && !remotephone::allowedForPhone(c.kind)) {
+    say("#err not from the phone");
+    return;
+  }
   switch (c.kind) {
     case RemoteCommand::None:
       say("#err " + c.error);

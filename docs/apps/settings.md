@@ -13,7 +13,7 @@ System configuration and developer tools.
 | Reading | default font size (S/M/L/XL), margins (narrow/normal/wide), line spacing |
 | Home Assistant | base URL (read-only here), token present yes/no, "Test connection" (GET `/api/`), last error |
 | Storage | SD card present/size/free; `/data` used/free; "Clear caches" |
-| Developer | a menu (nothing on it changes by itself): Wireless development (its page: the switch, address, status, the Mac commands; D39), Status (memory, refreshes, battery, uptime, power log, log tail; an Update button, no timer), Display lab (DISPLAY.md); Sleep test, Power off, HTTP test, Reboot |
+| Developer | a menu (nothing on it changes by itself): Wireless development (its page: the switch, address, status, the Mac commands, the phone's Remote control; D39, D40), Status (memory, refreshes, battery, uptime, power log, log tail; an Update button, no timer), Display lab (DISPLAY.md); Sleep test, Power off, HTTP test, Reboot |
 | About | version, build date and build id, board, MAC, licences (fonts, icons, libraries) |
 
 ## As built (P2-6)
@@ -146,8 +146,12 @@ Settings > Developer > Wireless development (`WirelessPage`), one switch (`devel
 - **While on**, Wi-Fi is kept up (`NetService::keepAlive` every second; joined again every 30 s when it drops, from the
   boot on), so the device does not light-sleep, and it never switches itself off (no auto-off: `PowerPolicy::idle`);
   the idle time still brings the sleep screen, the device on. Development only: it costs battery.
-- The page shows the address with the port and the state ("Joining Wi-Fi...", "Waiting for the Mac.", "A Mac is
-  connected.", an update's progress); only that line is looked at again, every 2 s, and drawn only when it changed.
+- **The paired phone** (P7-21, D40, COMPANION.md section 10): the companion app's Remote control signs in with
+  `>auth-phone` and a key from the pairing, and may only take the screen and touch (`>shot`, `>refresh`, `>tap`,
+  `>long`, `>swipe`). When the server starts listening, the Paper sends the phone its address over the relay. The page
+  says so under "On your phone".
+- The page shows the address with the port and the state ("Joining Wi-Fi...", "Waiting for the Mac or the phone.",
+  "A Mac is connected.", "Your phone is connected.", an update's progress); only that line is looked at again, every 2 s, and drawn only when it changed.
 - The Mac finds the device by `HOST=` / `--host`, `$PAPEROS_HOST` (device.py) or `$OTA_HOST` (ota.py), the address
   a device on USB reports, the last update's, or the saved one (`tools/ota.py host ADDRESS`). Never by a search.
 - Measured on the device (2026-11-19): a frame dump over Wi-Fi 0.87 s with the sign-in; an update of 2.5 MB 24.9 s.

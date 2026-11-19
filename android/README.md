@@ -26,6 +26,10 @@ and the P6 cards in `docs/ROADMAP.md`.
 - `RelayService`: foreground service (type `remoteMessaging`). Drains the `Outbox` (pushes in counter
   order, back-off 30 s doubling to 15 min), reads `sensor.paperos_relay_to_phone` every 3 s while
   pairing and every minute when paired, acks up to `rx`. Writes `files/status.json` (numbers only).
+- `RemoteActivity` (Paper > Remote control, D40, COMPANION.md section 10): the Paper's screen, and taps, holds and
+  drags as its touch, over the home Wi-Fi while the Paper's wireless development is on. A plain TCP socket to port
+  8266 (not HTTP: the cleartext switch does not apply), signed in with `HKDF-Expand(k_p2d, "PaperOS remote")`; the
+  Paper allows the screen and touch only. The address comes from the Paper's `remote` message or is typed.
 - Replies from the Paper go through the notification's RemoteInput action, after the guards of section
   7.2 (live key with reply action, 6 h age, 1..900 characters, 10 s gap, 20 per hour; `rx` is stored
   before the send, so never two sends per counter). **Replies are off until the user turns on "Allow
@@ -71,7 +75,9 @@ cd android && ./gradlew :app:testDebugUnitTest
 JVM: the shared companion vectors (keys, code, hello, post, reply, rejects), receive policy, messages and
 their size limits, reply guards, HKDF RFC 5869, QR decode, outbox and drain. On the phone (Keystore
 X25519, wrapped fallback, low-order peer, RFC 7748, ChaCha20-Poly1305, the companion vectors through
-Conscrypt): build both APKs, install, run with `am instrument`, then remove the test APK.
+Conscrypt; `RemoteDeviceTest`: remote control over the real Wi-Fi against the Mac's simulator with the vectors' pairing,
+`-e remoteSim <mac address>:8266`): build both APKs, install, run with `am instrument`, then remove the test APK.
+`RemoteTest` also runs against a simulator on the Mac: `./gradlew :app:testDebugUnitTest -Premote.sim=localhost:8266`.
 Do not use `connectedAndroidTest`: it uninstalls the app afterwards, which drops the notification-access
 grant and the phone key.
 

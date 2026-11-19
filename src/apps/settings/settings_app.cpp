@@ -954,14 +954,14 @@ class DisplayLabPage : public Page {
   ui::Label* counters_ = nullptr;
 };
 
-// Wireless development (D39): the switch, where the device listens, and whether a Mac is signed in. Only the status line
+// Wireless development (D39, D40): the switch, where the device listens, and whether a Mac or the paired phone is signed in. Only the status line
 // is looked at again (every 2 s), and only a changed text is drawn: nothing else on this page changes by itself.
 class WirelessPage : public Page {
  public:
   void build(ui::Column& root) override {
     setTitle("Wireless development");
     root.add<ui::Spacer>(ui::s1);
-    auto* sw = root.add<ui::ListItem>("Wireless development", "Remote and updates from the Mac", true, ui::Icon::Wifi);
+    auto* sw = root.add<ui::ListItem>("Wireless development", "Remote from the Mac and your phone", true, ui::Icon::Wifi);
     sw->setToggle(cfg().developer.wireless, [this, sw](bool on) {
       if (on && !update::keySet(update::firmwareKey())) {
         ctx().toast("This firmware has no update key: make ota-key, then make flash");
@@ -987,10 +987,13 @@ class WirelessPage : public Page {
     help->maxLines = 3;
     help->keepLineBreaks = true;
     root.add<ui::Spacer>(ui::s2);
-    auto* note = root.add<ui::Label>("Only the Mac with this firmware's signing key gets in. While on, Wi-Fi stays up and the device "
-                                     "does not switch itself off: it costs battery.",
+    root.add<ui::Label>("On your phone", Type::Caption, ui::secondary);
+    root.add<ui::Label>("PaperOS Companion > Remote control", Type::Body);
+    root.add<ui::Spacer>(ui::s2);
+    auto* note = root.add<ui::Label>("Only the Mac with this firmware's signing key gets in, and the paired phone (screen and touch "
+                                     "only). While on, Wi-Fi stays up and the device does not switch itself off: it costs battery.",
                                      Type::Caption, ui::secondary);
-    note->maxLines = 3;
+    note->maxLines = 4;
     refresh();
   }
   void onShow() override {
@@ -1019,7 +1022,8 @@ class WirelessPage : public Page {
     std::string state;
     if (!on) state = "Switched off.";
     else if (!w.listening) state = "Joining Wi-Fi...";
-    else if (!w.client) state = "Waiting for the Mac.";
+    else if (!w.client) state = "Waiting for the Mac or the phone.";
+    else if (w.phone) state = "Your phone is connected.";
     else state = w.activity.empty() ? "A Mac is connected." : w.activity;
     state_->setText(state);
   }

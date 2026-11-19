@@ -250,6 +250,9 @@ queue entry's `ts`, or the app's "Share the clipboard" is off. A `clip` that cam
 
 **`unpair`**: `{"t":"unpair"}`.
 
+**`remote`**: `{"t":"remote","host":"192.168.1.60","port":8266}`: where the Paper's wireless development listens
+(section 10).
+
 ## 8. Behaviour
 
 **Paper**
@@ -285,3 +288,35 @@ public keys, `ss`, `k_p2d`, `k_d2p`, the comparison code, a hello envelope, a `p
 envelope (counter 1), each as base64url. The Paper's unit tests (`tests/unit/companion_test.cpp`) check every value; the
 Android tests must produce the same bytes with the same nonces. The file also lists envelopes that must be **rejected**
 (flipped tag byte, wrong `pid`, wrong `dir`, counter not above `rx`, oversize).
+
+## 10. Remote control (task P7-21, DECISIONS.md D40)
+
+The companion app can show the Paper's screen and touch it, over the home Wi-Fi, while the Paper's Settings > Developer >
+Wireless development is on (D39). Not through Home Assistant: a plain TCP connection to the Paper's port 8266, the same
+service and commands as the Mac's tools (`src/core/remote.h`), with a sign-in of its own.
+
+```
+key   = HKDF-Expand(prk = k_p2d, info = "PaperOS remote", 32)        (14 ASCII bytes; one HMAC-SHA256 block)
+Paper: #hello paperos 1 <build> <nonce hex, 64 characters>
+Phone: >auth-phone <hex of HMAC-SHA256(key, "paperos-remote:" + nonce hex)>
+Paper: #ok   (or "#err not the paired phone", then it closes)
+```
+
+The key is separate from `k_p2d` (domain separation) and exists only while paired: unpairing or pairing again changes it.
+After the sign-in the phone may send `>shot`, `>refresh`, `>tap x y`, `>long x y` and `>swipe x1 y1 x2 y2`; every other
+command is answered `#err not from the phone` (no files, settings, logs, updates or restarts). The stream is not encrypted
+(as the Mac's, D39): someone on the home Wi-Fi can see the frames while the remote is open.
+
+**Where the Paper is.** Message `remote` (Paper to phone, section 7.2): `{"t":"remote","host":"192.168.1.60","port":8266}`,
+pushed when wireless development starts listening at an address the phone was not yet told about (once per address per
+boot; a failed push is tried again after 5 minutes). The phone stores it (`settings.json` `remote_host`, `remote_port`);
+the user can also type the address. `host` is an IPv4 address or a host name (letters, digits, `.` and `-`), `port`
+1..65535; anything else is ignored.
+
+**The phone** (`RemoteActivity`, `proto/Remote.kt`): one thread owns the connection while the screen is visible. It asks
+`>refresh` every 250 ms and takes `>shot` when the refresh log changed, after every touch (150 ms later) and every 5 s.
+Tap = tap, hold 600 ms = long press, drag = swipe, in the Paper's 540 x 960 coordinates. The screen stays on while open.
+
+Vectors: with `k_p2d` of section 9, key `11d342f40c8190135181b05ae1957219d7456ca3343ee39672acb39f7f1e8175`; for the nonce
+`000102...1f` (bytes 0..31 as hex) the proof is `012199eacab31abc2c8e56351a8598c2d8f3393c532ad5558f9836bee7b1ce9e`
+(`tests/unit/remote_phone_test.cpp`, `android/.../RemoteTest.kt`).

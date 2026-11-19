@@ -19,6 +19,8 @@ android {
         unitTests.all {
             // Shared protocol vectors (docs/COMPANION.md section 9).
             it.systemProperty("vectors", rootProject.file("../tests/fixtures/companion/vectors.json").absolutePath)
+            // Remote control against a running simulator (RemoteTest.againstTheSimulator): -Premote.sim=localhost:8266
+            (project.findProperty("remote.sim") as String?)?.let { sim -> it.systemProperty("remote.sim", sim) }
         }
     }
 

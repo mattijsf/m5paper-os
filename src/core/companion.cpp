@@ -353,6 +353,14 @@ std::string unpairEnvelope(Pairing& p) {
   return push(p, d);
 }
 
+std::string remoteEnvelope(Pairing& p, const std::string& host, uint16_t port) {
+  JsonDocument d;
+  d["t"] = "remote";
+  d["host"] = host;
+  d["port"] = port;
+  return push(p, d);
+}
+
 std::string ackBody(const std::string& queue, uint64_t upto) {
   JsonDocument d;
   d["queue"] = queue;

@@ -53,6 +53,7 @@ class MainActivity : Activity() {
     private lateinit var agendaRow: Ink.Row
     private lateinit var agenda: Ink.Toggle
     private lateinit var sendClipRow: Ink.Row
+    private lateinit var remoteRow: Ink.Row
     private lateinit var countsBox: LinearLayout
     private val countRows = mutableMapOf<String, Ink.Row>()
     private lateinit var relayRow: Ink.Row
@@ -144,6 +145,11 @@ class MainActivity : Activity() {
             sub("Also from Share > Send to Paper, or the Quick Settings tile")
             end = chevron()
             clickable { ClipSync.sendCurrent(this@MainActivity) }
+        }
+        remoteRow = row(Ink.ICON_REMOTE, "Remote control").apply {
+            sub("See and tap the Paper over Wi-Fi")
+            end = chevron()
+            clickable { startActivity(Intent(this@MainActivity, RemoteActivity::class.java)) }
         }
         unpair = add(Ink.button(this, "Unpair", Kind.SECONDARY) {
             AlertDialog.Builder(this).setMessage("Forget the pairing with the Paper?")
@@ -272,6 +278,8 @@ class MainActivity : Activity() {
         show(repliesRow, active)
         show(clipRow, active)
         show(sendClipRow, active && Link.clipboardShared)
+        show(remoteRow, active)
+        remoteRow.sub(if (Link.remoteHost.isEmpty()) "See and tap the Paper over Wi-Fi" else "See and tap the Paper at ${Link.remoteHost}")
 
         Store.counts(this).forEach { (app, c) ->
             val r = countRows.getOrPut(app) {

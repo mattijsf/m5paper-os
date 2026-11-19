@@ -721,3 +721,17 @@ wake, announced through Home Assistant; or push while a page is open): the owner
   rebuild).
 - Cost: firmware 2,592,291 bytes (+1,920 on the HTTP update page it replaces).
 
+## D40. Remote control from the companion app: the wireless development port, signed in with the pairing
+
+- **The same service as the Mac's** (D39, port 8266, `core/remote.h`): one more sign-in, no second server. The phone
+  talks to the Paper directly on the home Wi-Fi; the relay (Home Assistant) is far too slow for a screen and is only
+  used to tell the phone the Paper's address (`remote` message, COMPANION.md section 10).
+- **Signed in with a key from the pairing** (`HKDF-Expand(k_p2d, "PaperOS remote")`, HMAC over a fresh nonce), not the
+  update key: the phone has never had that key and must not get it. The pairing already is the trust between the two;
+  unpairing ends remote control too.
+- **Screen and touch only** for the phone: `>shot`, `>refresh`, `>tap`, `>long`, `>swipe`. A phone (lost, or an app
+  bug) cannot write files, read the log, change settings, restart or update the Paper. The Mac keeps everything.
+- **Needs wireless development on**: one switch (D39); while it is off the Paper
+  listens to nobody. The phone says so when it cannot connect.
+- **Not encrypted** after the sign-in (as D39): the frames cross the home Wi-Fi in the clear while the remote is open.
+- Cost: firmware +3.6 KB (2,596,623 bytes).

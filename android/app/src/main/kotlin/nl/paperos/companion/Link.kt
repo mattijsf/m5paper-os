@@ -8,6 +8,7 @@ import nl.paperos.companion.proto.Messages
 import nl.paperos.companion.proto.QrPayload
 import nl.paperos.companion.proto.QueueEntry
 import nl.paperos.companion.proto.ReceivePolicy
+import nl.paperos.companion.proto.RemoteAuth
 import nl.paperos.companion.proto.ReplyGuard
 import nl.paperos.companion.proto.SessionKeys
 import org.json.JSONArray
@@ -45,6 +46,9 @@ object Link {
     var repliesAllowed = false; private set
     var clipboardShared = true; private set
     var agendaShared = false; private set // D28: off until the user switches it on (and grants READ_CALENDAR)
+    // Remote control (section 10): where the Paper's wireless development listens, as it last said (or the user typed).
+    var remoteHost: String = ""; private set
+    var remotePort: Int = RemoteAuth.PORT; private set
     private val sends = mutableListOf<Long>()
 
     private fun pairingFile(ctx: Context) = File(ctx.noBackupFilesDir, "pairing.json")
@@ -60,6 +64,8 @@ object Link {
             repliesAllowed = o.optBoolean("replies", false)
             clipboardShared = o.optBoolean("clipboard", true)
             agendaShared = o.optBoolean("agenda", false)
+            remoteHost = o.optString("remote_host").takeIf { RemoteAuth.validHost(it) } ?: ""
+            remotePort = o.optInt("remote_port", RemoteAuth.PORT).takeIf { it in 1..65535 } ?: RemoteAuth.PORT
             o.optJSONArray("sends")?.let { a -> for (i in 0 until a.length()) sends += a.getLong(i) }
         }
         runCatching {
@@ -189,6 +195,24 @@ object Link {
         saveSettings(ctx)
     }
 
+    /** The address of the Paper for remote control: from its `remote` message, or typed by the user. */
+    @Synchronized
+    fun setRemoteAddress(ctx: Context, host: String, port: Int = RemoteAuth.PORT) {
+        load(ctx)
+        if (!RemoteAuth.validHost(host) || port !in 1..65535) return
+        remoteHost = host
+        remotePort = port
+        saveSettings(ctx)
+    }
+
+    /** The key that signs this phone in to the Paper's remote control (section 10); null unless paired. */
+    @Synchronized
+    fun remoteKey(ctx: Context): ByteArray? {
+        load(ctx)
+        val k = keys ?: return null
+        return if (stage == Stage.ACTIVE) RemoteAuth.key(k.p2d) else null
+    }
+
     // ---- phone to Paper
 
     enum class ClipSent { SENT, OFF, NOT_PAIRED, EMPTY }
@@ -270,6 +294,7 @@ object Link {
                 }
                 is Messages.Incoming.Reply -> if (stage == Stage.ACTIVE) handleReply(ctx, a.counter, a.entry.ts, msg)
                 is Messages.Incoming.Clip -> if (stage == Stage.ACTIVE) ClipSync.fromPaper(ctx, msg, a.entry.ts)
+                is Messages.Incoming.Remote -> if (stage == Stage.ACTIVE) setRemoteAddress(ctx, msg.host, msg.port)
                 is Messages.Incoming.Unpair -> {
                     forget(ctx, notifyPaper = false)
                     return ReceiveReport(n, dropped, null)
@@ -314,7 +339,7 @@ object Link {
 
     private fun saveSettings(ctx: Context) {
         val o = JSONObject().put("url", baseUrl ?: "").put("replies", repliesAllowed).put("clipboard", clipboardShared)
-            .put("agenda", agendaShared)
+            .put("agenda", agendaShared).put("remote_host", remoteHost).put("remote_port", remotePort)
             .put("sends", JSONArray(sends))
         writeAtomic(settingsFile(ctx), o.toString())
     }

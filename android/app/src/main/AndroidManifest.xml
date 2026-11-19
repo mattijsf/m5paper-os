@@ -35,6 +35,13 @@
             </intent-filter>
         </activity>
 
+        <!-- Remote control of the Paper over the home Wi-Fi (docs/COMPANION.md section 10): a plain TCP socket to its
+             wireless development port, signed in with a key from the pairing. -->
+        <activity
+            android:name=".RemoteActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
         <activity
             android:name=".ScanActivity"
             android:exported="false"

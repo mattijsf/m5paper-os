@@ -506,6 +506,11 @@ P6-11 last (it needs the relay and a device that can pair).
   The remote's commands over Wi-Fi (port 8266) after a signed sign-in, updates as `>ota`, `device.py` / `view.py` /
   `ota.py` with `--wifi`; Developer as a menu with Wireless development and Status pages. (2026-11-19: done; on the
   device a frame dump over Wi-Fi in 0.87 s, an update in 24.9 s, the live view over Wi-Fi.)
+- [x] **P7-21 Remote control from the companion app**. Read: D40, COMPANION.md section 10, core/remote_phone.h. The app's Remote control screen shows the
+  Paper's screen and sends taps, long presses and swipes over Wi-Fi (wireless development on), signed in with a key
+  from the pairing, screen and touch only; the Paper sends the phone its address over the relay. (2026-11-19: done in
+  the simulator, from the phone over the real Wi-Fi to the Mac's simulator; the Paper itself was off: STATUS "Pending
+  device checks".)
 
 ## Phase 8: Optional, ask the owner first
 

@@ -341,3 +341,26 @@ TEST_CASE("remote: a reply that leaves in pieces tells the host from its first b
   CHECK(e.host.leaving[2] == true);
   CHECK(e.host.leaving[3] == false);
 }
+
+TEST_CASE("remote: a session of the paired phone gets the screen and touch, nothing else (P7-21)") {
+  Env e;
+  Remote phone{e.os, e.clock, e.host, true};
+  for (const char* ok : {">tap 10 20", ">long 10 20", ">swipe 10 20 300 20", ">refresh"}) {
+    e.host.out.clear();
+    phone.handleLine(ok);
+    CHECK_MESSAGE(e.host.out.find("#err") == std::string::npos, ok);
+  }
+  for (const char* no : {">ls /sd/books", ">rm /sd/books/a.txt", ">put /sd/books/a.txt 1 0", ">set screen launcher", ">reboot",
+                         ">ota 100", ">log", ">status", ">state", ">poweroff 10"}) {
+    e.host.out.clear();
+    phone.handleLine(no);
+    CHECK_MESSAGE(e.host.out == "#err not from the phone\n", no);
+  }
+  e.host.out.clear();
+  phone.handleLine(">bogus");  // a parse error still says what was wrong
+  CHECK(e.host.has("#err"));
+  CHECK_FALSE(e.host.has("not from the phone"));
+  e.host.out.clear();
+  e.remote.handleLine(">ls /sd/books");  // the Mac's session is not limited
+  CHECK_FALSE(e.host.has("not from the phone"));
+}

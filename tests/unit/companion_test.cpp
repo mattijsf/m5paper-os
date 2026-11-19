@@ -194,6 +194,14 @@ TEST_CASE("companion: envelopes to the phone take the next counter and open with
   CHECK(ackBody("to_paper", 17) == R"({"queue":"to_paper","upto":17})");
   Pairing unpaired;
   CHECK(replyEnvelope(unpaired, "k", "hi", kNow).empty());
+
+  // Where the phone finds the Paper's wireless development (P7-21).
+  const std::string rb = remoteEnvelope(pr.paper, "192.168.1.60", 8266);
+  CHECK(pr.paper.tx == 5);
+  JsonDocument rd;
+  REQUIRE(!deserializeJson(rd, rb));
+  REQUIRE(open(phone.d2p, kDirD2P, pr.paper.pid, rd["env"].as<std::string>(), o) == OpenError::None);
+  CHECK(o.plain == R"({"t":"remote","host":"192.168.1.60","port":8266})");
 }
 
 TEST_CASE("companion: pairing from a hello, saved and loaded again") {

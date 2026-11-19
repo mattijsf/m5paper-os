@@ -1,6 +1,7 @@
 // Wireless development (DECISIONS.md D39): the remote's commands (core/remote.h) over TCP on the home Wi-Fi, while
 // Settings > Developer > Wireless development is on. One connection at a time, and only after it has signed a fresh
-// challenge with the update key (core/update.h helloLine / authOk): the Mac that builds the firmware, nobody else.
+// challenge with the update key (core/update.h helloLine / authOk): the Mac that builds the firmware; or with a key from the
+// companion pairing (core/remote_phone.h): the paired phone, screen and touch only. Nobody else.
 // Polled from the main loop on the UI thread (the Remote is not thread-safe); sockets are non-blocking. The same code on
 // the device (lwIP) and in the simulator.
 #pragma once
@@ -50,6 +51,7 @@ class RemoteServer : public RemoteHost {
   Hooks hooks_;
   int listen_ = -1, client_ = -1;
   bool authed_ = false;
+  bool phone_ = false;  // the client signed in as the paired phone (core/remote_phone.h)
   std::string nonceHex_, line_;
   uint32_t connectedMs_ = 0, lastKeepMs_ = 0, lastJoinMs_ = 0;
   bool joinTried_ = false;

@@ -106,6 +106,10 @@ std::string unpairEnvelope(Pairing& pairing);
 // shorter until the plaintext fits 1000 bytes. "" for an empty text.
 std::string clipEnvelope(Pairing& pairing, const std::string& text, int64_t now);
 
+// Where the phone can reach the Paper's wireless development (P7-21, core/remote_phone.h):
+// {"t":"remote","host":"192.168.1.60","port":8266}.
+std::string remoteEnvelope(Pairing& pairing, const std::string& host, uint16_t port);
+
 // {"queue":"to_paper","upto":17}
 std::string ackBody(const std::string& queue, uint64_t upto);
 

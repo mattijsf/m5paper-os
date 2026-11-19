@@ -17,6 +17,7 @@
 
 #include "core/companion_crypto.h"
 #include "core/log.h"
+#include "core/remote_phone.h"
 #include "core/update.h"
 #include "hal/system.h"
 
@@ -56,6 +57,7 @@ void RemoteServer::poll() {
     stopListening();
     st.listening = st.client = false;
     st.address.clear();
+    st.phone = false;
     return;
   }
   const uint32_t now = clock_.millis();
@@ -84,6 +86,7 @@ void RemoteServer::poll() {
   }
   if (listen_ < 0) startListening();
   st.listening = listen_ >= 0;
+  if (st.listening && needWifi_) remotephone::announce(os_, st.address, port_, now);  // where the paired phone finds it
   accept();
   read();
   // A fresh reading: `now` is from before accept(), and a connection accepted since started later than it (now -
@@ -91,6 +94,7 @@ void RemoteServer::poll() {
   if (client_ >= 0 && !authed_ && clock_.millis() - connectedMs_ > kSignInMs) closeClient("no sign-in");
   if (remote_ && (connected() || remote_->busy())) remote_->tick();
   st.client = connected();
+  st.phone = st.client && phone_;
 }
 
 void RemoteServer::startListening() {
@@ -124,6 +128,7 @@ void RemoteServer::closeClient(const char* why) {
   ::close(client_);
   client_ = -1;
   authed_ = false;
+  phone_ = false;
   line_.clear();  // (the Remote goes at the next poll: this may run from inside one of its replies)
 }
 
@@ -158,7 +163,7 @@ void RemoteServer::read() {
   for (int rounds = 0; rounds < 16 && client_ >= 0; ++rounds) {
     const ssize_t n = ::recv(client_, buf, sizeof buf, 0);
     if (n == 0) {
-      closeClient("closed by the Mac");
+      closeClient("closed by the other side");
       return;
     }
     if (n < 0) {
@@ -178,20 +183,25 @@ void RemoteServer::read() {
         if (line_.size() < 300) line_ += ch;
         continue;
       }
-      if (!update::authOk(nonceHex_, line_, update::firmwareKey())) {
+      // The Mac signs with the update key; the paired phone answers with a key from the pairing (core/remote_phone.h).
+      const bool phone = remotephone::isPhoneSignIn(line_);
+      if (phone ? !remotephone::pairedAuthOk(nonceHex_, line_) : !update::authOk(nonceHex_, line_, update::firmwareKey())) {
         static const char kNo[] = "#err not signed with this device's key\n";
-        reply(kNo, sizeof kNo - 1);
-        closeClient("not signed with this device's key");
+        static const char kNoPhone[] = "#err not the paired phone\n";
+        if (phone) reply(kNoPhone, sizeof kNoPhone - 1);
+        else reply(kNo, sizeof kNo - 1);
+        closeClient(phone ? "not the paired phone" : "not signed with this device's key");
         return;
       }
       authed_ = true;
+      phone_ = phone;
       line_.clear();
       if (remote_) remote_->tick();  // what the last connection left (a tap's finger) goes out first
       POS_LOG("remote", "wireless: t=%u socket %d signed in", static_cast<unsigned>(clock_.millis()), client_);
-      remote_ = std::make_unique<Remote>(os_, clock_, *this);
+      remote_ = std::make_unique<Remote>(os_, clock_, *this, phone);
       static const char kOk[] = "#ok\n";
       reply(kOk, sizeof kOk - 1);
-      POS_LOG("remote", "wireless: a Mac signed in");
+      POS_LOG("remote", "wireless: %s signed in", phone ? "the phone" : "a Mac");
       if (i + 1 < n) remote_->feed(buf + i + 1, static_cast<size_t>(n - i - 1));  // what came right behind the sign-in
       break;
     }

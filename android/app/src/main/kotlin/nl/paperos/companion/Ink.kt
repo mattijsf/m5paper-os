@@ -66,6 +66,7 @@ object Ink {
     const val ICON_SHIELD = 57855
     const val ICON_UNLINK = 57757
     const val ICON_CALENDAR = 57443
+    const val ICON_REMOTE = 58634 // tablet-smartphone
 
     private var regular: Typeface? = null
     private var strong: Typeface? = null

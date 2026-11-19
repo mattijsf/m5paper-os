@@ -93,6 +93,8 @@ object Messages {
         data class Dismiss(val keys: List<String>) : Incoming()
         data class Clip(val text: String, val ts: Long) : Incoming()
         object Unpair : Incoming()
+        /** Where the Paper's wireless development listens (section 10). */
+        data class Remote(val host: String, val port: Int) : Incoming()
         object Other : Incoming()
     }
 
@@ -106,6 +108,11 @@ object Messages {
             )
             "clip" -> Incoming.Clip(cut(o.optString("text"), MAX_CLIP), o.optLong("ts", 0))
             "unpair" -> Incoming.Unpair
+            "remote" -> {
+                val host = o.optString("host")
+                val port = o.optInt("port", 0)
+                if (RemoteAuth.validHost(host) && port in 1..65535) Incoming.Remote(host, port) else Incoming.Other
+            }
             else -> Incoming.Other
         }
     }

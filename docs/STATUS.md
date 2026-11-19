@@ -574,6 +574,12 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Remote control from the phone (P7-21, 2026-11-19)**: firmware built (2,596,623 bytes), **not installed**: the Paper
+  was not on USB and did not answer on 192.168.1.60:8266 (off, or wireless development off). The app is installed on
+  the Pixel (`adb install -r`, opened again). Checked: the phone's code over the real Wi-Fi against the Mac's simulator
+  (sign-in 138 ms, a frame 81 ms, a tap changed the screen). To do: `make ota` (or `make flash`), then on the phone
+  Remote control: the address arrives by the relay, the screen shows, a tap opens an app, `>ls` refused; the phone's
+  screen itself (it was locked: only the user can unlock it).
 - **When unused (P7-19, 2026-11-19)**: run on the device (USB): the sleep screen after the idle time (`>set idle-min 1`)
   with the live board and "Tap to start", a tap on an agenda row opened the Agenda's day view on today. Open: (1) the
   panel itself under the camera (the external camera was not connected); (2) the first network read at the 10-minute
@@ -1512,4 +1518,9 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-19: the idle sleep screen's first network read seen on the device (10 minutes in: relay and weather read, the
   board drawn again with "Updated 10:09"), watched through the Wi-Fi log. The device restarted afterwards to drop the
   1-minute test idle time.
-
+- 2026-11-19: P7-21 remote control from the companion app (D40, COMPANION.md section 10): the app's Paper > Remote control shows the Paper's screen and sends taps, holds
+  and swipes over Wi-Fi while wireless development is on; it signs in with `>auth-phone` and a key from the pairing, and
+  the Paper allows only `>shot`, `>refresh`, `>tap`, `>long`, `>swipe` on such a session. The Paper sends the phone its
+  address (`remote` envelope) when the server starts listening. 370 unit tests, 7 new JVM tests (one against the
+  simulator), on the phone against the Mac's simulator over Wi-Fi; firmware 2,596,623 bytes (+3.6 KB). Not yet on the
+  Paper (unreachable): "Pending device checks".
