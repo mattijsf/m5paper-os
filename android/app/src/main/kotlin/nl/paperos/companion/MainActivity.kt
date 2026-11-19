@@ -52,6 +52,7 @@ class MainActivity : Activity() {
     private lateinit var clipboard: Ink.Toggle
     private lateinit var agendaRow: Ink.Row
     private lateinit var agenda: Ink.Toggle
+    private lateinit var calendarsRow: Ink.Row
     private lateinit var sendClipRow: Ink.Row
     private lateinit var remoteRow: Ink.Row
     private lateinit var firmwareRow: Ink.Row
@@ -144,6 +145,10 @@ class MainActivity : Activity() {
             }
         }
         agendaRow.end = agenda
+        calendarsRow = row(null, "Calendars").apply {
+            end = chevron()
+            clickable { startActivity(Intent(this@MainActivity, CalendarsActivity::class.java)) }
+        }
         sendClipRow = row(Ink.ICON_SEND, "Send clipboard to the Paper").apply {
             sub("Also from Share > Send to Paper, or the Quick Settings tile")
             end = chevron()
@@ -211,6 +216,10 @@ class MainActivity : Activity() {
         super.onResume()
         Store.observe(refresh)
         handler.post(ticker)
+        // Which calendars go to the Paper (read here, not in update(): that runs every second).
+        AgendaSync.calendars(this)?.let { cals ->
+            calendarsRow.sub(CalendarsActivity.shareText(cals.count { it.id !in Link.agendaSkipped }, cals.size))
+        }
     }
 
     override fun onPause() {
@@ -288,6 +297,7 @@ class MainActivity : Activity() {
             agenda.on = false
         }
         show(agendaRow, active)
+        show(calendarsRow, active && agenda.on)
         show(repliesRow, active)
         show(clipRow, active)
         show(sendClipRow, active && Link.clipboardShared)

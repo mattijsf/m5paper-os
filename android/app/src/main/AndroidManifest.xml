@@ -47,6 +47,10 @@
             android:name=".FirmwareActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
+        <activity
+            android:name=".CalendarsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
 
         <activity
             android:name=".ScanActivity"

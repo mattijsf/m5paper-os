@@ -46,6 +46,8 @@ object Link {
     var repliesAllowed = false; private set
     var clipboardShared = true; private set
     var agendaShared = false; private set // D28: off until the user switches it on (and grants READ_CALENDAR)
+    // Calendars the user switched off (CalendarContract ids). Kept as the ones left out, so a new calendar is shared.
+    var agendaSkipped: Set<Long> = emptySet(); private set
     // Remote control (section 10): where the Paper's wireless development listens, as it last said (or the user typed).
     var remoteHost: String = ""; private set
     var remotePort: Int = RemoteAuth.PORT; private set
@@ -64,6 +66,7 @@ object Link {
             repliesAllowed = o.optBoolean("replies", false)
             clipboardShared = o.optBoolean("clipboard", true)
             agendaShared = o.optBoolean("agenda", false)
+            agendaSkipped = o.optJSONArray("agenda_skip")?.let { a -> (0 until a.length()).map { a.getLong(it) }.toSet() } ?: emptySet()
             remoteHost = o.optString("remote_host").takeIf { RemoteAuth.validHost(it) } ?: ""
             remotePort = o.optInt("remote_port", RemoteAuth.PORT).takeIf { it in 1..65535 } ?: RemoteAuth.PORT
             o.optJSONArray("sends")?.let { a -> for (i in 0 until a.length()) sends += a.getLong(i) }
@@ -184,6 +187,17 @@ object Link {
     fun setAgendaShared(ctx: Context, shared: Boolean) {
         load(ctx)
         agendaShared = shared
+        saveSettings(ctx)
+        AgendaSync.requestFull(ctx)
+    }
+
+    /** One calendar on or off for the Paper. The whole window goes again, so the Paper loses (or gains) its events at once. */
+    @Synchronized
+    fun setCalendarShared(ctx: Context, id: Long, shared: Boolean) {
+        load(ctx)
+        val next = if (shared) agendaSkipped - id else agendaSkipped + id
+        if (next == agendaSkipped) return
+        agendaSkipped = next
         saveSettings(ctx)
         AgendaSync.requestFull(ctx)
     }
@@ -339,7 +353,7 @@ object Link {
 
     private fun saveSettings(ctx: Context) {
         val o = JSONObject().put("url", baseUrl ?: "").put("replies", repliesAllowed).put("clipboard", clipboardShared)
-            .put("agenda", agendaShared).put("remote_host", remoteHost).put("remote_port", remotePort)
+            .put("agenda", agendaShared).put("agenda_skip", JSONArray(agendaSkipped.sorted())).put("remote_host", remoteHost).put("remote_port", remotePort)
             .put("sends", JSONArray(sends))
         writeAtomic(settingsFile(ctx), o.toString())
     }

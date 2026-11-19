@@ -107,4 +107,15 @@ class AgendaTest {
         assertEquals(Agenda.fingerprint(a), Agenda.fingerprint(a.copy()))
         assertFalse(Agenda.fingerprint(a) == Agenda.fingerprint(b))
     }
+
+    @Test
+    fun calendarsSwitchedOffAreLeftOut() {
+        val all = Agenda.selection(emptySet())
+        assertEquals("visible = 1 AND (eventStatus IS NULL OR eventStatus != 2) AND selfAttendeeStatus != 2", all)
+        assertFalse(all.contains("calendar_id"))
+        assertEquals(
+            "visible = 1 AND calendar_id NOT IN (3,12) AND (eventStatus IS NULL OR eventStatus != 2) AND selfAttendeeStatus != 2",
+            Agenda.selection(setOf(12L, 3L)),
+        )
+    }
 }

@@ -394,7 +394,7 @@ facts (a measurement, a failed task). To change one, add a new entry that supers
 ## D28. The agenda comes from the phone's calendar, one way, through the encrypted relay
 
 - **Source**: the calendars the phone's calendar app shows (`CalendarContract.Instances`, `READ_CALENDAR`), read by the
-  companion app; not a Home Assistant calendar entity. Home Assistant only relays ciphertext, as for the inbox (D22): the
+  companion app, minus the ones switched off under Paper > Calendars; not a Home Assistant calendar entity. Home Assistant only relays ciphertext, as for the inbox (D22): the
   calendar is as private as the messages, so the same trust rule applies.
 - **One way**: the Paper shows, never changes. The phone sends `agenda` runs (COMPANION.md 7.1): today and the 13 days after
   it, a run replaces every day it covers, at most 12 events a day (the rest is a count), titles 80 and places 60 characters,

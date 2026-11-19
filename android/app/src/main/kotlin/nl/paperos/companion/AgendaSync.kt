@@ -14,8 +14,8 @@ import java.time.ZoneId
 /**
  * The phone's calendar for the Paper (DECISIONS.md D28, docs/COMPANION.md 7.1 `agenda`). One way: the Paper never changes it.
  *
- * Reads the instances of the calendars shown in the calendar app for today and the 13 days after it (declined and cancelled
- * events left out), packs them into `agenda` runs ([Agenda.pack]) and sends a run when one of its days changed since it was
+ * Reads the instances of the calendars shown in the calendar app and not switched off under Paper > Calendars, for today and
+ * the 13 days after it (declined and cancelled events left out), packs them into `agenda` runs ([Agenda.pack]) and sends a run when one of its days changed since it was
  * last sent, the whole window once a day and after pairing or switching the share on. With the share off (or the permission
  * taken away) one empty run empties the Paper's agenda. Runs on the relay thread ([RelayService]); nothing is logged.
  *
@@ -79,7 +79,25 @@ object AgendaSync {
         return sent
     }
 
-    /** The visible calendars' instances in the window, or null without the permission. */
+    /**
+     * The calendars shown in the calendar app, by account then name (Paper > Calendars), or null without the permission.
+     * Each is shared unless the user switched it off: a new one is on.
+     */
+    fun calendars(ctx: Context): List<Agenda.Calendar>? {
+        if (!permitted(ctx)) return null
+        val projection = arrayOf(
+            CalendarContract.Calendars._ID, CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, CalendarContract.Calendars.ACCOUNT_NAME,
+        )
+        val out = mutableListOf<Agenda.Calendar>()
+        runCatching {
+            ctx.contentResolver.query(CalendarContract.Calendars.CONTENT_URI, projection, "${CalendarContract.Calendars.VISIBLE} = 1", null, null)?.use { c ->
+                while (c.moveToNext()) out += Agenda.Calendar(c.getLong(0), c.getString(1) ?: "", c.getString(2) ?: "")
+            }
+        }.onFailure { return null }
+        return out.sortedWith(compareBy({ it.account.lowercase() }, { it.name.lowercase() }))
+    }
+
+    /** The calendars' instances in the window (shown in the calendar app, not switched off here), or null without the permission. */
     private fun read(ctx: Context, start: LocalDate, zone: ZoneId): List<Agenda.Instance>? {
         if (!permitted(ctx)) return null
         val begin = start.atStartOfDay(zone).toInstant().toEpochMilli()
@@ -92,9 +110,7 @@ object AgendaSync {
             CalendarContract.Instances.BEGIN, CalendarContract.Instances.END, CalendarContract.Instances.ALL_DAY,
             CalendarContract.Instances.TITLE, CalendarContract.Instances.EVENT_LOCATION,
         )
-        val selection = "${CalendarContract.Instances.VISIBLE} = 1" +
-            " AND (${CalendarContract.Instances.STATUS} IS NULL OR ${CalendarContract.Instances.STATUS} != ${CalendarContract.Events.STATUS_CANCELED})" +
-            " AND ${CalendarContract.Instances.SELF_ATTENDEE_STATUS} != ${CalendarContract.Attendees.ATTENDEE_STATUS_DECLINED}"
+        val selection = Agenda.selection(Link.agendaSkipped)
         val out = mutableListOf<Agenda.Instance>()
         runCatching {
             ctx.contentResolver.query(uri, projection, selection, null, null)?.use { c ->

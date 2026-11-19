@@ -69,7 +69,8 @@ the agenda" is off there), List only: "Nothing planned".
 ## Phone side
 
 `android/.../AgendaSync.kt` and `proto/Agenda.kt` (JVM tests `AgendaTest`): switch "Share the agenda" (asks for
-`READ_CALENDAR`), a `ContentObserver` on the calendar provider with a one-minute debounce, per-day fingerprints in
+`READ_CALENDAR`), Paper > Calendars (`CalendarsActivity`: one switch per calendar, all on, a new calendar on; the ones
+switched off are left out of the query, `Agenda.selection`), a `ContentObserver` on the calendar provider with a one-minute debounce, per-day fingerprints in
 `noBackupFilesDir/agenda.json` so only runs with a changed day go again, the whole window once a day and after pairing;
 switching off sends the clearing run.
 

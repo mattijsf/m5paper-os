@@ -27,6 +27,21 @@ object Agenda {
 
     data class Day(val date: LocalDate, val events: List<Ev>, val more: Int)
 
+    /** A calendar the user can leave out (Paper > Calendars). Every one is shared unless the user switched it off. */
+    data class Calendar(val id: Long, val name: String, val account: String)
+
+    /**
+     * The `CalendarContract.Instances` selection for the window: calendars shown in the calendar app and not switched off,
+     * no cancelled or declined events. [skipped] holds ids only (numbers), so it goes into the SQL as it is.
+     */
+    fun selection(skipped: Set<Long>): String {
+        val sb = StringBuilder("visible = 1")
+        if (skipped.isNotEmpty()) sb.append(" AND calendar_id NOT IN (").append(skipped.sorted().joinToString(",")).append(')')
+        sb.append(" AND (eventStatus IS NULL OR eventStatus != 2)") // Events.STATUS_CANCELED
+        sb.append(" AND selfAttendeeStatus != 2") // Attendees.ATTENDEE_STATUS_DECLINED
+        return sb.toString()
+    }
+
     /** The window's days ([DAYS] from [start]) with the instances that touch each, in the order the Paper shows them. */
     fun days(instances: List<Instance>, start: LocalDate, zone: ZoneId): List<Day> = (0 until DAYS).map { i ->
         val date = start.plusDays(i.toLong())

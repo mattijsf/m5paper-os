@@ -217,7 +217,9 @@ the clipboard not shared too, and whatever its `ts`. A clipboard Android marks s
 | `days[].more` | the number of events of that day that were left out (more than 12, or the plaintext limit); left out when 0 |
 
 The phone reads the calendars that are visible in its calendar app (`CalendarContract.Instances`, permission
-`READ_CALENDAR`, asked when the user switches on "Share the agenda"; off by default) for today and the 13 days after it.
+`READ_CALENDAR`, asked when the user switches on "Share the agenda"; off by default), minus the ones the user switched off
+under Paper > Calendars, for today and the 13 days after it. The app keeps the switched-off calendars (their ids,
+`agenda_skip` in its settings), so a calendar added later is shared; switching one on or off sends the whole window.
 It sends a run when a day in it changed since that day was last sent (a calendar change, 60 s after the last one), the
 whole window once a day after the phone's midnight, and the whole window after pairing or switching the share on.
 Declined and cancelled events are not sent. Days are packed into as few envelopes as fit 1000 bytes (a day that does not
