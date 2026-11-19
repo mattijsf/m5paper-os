@@ -577,8 +577,9 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
 - **Remote control and firmware update from the phone (P7-21, 2026-11-19)**: done on the device (Pixel 9 Pro, Paper on
   battery over Wi-Fi): after `make ota` the Paper pushed its address ("address to the phone: pushed"), the app showed
   "at 192.168.1.60" a minute later, the live screen came up, a tap from the phone opened Weather (`[touch] x=437 y=626`),
-  and Maintenance > Firmware update installed a `make ota-phone` package in 26 s (confirmed in app1). Open: `>ls` from a
-  phone session refused on the device (unit test and simulator only). Two things seen on the way, not explained: (1) the
+  and Maintenance > Firmware update installed a `make ota-phone` package in 26 s (confirmed in app1). With the phone's
+  real pairing (`RemoteDeviceTest#thePaperRefusesThePhoneEverythingElse`, `-e paper 1`) the Paper answered
+  `#err not from the phone` to `>ls`, `>log`, `>status`, `>rm`, `>set` and `>reboot` (14:27). Two things seen on the way, not explained: (1) the
   first `make ota` of the day stopped at 1.1 MB with "no answer" and the Paper had restarted (fresh boot, no reset
   reason in the log: the firmware does not record one); the second attempt went through; (2) the Paper's clock ran
   about 4 minutes behind the Mac's (status bar 14:15 at 14:19, after "time sync ok").

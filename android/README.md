@@ -78,7 +78,8 @@ JVM: the shared companion vectors (keys, code, hello, post, reply, rejects), rec
 their size limits, reply guards, HKDF RFC 5869, QR decode, outbox and drain. On the phone (Keystore
 X25519, wrapped fallback, low-order peer, RFC 7748, ChaCha20-Poly1305, the companion vectors through
 Conscrypt; `RemoteDeviceTest`: remote control over the real Wi-Fi against the Mac's simulator with the vectors' pairing,
-`-e remoteSim <mac address>:8266`): build both APKs, install, run with `am instrument`, then remove the test APK.
+`-e remoteSim <mac address>:8266`; with `-e paper 1` it also checks, with this phone's real pairing, that the Paper refuses
+files, log, settings and restart to the phone): build both APKs, install, run with `am instrument`, then remove the test APK.
 `RemoteTest` also runs against a simulator on the Mac: `./gradlew :app:testDebugUnitTest -Premote.sim=localhost:8266`.
 Do not use `connectedAndroidTest`: it uninstalls the app afterwards, which drops the notification-access
 grant and the phone key.

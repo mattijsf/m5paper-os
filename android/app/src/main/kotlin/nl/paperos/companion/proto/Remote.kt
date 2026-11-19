@@ -178,6 +178,12 @@ class RemoteLink private constructor(private val socket: Socket) : Closeable {
     private fun cx(x: Int) = x.coerceIn(0, WIDTH - 1)
     private fun cy(y: Int) = y.coerceIn(0, HEIGHT - 1)
 
+    /** One command line, its first answer line (device tests: what the Paper refuses a phone). */
+    internal fun firstAnswer(line: String): String {
+        send(line)
+        return readLine()
+    }
+
     private fun command(line: String) {
         send(line)
         expectOk()

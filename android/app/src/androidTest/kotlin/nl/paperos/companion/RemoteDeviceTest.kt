@@ -20,6 +20,22 @@ import org.junit.runner.RunWith
 class RemoteDeviceTest {
     private fun hex(s: String) = ByteArray(s.length / 2) { s.substring(2 * it, 2 * it + 2).toInt(16).toByte() }
 
+    /** With this phone's real pairing (read only): the Paper refuses files, log and restart to a phone session. */
+    @Test
+    fun thePaperRefusesThePhoneEverythingElse() {
+        val ctx = InstrumentationRegistry.getInstrumentation().targetContext
+        assumeTrue("pass -e paper 1", InstrumentationRegistry.getArguments().getString("paper") == "1")
+        Link.load(ctx)
+        val key = Link.remoteKey(ctx) ?: error("not paired")
+        RemoteLink.open(Link.remoteHost, Link.remotePort, key).use { link ->
+            for (cmd in listOf(">ls /sd/books", ">log", ">status", ">rm /sd/books/x", ">set screen launcher", ">reboot")) {
+                assertEquals(cmd, "#err not from the phone", link.firstAnswer(cmd))
+            }
+            Log.i("RemoteDeviceTest", "the Paper at ${Link.remoteHost} refused 6 commands to the phone")
+        }
+        key.fill(0)
+    }
+
     @Test
     fun screenAndTouchOverWifi() {
         val sim = InstrumentationRegistry.getArguments().getString("remoteSim")
