@@ -255,6 +255,7 @@ void Remote::queue(uint32_t at, hal::TouchEvent::Type t, int x, int y) {
 
 void Remote::handleLine(const std::string& line) {
   if (line.empty() || line[0] != '>') return;
+  os_.keepAwake();  // (also here: some transports hand over whole lines)
   RemoteCommand c = parseRemoteCommand(line);
   const uint32_t now = clock_.millis();
   if (phone_ && c.kind != RemoteCommand::None && !remotephone::allowedForPhone(c.kind)) {
@@ -430,6 +431,9 @@ void Remote::abortPut(const std::string& why) {
 }
 
 void Remote::feed(const uint8_t* data, size_t n) {
+  // Whatever arrives counts as use, as a touch does: an update, an upload or a live view must not be cut by the idle time
+  // (2026-11-19: the sleep screen came in the middle of an update).
+  if (n > 0) os_.keepAwake();
   while (n > 0) {
     if (ota_.active || ota_.discard > 0) {
       const size_t used = feedOta(data, n);

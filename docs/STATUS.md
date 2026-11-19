@@ -581,7 +581,8 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   real pairing (`RemoteDeviceTest#thePaperRefusesThePhoneEverythingElse`, `-e paper 1`) the Paper answered
   `#err not from the phone` to `>ls`, `>log`, `>status`, `>rm`, `>set` and `>reboot` (14:27). Two things seen on the way, not explained: (1) the
   first `make ota` of the day stopped at 1.1 MB with "no answer" and the Paper had restarted (fresh boot, no reset
-  reason in the log: the firmware does not record one); the second attempt went through; (2) the Paper's clock ran
+  reason in the log: the firmware does not record one); the second attempt went through. Suspect: the sleep screen
+  came during the update (fixed the same day, see the Log), not proven; (2) the Paper's clock ran
   about 4 minutes behind the Mac's (status bar 14:15 at 14:19, after "time sync ok").
 - **When unused (P7-19, 2026-11-19)**: run on the device (USB): the sleep screen after the idle time (`>set idle-min 1`)
   with the live board and "Tap to start", a tap on an agenda row opened the Agenda's day view on today. Open: (1) the
@@ -1529,3 +1530,10 @@ None of these block Phase 1, Phase 2, or the reader.
   Maintenance section: Remote
   control and Firmware update (a package signed on the Mac, `make ota-phone`; `>ota` allowed for the phone, the Paper
   checks the signature). Done on the Paper and the Pixel ("Pending device checks").
+- 2026-11-19: the sleep screen came in the middle of an update over Wi-Fi. Not intended: the idle time counted touches only. Reproduced on the device with a 3 MB upload across the
+  idle moment (`>set idle-min 1`, a tap, the upload 50 s later: "not used for 1 min: the sleep screen" in the middle of
+  it). Now whatever the remote receives counts as use (`Remote::feed` and `handleLine` call `Os::keepAwake`): the same
+  test on the device, no sleep screen during the upload, and the sleep screen a minute after the traffic stopped. Possibly
+  also the cause of the restart in the first update of the day (the sleep screen's network work during the flash
+  writes): not proven, the log had gone with the restart. `tools/push.py --wifi`. 371 unit tests; firmware 2,596,719
+  bytes; installed (build 89530dc33ae9), the device restarted afterwards so the user's own idle time applies again.

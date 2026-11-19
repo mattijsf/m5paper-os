@@ -95,7 +95,8 @@ class Remote {
   Remote(Os& os, hal::Clock& clock, RemoteHost& host, bool phone = false) : os_(os), clock_(clock), host_(host), phone_(phone) {}
 
   // What the transport received (serial port, the simulator's stdin), in any chunking: command lines, and during an
-  // upload the file's bytes. A line longer than kMaxLine is not run: cut short it would be another command
+  // upload the file's bytes. Anything received counts as use for the idle time (Os::keepAwake). A line longer than
+  // kMaxLine is not run: cut short it would be another command
   // (">rm /sd/books/long name" as ">rm /sd/books/lo"); it is answered "#err line too long".
   void feed(const uint8_t* data, size_t n);
   static constexpr size_t kMaxLine = 512;

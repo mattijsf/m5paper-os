@@ -3,6 +3,7 @@
 
     ~/.platformio/penv/bin/python tools/push.py book.epub other.txt            # to /sd/books/
     ~/.platformio/penv/bin/python tools/push.py --to /sd/paperos/ file.json
+    ~/.platformio/penv/bin/python tools/push.py --wifi [--host ADDRESS] book.epub   # over wireless development (D39)
     ~/.platformio/penv/bin/python tools/push.py --sim --data out/x sim-data/sd/books/*   # round trip against the simulator
 
 Each file is sent with `>put <path> <size> <crc32>` in 4 KB chunks, one acknowledgement per chunk; the device checks the
@@ -84,9 +85,11 @@ def main():
     ap.add_argument("--sim", action="store_true")
     ap.add_argument("--data", help="with --sim: the simulator's data root")
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--wifi", action="store_true", help="over wireless development (D39) instead of USB")
+    ap.add_argument("--host", help="with --wifi: the device's address (default: as tools/device.py finds it)")
     a = ap.parse_args()
     sim_args = ("--data", a.data) if a.sim and a.data else ()
-    link = device.Link(a.port, a.sim, sim_args)
+    link = device.Link(wifi=device.wifi_host(a.host)) if a.wifi else device.Link(a.port, a.sim, sim_args)
     ok = True
     t0 = time.time()
     total = 0

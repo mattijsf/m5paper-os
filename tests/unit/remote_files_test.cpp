@@ -363,3 +363,19 @@ TEST_CASE("remote: a session of the paired phone gets the screen and touch, noth
   e.remote.handleLine(">ls /sd/books");  // the Mac's session is not limited
   CHECK_FALSE(e.host.has("not from the phone"));
 }
+
+TEST_CASE("remote: what arrives counts as use, so the idle time does not cut an update or a live view") {
+  Env e;
+  e.clock.ms = 50000;
+  CHECK(e.os.lastInputMs() != 50000);
+  const char line[] = ">refresh\n";
+  e.remote.feed(reinterpret_cast<const uint8_t*>(line), sizeof line - 1);
+  CHECK(e.os.lastInputMs() == 50000);
+  e.clock.ms = 90000;
+  e.put("/sd/books/a.txt", "hello", 0x3610a686);
+  CHECK(e.os.lastInputMs() == 90000);
+  e.clock.ms = 120000;
+  Remote phone{e.os, e.clock, e.host, true};
+  phone.handleLine(">ls /sd/books");  // refused to the phone, but someone is there
+  CHECK(e.os.lastInputMs() == 120000);
+}

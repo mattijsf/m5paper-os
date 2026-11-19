@@ -61,6 +61,9 @@ Shell writes `lastApp` to `/data/system.json` and closes the app so it saves), t
 - After `power.autoOffMin` minutes without input (default 15, reader 30, 0 = never while on USB):
   draw the sleep screen (below), `display.wait()`, then `power.powerOff(0)` (or with an RTC alarm: "Scheduled refresh" below).
 - Not while Settings > Developer > Wireless development is on (D39): the device must stay reachable.
+- "Input" includes what the remote receives (USB or Wi-Fi, the Mac or the phone: `Remote::feed` calls `Os::keepAwake`):
+  an update, an upload or a live view is use, so neither the sleep screen nor a power-off comes in the middle of it
+  (2026-11-19: the sleep screen came during an update; reproduced with an upload, gone after the fix).
 - Not while USB (a host on the data link, or the charger) was seen in the last 12 hours of this boot (`kUsbGraceMs`): a Mac
   suspends a port nobody has open, the device then sees no host, and only the side button could undo an unwanted power-off.
 - Before power-off every app gets `onPause()` to save state (reading position).
