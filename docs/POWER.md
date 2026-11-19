@@ -148,7 +148,10 @@ No Wi-Fi at boot. `>set screen launcher` never resumes.
 - While the Home app is in the foreground and was touched in the last 2 minutes, linger is
   extended so toggles respond fast. The device does not light-sleep during that window.
 - Time sync: SNTP after a connect when the clock was never set or the last sync is over a day old, written to the BM8563 RTC on
-  the UI thread; the status bar updates at once (measured: the clock was set after the first connect). Nothing connects just
+  the UI thread; the status bar updates at once (measured: the clock was set after the first connect). Only SNTP's own
+  answer counts (its notification callback), never a system time that looks set: that one survives a restart and drifts
+  minutes a day on the internal RC oscillator. SNTP asks at once (`CONFIG_LWIP_SNTP_STARTUP_DELAY=n`): 51 ms on the
+  device, against 4.95 s with the default random start-up delay. The log says how far the RTC was off (`clock was N s off`). Nothing connects just
   because the clock is lost (Wi-Fi stays off at boot); apps that need the date offer "Klok zetten" (`ctx.syncClock`, Somdoku,
   the word game), and any other connect (Home, an inbox refresh, Settings > Wi-Fi) sets it too.
 - No background polling while the device is on. While it is off, the scheduled refresh below can fetch the inbox feeds (off by default).

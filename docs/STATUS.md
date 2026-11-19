@@ -574,13 +574,6 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
-- **Clock sync (2026-11-19)**: the fix (wait for SNTP's own answer) is built, not yet on the device (it was not reachable
-  over Wi-Fi). Check: after the install the log says `clock was ... s off` then `time sync ok`, and the status bar matches
-  the Mac's clock; again the next day.
-- **Calendars to the Paper (2026-11-19)**: phone side done on the Pixel: the page listed the 13 calendars by account, all
-  on; one switched off was stored (`agenda_skip`), the header said "12 of 13" and the relay sent the whole window at once
-  (`agenda_sent` 8, no error). Open: the Paper side (its events gone from the Agenda after the next relay read); the Paper
-  was off.
 - **Remote control and firmware update from the phone (P7-21, 2026-11-19)**: done on the device (Pixel 9 Pro, Paper on
   battery over Wi-Fi): after `make ota` the Paper pushed its address ("address to the phone: pushed"), the app showed
   "at 192.168.1.60" a minute later, the live screen came up, a tap from the phone opened Weather (`[touch] x=437 y=626`),
@@ -1548,8 +1541,14 @@ None of these block Phase 1, Phase 2, or the reader.
   system time that looked set as the synced one, and the ESP's system time survives a restart (an update, a crash) and
   runs on the internal RC oscillator in between: SNTP was asked, but the old system time was returned at once and written
   to the RTC. It now waits for SNTP's notification (`sntp_set_time_sync_notification_cb`), stops SNTP when none came, and
-  `NetService::tick` logs how far the RTC was off (`clock was N s off`). Firmware 2,596,975 bytes. Not yet on the device.
+  `NetService::tick` logs how far the RTC was off (`clock was N s off`). On the device (Wi-Fi install): `clock was -199 s off`,
+  then corrected; but the sync took 4951 ms of the 5 s wait: ESP-IDF's SNTP waits a random 0-5 s before it asks
+  (`CONFIG_LWIP_SNTP_STARTUP_DELAY`, now off in `custom_sdkconfig`; the core rebuild took 4 min 52 s). After that: `time sync
+  ok in 51ms`, `clock was +0 s off`, status bar 21:00 at the Mac's 21:00. Firmware 2,596,947 bytes, installed (build
+  3d36a441ea2c). Open: the drift over a day (the next daily sync logs it).
 - 2026-11-19: calendars to the Paper. Companion app: Paper > Calendars (`CalendarsActivity`), one switch per calendar the calendar app shows,
   grouped by account. The app keeps the ones switched off (`agenda_skip`), so a new calendar is on; `Agenda.selection`
   leaves them out of the query; a change sends the whole window. JVM test `calendarsSwitchedOffAreLeftOut`. On the Pixel:
-  list, a switch off and on, the whole window sent (screenshots out/phone-main.png, out/phone-calendars.png). D28, COMPANION.md 7.1, apps/agenda.md, android/README.md.
+  list, a switch off and on, the whole window sent (screenshots out/phone-main.png, out/phone-calendars.png). On the Paper
+  with two calendars off: the Agenda ("From your phone: 20:50") no longer lists that calendar's all-day event of today
+  (out/device-agenda-list.png). D28, COMPANION.md 7.1, apps/agenda.md, android/README.md.
