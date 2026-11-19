@@ -577,7 +577,8 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
 - **When unused (P7-19, 2026-11-19)**: run on the device (USB): the sleep screen after the idle time (`>set idle-min 1`)
   with the live board and "Tap to start", a tap on an agenda row opened the Agenda's day view on today. Open: (1) the
   panel itself under the camera (the external camera was not connected); (2) the first network read at the 10-minute
-  look on the device (log line `sleep screen: reading the relay and the weather`, then "Updated HH:MM" on the board);
+  look on the device: **done 2026-11-19 10:09** (on battery, wireless development on: the log said `sleep screen:
+  reading the relay and the weather`, the relay brought 9 items, the board was drawn again with "Updated 10:09");
   (3) the battery path: an idle power-off resumes only a book or a game; (4) a tap on the weather and on an unread
   count on the device (simulator only); (5) "Then show: Home" on the device.
 - **Mark all read during a running read (2026-11-19)**: fixed and run in the simulator (`inbox-markall-race`); on the
@@ -1508,4 +1509,7 @@ None of these block Phase 1, Phase 2, or the reader.
   no auto-off while it is on (`PowerPolicy::idle`); the idle sleep screen still comes, the device on. Checked on the
   device on battery, USB out: with a 1-minute idle time the sleep screen came (live board) and the device kept
   answering over Wi-Fi. Unit test. Firmware 2,593,003 bytes.
+- 2026-11-19: the idle sleep screen's first network read seen on the device (10 minutes in: relay and weather read, the
+  board drawn again with "Updated 10:09"), watched through the Wi-Fi log. The device restarted afterwards to drop the
+  1-minute test idle time.
 
