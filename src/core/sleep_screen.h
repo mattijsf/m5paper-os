@@ -33,6 +33,7 @@ struct SleepBoard {
   struct Row {
     bool heading = false;
     std::string time, title;  // heading: the day in `title`
+    int date = 0;             // the day it belongs to (core/agenda day number): a tap opens the Agenda there
     bool operator==(const Row& o) const { return heading == o.heading && time == o.time && title == o.title; }
   };
   std::vector<Row> agenda;
@@ -53,6 +54,17 @@ SleepBoard buildSleepBoard(int64_t now);
 // kSleepThumbH, may be null), the unread counts per app and `updated` ("14:05", "" for none), then "Powered off".
 // `on`: the device stays on (idle on USB, D38): "Tap to start" instead of "Powered off" and the side button.
 void drawSleepBoard(Canvas& c, const SleepBoard& board, const SleepInfo* info, Canvas* thumb, const std::string& updated, bool on = false);
+// A part of the sleep screen a tap opens an app at (a sleep screen that stays on, D38): the weather, an agenda row, the
+// book, an app's unread count. `link` says where in the app (AppContext::link): "date=2026-01-16", "page=1", "".
+struct SleepTarget {
+  Rect area;
+  std::string app, link;
+};
+// The parts the last drawSleepScreenFor / drawSleepBoard / drawSleepScreen drew (UI thread), and the one under a point
+// (nullptr for none: the tap then just leaves the sleep screen).
+const std::vector<SleepTarget>& sleepTargets();
+const SleepTarget* sleepTargetAt(int x, int y);
+
 // What the sleep screen would show now, as text: the same text means the same picture (the Shell redraws a sleep screen
 // that stays on only when this changes).
 std::string sleepScreenKey(const SleepInfo* info, int64_t now, bool board, const std::string& updated);

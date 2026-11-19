@@ -165,6 +165,11 @@ class AppContext {
   hal::Clock& clock;
   const Config& config;      // system settings, read-only
   const Secrets& secrets;    // secrets by key; never log or display the values
+  // Where to open, when something outside the app chose it (a tap on the sleep screen, D38): "key=value" pairs joined by
+  // '&' ("date=2026-01-16", "page=1"); "" for the app's own choice. Set before onStart; an app that knows no key ignores it.
+  std::string link;
+  // The value of one key of `link`, "" if it is not there.
+  std::string linkValue(const std::string& key) const;
 
   // Runs `job` on the worker thread and `onDone(result)` on the UI thread; dropped if the screen
   // that was on top when this was called is gone by then.

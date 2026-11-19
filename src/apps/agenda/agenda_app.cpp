@@ -53,6 +53,12 @@ class AgendaScreen : public Screen {
     status_ = root.add<ui::Label>("", Type::Caption, ui::secondary);
     status_->align = ui::TextAlign::Center;
     view_ = ctx().store.get("view", 0) == 1 ? 1 : 0;
+    // Opened at a day (a tap on an agenda row of the sleep screen: AppContext::link): that day in the day view.
+    int linked = 0;
+    if (parseDate(ctx().linkValue("date"), linked)) {
+      view_ = 0;
+      dayDate_ = linked;
+    }
     tabs_ = root.add<ui::TabBar>(std::vector<ui::TabBar::Tab>{{Icon::Calendar, "Day"}, {Icon::List, "List"}}, view_);
     tabs_->onSelect = [this](int i) {
       if (i == view_) return;

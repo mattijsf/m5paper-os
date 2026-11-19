@@ -36,7 +36,7 @@ tap 472 268             # Air conditioning toggle: the service call fails (fixtu
 wait 700
 shot home-more-failed
 wait 35000              # foreground polling: touched within 2 minutes, so the tab is read again every 30 s
-tap 270 600             # a touch on nothing: the idle return (a minute without one) would leave the app
+tap 270 600             # a touch on nothing (the idle time counts from it)
 wait 30000
 expect-state Updated 13:35
 shot home-polled

@@ -86,9 +86,10 @@ class PowerPage : public Page {
     setTitle("Power");
     caption(root, "When unused for");
     const int m = cfg().power.autoOffMin;
-    auto* off = root.add<ui::Segmented>(std::vector<std::string>{"5 min", "15 min", "30 min", "Never"}, m == 5 ? 0 : m == 15 ? 1 : m == 30 ? 2 : m == 0 ? 3 : 1);
+    auto* off = root.add<ui::Segmented>(std::vector<std::string>{"1 min", "5 min", "15 min", "30 min", "Never"},
+                                        m == 1 ? 0 : m == 5 ? 1 : m == 15 ? 2 : m == 30 ? 3 : m == 0 ? 4 : 2);
     off->onChange = [this](int i) {
-      static const int kMin[] = {5, 15, 30, 0};
+      static const int kMin[] = {1, 5, 15, 30, 0};  // 1 min
       cfg().power.autoOffMin = kMin[i];
       save();
     };

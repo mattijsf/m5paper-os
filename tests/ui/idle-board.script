@@ -1,11 +1,30 @@
 # Idle on USB with the Today board (DECISIONS.md D38): nothing touched for 15 minutes, the sleep screen comes with the
-# date, the weather and the agenda, and the device stays on ("Tap to start"); a tap brings back the launcher.
-# Agenda and weather as in today-board.script (ha-agenda.example.test); today is Thursday 15 January 2026, 13:34.
+# date, the weather and the agenda, and the device stays on ("Tap to start"). A tap on a part of it opens that app
+# there: an agenda row the Agenda on that day, the weather the Weather app's blocks, a count its app; elsewhere the
+# launcher. Agenda and weather as in today-board.script (ha-agenda.example.test); today is Thursday 15 January 2026.
 wait 1700               # the launcher's relay read: the agenda and the badges
 tap 438 628             # Weather: the first place is read and saved
 wait 1500
 back
 wait 902000             # 15 minutes without a touch
 shot idle-board
-tap 270 500
+tap 270 566             # Friday's "School run": the Agenda's day view on Friday
 wait 1500
+shot idle-board-agenda
+expect-state view=day|date=2026-01-16
+back
+wait 902000
+tap 270 250             # the weather: its blocks (the second page), the first place
+wait 1500
+shot idle-board-weather
+expect-state page=2|place=Thuis
+back
+wait 902000
+tap 50 800              # the WhatsApp count: its list
+wait 1500
+expect-state rows=
+back
+wait 902000
+tap 270 700             # an empty part: the launcher
+wait 1500
+shot idle-board-launcher

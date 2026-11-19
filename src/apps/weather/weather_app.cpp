@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <memory>
 
 #include "apps/common/ha_error_state.h"
@@ -286,6 +287,12 @@ class WeatherScreen : public Screen {
     });
     if (places_.empty()) places_.push_back(Place{"Thuis", "weather.thuis", "", true});
     place_ = std::max(0, std::min(ctx().store.get("place", 0), static_cast<int>(places_.size()) - 1));
+    // Opened from the sleep screen (AppContext::link): its weather is the first place's, its blocks the second page.
+    const std::string page = ctx().linkValue("page");
+    if (!page.empty()) {
+      place_ = 0;
+      page_ = std::max(0, std::min(std::atoi(page.c_str()), kPages - 1));
+    }
     if (fs::exists(kOldCacheFile)) fs::removeAll(kOldCacheFile);
     if (places_.size() > 1) {
       std::vector<std::string> names;

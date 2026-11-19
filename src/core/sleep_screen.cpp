@@ -18,6 +18,11 @@ namespace pos {
 namespace {
 
 SleepWeatherSource gWeatherSource = nullptr;
+std::vector<SleepTarget> gTargets;  // the parts of the sleep screen last drawn
+
+void target(int x, int y, int w, int h, const std::string& app, const std::string& link = "") {
+  gTargets.push_back(SleepTarget{Rect{static_cast<int16_t>(x), static_cast<int16_t>(y), static_cast<int16_t>(w), static_cast<int16_t>(h)}, app, link});
+}
 SleepReadMaker gReadMaker = nullptr;
 
 // "Friday 16 January"
@@ -47,6 +52,13 @@ void drawPoweredOff(Canvas& c, bool on) {
 }  // namespace
 
 void setSleepWeatherSource(SleepWeatherSource source) { gWeatherSource = source; }
+
+const std::vector<SleepTarget>& sleepTargets() { return gTargets; }
+const SleepTarget* sleepTargetAt(int x, int y) {
+  for (const SleepTarget& t : gTargets)
+    if (x >= t.area.x && x < t.area.x + t.area.w && y >= t.area.y && y < t.area.y + t.area.h) return &t;
+  return nullptr;
+}
 void setSleepReadMaker(SleepReadMaker maker) { gReadMaker = maker; }
 SleepReadMaker sleepReadMaker() { return gReadMaker; }
 
@@ -74,12 +86,12 @@ std::vector<SleepBoard::Row> sleepAgendaRows(const agenda::Agenda& a, int today,
     for (const agenda::Event& e : day.events) {
       // Today: what is over is left out (an event that began before today and one without an end are not over).
       if (day.date == today && !e.allDay() && e.end >= 0 && e.end <= minute) continue;
-      events.push_back({false, agenda::timeText(e), e.title});
+      events.push_back({false, agenda::timeText(e), e.title, day.date});
     }
     if (events.empty()) continue;
     const int heading = day.date == today ? 0 : 1;  // the board's date is today's heading
     if (static_cast<int>(rows.size()) + heading + 1 > maxRows) break;
-    if (heading) rows.push_back({true, "", dayName(day.date)});
+    if (heading) rows.push_back({true, "", dayName(day.date), day.date});
     for (const SleepBoard::Row& r : events) {
       if (static_cast<int>(rows.size()) >= maxRows) break;
       rows.push_back(r);
@@ -104,6 +116,7 @@ void drawSleepBoard(Canvas& c, const SleepBoard& b, const SleepInfo* info, Canva
   using ui::Anchor;
   using ui::Type;
   c.fillRect(0, 0, kScreenW, kScreenH, kWhite);
+  gTargets.clear();
   const int x0 = ui::kMargin, x1 = kScreenW - ui::kMargin;
   ui::drawText(c, b.date, x0, 64, ui::measureText(c, b.date, Type::Headline) <= ui::kContentW ? Type::Headline : Type::Title, ui::ink,
                Anchor::MiddleLeft, kWhite);
@@ -113,6 +126,7 @@ void drawSleepBoard(Canvas& c, const SleepBoard& b, const SleepInfo* info, Canva
     y += 28;
   };
   if (b.weather) {
+    const int top = y;
     ui::drawIcon(c, b.weatherIcon, x0 + 36, y + 44, 64, ui::ink, kWhite);
     ui::drawText(c, b.temps, x0 + 92, y + 28, Type::Headline, ui::ink, Anchor::MiddleLeft, kWhite);
     ui::drawText(c, ui::ellipsize(c, b.summary, Type::Body, x1 - (x0 + 92)), x0 + 92, y + 68, Type::Body, ui::ink, Anchor::MiddleLeft, kWhite);
@@ -129,11 +143,13 @@ void drawSleepBoard(Canvas& c, const SleepBoard& b, const SleepInfo* info, Canva
       }
       y += 124;
     }
+    target(0, top, kScreenW, y + 10 - top, "weather", b.blocks.empty() ? "page=0" : "page=1");  // the blocks: its second page
     rule();
   }
   if (!b.agenda.empty()) {
     const int rowH = 38, timeW = 164;
     for (const SleepBoard::Row& r : b.agenda) {
+      target(0, y, kScreenW, rowH, "agenda", "date=" + agenda::formatDate(r.date));
       if (r.heading) {
         ui::drawText(c, ui::ellipsize(c, r.title, Type::BodyStrong, ui::kContentW), x0, y + rowH / 2, Type::BodyStrong, ui::ink, Anchor::MiddleLeft, kWhite);
       } else {
@@ -145,6 +161,7 @@ void drawSleepBoard(Canvas& c, const SleepBoard& b, const SleepInfo* info, Canva
     rule();
   }
   if (info) {  // the open book, one row
+    target(0, y - 8, kScreenW, kSleepThumbH + 16, "read");
     int tx = x0;
     if (thumb) {
       thumb->pushSprite(&c, x0, y);
@@ -164,7 +181,9 @@ void drawSleepBoard(Canvas& c, const SleepBoard& b, const SleepInfo* info, Canva
     const std::string count = std::to_string(n);
     ui::drawIcon(c, a->info.icon, x + 14, 800, 28, ui::ink, kWhite);
     ui::drawText(c, count, x + 38, 800, Type::Body, ui::ink, Anchor::MiddleLeft, kWhite);
-    x += 38 + ui::measureText(c, count, Type::Body) + 28;
+    const int w = 38 + ui::measureText(c, count, Type::Body);
+    target(x - 10, 776, w + 20, 48, a->info.id);
+    x += w + 28;
   }
   if (!updated.empty()) ui::drawText(c, "Updated " + updated, x1, 800, Type::Body, ui::secondary, Anchor::MiddleRight, kWhite);
   drawPoweredOff(c, on);
@@ -230,9 +249,11 @@ void drawSleepScreen(Canvas& c, const SleepInfo* info, Canvas* image, const std:
   using ui::Anchor;
   using ui::Type;
   c.fillRect(0, 0, kScreenW, kScreenH, kWhite);
+  gTargets.clear();
   const int cx = kScreenW / 2;
   if (info) {
     const int top = 110;
+    target(0, top, kScreenW, kSleepImageH + 200, "read");  // the cover, title and progress
     if (image) {
       image->pushSprite(&c, cx - kSleepImageW / 2, top);
       c.drawRect(cx - kSleepImageW / 2, top, kSleepImageW, kSleepImageH, ui::ink);
@@ -258,7 +279,9 @@ void drawSleepScreen(Canvas& c, const SleepInfo* info, Canvas* image, const std:
     ui::drawText(c, "PaperOS", cx, 450, Type::Headline, ui::ink, Anchor::MiddleCenter, kWhite);
   }
   if (!agenda.empty()) {  // content: ink. With no note below it, it takes the note's place
-    ui::drawText(c, ui::ellipsize(c, agenda, Type::Body, 492), cx, note.empty() ? 800 : 756, Type::Body, ui::ink, Anchor::MiddleCenter, kWhite);
+    const int ay = note.empty() ? 800 : 756;
+    ui::drawText(c, ui::ellipsize(c, agenda, Type::Body, 492), cx, ay, Type::Body, ui::ink, Anchor::MiddleCenter, kWhite);
+    target(0, ay - 22, kScreenW, 44, "agenda");
   }
   if (!note.empty()) ui::drawText(c, ui::ellipsize(c, note, Type::Body, 492), cx, 800, Type::Body, ui::ink, Anchor::MiddleCenter, kWhite);  // content: ink
   drawPoweredOff(c, on);

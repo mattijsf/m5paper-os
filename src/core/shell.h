@@ -34,10 +34,10 @@ class Shell : public Surface {
   using LauncherFactory = std::function<std::unique_ptr<Screen>(Shell&)>;
   void setLauncher(const LauncherFactory& make);
 
-  // Opens a registered app by id (no-op if unknown or one is already open).
-  bool openApp(const std::string& id);
+  // Opens a registered app by id (no-op if unknown or one is already open). `link`: where in it (AppContext::link).
+  bool openApp(const std::string& id, const std::string& link = "");
   // Same, after the current gesture or callback returns (use this from widget handlers).
-  void requestOpen(const std::string& id) { defer([this, id] { openApp(id); }); }
+  void requestOpen(const std::string& id, const std::string& link = "") { defer([this, id, link] { openApp(id, link); }); }
   // Leaves the running app (onStop, destroy) and shows the launcher.
   void closeApp();
   bool appOpen() const { return app_ != nullptr; }
@@ -101,7 +101,7 @@ class Shell : public Surface {
   void showSleepScreen();   // idle on USB: the sleep screen, staying on
   void sleepScreenTick();   // see kSleepScreenTickMs
   void redrawSleepScreen();
-  void wake();              // a tap on a sleep screen that stays on
+  void wake(const Gesture& g);  // a tap on a sleep screen that stays on: the app under it (sleepTargetAt), else as at a start
   void updateStatus();
 
   Os& os_;

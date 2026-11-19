@@ -5,6 +5,7 @@
 
 #include "core/quick_panel.h"
 #include "core/sleep_screen.h"
+#include "core/strings.h"
 #include "core/timefmt.h"
 
 #include "ui/widgets.h"
@@ -252,7 +253,15 @@ void Shell::popTop(bool hide) {
   stack_.pop_back();
 }
 
-bool Shell::openApp(const std::string& id) {
+std::string AppContext::linkValue(const std::string& key) const {
+  for (const std::string& part : split(link, '&')) {
+    const size_t eq = part.find('=');
+    if (eq != std::string::npos && part.compare(0, eq, key) == 0 && eq == key.size()) return part.substr(eq + 1);
+  }
+  return "";
+}
+
+bool Shell::openApp(const std::string& id, const std::string& link) {
   if (app_) return false;
   const AppEntry* entry = AppRegistry::instance().find(id);
   if (!entry) return false;
@@ -261,6 +270,7 @@ bool Shell::openApp(const std::string& id) {
   cache_ = std::make_unique<Cache>(id);
   nav_.reset(new Nav(*this));
   ctx_.reset(new AppContext(*this, *nav_, *store_, *cache_, os_.platform().clock, os_.config(), os_.secrets(), id));
+  ctx_->link = link;
   appBase_ = stack_.size();
   ++appRun_;
   appStaysOpen_ = entry->info.stayOpen;
@@ -368,7 +378,8 @@ void Shell::showSleepScreen() {
   prepareSleep(true, true);
   dozing_ = true;
   sleepUpdated_.clear();
-  lastReadMs_ = os_.platform().clock.millis();
+  // The first look (10 minutes on) reads the network already: the saved weather and agenda may be from hours ago.
+  lastReadMs_ = os_.platform().clock.millis() - static_cast<uint32_t>(os_.config().power.refreshHours) * 3600000u;
   SleepInfo info;
   const bool have = loadSleepInfo(info);
   sleepKey_ = sleepScreenKey(have ? &info : nullptr, os_.platform().clock.now(), os_.config().power.sleepBoard, "");
@@ -414,7 +425,10 @@ void Shell::redrawSleepScreen() {
   os_.displayManager().forceClean();
 }
 
-void Shell::wake() {
+void Shell::wake(const Gesture& g) {
+  // A tap on a part of the board opens that app there; copied now, the next drawing replaces the list.
+  const SleepTarget* hit = g.type == Gesture::Tap ? sleepTargetAt(g.x, g.y) : nullptr;
+  const std::string app = hit ? hit->app : std::string(), link = hit ? hit->link : std::string();
   dozing_ = false;
   sleeping_ = false;
   if (sleepTimer_) os_.timers().cancel(sleepTimer_);
@@ -426,8 +440,13 @@ void Shell::wake() {
     sys.set("lastApp", std::string());
     sys.save();
   }
-  POS_LOG("shell", "sleep screen left by a tap%s%s", last.empty() ? "" : ": back to ", last.c_str());
   showTop();  // the launcher, its badges and lines as they are now, the whole panel
+  if (!app.empty() && AppRegistry::instance().find(app)) {
+    POS_LOG("shell", "sleep screen left by a tap on %s%s%s", app.c_str(), link.empty() ? "" : " at ", link.c_str());
+    requestOpen(app, link);
+    return;
+  }
+  POS_LOG("shell", "sleep screen left by a tap%s%s", last.empty() ? "" : ": back to ", last.c_str());
   if (!last.empty() && AppRegistry::instance().find(last)) requestOpen(last);
 }
 
@@ -439,7 +458,7 @@ void Shell::sleepNow() {
 void Shell::onGesture(const Gesture& g) {
   if (sleeping_) {  // a sleep screen that stays on is left by a tap (or any gesture that ends); one that is off takes nothing
     if (dozing_ && g.type != Gesture::Down && g.type != Gesture::Cancel) {
-      wake();
+      wake(g);
       runDeferred();
     }
     return;

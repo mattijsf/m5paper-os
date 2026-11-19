@@ -48,6 +48,10 @@ That is the whole app. `POS_REGISTER_APP` adds it to a static registry that the 
 (The registry uses a static initialiser; `platformio.ini` keeps app object files from being
 dropped by the linker. If a new app does not show up in the launcher, check that first.)
 
+**Opened at a place** (D38): `ctx.link` holds where something outside the app asked it to open ("date=2026-01-16",
+"page=1"; "" for the app's own choice), `ctx.linkValue("date")` one key of it. Read it in `onStart` / the first
+screen's `build`; ignore keys you do not know. Today the sleep screen's taps use it (apps/launcher.md "When unused").
+
 **Staying open** (apps/launcher.md "When unused", D38): an app nobody touches for the idle time (`power.autoOffMin`) is
 left for the sleep screen or the launcher, and an auto-off resumes it at the next start only if it stays open. An app one looks at for minutes without a touch, a book or a game, registers with one more field,
 `.stayOpen = true` (after `.order`). A single screen that is in use without a finger (a code being compared with the

@@ -47,14 +47,20 @@ Since the word game (2026-11-16) there are seven apps: the pager bar shows ("1 /
 ## When unused (P7-19, D38; replaces the idle return of P7-13, D33)
 
 `Shell::idleCheck()`, one timer for the whole Shell (it rechecks at least once a minute). Nobody touched the device for
-`power.autoOffMin` minutes (Settings > Power "When unused for": 5 / 15 / 30 / Never; while the reader is open
+`power.autoOffMin` minutes (Settings > Power "When unused for": 1 / 5 / 15 / 30 min / Never; while the reader is open
 `autoOffMinReader`, 30):
 
 - **"Then show: Sleep screen"** (`power.idleShow`, the default): the open app is left (state saved) and the sleep screen
   goes on the panel (`Shell::showSleepScreen`), footer "Tap to start". The device stays on (on battery the PowerPolicy
-  switches it off at the same moment: POWER.md "Auto-off"). A tap (any gesture that ends) leaves it: the launcher, or
-  the book or game that was open (`Shell::wake`). Every 10 minutes it is drawn again if what it shows changed, and every
-  `power.refreshHours` it reads the relay, the weather and links to read later first. Log: `[shell] not used for 15
+  switches it off at the same moment: POWER.md "Auto-off"). A tap (any gesture that ends) leaves it (`Shell::wake`).
+  **A tap on a part of it opens that app there**: the weather the Weather app on its blocks page (first place), an agenda row or day heading the
+  Agenda's day view on that day, the book row (or the plain screen's cover) the reader, an unread count its app, the
+  plain screen's agenda line the Agenda. The draw functions record the parts (`sleepTargets()`, `sleepTargetAt`); the
+  Shell opens the app with `AppContext::link` ("date=2026-01-16", "page=1"), which an app reads in `onStart`
+  (`ctx.linkValue(key)`) and may ignore. A tap anywhere else: the launcher, or the book or game that was open.
+  Every 10 minutes it is drawn again if what it shows changed, and every `power.refreshHours` it reads the relay, the
+  weather and links to read later first (the first time at the first look, 10 minutes on: the saved data may be hours
+  old). Log: `[shell] not used for 15
   min: the sleep screen`, `[shell] sleep screen left by a tap: back to read`.
 - **"Then show: Home"**: an app that is no book or game is left for the launcher (`[shell] mail not used for 15 min:
   back to the launcher`).
@@ -73,7 +79,8 @@ Tests: unit cases "idle ..." (`app_test.cpp`: Home, the touch, 0 and the reader'
 the keyboard, the sleep screen and the tap, the network read every refreshHours), "auto-off ... resumes only a book or a
 game" (`power_policy_test.cpp`); UI scripts `idle-home` (goldens `idle-before`, `idle-sleep-screen`, `idle-woken`,
 `idle-read-sleep`, `idle-read-back`, `idle-power-setting`, `idle-home-launcher`) and `idle-board` (the Today board with
-agenda and weather, "Tap to start").
+agenda and weather, "Tap to start"; taps on Friday's row, the weather, the WhatsApp count and an empty part: goldens
+`idle-board-agenda`, `-weather`, `-launcher`), unit case "sleep screen: its parts are tap targets ...".
 
 ## Quick panel (P7-6, as built)
 

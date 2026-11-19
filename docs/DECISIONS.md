@@ -674,7 +674,7 @@ wake, announced through Home Assistant; or push while a page is open): the owner
 
 - **Why**: the device sits on USB most of the time, and on USB it never switched off (D-power, `kUsbGraceMs`), so the
   Today board (D35) was never seen there: the idle return (D33) left it on the launcher instead.
-- **One time, one choice** (Settings > Power): "When unused for" 5 / 15 / 30 min / Never (`power.autoOffMin`, the reader
+- **One time, one choice** (Settings > Power): "When unused for" 1 / 5 / 15 / 30 min / Never (`power.autoOffMin`; 1 min added the same day, the reader
   `autoOffMinReader`, as before), and "Then show" **Home** | **Sleep screen** (`power.idleShow`, default Sleep screen).
   The separate "Back to home when unused for" (`launcher.homeAfterSec`) is gone; a `homeAfterSec` in an old config.json
   is ignored.
@@ -692,6 +692,9 @@ wake, announced through Home Assistant; or push while a page is open): the owner
   Weather or Mail does not come back hours later.
 - **Not while** the top screen says `staysOpen()` (pairing, Files over Wi-Fi, the update page, the Display lab), the
   keyboard shows, or a finger is down: kept from D33.
+- **A tap on a part of the sleep screen opens that app there**: weather, agenda rows (that day), the book, an unread count. Apps get where through
+  `AppContext::link` (key=value pairs); one that knows no key opens as usual. A general way in: anything that wants to
+  open an app at a place later (a launcher line, a notification) can use the same link.
 - Interpretation (mine, not the owner's words): "switching off" read as "the idle time"; on battery nothing changes but
   the resume rule, because a device that stays on with a board would drain it.
 

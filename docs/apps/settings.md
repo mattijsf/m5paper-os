@@ -9,7 +9,7 @@ System configuration and developer tools.
 | Settings (list) | Wi-Fi, Display, Power, Reading, Home Assistant, Storage, Developer, About |
 | Wi-Fi | current network + signal; "Scan" lists networks (name, signal bars, lock); tap one, enter the password on `ui::Keyboard`, connect, save. Saved networks with "Forget". |
 | Display | "Clean screen now"; ghost limit (Stepper 4..16); settle delay (Segmented 300/600/1000 ms) |
-| Power | "When unused for" (Segmented 5/15/30 min/Never: switch-off on battery, `power.autoOffMin`); "Then show" Home | Sleep screen (`power.idleShow`, apps/launcher.md "When unused", D38); scheduled refresh of the sleep screen while off (Segmented Off/1/2/4/8 h, POWER.md); "Today on the sleep screen" (Toggle, `power.sleepBoard`, POWER.md "Today board"); stay awake on USB; battery mV and percent |
+| Power | "When unused for" (Segmented 1/5/15/30 min/Never: switch-off on battery, `power.autoOffMin`); "Then show" Home | Sleep screen (`power.idleShow`, apps/launcher.md "When unused", D38); scheduled refresh of the sleep screen while off (Segmented Off/1/2/4/8 h, POWER.md); "Today on the sleep screen" (Toggle, `power.sleepBoard`, POWER.md "Today board"); stay awake on USB; battery mV and percent |
 | Reading | default font size (S/M/L/XL), margins (narrow/normal/wide), line spacing |
 | Home Assistant | base URL (read-only here), token present yes/no, "Test connection" (GET `/api/`), last error |
 | Storage | SD card present/size/free; `/data` used/free; "Clear caches" |

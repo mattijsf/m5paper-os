@@ -574,6 +574,12 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **When unused (P7-19, 2026-11-19)**: run on the device (USB): the sleep screen after the idle time (`>set idle-min 1`)
+  with the live board and "Tap to start", a tap on an agenda row opened the Agenda's day view on today. Open: (1) the
+  panel itself under the camera (the external camera was not connected); (2) the first network read at the 10-minute
+  look on the device (log line `sleep screen: reading the relay and the weather`, then "Updated HH:MM" on the board);
+  (3) the battery path: an idle power-off resumes only a book or a game; (4) a tap on the weather and on an unread
+  count on the device (simulator only); (5) "Then show: Home" on the device.
 - **Mark all read during a running read (2026-11-19)**: fixed and run in the simulator (`inbox-markall-race`); on the
   device the fix is installed (build 62c15a183fa2, by `make ota`) but there was nothing in WhatsApp or Mail to mark. To
   do when a message is there: open WhatsApp, tap Mark all read at once (before "Updated"), then the launcher after the
@@ -1467,4 +1473,10 @@ None of these block Phase 1, Phase 2, or the reader.
   badge; the seen marker did not move. The store is now cleared on the worker after that read, up to the newest message
   shown (`clearUpTo`), and the marker moves at the tap. Script command `wifi slow MS`, script `inbox-markall-race` (2
   goldens), unit test. 359 unit tests, 306 screenshots, firmware 2,584,447 bytes. Installed with `make ota` (26 s).
+- 2026-11-19: P7-19 when unused (D38): one idle time (now 1 / 5 / 15 / 30 min / Never) and "Then show: Home | Sleep
+  screen" instead of the idle return's own minute. On USB the sleep screen stays on ("Tap to start"), is drawn again
+  when it changes, reads the network at its first look and every refreshHours; a tap on a part opens that app there
+  (`AppContext::link`). An idle power-off resumes only a book or a game. 362 unit tests, 313 screenshots, firmware
+  2,591,475 bytes. On the device (flashed over USB): the board after a minute, a tap on an agenda row. An install by
+  `make ota` that the user stopped at 2.2 of 2.5 MB left the running firmware untouched.
 

@@ -16,6 +16,7 @@
 #include "apps/launcher/launcher.h"
 #include "core/shell.h"
 #include "core/sleep_screen.h"
+#include "core/timefmt.h"
 #include "ui/widgets.h"
 
 // ---- hello, verbatim from docs/APPS.md -------------------------------------------------------
@@ -900,7 +901,7 @@ SleepReadJob countingRead(Os&) {
 }
 }  // namespace
 
-TEST_CASE("idle, Sleep screen: it reads the network every power.refreshHours, not more often, and never when that is off") {
+TEST_CASE("idle, Sleep screen: it reads the network at its first look, then every power.refreshHours, never when that is off") {
   Env env;
   env.os.config().power.autoOffMin = 5;
   env.os.config().power.refreshHours = 1;
@@ -908,16 +909,22 @@ TEST_CASE("idle, Sleep screen: it reads the network every power.refreshHours, no
   gSleepReads = 0;
   pass(env, 301000);
   REQUIRE(env.shell->showingSleepScreen());
-  pass(env, 50 * 60000);
-  CHECK(gSleepReads == 0);  // not yet an hour
-  pass(env, 20 * 60000);
+  pass(env, 9 * 60000);
+  CHECK(gSleepReads == 0);  // the first look is 10 minutes on
+  pass(env, 2 * 60000);
   for (int i = 0; i < 200 && env.os.worker().pending() > 0; ++i) std::this_thread::sleep_for(std::chrono::milliseconds(5));
   env.step();
   CHECK(gSleepReads == 1);
+  pass(env, 40 * 60000);
+  CHECK(gSleepReads == 1);  // not again within the hour
+  pass(env, 20 * 60000);
+  for (int i = 0; i < 200 && env.os.worker().pending() > 0; ++i) std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  env.step();
+  CHECK(gSleepReads == 2);
   env.os.config().power.refreshHours = 0;
   pass(env, 3 * 3600000);
   for (int i = 0; i < 200 && env.os.worker().pending() > 0; ++i) std::this_thread::sleep_for(std::chrono::milliseconds(5));
-  CHECK(gSleepReads == 1);
+  CHECK(gSleepReads == 2);
   setSleepReadMaker(nullptr);
 }
 
@@ -935,4 +942,51 @@ TEST_CASE("idle: not while the on-screen keyboard shows (something is half typed
   CHECK_FALSE(env.shell->root().keyboardShowing());
   pass(env, 60000);
   CHECK_FALSE(env.shell->appOpen());
+}
+
+// ---- a tap on the sleep screen opens an app there (D38) --------------------------------------------------------------
+namespace pos::apps::idletest {
+std::string gLinkSeen, gDateSeen;
+class LinkApp : public App {
+ public:
+  void onStart(AppContext& ctx) override {
+    gLinkSeen = ctx.link;
+    gDateSeen = ctx.linkValue("date");
+    ctx.nav.push<StayScreen>();
+  }
+};
+POS_REGISTER_APP(LinkApp, {.id = "idle-link", .name = "Idle link", .icon = Icon::Info, .order = 93});
+}  // namespace pos::apps::idletest
+
+TEST_CASE("sleep screen: its parts are tap targets; an app opened with a link reads where to go") {
+  Env env;
+  SleepBoard b;
+  b.date = "Thursday 15 January";
+  b.weather = true;
+  b.temps = "7 / 1";
+  b.summary = "Rain";
+  b.blocks = {{"13-15", Icon::Cloud, "7", ""}};
+  const int fri = daysFromCivil(2026, 1, 16);
+  b.agenda = {{false, "All day", "Birthday", fri - 1}, {true, "", "Friday 16 January", fri}, {false, "08:45", "School run", fri}};
+  drawSleepBoard(env.os.canvas(), b, nullptr, nullptr, "", true);
+  const SleepTarget* w = sleepTargetAt(270, 150);
+  REQUIRE(w != nullptr);
+  CHECK(w->app == "weather");
+  CHECK(w->link == "page=1");
+  // The agenda rows follow the weather: find them by their link.
+  int fridayRows = 0;
+  for (const SleepTarget& t : sleepTargets())
+    if (t.app == "agenda" && t.link == "date=2026-01-16") ++fridayRows;
+  CHECK(fridayRows == 2);  // the heading and its event
+  CHECK(sleepTargetAt(270, 10) == nullptr);   // the date: no target
+  CHECK(sleepTargetAt(270, 900) == nullptr);  // "Tap to start"
+
+  pos::apps::idletest::gLinkSeen.clear();
+  REQUIRE(env.shell->openApp("idle-link", "view=day&date=2026-01-16"));
+  CHECK(pos::apps::idletest::gLinkSeen == "view=day&date=2026-01-16");
+  CHECK(pos::apps::idletest::gDateSeen == "2026-01-16");
+  env.shell->closeApp();
+  REQUIRE(env.shell->openApp("idle-link"));
+  CHECK(pos::apps::idletest::gLinkSeen.empty());
+  CHECK(pos::apps::idletest::gDateSeen.empty());
 }
