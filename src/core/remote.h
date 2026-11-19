@@ -21,7 +21,7 @@
 //                               into it, or "#err <why>" (not signed with this device's key, the image changed, ...).
 // Every command ends with "#ok" or "#err <reason>" on its own line.
 // A session of the paired phone (core/remote_phone.h, signed in with ">auth-phone") may only send >shot, >refresh, >tap,
-// >long and >swipe; anything else gets "#err not from the phone".
+// >long, >swipe and >ota (still signed with the update key); anything else gets "#err not from the phone".
 //
 // Transports: the USB serial port; the simulator's stdin; and Wi-Fi while Settings > Developer > Wireless development is on
 // (platform/posix/remote_server, port 8266, a signed handshake first: core/update.h helloLine / authOk).

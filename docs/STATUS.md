@@ -574,12 +574,14 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
-- **Remote control from the phone (P7-21, 2026-11-19)**: firmware built (2,596,623 bytes), **not installed**: the Paper
-  was not on USB and did not answer on 192.168.1.60:8266 (off, or wireless development off). The app is installed on
-  the Pixel (`adb install -r`, opened again). Checked: the phone's code over the real Wi-Fi against the Mac's simulator
-  (sign-in 138 ms, a frame 81 ms, a tap changed the screen). To do: `make ota` (or `make flash`), then on the phone
-  Remote control: the address arrives by the relay, the screen shows, a tap opens an app, `>ls` refused; the phone's
-  screen itself (it was locked: only the user can unlock it).
+- **Remote control and firmware update from the phone (P7-21, 2026-11-19)**: done on the device (Pixel 9 Pro, Paper on
+  battery over Wi-Fi): after `make ota` the Paper pushed its address ("address to the phone: pushed"), the app showed
+  "at 192.168.1.60" a minute later, the live screen came up, a tap from the phone opened Weather (`[touch] x=437 y=626`),
+  and Maintenance > Firmware update installed a `make ota-phone` package in 26 s (confirmed in app1). Open: `>ls` from a
+  phone session refused on the device (unit test and simulator only). Two things seen on the way, not explained: (1) the
+  first `make ota` of the day stopped at 1.1 MB with "no answer" and the Paper had restarted (fresh boot, no reset
+  reason in the log: the firmware does not record one); the second attempt went through; (2) the Paper's clock ran
+  about 4 minutes behind the Mac's (status bar 14:15 at 14:19, after "time sync ok").
 - **When unused (P7-19, 2026-11-19)**: run on the device (USB): the sleep screen after the idle time (`>set idle-min 1`)
   with the live board and "Tap to start", a tap on an agenda row opened the Agenda's day view on today. Open: (1) the
   panel itself under the camera (the external camera was not connected); (2) the first network read at the 10-minute
@@ -1522,5 +1524,7 @@ None of these block Phase 1, Phase 2, or the reader.
   and swipes over Wi-Fi while wireless development is on; it signs in with `>auth-phone` and a key from the pairing, and
   the Paper allows only `>shot`, `>refresh`, `>tap`, `>long`, `>swipe` on such a session. The Paper sends the phone its
   address (`remote` envelope) when the server starts listening. 370 unit tests, 7 new JVM tests (one against the
-  simulator), on the phone against the Mac's simulator over Wi-Fi; firmware 2,596,623 bytes (+3.6 KB). Not yet on the
-  Paper (unreachable): "Pending device checks".
+  simulator), on the phone against the Mac's simulator over Wi-Fi; firmware 2,596,623 bytes (+3.6 KB). Then the app's
+  Maintenance section: Remote
+  control and Firmware update (a package signed on the Mac, `make ota-phone`; `>ota` allowed for the phone, the Paper
+  checks the signature). Done on the Paper and the Pixel ("Pending device checks").

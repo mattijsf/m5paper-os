@@ -350,8 +350,7 @@ TEST_CASE("remote: a session of the paired phone gets the screen and touch, noth
     phone.handleLine(ok);
     CHECK_MESSAGE(e.host.out.find("#err") == std::string::npos, ok);
   }
-  for (const char* no : {">ls /sd/books", ">rm /sd/books/a.txt", ">put /sd/books/a.txt 1 0", ">set screen launcher", ">reboot",
-                         ">ota 100", ">log", ">status", ">state", ">poweroff 10"}) {
+  for (const char* no : {">ls /sd/books", ">rm /sd/books/a.txt", ">put /sd/books/a.txt 1 0", ">set screen launcher", ">reboot", ">log", ">status", ">state", ">poweroff 10"}) {
     e.host.out.clear();
     phone.handleLine(no);
     CHECK_MESSAGE(e.host.out == "#err not from the phone\n", no);

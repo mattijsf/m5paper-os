@@ -54,6 +54,29 @@ class RemoteTest {
         assertArrayEquals(intArrayOf(0, 15, 7, 3), f.pixels(IntArray(16) { it }))
     }
 
+    private var otaBytes = 0
+
+    private fun pkg(imageSize: Int, build: String = "abc123def456"): ByteArray {
+        val b = ByteArray(FirmwarePackage.HEADER + imageSize)
+        "POSOTA1\n".toByteArray().copyInto(b, 0)
+        build.toByteArray().copyInto(b, 8)
+        for (i in 0 until 4) b[40 + i] = (imageSize shr (8 * i)).toByte()
+        val made = 1763550000L
+        for (i in 0 until 8) b[76 + i] = (made shr (8 * i)).toByte()
+        return b
+    }
+
+    @Test
+    fun firmwarePackageHeader() {
+        val p = FirmwarePackage.parse(pkg(10000))!!
+        assertEquals("abc123def456", p.build)
+        assertEquals(10000L, p.imageSize)
+        assertEquals(1763550000L, p.madeUnix)
+        assertEquals(null, FirmwarePackage.parse(pkg(10000).copyOf(10000))) // cut short
+        assertEquals(null, FirmwarePackage.parse(pkg(10).also { it[0] = 'X'.code.toByte() }))
+        assertEquals(null, FirmwarePackage.parse(ByteArray(10)))
+    }
+
     /** A fake Paper: the hello, the phone's sign-in, then a refresh log, a frame and a tap, as src/core/remote.cpp answers. */
     private fun fakePaper(acceptKey: ByteArray, seen: MutableList<String>): ServerSocket {
         val server = ServerSocket(0)
@@ -80,6 +103,21 @@ class RemoteTest {
                             out.write("#ok\n".toByteArray())
                         }
                         line.startsWith(">tap ") -> out.write("#ok\n".toByteArray())
+                        line.startsWith(">ota ") -> {
+                            val n = line.removePrefix(">ota ").toInt()
+                            out.write("#ota go\n".toByteArray())
+                            val inp = s.getInputStream()
+                            var got = 0
+                            val buf = ByteArray(4096)
+                            while (got < n) {
+                                val r = inp.read(buf, 0, minOf(buf.size, n - got))
+                                if (r < 0) break
+                                got += r
+                                otaBytes += r
+                                if (got < n && got % 4096 == 0) out.write("#ack $got\n".toByteArray())
+                            }
+                            out.write("#ack $got\n#ok\n".toByteArray()) // the Paper acks the total, then #ok
+                        }
                         else -> out.write("#err not from the phone\n".toByteArray())
                     }
                 }
@@ -104,6 +142,20 @@ class RemoteTest {
         }
         Thread.sleep(100)
         assertEquals(listOf(">auth-phone $proof", ">refresh", ">shot", ">tap 539 0"), seen)
+    }
+
+    @Test
+    fun sendsAFirmwarePackageInAcknowledgedPieces() {
+        val seen = mutableListOf<String>()
+        val p = FirmwarePackage.parse(pkg(3 * 4096 + 77))!!
+        var last = 0
+        fakePaper(remoteKey, seen).use { server ->
+            RemoteLink.open("127.0.0.1", server.localPort, RemoteAuth.key(p2d)).use { link -> link.ota(p) { sent, _ -> last = sent } }
+        }
+        Thread.sleep(100)
+        assertEquals(">ota ${p.bytes.size}", seen.last())
+        assertEquals(p.bytes.size, last)
+        assertEquals(p.bytes.size, otaBytes)
     }
 
     @Test

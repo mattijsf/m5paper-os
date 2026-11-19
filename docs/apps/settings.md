@@ -146,9 +146,9 @@ Settings > Developer > Wireless development (`WirelessPage`), one switch (`devel
 - **While on**, Wi-Fi is kept up (`NetService::keepAlive` every second; joined again every 30 s when it drops, from the
   boot on), so the device does not light-sleep, and it never switches itself off (no auto-off: `PowerPolicy::idle`);
   the idle time still brings the sleep screen, the device on. Development only: it costs battery.
-- **The paired phone** (P7-21, D40, COMPANION.md section 10): the companion app's Remote control signs in with
-  `>auth-phone` and a key from the pairing, and may only take the screen and touch (`>shot`, `>refresh`, `>tap`,
-  `>long`, `>swipe`). When the server starts listening, the Paper sends the phone its address over the relay. The page
+- **The paired phone** (P7-21, D40, COMPANION.md section 10): the companion app's Maintenance (Remote control,
+  Firmware update) signs in with `>auth-phone` and a key from the pairing, and may only take the screen, touch and send
+  a Mac-signed update (`>shot`, `>refresh`, `>tap`, `>long`, `>swipe`, `>ota`). When the server starts listening, the Paper sends the phone its address over the relay. The page
   says so under "On your phone".
 - The page shows the address with the port and the state ("Joining Wi-Fi...", "Waiting for the Mac or the phone.",
   "A Mac is connected.", "Your phone is connected.", an update's progress); only that line is looked at again, every 2 s, and drawn only when it changed.

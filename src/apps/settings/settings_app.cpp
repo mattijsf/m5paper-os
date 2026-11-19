@@ -961,7 +961,7 @@ class WirelessPage : public Page {
   void build(ui::Column& root) override {
     setTitle("Wireless development");
     root.add<ui::Spacer>(ui::s1);
-    auto* sw = root.add<ui::ListItem>("Wireless development", "Remote from the Mac and your phone", true, ui::Icon::Wifi);
+    auto* sw = root.add<ui::ListItem>("Wireless development", "Remote and updates: Mac and phone", true, ui::Icon::Wifi);
     sw->setToggle(cfg().developer.wireless, [this, sw](bool on) {
       if (on && !update::keySet(update::firmwareKey())) {
         ctx().toast("This firmware has no update key: make ota-key, then make flash");
@@ -988,10 +988,10 @@ class WirelessPage : public Page {
     help->keepLineBreaks = true;
     root.add<ui::Spacer>(ui::s2);
     root.add<ui::Label>("On your phone", Type::Caption, ui::secondary);
-    root.add<ui::Label>("PaperOS Companion > Remote control", Type::Body);
+    root.add<ui::Label>("PaperOS Companion > Maintenance", Type::Body);
     root.add<ui::Spacer>(ui::s2);
-    auto* note = root.add<ui::Label>("Only the Mac with this firmware's signing key gets in, and the paired phone (screen and touch "
-                                     "only). While on, Wi-Fi stays up and the device does not switch itself off: it costs battery.",
+    auto* note = root.add<ui::Label>("Only the Mac with this firmware's signing key gets in, and the paired phone (screen, touch and "
+                                     "updates signed on the Mac). While on, Wi-Fi stays up and the device does not switch itself off: it costs battery.",
                                      Type::Caption, ui::secondary);
     note->maxLines = 4;
     refresh();

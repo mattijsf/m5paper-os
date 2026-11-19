@@ -26,7 +26,9 @@ and the P6 cards in `docs/ROADMAP.md`.
 - `RelayService`: foreground service (type `remoteMessaging`). Drains the `Outbox` (pushes in counter
   order, back-off 30 s doubling to 15 min), reads `sensor.paperos_relay_to_phone` every 3 s while
   pairing and every minute when paired, acks up to `rx`. Writes `files/status.json` (numbers only).
-- `RemoteActivity` (Paper > Remote control, D40, COMPANION.md section 10): the Paper's screen, and taps, holds and
+- Maintenance (D40, COMPANION.md section 10): `FirmwareActivity` sends a firmware package signed on the Mac
+  (`make ota-phone` pushes `paperos.posota` to Downloads; picked with the system file picker) to the Paper as `make ota`
+  does; the Paper checks the signature. `RemoteActivity`, Remote control: the Paper's screen, and taps, holds and
   drags as its touch, over the home Wi-Fi while the Paper's wireless development is on. A plain TCP socket to port
   8266 (not HTTP: the cleartext switch does not apply), signed in with `HKDF-Expand(k_p2d, "PaperOS remote")`; the
   Paper allows the screen and touch only. The address comes from the Paper's `remote` message or is typed.

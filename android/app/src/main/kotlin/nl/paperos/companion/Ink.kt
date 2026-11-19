@@ -67,6 +67,8 @@ object Ink {
     const val ICON_UNLINK = 57757
     const val ICON_CALENDAR = 57443
     const val ICON_REMOTE = 58634 // tablet-smartphone
+    const val ICON_ARROW_LEFT = 57416
+    const val ICON_FIRMWARE = 58597 // hard-drive-download
 
     private var regular: Typeface? = null
     private var strong: Typeface? = null
@@ -134,6 +136,35 @@ object Ink {
         )
         if (kind == Kind.TEXT) paintFlags = paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
         setOnClickListener { onClick() }
+    }
+
+    /**
+     * The bar on top of a sub-page, as the Paper's: a back arrow, the title, a status line under it, a divider below. Returns the
+     * bar and the status line.
+     */
+    fun pageBar(act: android.app.Activity, title: String): Pair<LinearLayout, TextView> {
+        val m = dp(act, 16f)
+        val outer = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+        val bar = LinearLayout(act).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(m / 2, dp(act, 8f), m, dp(act, 8f))
+        }
+        val back = icon(act, ICON_ARROW_LEFT).apply {
+            setPadding(m / 2, m / 2, m / 2, m / 2)
+            isClickable = true
+            contentDescription = "Back"
+            setOnClickListener { act.finish() }
+        }
+        bar.addView(back, LinearLayout.LayoutParams(dp(act, 48f), dp(act, 48f)))
+        val titles = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
+        titles.addView(text(act, title, Type.BODY_STRONG))
+        val status = text(act, "", Type.CAPTION, secondary)
+        titles.addView(status, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(act, 2f) })
+        bar.addView(titles, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginStart = dp(act, 8f) })
+        outer.addView(bar, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        outer.addView(View(act).apply { setBackgroundColor(divider) }, LinearLayout.LayoutParams(MATCH_PARENT, dp(act, 1f)))
+        return outer to status
     }
 
     /** A text field: ink outline, paper inside. */

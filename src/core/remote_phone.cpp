@@ -68,6 +68,7 @@ bool allowedForPhone(RemoteCommand::Kind kind) {
     case RemoteCommand::Tap:
     case RemoteCommand::Long:
     case RemoteCommand::Swipe:
+    case RemoteCommand::Ota:  // the package must still be signed with the update key: the Paper checks it, not the phone
       return true;
     default:
       return false;

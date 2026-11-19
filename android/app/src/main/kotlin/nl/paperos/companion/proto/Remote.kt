@@ -50,6 +50,28 @@ class Frame(val width: Int, val height: Int, val packed: ByteArray, val crc: Str
 
 class RemoteException(message: String) : IOException(message)
 
+/**
+ * A firmware package as tools/ota.py packs it (the Paper's src/core/update.h): a 148-byte header, then the image. The phone
+ * reads the header to show what it is; it cannot check the signature (it has no key): the Paper does, before it writes a byte.
+ */
+class FirmwarePackage(val bytes: ByteArray, val build: String, val imageSize: Long, val madeUnix: Long) {
+    companion object {
+        const val HEADER = 148
+        private val MAGIC = "POSOTA1\n".toByteArray(Charsets.US_ASCII)
+
+        /** Null when it is not a package (wrong magic, a size that does not match the file). */
+        fun parse(b: ByteArray): FirmwarePackage? {
+            if (b.size < HEADER || !b.copyOfRange(0, 8).contentEquals(MAGIC)) return null
+            val build = String(b, 8, 32, Charsets.US_ASCII).trimEnd('\u0000')
+            if (build.isEmpty() || !build.all { it.isLetterOrDigit() || it == '-' || it == '.' || it == ' ' }) return null
+            fun le(off: Int, n: Int): Long = (0 until n).fold(0L) { acc, i -> acc or ((b[off + i].toLong() and 0xFF) shl (8 * i)) }
+            val size = le(40, 4)
+            if (size != (b.size - HEADER).toLong()) return null
+            return FirmwarePackage(b, build, size, le(76, 8))
+        }
+    }
+}
+
 /** One signed-in connection. Not thread-safe: one thread owns it. */
 class RemoteLink private constructor(private val socket: Socket) : Closeable {
     private val input = BufferedInputStream(socket.getInputStream(), 64 * 1024)
@@ -60,6 +82,7 @@ class RemoteLink private constructor(private val socket: Socket) : Closeable {
     companion object {
         const val WIDTH = 540
         const val HEIGHT = 960
+        private const val CHUNK = 4096
 
         /** Connects and signs in; throws [RemoteException] with a reason the user can act on, or an [IOException]. */
         fun open(host: String, port: Int, key: ByteArray, connectTimeoutMs: Int = 3000, readTimeoutMs: Int = 10000): RemoteLink {
@@ -111,6 +134,42 @@ class RemoteLink private constructor(private val socket: Socket) : Closeable {
         expectOk()
         return body.contentHashCode()
     }
+
+    /**
+     * Sends a firmware package (`>ota <size>`, the Paper's src/core/remote.h): 4 KB pieces, each full one acknowledged.
+     * Returns when the Paper says the image is in place; it then restarts into it (and closes this connection).
+     * Throws [RemoteException] with the Paper's reason when it refuses (not signed with its key, ...).
+     */
+    fun ota(pkg: FirmwarePackage, progress: (sent: Int, total: Int) -> Unit) {
+        val data = pkg.bytes
+        send(">ota ${data.size}")
+        val go = readLine()
+        if (!go.startsWith("#ota go")) throw RemoteException(refusal(go))
+        var sent = 0
+        while (sent < data.size) {
+            val n = minOf(CHUNK, data.size - sent)
+            output.write(data, sent, n)
+            output.flush()
+            sent += n
+            if (sent < data.size && sent % CHUNK == 0) {
+                val ack = readUntil("#ack")
+                if (!ack.startsWith("#ack")) throw RemoteException(refusal(ack))
+            }
+            progress(sent, data.size)
+        }
+        val end = readUntil("#ok") // after the last byte the Paper acks the total once more, then says #ok (as tools/ota.py reads it)
+        if (end != "#ok") throw RemoteException(refusal(end))
+    }
+
+    /** The next line that starts with [want] or "#err" (other lines, such as a late "#ack", are skipped). */
+    private fun readUntil(want: String): String {
+        while (true) {
+            val l = readLine()
+            if (l.startsWith(want) || l.startsWith("#err")) return l
+        }
+    }
+
+    private fun refusal(line: String) = line.removePrefix("#err ").ifEmpty { "No answer" }
 
     fun tap(x: Int, y: Int) = command(">tap ${cx(x)} ${cy(y)}")
     fun longPress(x: Int, y: Int) = command(">long ${cx(x)} ${cy(y)}")

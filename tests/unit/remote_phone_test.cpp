@@ -54,11 +54,12 @@ TEST_CASE("remote phone: the sign-in line opens for this nonce and key only") {
 }
 
 TEST_CASE("remote phone: what a phone session may send") {
-  for (auto k : {RemoteCommand::Shot, RemoteCommand::Refresh, RemoteCommand::Tap, RemoteCommand::Long, RemoteCommand::Swipe})
+  for (auto k : {RemoteCommand::Shot, RemoteCommand::Refresh, RemoteCommand::Tap, RemoteCommand::Long, RemoteCommand::Swipe,
+                 RemoteCommand::Ota})
     CHECK(remotephone::allowedForPhone(k));
   for (auto k : {RemoteCommand::Log, RemoteCommand::Reboot, RemoteCommand::Set, RemoteCommand::Status, RemoteCommand::Put,
                  RemoteCommand::Ls, RemoteCommand::Rm, RemoteCommand::PowerOff, RemoteCommand::Cat, RemoteCommand::State,
-                 RemoteCommand::Ota, RemoteCommand::None})
+                 RemoteCommand::None})
     CHECK_FALSE(remotephone::allowedForPhone(k));
 }
 

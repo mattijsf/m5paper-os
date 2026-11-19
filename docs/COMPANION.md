@@ -303,8 +303,10 @@ Paper: #ok   (or "#err not the paired phone", then it closes)
 ```
 
 The key is separate from `k_p2d` (domain separation) and exists only while paired: unpairing or pairing again changes it.
-After the sign-in the phone may send `>shot`, `>refresh`, `>tap x y`, `>long x y` and `>swipe x1 y1 x2 y2`; every other
-command is answered `#err not from the phone` (no files, settings, logs, updates or restarts). The stream is not encrypted
+After the sign-in the phone may send `>shot`, `>refresh`, `>tap x y`, `>long x y`, `>swipe x1 y1 x2 y2` and `>ota <size>`;
+every other command is answered `#err not from the phone` (no files, settings, logs or restarts). `>ota` takes a package
+signed on the Mac with the update key (DECISIONS.md D37): the Paper checks the signature before it writes a byte, so the
+phone only carries it and can install nothing the Mac did not sign. The stream is not encrypted
 (as the Mac's, D39): someone on the home Wi-Fi can see the frames while the remote is open.
 
 **Where the Paper is.** Message `remote` (Paper to phone, section 7.2): `{"t":"remote","host":"192.168.1.60","port":8266}`,
@@ -312,6 +314,11 @@ pushed when wireless development starts listening at an address the phone was no
 boot; a failed push is tried again after 5 minutes). The phone stores it (`settings.json` `remote_host`, `remote_port`);
 the user can also type the address. `host` is an IPv4 address or a host name (letters, digits, `.` and `-`), `port`
 1..65535; anything else is ignored.
+
+**Firmware update from the phone** (`FirmwareActivity`): `make ota-phone` on the Mac builds, signs and pushes
+`paperos.posota` to the phone's Downloads (adb); the app reads its header (build, size, signing time), shows the build
+the Paper runs (from its hello) and sends it as `tools/ota.py` does: `>ota <size>`, `#ota go`, 4 KB pieces, one `#ack` per
+full piece, then `#ack <total>` and `#ok`, and the Paper restarts into it (rollback as D37).
 
 **The phone** (`RemoteActivity`, `proto/Remote.kt`): one thread owns the connection while the screen is visible. It asks
 `>refresh` every 250 ms and takes `>shot` when the refresh log changed, after every touch (150 ms later) and every 5 s.

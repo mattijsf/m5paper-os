@@ -729,9 +729,13 @@ wake, announced through Home Assistant; or push while a page is open): the owner
 - **Signed in with a key from the pairing** (`HKDF-Expand(k_p2d, "PaperOS remote")`, HMAC over a fresh nonce), not the
   update key: the phone has never had that key and must not get it. The pairing already is the trust between the two;
   unpairing ends remote control too.
-- **Screen and touch only** for the phone: `>shot`, `>refresh`, `>tap`, `>long`, `>swipe`. A phone (lost, or an app
-  bug) cannot write files, read the log, change settings, restart or update the Paper. The Mac keeps everything.
+- **Screen, touch and signed updates** for the phone: `>shot`, `>refresh`, `>tap`, `>long`, `>swipe`, `>ota`. A phone
+  (lost, or an app bug) cannot write files, read the log, change settings or restart the Paper. It can install firmware
+  only as a courier: the package must be signed with the update key on the Mac (D37), and the Paper checks that before
+  writing a byte.
+- **In the app: Maintenance** (Remote control, Firmware update), not "developer options": the app has none. The package
+  reaches the phone with `make ota-phone` (adb push to Downloads) and is chosen with Android's file picker.
 - **Needs wireless development on**: one switch (D39); while it is off the Paper
   listens to nobody. The phone says so when it cannot connect.
 - **Not encrypted** after the sign-in (as D39): the frames cross the home Wi-Fi in the clear while the remote is open.
-- Cost: firmware +3.6 KB (2,596,623 bytes).
+- Cost: firmware +3.6 KB (2,596,623 bytes); with `>ota` allowed and the Maintenance texts, 2,596,659.

@@ -54,6 +54,9 @@ class MainActivity : Activity() {
     private lateinit var agenda: Ink.Toggle
     private lateinit var sendClipRow: Ink.Row
     private lateinit var remoteRow: Ink.Row
+    private lateinit var firmwareRow: Ink.Row
+    private lateinit var maintenanceHint: TextView
+    private var maintenanceTitle: TextView? = null
     private lateinit var countsBox: LinearLayout
     private val countRows = mutableMapOf<String, Ink.Row>()
     private lateinit var relayRow: Ink.Row
@@ -146,16 +149,26 @@ class MainActivity : Activity() {
             end = chevron()
             clickable { ClipSync.sendCurrent(this@MainActivity) }
         }
-        remoteRow = row(Ink.ICON_REMOTE, "Remote control").apply {
-            sub("See and tap the Paper over Wi-Fi")
-            end = chevron()
-            clickable { startActivity(Intent(this@MainActivity, RemoteActivity::class.java)) }
-        }
         unpair = add(Ink.button(this, "Unpair", Kind.SECONDARY) {
             AlertDialog.Builder(this).setMessage("Forget the pairing with the Paper?")
                 .setPositiveButton("Unpair") { _, _ -> Link.forget(this, notifyPaper = true); update() }
                 .setNegativeButton("Cancel", null).show()
         }, 16f)
+
+        maintenanceTitle = section("Maintenance")
+        remoteRow = row(Ink.ICON_REMOTE, "Remote control").apply {
+            end = chevron()
+            clickable { startActivity(Intent(this@MainActivity, RemoteActivity::class.java)) }
+        }
+        firmwareRow = row(Ink.ICON_FIRMWARE, "Firmware update").apply {
+            sub("Install a firmware package from the Mac on the Paper")
+            end = chevron()
+            clickable { startActivity(Intent(this@MainActivity, FirmwareActivity::class.java)) }
+        }
+        maintenanceHint = add(
+            Ink.text(this, "Both need the Paper's Settings > Developer > Wireless development on, and the same Wi-Fi.", Type.CAPTION, Ink.secondary),
+            12f,
+        )
 
         section("Activity")
         countsBox = add(LinearLayout(this).apply { orientation = LinearLayout.VERTICAL })
@@ -279,6 +292,9 @@ class MainActivity : Activity() {
         show(clipRow, active)
         show(sendClipRow, active && Link.clipboardShared)
         show(remoteRow, active)
+        show(firmwareRow, active)
+        show(maintenanceHint, active)
+        maintenanceTitle?.let { show(it, active) }
         remoteRow.sub(if (Link.remoteHost.isEmpty()) "See and tap the Paper over Wi-Fi" else "See and tap the Paper at ${Link.remoteHost}")
 
         Store.counts(this).forEach { (app, c) ->

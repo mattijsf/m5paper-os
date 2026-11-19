@@ -5,8 +5,9 @@
 //   proof = HMAC-SHA256(key, "paperos-remote:" + nonce hex)                  the nonce of "#hello paperos 1 <build> <nonce>"
 //   line  = ">auth-phone <hex of proof>"
 //
-// A phone session may send >shot, >refresh, >tap, >long and >swipe; anything else is answered "#err not from the phone"
-// (no files, no settings, no updates, no restart). The Paper tells the phone where to find it with a `remote` envelope
+// A phone session may send >shot, >refresh, >tap, >long, >swipe and >ota (a package signed on the Mac with the update key:
+// the Paper checks the signature, the phone only carries it); anything else is answered "#err not from the phone" (no files,
+// no settings, no log, no restart). The Paper tells the phone where to find it with a `remote` envelope
 // over the relay when wireless development starts listening. Unit-tested (tests/unit/remote_phone_test.cpp).
 #pragma once
 

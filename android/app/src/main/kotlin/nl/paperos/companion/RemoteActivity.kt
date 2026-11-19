@@ -9,7 +9,6 @@ import android.graphics.RectF
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.os.SystemClock
-import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -67,27 +66,10 @@ class RemoteActivity : Activity() {
         val light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
         window.insetsController?.setSystemBarsAppearance(light, light)
 
-        val m = Ink.dp(this, 16f)
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val bar = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(m / 2, Ink.dp(this@RemoteActivity, 8f), m, Ink.dp(this@RemoteActivity, 8f))
-        }
-        val back = Ink.icon(this, ICON_ARROW_LEFT).apply {
-            setPadding(m / 2, m / 2, m / 2, m / 2)
-            isClickable = true
-            contentDescription = "Back"
-            setOnClickListener { finish() }
-        }
-        bar.addView(back, LinearLayout.LayoutParams(Ink.dp(this, 48f), Ink.dp(this, 48f)))
-        val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        titles.addView(Ink.text(this, "Remote control", Type.BODY_STRONG))
-        status = Ink.text(this, "", Type.CAPTION, Ink.secondary)
-        titles.addView(status, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = Ink.dp(this@RemoteActivity, 2f) })
-        bar.addView(titles, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).apply { marginStart = Ink.dp(this@RemoteActivity, 8f) })
+        val (bar, line) = Ink.pageBar(this, "Remote control")
+        status = line
         col.addView(bar, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        col.addView(View(this).apply { setBackgroundColor(Ink.divider) }, LinearLayout.LayoutParams(MATCH_PARENT, Ink.dp(this, 1f)))
 
         val body = FrameLayout(this)
         screen = PaperView(this).apply { visibility = View.GONE }
@@ -316,7 +298,6 @@ class RemoteActivity : Activity() {
     }
 
     companion object {
-        private const val ICON_ARROW_LEFT = 57416
         private const val POLL_MS = 250L
         private const val FULL_EVERY_MS = 5000L
         private const val HOLD_MS = 600L
