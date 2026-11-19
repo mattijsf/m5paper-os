@@ -1487,4 +1487,13 @@ None of these block Phase 1, Phase 2, or the reader.
   device: a frame dump over Wi-Fi 0.87 s, an update 24.9 s (slot app1, confirmed), the live view. 364 unit tests, 308
   screenshots, firmware 2,592,291 bytes. Open: the first network read of an idle sleep screen on the device (the
   10-minute check's log had scrolled away; STATUS "Pending device checks", P7-19).
+- 2026-11-19: wireless development with the USB cable out: on battery, Wi-Fi up,
+  status over Wi-Fi in 0.1-0.25 s, frame dumps in 0.4-1.5 s (one 4.3 s). But after two or three sessions every new
+  connection failed its sign-in: the Mac saw the connection closed 10 ms after the device's greeting, while the device
+  never saw it close and timed it out 10 s later ("no sign-in") without having received the sign-in line. So the
+  connection is cut on the Mac, not by the device or the router. Active on the Mac, with every VPN disconnected:
+  Proton VPN's "Split Tunneling (experimental)" transparent proxy and the OpenVPN network extension (system
+  extensions); a transparent proxy takes over the Mac's TCP connections. Not proven (it needs the owner to switch it
+  off); it may also be what blocked port 80 on 2026-11-18 (open question 10 blamed the router). device.py: `--wifi` is
+  a flag now and the address is `--host` (`--wifi status` took "status" for the address).
 

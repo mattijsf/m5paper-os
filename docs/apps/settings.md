@@ -135,7 +135,7 @@ Settings > Developer > Wireless development (`WirelessPage`), one switch (`devel
 
 - **Remote control over Wi-Fi**: the commands of `core/remote.h` (frame dump, tap, swipe, log, status, put, ls, rm, set,
   reboot, ...) on port 8266 (`update::kPort`), served by `platform/posix/remote_server` (device and simulator). The Mac:
-  `tools/device.py --wifi [HOST] shot out.png`, `make view ARGS=--wifi` (the live view), `tools/push.py`-style uploads.
+  `tools/device.py --wifi shot out.png` (`--host ADDRESS` for another address), `make view ARGS=--wifi` (the live view), `tools/push.py`-style uploads.
 - **Firmware updates**: `make ota` sends the signed package with the remote command `>ota <size>` over the same
   connection (`update::ImageWriter`: the header checked before a byte is written, the SHA-256 before it boots; the
   bootloader's rollback as in D37). The device restarts into it.
@@ -147,10 +147,10 @@ Settings > Developer > Wireless development (`WirelessPage`), one switch (`devel
   boot on), so the device does not light-sleep: development only, it costs battery. Auto-off on battery still applies.
 - The page shows the address with the port and the state ("Joining Wi-Fi...", "Waiting for the Mac.", "A Mac is
   connected.", an update's progress); only that line is looked at again, every 2 s, and drawn only when it changed.
-- The Mac finds the device by `HOST=` / `--wifi HOST`, `$PAPEROS_HOST` (device.py) or `$OTA_HOST` (ota.py), the address
+- The Mac finds the device by `HOST=` / `--host`, `$PAPEROS_HOST` (device.py) or `$OTA_HOST` (ota.py), the address
   a device on USB reports, the last update's, or the saved one (`tools/ota.py host ADDRESS`). Never by a search.
 - Measured on the device (2026-11-19): a frame dump over Wi-Fi 0.87 s with the sign-in; an update of 2.5 MB 24.9 s.
 - Tests: `tests/unit/update_test.cpp` (the writer: every refusal and a whole image in odd pieces; the sign-in: this
   nonce, this key, nothing else; `>ota` parsing); UI script `settings` (goldens `settings-developer`,
   `settings-wireless`, `settings-status`); by hand against the simulator (it listens on localhost:8266 with the
-  switch on: `device.py --wifi localhost`, `ota.py send --sim`).
+  switch on: `device.py --wifi --host localhost`, `ota.py send --sim`).

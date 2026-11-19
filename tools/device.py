@@ -8,8 +8,8 @@ Commands: ls [DIR] | cat /data/power.csv | rm PATH | status (key names + lengths
 Options:  --port /dev/cu.usbmodemXXXX (default: the first /dev/cu.usbmodem*)
           --limit N   the whole run ends after N seconds with exit code 3 (it never hangs): default 90, script: from its length
           --sim   talk to .pio/build/sim/program --headless --remote instead of a device
-          --wifi [HOST]  over Wi-Fi instead of USB (Settings > Developer > Wireless development on the device; D39):
-                  HOST, else $PAPEROS_HOST, else the saved address (tools/ota.py host), else the last update's. The
+          --wifi  over Wi-Fi instead of USB (Settings > Developer > Wireless development on the device; D39), to
+                  --host ADDRESS, else $PAPEROS_HOST, else the saved address (tools/ota.py host), else the last update's. The
                   device signs nobody in but the Mac with the update key (~/.config/paperos/ota-signing.key).
           -v      also print device log lines seen while waiting for a reply
 The port is opened exclusively: a second tool on the same port ends at once with "in use by another program".
@@ -466,7 +466,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port")
     ap.add_argument("--sim", action="store_true")
-    ap.add_argument("--wifi", nargs="?", const="auto", metavar="HOST", help="over Wi-Fi (Settings > Developer > Wireless development)")
+    ap.add_argument("--wifi", action="store_true", help="over Wi-Fi (Settings > Developer > Wireless development)")
+    ap.add_argument("--host", help="--wifi: the device's address (default: $PAPEROS_HOST, the saved one, the last update's)")
     ap.add_argument("--sim-data", help="--sim: the simulator's data root (default sim-data/), e.g. a test card with a Wi-Fi network")
     ap.add_argument("-v", "--verbose", action="store_true")
     ap.add_argument("cmd", choices=["shot", "tap", "long", "swipe", "log", "refresh", "status", "ls", "cat", "rm", "set", "poweroff", "wait-boot", "diff", "script", "scripts"])
@@ -516,7 +517,7 @@ def main():
         print("IDENTICAL" if bad == 0 else f"DIFFERENT: {bad} of {len(pa)} pixels")
         sys.exit(0 if bad == 0 else 1)
 
-    link = Link(a.port, a.sim, ("--data", a.sim_data) if a.sim_data else (), wifi=a.wifi)
+    link = Link(a.port, a.sim, ("--data", a.sim_data) if a.sim_data else (), wifi=(a.host or "auto") if a.wifi else None)
     try:
         if a.cmd == "shot":
             if len(a.args) != 1:

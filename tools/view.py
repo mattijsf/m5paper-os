@@ -348,7 +348,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port")
     ap.add_argument("--sim", action="store_true")
-    ap.add_argument("--wifi", nargs="?", const="auto", metavar="HOST", help="over Wi-Fi (Settings > Developer > Wireless development)")
+    ap.add_argument("--wifi", action="store_true", help="over Wi-Fi (Settings > Developer > Wireless development)")
+    ap.add_argument("--host", help="--wifi: the device's address (default: $PAPEROS_HOST, the saved one, the last update's)")
     ap.add_argument("--http", type=int, default=8137)
     ap.add_argument("--lan", action="store_true")
     ap.add_argument("--idle", type=int, default=300)
@@ -358,7 +359,7 @@ def main():
     a = ap.parse_args()
     sys.stdout.reconfigure(line_buffering=True)
 
-    viewer = Viewer(a.port, a.sim, a.verbose, a.wifi)
+    viewer = Viewer(a.port, a.sim, a.verbose, (a.host or "auto") if a.wifi else None)
     if a.lan:
         prefix, hosts, bind = f"/{secrets.token_urlsafe(9)}/", None, "0.0.0.0"
         url = f"http://{lan_address()}:{a.http}{prefix}"
