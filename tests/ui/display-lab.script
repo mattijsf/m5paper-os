@@ -5,7 +5,7 @@ tap 270 424             # launcher: Settings tile
 wait 600
 tap 270 748             # Developer
 wait 900
-tap 270 180             # Display lab
+tap 270 374             # Display lab (under Wireless development and Status)
 wait 900
 shot lab-ramp
 tap 200 164             # Checker

@@ -26,6 +26,8 @@
 #include "core/loop.h"
 #include "core/os.h"
 #include "core/remote.h"
+#include "core/update.h"
+#include "platform/posix/remote_server.h"
 #include "core/sound.h"
 #include "ui/text.h"
 
@@ -263,6 +265,74 @@ void epdSelfTest() {
   gOs.displayManager().forceClean();  // the UI back on the panel
 }
 
+// Platform debug switches (">set key value"), over USB and over Wi-Fi alike.
+bool deviceOption(const std::string& key, const std::string& value) {
+  if (key == "screen") {  // ">set screen widgets2": a UI test screen, an app id, or "launcher"
+    auto s = apps::createSurface(value == "launcher" ? "" : value, gOs);
+    if (!s) return false;
+    gOs.setSurface(std::move(s));
+    return true;
+  }
+  // Power tests: ">set sleep 5000" light-sleeps 5 s (the result is logged), ">set poweroff 20" powers off with
+  // an RTC alarm after 20 s (">set poweroff 0": only the side button brings it back).
+  if (key == "sleep") {
+    gPower.lightSleep(static_cast<uint32_t>(atoi(value.c_str())));
+    return true;
+  }
+  if (key == "usbsleep") {
+    // Test aid: allow light sleep on USB for N seconds, then switch it off again by itself. While it sleeps the
+    // device cannot be reached; read the log after the window ends (">set usbsleep 30", wait, ">log").
+    const int sec = atoi(value.c_str());
+    gOs.config().power.stayAwakeOnUsb = false;
+    gOs.timers().after(static_cast<uint32_t>(sec) * 1000u, [] { gOs.config().power.stayAwakeOnUsb = true; });
+    return true;
+  }
+  if (key == "poweroff") {
+    gPower.powerOff(static_cast<uint32_t>(atoi(value.c_str())));
+    return true;
+  }
+  if (key == "epd-timing") {
+    gDisplay.setTiming(value == "on");
+    return true;
+  }
+  if (key == "gray-pass") {  // "off": a screen with gray areas (the launcher's icon wells) goes out Fast then settle, not as
+                             // one Text pass (DisplayParams::grayAreaMin = 0): to compare the two by eye
+    DisplayParams p = gOs.displayManager().params();
+    p.grayAreaMin = value == "off" ? 0 : DisplayParams{}.grayAreaMin;
+    gOs.displayManager().setParams(p);
+    return true;
+  }
+  if (key == "epd-keep") {  // tools/patch_m5gfx.py patch 4: off = the stock rule, for a comparison on the panel
+    gDisplay.setKeepUnchanged(value != "off");
+    return true;
+  }
+  if (key == "idle-min") {  // ">set idle-min 1": minutes until the idle check acts (0 = never) until the next boot, for a
+    gOs.config().power.autoOffMin = atoi(value.c_str());  // test of the sleep screen, or a camera session; not saved
+    return true;
+  }
+  if (key == "chime") {  // ">set chime 1": the sound for new messages, whatever the setting (core/sound.h)
+    sound::play();
+    return true;
+  }
+  if (key == "memreport") {  // ">set memreport": one "[mem]" line (tools/memory.py), D27
+    memReport(value);
+    return true;
+  }
+  if (key == "temp-guard") {  // test aid: ">set temp-guard 1" makes the drift restart easy to trigger (D25)
+    gTempGuardC = static_cast<float>(atof(value.c_str()));
+    return true;
+  }
+  if (key == "psram-test") {  // ">set psram-test 60": D25, a soak test for PSRAM speed settings
+    gSoak.start(static_cast<uint32_t>(atoi(value.c_str())));
+    return true;
+  }
+  if (key == "epd-selftest") {  // tools/patch_m5gfx.py: the patched frame buffer write must equal the stock one
+    epdSelfTest();
+    return true;
+  }
+  return false;
+}
+
 class SerialRemoteHost : public RemoteHost {
  public:
   void inject(const hal::TouchEvent& ev) override { gInput.inject(ev); }
@@ -283,72 +353,7 @@ class SerialRemoteHost : public RemoteHost {
       n -= w;
     }
   }
-  bool option(const std::string& key, const std::string& value) override {
-    if (key == "screen") {  // ">set screen widgets2": a UI test screen, an app id, or "launcher"
-      auto s = apps::createSurface(value == "launcher" ? "" : value, gOs);
-      if (!s) return false;
-      gOs.setSurface(std::move(s));
-      return true;
-    }
-    // Power tests: ">set sleep 5000" light-sleeps 5 s (the result is logged), ">set poweroff 20" powers off with
-    // an RTC alarm after 20 s (">set poweroff 0": only the side button brings it back).
-    if (key == "sleep") {
-      gPower.lightSleep(static_cast<uint32_t>(atoi(value.c_str())));
-      return true;
-    }
-    if (key == "usbsleep") {
-      // Test aid: allow light sleep on USB for N seconds, then switch it off again by itself. While it sleeps the
-      // device cannot be reached; read the log after the window ends (">set usbsleep 30", wait, ">log").
-      const int sec = atoi(value.c_str());
-      gOs.config().power.stayAwakeOnUsb = false;
-      gOs.timers().after(static_cast<uint32_t>(sec) * 1000u, [] { gOs.config().power.stayAwakeOnUsb = true; });
-      return true;
-    }
-    if (key == "poweroff") {
-      gPower.powerOff(static_cast<uint32_t>(atoi(value.c_str())));
-      return true;
-    }
-    if (key == "epd-timing") {
-      gDisplay.setTiming(value == "on");
-      return true;
-    }
-    if (key == "gray-pass") {  // "off": a screen with gray areas (the launcher's icon wells) goes out Fast then settle, not as
-                               // one Text pass (DisplayParams::grayAreaMin = 0): to compare the two by eye
-      DisplayParams p = gOs.displayManager().params();
-      p.grayAreaMin = value == "off" ? 0 : DisplayParams{}.grayAreaMin;
-      gOs.displayManager().setParams(p);
-      return true;
-    }
-    if (key == "epd-keep") {  // tools/patch_m5gfx.py patch 4: off = the stock rule, for a comparison on the panel
-      gDisplay.setKeepUnchanged(value != "off");
-      return true;
-    }
-    if (key == "idle-min") {  // ">set idle-min 1": minutes until the idle check acts (0 = never) until the next boot, for a
-      gOs.config().power.autoOffMin = atoi(value.c_str());  // test of the sleep screen, or a camera session; not saved
-      return true;
-    }
-    if (key == "chime") {  // ">set chime 1": the sound for new messages, whatever the setting (core/sound.h)
-      sound::play();
-      return true;
-    }
-    if (key == "memreport") {  // ">set memreport": one "[mem]" line (tools/memory.py), D27
-      memReport(value);
-      return true;
-    }
-    if (key == "temp-guard") {  // test aid: ">set temp-guard 1" makes the drift restart easy to trigger (D25)
-      gTempGuardC = static_cast<float>(atof(value.c_str()));
-      return true;
-    }
-    if (key == "psram-test") {  // ">set psram-test 60": D25, a soak test for PSRAM speed settings
-      gSoak.start(static_cast<uint32_t>(atoi(value.c_str())));
-      return true;
-    }
-    if (key == "epd-selftest") {  // tools/patch_m5gfx.py: the patched frame buffer write must equal the stock one
-      epdSelfTest();
-      return true;
-    }
-    return false;
-  }
+  bool option(const std::string& key, const std::string& value) override { return deviceOption(key, value); }
   void reboot() override {
     Serial.flush();
     delay(100);
@@ -357,6 +362,12 @@ class SerialRemoteHost : public RemoteHost {
 };
 SerialRemoteHost gRemoteHost;
 Remote gRemote(gOs, gClock, gRemoteHost);
+// Wireless development (D39): the same commands over Wi-Fi, from the Mac that holds the update key.
+platform::RemoteServer gWireless(gOs, gClock, update::kPort, true,
+                                 {[](const hal::TouchEvent& ev) { gInput.inject(ev); }, deviceOption, [] {
+                                    delay(100);
+                                    esp_restart();
+                                  }});
 // Command lines and upload bytes alike go to the remote, which tells them apart (Remote::feed).
 void pollSerial() {
   static uint8_t* buf = static_cast<uint8_t*>(malloc(4096));  // a heap block: PSRAM, not internal RAM (D27)
@@ -412,6 +423,10 @@ void dataFileCheck() {
 
 }  // namespace
 
+// The loop task's stack (Arduino default 8 KB): an Ed25519 check of a valid signature (wireless development's sign-in, an
+// update's header: core/update.h) ran it out and restarted the board (2026-11-19). 16 KB, without rebuilding ESP-IDF.
+SET_LOOP_TASK_STACK_SIZE(16 * 1024);
+
 void setup() {
   auto cfg = M5.config();
   cfg.clear_display = false;
@@ -459,6 +474,7 @@ void loop() {
   pollSerial();
   gLoop.iterate();
   gRemote.tick();
+  gWireless.poll();
   gSoak.step();  // ">set psram-test N" (D25)
 
   // Heartbeat: lets a host script read hardware facts without catching the boot log.

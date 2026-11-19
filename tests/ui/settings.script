@@ -53,6 +53,16 @@ wait 900
 tap 270 748             # Developer
 wait 900
 shot settings-developer
+tap 270 185             # Wireless development: its own page (off here)
+wait 900
+shot settings-wireless
+back
+wait 900
+tap 270 280             # Status: memory, refreshes, battery, the log
+wait 900
+shot settings-status
+back
+wait 900
 tap 140 845             # Sleep test: light sleep, then a toast says what woke the device
 wait 300
 shot settings-developer-sleep

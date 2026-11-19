@@ -502,6 +502,11 @@ P6-11 last (it needs the relay and a device that can pair).
   book or a game. A tap on a part of the board opens that app at that place. Done when: unit tests, UI scripts with
   goldens, `make check` green, seen on the device and on the panel (camera).
 
+- [x] **P7-20 Wireless development**. Read: D39, apps/settings.md "Wireless development", core/remote.h.
+  The remote's commands over Wi-Fi (port 8266) after a signed sign-in, updates as `>ota`, `device.py` / `view.py` /
+  `ota.py` with `--wifi`; Developer as a menu with Wireless development and Status pages. (2026-11-19: done; on the
+  device a frame dump over Wi-Fi in 0.87 s, an update in 24.9 s, the live view over Wi-Fi.)
+
 ## Phase 8: Optional, ask the owner first
 
 - [ ] **P8-1 Notification-sensor feeds** (DECISIONS.md D8) as a replacement if the WhatsApp

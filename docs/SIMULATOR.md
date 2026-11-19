@@ -209,6 +209,9 @@ A task is done only when `make check` passes.
   (minutes, 0 = never; until the next boot). UI scripts: a `wait` of 15 minutes or more ends on the sleep screen (30 in
   the reader); a script that must sit still longer brings `data/config.json` with `"power": {"autoOffMin": 0}`
   (`hackernews-resume`, `hackernews-saved`, `teletekst-saved`).
+- **Without USB (2026-11-19, D39)**: with Settings > Developer > Wireless development on, every command of
+  `tools/device.py` takes `--wifi [HOST]` (port 8266, signed in with the update key), `make view ARGS=--wifi` shows the
+  device live, `make ota` updates it. The simulator listens too (localhost:8266) when its config has the switch on.
 - **Live view (2026-11-16)**: `make view` (`tools/view.py`) serves a page on `http://127.0.0.1:8137/` with the device's frame; a click is a
   tap, holding 600 ms a long press, a drag a swipe (pointer events, so a finger on a phone works too). One thread owns the link: it polls
   `>refresh` every 0.15 s and takes a `>shot` when the refresh log changed, after every input, and every 5 s; the page long-polls for the

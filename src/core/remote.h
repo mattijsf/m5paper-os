@@ -16,17 +16,25 @@
 //   >ls <dir>                   "#ls <bytes>\n" + "name<TAB>size" lines (folders: size -), then #ok. Same path limits.
 //   >rm <path>                  deletes a file or folder. Same path limits.
 //   >reboot                     #ok, then restart
+//   >ota <size>                 firmware update (D37, D39): replies "#ota go", then the host sends the signed package
+//                               (tools/ota.py; "#ack <total>" after every 4096 bytes, as >put), then "#ok" and a restart
+//                               into it, or "#err <why>" (not signed with this device's key, the image changed, ...).
 // Every command ends with "#ok" or "#err <reason>" on its own line.
+//
+// Transports: the USB serial port; the simulator's stdin; and Wi-Fi while Settings > Developer > Wireless development is on
+// (platform/posix/remote_server, port 8266, a signed handshake first: core/update.h helloLine / authOk).
 #pragma once
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "core/crc32.h"
 #include "core/fs.h"
 #include "core/os.h"
+#include "core/update.h"
 #include "hal/clock.h"
 #include "hal/input.h"
 
@@ -51,10 +59,10 @@ class RemoteHost {
 };
 
 struct RemoteCommand {
-  enum Kind { None, Shot, Tap, Long, Swipe, Log, Refresh, Reboot, Set, Status, Put, Ls, Rm, PowerOff, Cat, State } kind = None;
+  enum Kind { None, Shot, Tap, Long, Swipe, Log, Refresh, Reboot, Set, Status, Put, Ls, Rm, PowerOff, Cat, State, Ota } kind = None;
   std::string key, value;  // Set
   std::string path;        // Put, Ls, Rm
-  uint64_t size = 0;       // Put
+  uint64_t size = 0;       // Put, Ota
   uint32_t crc = 0;        // Put
   // PowerOff: seconds in x1 (1..3600), y1 = seconds of a second power-off after the scheduled refresh (0 = none). 0 (power off until the side button is pressed) is refused: nobody can press it remotely.
   int x1 = 0, y1 = 0, x2 = 0, y2 = 0;
@@ -66,6 +74,17 @@ RemoteCommand parseRemoteCommand(const std::string& line);
 
 // Paths a remote file command may touch: /sd/books/... and /sd/paperos/..., no "..", never paperos_config.
 bool remotePathAllowed(const std::string& virtualPath);
+
+// What Settings > Developer shows about wireless development (UI thread; written by the platform's server and the remote).
+struct WirelessStatus {
+  bool on = false;         // the setting
+  bool listening = false;  // on the Wi-Fi, port `port`
+  bool client = false;     // a Mac is connected (signed in)
+  std::string address;     // "192.168.1.60"
+  uint16_t port = 0;
+  std::string activity;    // "Receiving build 3fa9c1d2e4b7: 1.2 MB of 2.5 MB", "" for none
+};
+WirelessStatus& wirelessStatus();
 
 class Remote {
  public:
@@ -81,9 +100,9 @@ class Remote {
   // Call once per main-loop pass, after Os::loopOnce(): releases timed touch events and runs a
   // pending >shot once the injected touches have been processed.
   void tick();
-  bool busy() const { return !timed_.empty() || shotPending_ || put_.active || outPos_ < out_.size(); }
+  bool busy() const { return !timed_.empty() || shotPending_ || put_.active || ota_.active || outPos_ < out_.size(); }
   // True while an upload is running: feed() takes the incoming bytes as file content.
-  bool wantsRaw() const { return put_.active; }
+  bool wantsRaw() const { return put_.active || ota_.active; }
   // The file bytes of the running upload; returns how many it took (the rest, after the last byte, is a line again).
   size_t feedRaw(const uint8_t* data, size_t n);
 
@@ -118,6 +137,15 @@ class Remote {
   } put_;
   void abortPut(const std::string& why);
   void finishPut();
+  struct Ota {
+    bool active = false;
+    uint64_t size = 0, got = 0;
+    uint64_t discard = 0;  // bytes still coming after a refusal: dropped
+    uint32_t lastByteMs = 0;
+    std::unique_ptr<update::ImageWriter> writer;
+  } ota_;
+  size_t feedOta(const uint8_t* data, size_t n);
+  void endOta(const std::string& why);  // "" = the image is in place
   std::string line_;       // the line being received (feed)
   bool lineTooLong_ = false;
   bool shotPending_ = false;

@@ -7,8 +7,8 @@
 
     make ota-key            once: makes the signing key and writes its public half into src/core/update_key.h
     make flash              once after that, over USB: the firmware on the device must hold the public key
-    make ota                builds, signs and sends the firmware to a device that shows
-                            Settings > About > Update over Wi-Fi (HOST=192.168.1.23 to name it)
+    make ota                builds, signs and sends the firmware over Wi-Fi to a device with
+                            Settings > Developer > Wireless development on (HOST=192.168.1.23 to name it)
 
     uv run --script tools/ota.py keygen | pack | send [--host H] [--sim] [--force] | info | host [ADDRESS]
 
@@ -21,9 +21,9 @@ Package: 148-byte header + firmware.bin (src/core/update.h):
 
 Finding the device: --host, else $OTA_HOST, else the address a device on USB reports, else the address of the last
 update (out/ota/last-host), else its usual address (`ota.py host ADDRESS` saves it next to the key: a reservation in
-the router keeps it the same). The update page answers "GET /" with {"paperos":"update",...}. The network is never searched.
+the router keeps it the same). The network is never searched.
 """
-import argparse, hashlib, http.client, json, os, re, socket, struct, subprocess, sys, time
+import argparse, hashlib, os, re, struct, subprocess, sys, time
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -36,7 +36,6 @@ BIN = os.path.join(ROOT, ".pio", "build", "papers3", "firmware.bin")
 OUT = os.path.join(ROOT, "out", "ota")
 MAGIC = b"POSOTA1\n"
 HEADER_BYTES, SIGNED_BYTES = 148, 84
-PORT = 8266  # update::kPort: the update page's own port, device and simulator
 APP_DESC_OFFSET, APP_DESC_MAGIC, ELF_SHA_OFFSET = 0x20, 0xABCD5432, 0xB0
 
 
@@ -119,42 +118,17 @@ def cmd_pack(a):
     say(f"build {build}: {len(package) - HEADER_BYTES} bytes, signed -> {os.path.relpath(a.out, ROOT)}")
 
 
-def ask(host, port, timeout):
-    """GET / of an update page: its JSON, or None."""
-    try:
-        c = http.client.HTTPConnection(host, port, timeout=timeout)
-        c.request("GET", "/")
-        r = c.getresponse()
-        body = r.read(400)
-        c.close()
-        d = json.loads(body)
-        return d if d.get("paperos") == "update" else None
-    except (OSError, ValueError, http.client.HTTPException):
-        return None
-
-
 def find(a):
-    """The device to send to: --host, $OTA_HOST, the address a device on USB reports, the address of the last update.
-    No search of the network: asking every address of the home network on port 80 looks like an attack to a router
-    (2026-11-18: a mesh router then dropped everything from this Mac to the device's port 80)."""
-    port = a.port or PORT
+    """The device to send to: --host, $OTA_HOST, the address a device on USB reports, the last update's, the saved one.
+    No search of the network: asking every address of the home network looks like an attack to a router (2026-11-18:
+    a mesh router then dropped everything from this Mac to the device's port 80)."""
     if a.sim:
-        d = ask("localhost", port, 2)
-        if d:
-            return "localhost", port, d
-        sys.exit(f"no simulator with the update page open on localhost:{port}")
-    tried = []
-    for host, why in ((a.host, "--host"), (os.environ.get("OTA_HOST"), "$OTA_HOST"), (usb_address(), "the device on USB"),
-                      (last_host(), "the last update"), (usual_host(), "its usual address")):
-        if not host or host in tried:
-            continue
-        tried.append(host)
-        d = ask(host, port, 4)
-        if d:
-            return host, port, d
-        say(f"no update page at {host}:{port} ({why})")
-    sys.exit("no device to send to: open Settings > About > Update over Wi-Fi on it (it listens for 5 minutes) and give "
-             "the address it shows: make ota HOST=<address>")
+        return "localhost"
+    for host in (a.host, os.environ.get("OTA_HOST"), usb_address(), last_host(), usual_host()):
+        if host:
+            return host
+    sys.exit("no address for the device: make ota HOST=<address> (Settings > Developer shows it), or save it once: "
+             "uv run --script tools/ota.py host ADDRESS")
 
 
 def usual_host():
@@ -193,51 +167,55 @@ def usb_address():
 
 
 def cmd_send(a):
+    """Over wireless development (D39): the signed sign-in, then `>ota <size>` and the package in 4 KB pieces, each
+    acknowledged; `#ok` when the image is in place, then the device restarts into it."""
     key = load_key()
     if header_key() != public_bytes(key):
         sys.exit("src/core/update_key.h does not hold this Mac's key: run `make ota-key`, then flash once over USB")
     build, package = pack(a.bin, key)
-    host, port, info = find(a)
-    say(f"device at {host}: runs build {info.get('build')} from {info.get('slot')}")
-    if info.get("build") == build and not a.force:
+    host = find(a)
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import device
+    link = device.Link(wifi=host)
+    say(f"device at {host}: runs build {link.build}")
+    if link.build == build and not a.force:
         say(f"it already runs build {build}: nothing sent (--force sends it anyway)")
+        link.close()
         return
-    size = len(package) - HEADER_BYTES
-    if info.get("max") and size > info["max"]:
-        sys.exit(f"the image ({size} bytes) is larger than the device's slot ({info['max']})")
-    say(f"sending build {build}, {size} bytes ...")
+    say(f"sending build {build}, {len(package) - HEADER_BYTES} bytes ...")
     t0 = time.time()
-    c = http.client.HTTPConnection(host, port, timeout=60)
-    c.putrequest("POST", "/update")
-    c.putheader("Content-Type", "application/octet-stream")
-    c.putheader("Content-Length", str(len(package)))
-    c.endheaders()
-    sent, step, shown = 0, 32 * 1024, -1
-    try:
-        while sent < len(package):
-            c.send(package[sent:sent + step])
-            sent += min(step, len(package) - sent)
-            pct = sent * 100 // len(package)
-            if pct // 10 != shown:
-                shown = pct // 10
-                say(f"  {pct:3d} %  {sent // 1024} KB  {time.time() - t0:.1f} s")
-        r = c.getresponse()
-        answer = r.read(600).decode(errors="replace").strip()
-    except OSError as e:
-        # The device answers as soon as it refuses a package and closes: the rest of the upload then fails to send.
-        try:
-            r = c.getresponse()
-            answer = r.read(600).decode(errors="replace").strip()
-        except (OSError, http.client.HTTPException):
-            sys.exit(f"the upload failed after {sent} bytes: {e}")
-    if r.status != 200:
-        sys.exit(f"the device refused it ({r.status}): {answer}")
+    link.send(f">ota {len(package)}")
+    line = link.readline()
+    while line and not line.startswith(("#ota go", "#err")):
+        line = link.readline()
+    if not line.startswith("#ota go"):
+        sys.exit(f"the device refused it: {line or 'no answer'}")
+    chunk, sent, shown = 4096, 0, -1
+    while sent < len(package):
+        piece = package[sent:sent + chunk]
+        link.w.write(piece)
+        sent += len(piece)
+        if sent < len(package) and sent % chunk == 0:  # the device acknowledges every full 4 KB (except the last)
+            r = link.readline()
+            while r and not r.startswith(("#ack", "#err")):
+                r = link.readline()
+            if not r.startswith("#ack"):
+                sys.exit(f"the device refused it after {sent} bytes: {r or 'no answer'}")
+        pct = sent * 100 // len(package)
+        if pct // 10 != shown:
+            shown = pct // 10
+            say(f"  {pct:3d} %  {sent // 1024} KB  {time.time() - t0:.1f} s")
+    r = link.readline()
+    while r and not r.startswith(("#ok", "#err")):
+        r = link.readline()
+    link.close()
+    if not r.startswith("#ok"):
+        sys.exit(f"the device refused it: {r or 'no answer'}")
     if not a.sim:
         os.makedirs(OUT, exist_ok=True)
         with open(os.path.join(OUT, "last-host"), "w") as f:
             f.write(host + "\n")
-    say(f"{answer}  ({time.time() - t0:.1f} s)")
-    say("it restarts into the new firmware and keeps it once it has run 15 s; Settings > About shows the build.")
+    say(f"build {build} is in place, the device restarts ({time.time() - t0:.1f} s); it keeps it once it has run 15 s.")
 
 
 def cmd_info(a):
@@ -259,11 +237,10 @@ def main():
     s = sub.add_parser("pack", help="sign firmware.bin into a package file")
     s.add_argument("--bin", default=BIN)
     s.add_argument("--out", default=os.path.join(OUT, "paperos.pos"))
-    s = sub.add_parser("send", help="sign firmware.bin and send it to a device that shows the update page")
+    s = sub.add_parser("send", help="sign firmware.bin and send it over wireless development (Settings > Developer)")
     s.add_argument("--bin", default=BIN)
     s.add_argument("--host")
     s.add_argument("--sim", action="store_true", help="the simulator on localhost")
-    s.add_argument("--port", type=int, help="the update page's port (8266)")
     s.add_argument("--force", action="store_true", help="send even if the device runs this build")
     s = sub.add_parser("host", help="save (or show) the address the device usually has, for `make ota` without HOST=")
     s.add_argument("address", nargs="?")

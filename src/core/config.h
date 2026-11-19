@@ -50,6 +50,12 @@ struct ReaderConfig {
 struct HaConfig {
   std::string baseUrl = "http://homeassistant.local:8123";
 };
+// Settings > Developer (DECISIONS.md D39).
+struct DeveloperConfig {
+  // Wireless development: remote control (tools/device.py --wifi, tools/view.py --wifi) and firmware updates (make ota)
+  // over Wi-Fi, from the Mac that holds the signing key. While on, Wi-Fi stays up (from the boot on): battery.
+  bool wireless = false;
+};
 struct LauncherConfig {
   bool resumeLastApp = true;
 };
@@ -69,6 +75,7 @@ class Config {
   HaConfig ha;
   LauncherConfig launcher;
   PhoneConfig phone;
+  DeveloperConfig developer;
 
   // Reads the file; anything missing or invalid keeps its default. Returns true if a file was read.
   bool load();

@@ -1,12 +1,14 @@
 // Firmware update over Wi-Fi (task P7-3, D37): the package header and the server that takes an image (core/update).
 #include <doctest.h>
 
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <vector>
 
 #include <sodium.h>
 
+#include "core/remote.h"
 #include "core/update.h"
 
 using namespace pos;
@@ -79,22 +81,6 @@ struct FakeUpdater : hal::Updater {
   std::string runningSlot() override { return "app0"; }
 };
 
-hal::ServerRequest request(const std::string& method, const std::string& target, const std::string& body, size_t cutAt = std::string::npos) {
-  hal::ServerRequest r;
-  r.method = method;
-  r.target = target;
-  r.contentLength = static_cast<int64_t>(body.size());
-  auto pos = std::make_shared<size_t>(0);
-  const std::string data = cutAt == std::string::npos ? body : body.substr(0, cutAt);
-  r.read = [data, pos](char* out, size_t n) -> long {
-    const size_t take = std::min(n, std::min<size_t>(data.size() - *pos, 5000));  // in pieces, as a socket gives them
-    std::memcpy(out, data.data() + *pos, take);
-    *pos += take;
-    return static_cast<long>(take);
-  };
-  return r;
-}
-
 std::string image(size_t n) {
   std::string s(n, '\0');
   for (size_t i = 0; i < n; ++i) s[i] = static_cast<char>((i * 31 + 7) & 0xFF);
@@ -129,95 +115,109 @@ TEST_CASE("update: a package header is taken only when this device's key signed 
   CHECK(parseHeader(reinterpret_cast<const uint8_t*>(package(k, "").data()), kHeaderBytes, k.pk, h) == "The package holds no image");
 }
 
-TEST_CASE("update: the server writes a signed image whole and refuses everything else before or without making it boot") {
+// Feeds a package in pieces of `piece` bytes, as a socket or the serial port gives them.
+std::string feedAll(ImageWriter& w, const std::string& p, size_t piece = 5000) {
+  for (size_t i = 0; i < p.size(); i += piece) {
+    const std::string bad = w.feed(reinterpret_cast<const uint8_t*>(p.data()) + i, std::min(piece, p.size() - i));
+    if (!bad.empty()) return bad;
+  }
+  return w.finish();
+}
+
+TEST_CASE("update: the writer writes a signed image whole and refuses everything else before or without making it boot") {
   Keys k, other;
-  uint32_t now = 1000;
   const std::string img = image(70000);
-
-  FakeUpdater up;
-  Server server(up, k.pk, "runningbuild", [&] { return now; });
-  hal::ServerRequest info = request("GET", "/", "");
-  hal::ServerResponse r = server.handle(info);
-  CHECK(r.status == 200);
-  CHECK(r.body == "{\"paperos\":\"update\",\"build\":\"runningbuild\",\"slot\":\"app0\",\"max\":1048576}\n");
-  hal::ServerRequest other404 = request("GET", "/update", "");
-  CHECK(server.handle(other404).status == 404);
-
-  // Signed by another key: refused after the header, nothing begun.
-  hal::ServerRequest foreign = request("POST", "/update", package(other, img));
-  r = server.handle(foreign);
-  CHECK(r.status == 403);
-  CHECK(up.begun == 0);
-  CHECK(server.stats().last == "Not signed with this device's key");
-  CHECK_FALSE(server.stats().busy);
-
-  // Not a package at all, a package longer or shorter than it says, an image too large for the slot.
-  hal::ServerRequest junk = request("POST", "/update", std::string(500, 'x'));
-  CHECK(server.handle(junk).status == 400);
-  hal::ServerRequest tiny = request("POST", "/update", "short");
-  CHECK(server.handle(tiny).status == 400);
-  hal::ServerRequest padded = request("POST", "/update", package(k, img) + "extra");
-  CHECK(server.handle(padded).status == 400);
-  up.slot = 60000;
-  hal::ServerRequest large = request("POST", "/update", package(k, img));
-  CHECK(server.handle(large).status == 413);
-  up.slot = 1 << 20;
-  CHECK(up.begun == 0);
-
-  // The image changed after it was signed: written to the slot, never made the one that boots.
-  std::string tampered = package(k, img);
-  tampered[kHeaderBytes + 12345] ^= 0x40;
-  hal::ServerRequest t = request("POST", "/update", tampered);
-  r = server.handle(t);
-  CHECK(r.status == 400);
-  CHECK(r.body == "The image is not the one that was signed\n");
-  CHECK(up.begun == 1);
-  CHECK(up.aborted == 1);
-  CHECK(up.finished == 0);
-
-  // The upload stops halfway; the flash refuses a write; the chip refuses the image.
   const std::string good = package(k, img);
-  hal::ServerRequest cut = request("POST", "/update", good, kHeaderBytes + 30000);
-  r = server.handle(cut);
-  CHECK(r.status == 400);
-  CHECK(r.body.find("stopped after 30000 of 70000") != std::string::npos);
-  CHECK(up.aborted == 2);
-  up.failWrite = true;
-  hal::ServerRequest w = request("POST", "/update", good);
-  CHECK(server.handle(w).status == 500);
-  up.failWrite = false;
-  up.failBegin = true;
-  hal::ServerRequest b = request("POST", "/update", good);
-  CHECK(server.handle(b).status == 500);
-  up.failBegin = false;
-  up.failFinish = true;
-  hal::ServerRequest f = request("POST", "/update", good);
-  r = server.handle(f);
-  CHECK(r.status == 500);
-  CHECK(r.body == "The image was refused: bad image\n");
-  up.failFinish = false;
+  FakeUpdater up;
+  {  // signed by another key: refused after the header, nothing begun
+    ImageWriter w(up, k.pk);
+    CHECK(feedAll(w, package(other, img)) == "Not signed with this device's key");
+    CHECK(up.begun == 0);
+  }
+  {  // not a package; longer than it says; too large for the slot
+    ImageWriter a(up, k.pk);
+    CHECK(feedAll(a, std::string(500, 'x')) == "Not a PaperOS update package");
+    ImageWriter b(up, k.pk);
+    CHECK(feedAll(b, good + "extra") == "The package is longer than it says");
+    up.slot = 60000;
+    ImageWriter c(up, k.pk);
+    CHECK(feedAll(c, good).find("larger than the slot") != std::string::npos);
+    up.slot = 1 << 20;
+  }
+  const int begunBefore = up.begun;
+  {  // the image changed after it was signed: written, never made the one that boots
+    std::string tampered = good;
+    tampered[kHeaderBytes + 12345] ^= 0x40;
+    ImageWriter w(up, k.pk);
+    CHECK(feedAll(w, tampered) == "The image is not the one that was signed");
+    CHECK(up.finished == 0);
+  }
+  {  // stopped halfway; a write refused; begin refused; the chip refuses the image
+    ImageWriter a(up, k.pk);
+    a.feed(reinterpret_cast<const uint8_t*>(good.data()), kHeaderBytes + 30000);
+    CHECK(a.finish() == "The upload stopped after 30000 of 70000 bytes");
+    up.failWrite = true;
+    ImageWriter b(up, k.pk);
+    CHECK(feedAll(b, good) == "Writing the image failed");
+    up.failWrite = false;
+    up.failBegin = true;
+    ImageWriter c(up, k.pk);
+    CHECK(feedAll(c, good) == "Cannot start the update: busy");
+    up.failBegin = false;
+    up.failFinish = true;
+    ImageWriter d(up, k.pk);
+    CHECK(feedAll(d, good) == "The image was refused: bad image");
+    up.failFinish = false;
+  }
   CHECK(up.finished == 0);
-  CHECK_FALSE(server.stats().done);
+  CHECK(up.aborted >= up.begun - begunBefore - 1);  // what was begun was given up
+  {  // the real thing, in odd pieces
+    ImageWriter w(up, k.pk);
+    CHECK(feedAll(w, good, 1001) == "");
+    CHECK(up.written == img);
+    CHECK(up.finished == 1);
+    CHECK(w.header().build == "abcdef012345");
+    CHECK(w.imageBytes() == 70000);
+  }
+}
 
-  // The real thing.
-  now = 5000;
-  hal::ServerRequest ok = request("POST", "/update", good);
-  r = server.handle(ok);
-  CHECK(r.status == 200);
-  CHECK(r.body == "ok: build abcdef012345 is in place, the device restarts\n");
-  CHECK(up.written == img);
-  CHECK(up.finished == 1);
-  const Stats s = server.stats();
-  CHECK(s.done);
-  CHECK_FALSE(s.busy);
-  CHECK(s.received == 70000);
-  CHECK(s.size == 70000);
-  CHECK(s.build == "abcdef012345");
-  CHECK(server.lastRequestMs() == 5000);
-  // Nothing more is taken until the restart.
-  hal::ServerRequest again = request("POST", "/update", good);
-  CHECK(server.handle(again).status == 409);
-  CHECK(up.finished == 1);
+TEST_CASE("update: the wireless sign-in takes a signature of this nonce with this key, nothing else") {
+  Keys k, other;
+  uint8_t nonce[kNonceBytes];
+  for (size_t i = 0; i < kNonceBytes; ++i) nonce[i] = static_cast<uint8_t>(i * 7);
+  std::string hex;
+  const std::string hello = helloLine("abcdef012345", nonce, hex);
+  CHECK(hello == "#hello paperos 1 abcdef012345 " + hex);
+  CHECK(hex.size() == 64);
+  auto signLine = [&](const uint8_t* sk, const std::string& nonceHex) {
+    const std::string msg = "paperos-remote:" + nonceHex;
+    uint8_t sig[crypto_sign_BYTES];
+    crypto_sign_detached(sig, nullptr, reinterpret_cast<const uint8_t*>(msg.data()), msg.size(), sk);
+    static const char kHex[] = "0123456789abcdef";
+    std::string line = ">auth ";
+    for (uint8_t b : sig) {
+      line += kHex[b >> 4];
+      line += kHex[b & 15];
+    }
+    return line;
+  };
+  CHECK(authOk(hex, signLine(k.sk, hex), k.pk));
+  CHECK(authOk(hex, signLine(k.sk, hex) + "\r", k.pk));      // a line from a terminal
+  CHECK_FALSE(authOk(hex, signLine(other.sk, hex), k.pk));    // another key
+  std::string old = hex;
+  old[0] = old[0] == 'a' ? 'b' : 'a';
+  CHECK_FALSE(authOk(hex, signLine(k.sk, old), k.pk));        // an old challenge (a recorded sign-in)
+  CHECK_FALSE(authOk(hex, ">shot", k.pk));
+  CHECK_FALSE(authOk(hex, ">auth zz", k.pk));
+  CHECK_FALSE(authOk(hex, signLine(k.sk, hex), PublicKey{}));  // a firmware without a key signs nobody in
+}
+
+TEST_CASE("update: >ota parses its size") {
+  RemoteCommand c = parseRemoteCommand(">ota 2591252");
+  CHECK(c.kind == RemoteCommand::Ota);
+  CHECK(c.size == 2591252);
+  CHECK(parseRemoteCommand(">ota").kind == RemoteCommand::None);
+  CHECK(parseRemoteCommand(">ota -5").kind == RemoteCommand::None);
 }
 
 TEST_CASE("update: the key in the firmware source is a key or all zero") {

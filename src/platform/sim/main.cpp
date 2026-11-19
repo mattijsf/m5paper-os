@@ -31,6 +31,8 @@
 #include "core/log.h"
 #include "core/os.h"
 #include "core/remote.h"
+#include "core/update.h"
+#include "platform/posix/remote_server.h"
 #include "hal/platform.h"
 #include "hal/system.h"
 #include "apps/apps.h"
@@ -225,6 +227,12 @@ int main(int argc, char** argv) {
   });
   Loop loop(os, policy);
   StdioRemoteHost remoteHost(input);
+  // Wireless development (D39) in the simulator: the same server on localhost, so tools/device.py --wifi localhost and
+  // tools/ota.py send --sim run against it (Settings > Developer > Wireless development, as on the device).
+  platform::RemoteServer wireless(os, clock, update::kPort, false,
+                                  {[&input](const hal::TouchEvent& ev) { input.inject(ev); },
+                                   [&remoteHost](const std::string& k, const std::string& v) { return remoteHost.option(k, v); },
+                                   [] { std::exit(0); }});
   remoteHost.os_ = &os;
   Remote remote(os, clock, remoteHost);
 
@@ -271,6 +279,7 @@ int main(int argc, char** argv) {
       else SDL_Delay(10);
       os.loopOnce();
       remote.tick();
+      wireless.poll();
     }
     return 0;
   }
@@ -288,6 +297,7 @@ int main(int argc, char** argv) {
     if (remoteMode && !readStdin(remote, 0)) remoteMode = false;
     loop.iterate();  // steps 1-4 + idle (waits for an SDL event, at most 16 ms)
     remote.tick();
+    wireless.poll();
     if (input.ghostRequested) {
       input.ghostRequested = false;
       display.toggleGhostOverlay();

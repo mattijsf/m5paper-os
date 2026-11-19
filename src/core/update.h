@@ -1,5 +1,5 @@
-// Firmware update over Wi-Fi (task P7-3, DECISIONS.md D37): the package `make ota` sends and the server that takes it
-// while Settings > About > Update over Wi-Fi is open. Shared by the device and the simulator; unit-tested.
+// Firmware update (task P7-3, DECISIONS.md D37, D39): the package `make ota` sends, its check and its writing, and the
+// handshake of wireless development (core/remote.h `>ota`, platform/posix/remote_server). Unit-tested.
 //
 // Package = a 148-byte header, then the firmware image (firmware.bin) as it is:
 //   0   8  magic "POSOTA1\n"
@@ -15,16 +15,15 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
-#include <mutex>
+#include <memory>
 #include <string>
 
-#include "hal/http_server.h"
 #include "hal/update.h"
 
 namespace pos::update {
 
-// The port the update page listens on, device and simulator: its own, not the file server's 80 (a service of its own,
-// and `make ota` then does not depend on what a router thinks of port 80: DECISIONS.md D37).
+// The port of wireless development (remote control and updates), device and simulator: its own, not the file server's 80
+// (a service of its own, and the tools then do not depend on what a router thinks of port 80: D37, D39).
 constexpr uint16_t kPort = 8266;
 constexpr size_t kHeaderBytes = 148, kSignedBytes = 84, kKeyBytes = 32, kHashBytes = 32, kSigBytes = 64;
 constexpr const char kMagic[] = "POSOTA1\n";
@@ -43,37 +42,37 @@ bool keySet(const PublicKey& key);
 // The key compiled into this firmware (src/core/update_key.h).
 const PublicKey& firmwareKey();
 
-struct Stats {
-  bool busy = false;       // an image is arriving
-  uint32_t received = 0;   // bytes of it so far
-  uint32_t size = 0;       // of the image arriving, or of the last one
-  bool done = false;       // an image is in place: restart to run it
-  std::string build;       // its build
-  std::string last;        // the last outcome in words: "Not signed with this device's key", ...
-};
-
-// Answers the update page's requests:
-//   GET  /         one line of JSON: who this is, which build runs, how large an image may be (the sender finds the device by it)
-//   POST /update   the package; 200 when the image is in place, else 4xx / 5xx with the reason as text
-// One upload at a time. Handler threads call handle(); the UI thread reads stats().
-class Server {
+// Writes a package as it arrives (any chunking): the header is checked before a byte of the image is written, the
+// image's SHA-256 before it is made the one that boots. Used by the remote's `>ota` command (core/remote.h).
+class ImageWriter {
  public:
-  Server(hal::Updater& updater, PublicKey key, std::string runningBuild, std::function<uint32_t()> millis);
-  hal::ServerResponse handle(hal::ServerRequest& req);
-  Stats stats() const;
-  uint32_t lastRequestMs() const { return lastRequest_.load(); }
+  ImageWriter(hal::Updater& updater, PublicKey key);
+  ~ImageWriter();
+  // "" while all is well; else why not (everything begun is given up then; later bytes are refused).
+  std::string feed(const uint8_t* data, size_t n);
+  // After the last byte: "" when the image is in place and boots at the next restart; else why not.
+  std::string finish();
+  void abort();
+  bool headerRead() const { return headerDone_; }
+  const Header& header() const { return header_; }
+  uint32_t imageBytes() const { return got_; }
 
  private:
-  hal::ServerResponse receive(hal::ServerRequest& req);
-  void setLast(const std::string& text);
-
   hal::Updater& updater_;
   PublicKey key_;
-  std::string running_;
-  std::function<uint32_t()> millis_;
-  mutable std::mutex mu_;
-  Stats stats_;
-  std::atomic<uint32_t> lastRequest_{0};
+  uint8_t head_[kHeaderBytes]{};
+  size_t headGot_ = 0;
+  bool headerDone_ = false, begun_ = false, failed_ = false;
+  Header header_;
+  uint32_t got_ = 0;
+  struct Hash;  // crypto_hash_sha256_state, kept out of this header
+  std::unique_ptr<Hash> hash_;
 };
+
+// Remote control over Wi-Fi (D39): a new connection gets "#hello paperos 1 <build> <nonce hex>", and must answer
+// ">auth <hex of the Ed25519 signature of 'paperos-remote:' + nonce hex>" with the update key before anything else.
+constexpr size_t kNonceBytes = 32;
+std::string helloLine(const std::string& build, const uint8_t (&nonce)[kNonceBytes], std::string& nonceHex);
+bool authOk(const std::string& nonceHex, const std::string& line, const PublicKey& key);
 
 }  // namespace pos::update

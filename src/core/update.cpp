@@ -15,25 +15,6 @@ namespace {
 
 uint32_t le32(const uint8_t* p) { return static_cast<uint32_t>(p[0]) | static_cast<uint32_t>(p[1]) << 8 | static_cast<uint32_t>(p[2]) << 16 | static_cast<uint32_t>(p[3]) << 24; }
 
-hal::ServerResponse text(int status, const std::string& body) {
-  hal::ServerResponse r;
-  r.status = status;
-  r.headers = {{"Content-Type", "text/plain; charset=utf-8"}, {"Connection", "close"}};
-  r.body = body + "\n";
-  return r;
-}
-
-// Reads exactly n bytes of the body; false if it ends or fails before that.
-bool readAll(hal::ServerRequest& req, uint8_t* out, size_t n) {
-  size_t got = 0;
-  while (got < n) {
-    const long r = req.read(reinterpret_cast<char*>(out) + got, n - got);
-    if (r <= 0) return false;
-    got += static_cast<size_t>(r);
-  }
-  return true;
-}
-
 }  // namespace
 
 bool keySet(const PublicKey& key) {
@@ -66,113 +47,113 @@ std::string parseHeader(const uint8_t* b, size_t n, const PublicKey& key, Header
   return "";
 }
 
-Server::Server(hal::Updater& updater, PublicKey key, std::string runningBuild, std::function<uint32_t()> millis)
-    : updater_(updater), key_(key), running_(std::move(runningBuild)), millis_(std::move(millis)) {
-  lastRequest_ = millis_();
-}
+struct ImageWriter::Hash {
+  crypto_hash_sha256_state state;
+};
 
-Stats Server::stats() const {
-  std::lock_guard<std::mutex> lock(mu_);
-  return stats_;
-}
+ImageWriter::ImageWriter(hal::Updater& updater, PublicKey key) : updater_(updater), key_(key) {}
+ImageWriter::~ImageWriter() { abort(); }
 
-void Server::setLast(const std::string& text) {
-  std::lock_guard<std::mutex> lock(mu_);
-  stats_.busy = false;
-  stats_.last = text;
-}
-
-hal::ServerResponse Server::handle(hal::ServerRequest& req) {
-  lastRequest_ = millis_();
-  const std::string path = req.target.substr(0, req.target.find('?'));
-  if (req.method == "GET" && path == "/") {
-    hal::ServerResponse r;
-    r.headers = {{"Content-Type", "application/json"}, {"Connection", "close"}};
-    r.body = "{\"paperos\":\"update\",\"build\":\"" + running_ + "\",\"slot\":\"" + updater_.runningSlot() + "\",\"max\":" +
-             std::to_string(updater_.slotSize()) + "}\n";
-    return r;
-  }
-  if (req.method == "POST" && path == "/update") {
-    hal::ServerResponse r = receive(req);
-    lastRequest_ = millis_();
-    return r;
-  }
-  return text(404, "PaperOS update: POST /update");
-}
-
-hal::ServerResponse Server::receive(hal::ServerRequest& req) {
-  {
-    std::lock_guard<std::mutex> lock(mu_);
-    if (stats_.busy) return text(409, "An update is arriving already");
-    if (stats_.done) return text(409, "An update is in place: the device restarts");
-    stats_.busy = true;
-    stats_.received = 0;
-    stats_.size = 0;
-    stats_.last.clear();
-  }
-  auto fail = [this](int status, const std::string& why) {
-    setLast(why);
-    POS_LOG("update", "refused: %s", why.c_str());
-    return text(status, why);
-  };
-  uint8_t head[kHeaderBytes];
-  if (!readAll(req, head, sizeof head)) return fail(400, "Not a PaperOS update package");
-  Header h;
-  const std::string bad = parseHeader(head, sizeof head, key_, h);
-  if (!bad.empty()) return fail(bad.find("key") != std::string::npos ? 403 : 400, bad);
-  const uint32_t max = updater_.slotSize();
-  if (max == 0) return fail(501, "This device cannot be updated over Wi-Fi");
-  if (h.size > max) return fail(413, "The image is larger than the slot (" + std::to_string(h.size) + " of " + std::to_string(max) + " bytes)");
-  if (req.contentLength >= 0 && req.contentLength != static_cast<int64_t>(kHeaderBytes) + h.size) return fail(400, "The package is not as long as it says");
-  std::string error;
-  if (!updater_.begin(h.size, error)) return fail(500, "Cannot start the update: " + error);
-  {
-    std::lock_guard<std::mutex> lock(mu_);
-    stats_.size = h.size;
-    stats_.build = h.build;
-  }
-  POS_LOG("update", "receiving build %s, %u bytes", h.build.c_str(), static_cast<unsigned>(h.size));
-  crypto_hash_sha256_state hash;
-  crypto_hash_sha256_init(&hash);
-  // One flash sector at a time, from a buffer that is not in PSRAM (one upload at a time: `busy`): a write to the
-  // internal flash stops the cache, and with it PSRAM, for as long as it takes.
-  static uint8_t buf[4096];
-  uint32_t got = 0, slowest = 0;
-  const uint32_t t0 = millis_();
-  while (got < h.size) {
-    const size_t want = std::min<size_t>(sizeof buf, h.size - got);
-    const long n = req.read(reinterpret_cast<char*>(buf), want);
-    if (n <= 0) {
-      updater_.abort();
-      return fail(400, "The upload stopped after " + std::to_string(got) + " of " + std::to_string(h.size) + " bytes");
+std::string ImageWriter::feed(const uint8_t* data, size_t n) {
+  if (failed_) return "The update was given up";
+  while (n > 0 && !headerDone_) {
+    const size_t take = std::min(n, kHeaderBytes - headGot_);
+    std::memcpy(head_ + headGot_, data, take);
+    headGot_ += take;
+    data += take;
+    n -= take;
+    if (headGot_ < kHeaderBytes) return "";
+    const std::string bad = parseHeader(head_, kHeaderBytes, key_, header_);
+    if (!bad.empty()) {
+      failed_ = true;
+      return bad;
     }
-    crypto_hash_sha256_update(&hash, buf, static_cast<size_t>(n));
-    const uint32_t w0 = millis_();
-    if (!updater_.write(buf, static_cast<size_t>(n))) {
-      updater_.abort();
-      return fail(500, "Writing the image failed");
+    headerDone_ = true;
+    const uint32_t max = updater_.slotSize();
+    if (max == 0) {
+      failed_ = true;
+      return "This device cannot be updated";
     }
-    slowest = std::max(slowest, millis_() - w0);
-    got += static_cast<uint32_t>(n);
-    lastRequest_ = millis_();
-    std::lock_guard<std::mutex> lock(mu_);
-    stats_.received = got;
+    if (header_.size > max) {
+      failed_ = true;
+      return "The image is larger than the slot (" + std::to_string(header_.size) + " of " + std::to_string(max) + " bytes)";
+    }
+    std::string error;
+    if (!updater_.begin(header_.size, error)) {
+      failed_ = true;
+      return "Cannot start the update: " + error;
+    }
+    begun_ = true;
+    hash_ = std::make_unique<Hash>();
+    crypto_hash_sha256_init(&hash_->state);
+  }
+  if (n == 0) return "";
+  if (got_ + n > header_.size) {
+    abort();
+    return "The package is longer than it says";
+  }
+  crypto_hash_sha256_update(&hash_->state, data, n);
+  if (!updater_.write(data, n)) {
+    abort();
+    return "Writing the image failed";
+  }
+  got_ += static_cast<uint32_t>(n);
+  return "";
+}
+
+std::string ImageWriter::finish() {
+  if (failed_) return "The update was given up";
+  if (!headerDone_ || got_ != header_.size) {
+    abort();
+    return "The upload stopped after " + std::to_string(got_) + " of " + std::to_string(header_.size) + " bytes";
   }
   uint8_t digest[kHashBytes];
-  crypto_hash_sha256_final(&hash, digest);
-  if (sodium_memcmp(digest, h.sha256.data(), kHashBytes) != 0) {
-    updater_.abort();
-    return fail(400, "The image is not the one that was signed");
+  crypto_hash_sha256_final(&hash_->state, digest);
+  if (sodium_memcmp(digest, header_.sha256.data(), kHashBytes) != 0) {
+    abort();
+    return "The image is not the one that was signed";
   }
-  if (!updater_.finish(error)) return fail(500, "The image was refused: " + error);
-  {
-    std::lock_guard<std::mutex> lock(mu_);
-    stats_.busy = false;
-    stats_.done = true;
-    stats_.last = "Update received";
+  std::string error;
+  begun_ = false;
+  if (!updater_.finish(error)) {
+    failed_ = true;
+    return "The image was refused: " + error;
   }
-  POS_LOG("update", "build %s is in place after %u ms (slowest write %u ms): restarting", h.build.c_str(), static_cast<unsigned>(millis_() - t0), static_cast<unsigned>(slowest));
-  return text(200, "ok: build " + h.build + " is in place, the device restarts");
+  return "";
+}
+
+void ImageWriter::abort() {
+  failed_ = true;
+  if (begun_) updater_.abort();
+  begun_ = false;
+}
+
+std::string helloLine(const std::string& build, const uint8_t (&nonce)[kNonceBytes], std::string& nonceHex) {
+  static const char kHex[] = "0123456789abcdef";
+  nonceHex.clear();
+  for (const uint8_t b : nonce) {
+    nonceHex += kHex[b >> 4];
+    nonceHex += kHex[b & 15];
+  }
+  return "#hello paperos 1 " + build + " " + nonceHex;
+}
+
+bool authOk(const std::string& nonceHex, const std::string& line, const PublicKey& key) {
+  static const char kWord[] = ">auth ";
+  if (!keySet(key) || nonceHex.size() != 2 * kNonceBytes || line.compare(0, sizeof kWord - 1, kWord) != 0) return false;
+  std::string hex = line.substr(sizeof kWord - 1);
+  while (!hex.empty() && (hex.back() == '\r' || hex.back() == ' ')) hex.pop_back();
+  if (hex.size() != 2 * kSigBytes) return false;
+  uint8_t sig[kSigBytes];
+  for (size_t i = 0; i < kSigBytes; ++i) {
+    auto nib = [](char c) -> int { return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1; };
+    const int hi = nib(hex[2 * i]), lo = nib(hex[2 * i + 1]);
+    if (hi < 0 || lo < 0) return false;
+    sig[i] = static_cast<uint8_t>(hi << 4 | lo);
+  }
+  const std::string msg = "paperos-remote:" + nonceHex;
+  return sodium_init() >= 0 &&
+         crypto_sign_verify_detached(sig, reinterpret_cast<const uint8_t*>(msg.data()), msg.size(), key.data()) == 0;
 }
 
 }  // namespace pos::update

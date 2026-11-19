@@ -2,6 +2,7 @@
 // slot that is not running as it arrives; the bootloader's rollback (CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE) goes back to
 // the firmware from before when a new image is reset before it was confirmed.
 #include <cstdio>
+#include <cstring>
 
 #include <esp_app_desc.h>
 #include <esp_ota_ops.h>
@@ -52,7 +53,19 @@ bool Updater::begin(uint32_t size, std::string& error) {
   return true;
 }
 
-bool Updater::write(const uint8_t* data, size_t n) { return open_ && esp_ota_write(handle_, data, n) == ESP_OK; }
+// Through a buffer in internal RAM: what arrives over USB lands in PSRAM (pollSerial's buffer, D27), and a flash write stops
+// the cache PSRAM is read through.
+bool Updater::write(const uint8_t* data, size_t n) {
+  static uint8_t buf[4096];
+  while (open_ && n > 0) {
+    const size_t take = n < sizeof buf ? n : sizeof buf;
+    std::memcpy(buf, data, take);
+    if (esp_ota_write(handle_, buf, take) != ESP_OK) return false;
+    data += take;
+    n -= take;
+  }
+  return open_;
+}
 
 bool Updater::finish(std::string& error) {
   if (!open_) {

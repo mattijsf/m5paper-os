@@ -627,7 +627,7 @@ the budget runs short (sizes from the linker map):
   and there is one worker, so an app opened meanwhile would wait. With the scheduled refresh off, the first visit to
   the library after sharing waits for the page (a toast says so).
 
-## D37. Firmware update over Wi-Fi: pushed from the Mac while a Settings page is open, signed
+## D37. Firmware update over Wi-Fi: pushed from the Mac while a Settings page is open, signed (the page and its HTTP server replaced by D39's switch and remote command on 2026-11-19; the package, the checks and the rollback stand)
 
 Answers STATUS.md open question 4 with its option b. Asked once more with the two ways side by side (pull at the hourly
 wake, announced through Home Assistant; or push while a page is open): the owner chose the push.
@@ -697,4 +697,26 @@ wake, announced through Home Assistant; or push while a page is open): the owner
   open an app at a place later (a launcher line, a notification) can use the same link.
 - Interpretation (mine, not the owner's words): "switching off" read as "the idle time"; on battery nothing changes but
   the resume rule, because a device that stays on with a board would drain it.
+
+## D39. Wireless development: remote control and updates over Wi-Fi, one switch, signed in with the update key
+
+- **The same commands as USB** (`core/remote.h`): one protocol, one `Remote` class, a third transport. The tools that
+  speak it (`device.py`, `view.py`, `ota.py`) gain `--wifi`; nothing else changes for them.
+- **Updates are a remote command** (`>ota <size>`, paced by `#ack` like `>put`) instead of the HTTP page of D37: one
+  service, one port (8266), one sign-in. The Update over Wi-Fi page is gone. The package and its checks are D37's
+  (`update::ImageWriter`), and the command works over USB too (signed all the same).
+- **Signed in with the update key**, not a code on the panel (unlike Files over Wi-Fi, D30): the key already on the
+  Mac, nothing to type, and a listener on the Wi-Fi cannot reuse a sign-in (a fresh nonce each connection). After the
+  sign-in the stream itself is neither encrypted nor signed: someone on the home Wi-Fi who can take over a TCP
+  connection could send commands into it. Accepted for a development switch that is off by default; the firmware has
+  no TLS server (D31).
+- **One switch** (Settings > Developer > Wireless development, `developer.wireless`, off by default). While on, Wi-Fi
+  stays up from the boot on (against "no Wi-Fi at boot" in POWER.md, for this switch only), and the device does not
+  light-sleep: battery. Auto-off on battery still applies.
+- **The Developer page is a menu**: Wireless development and Status have their own pages; nothing on the menu redraws
+  itself. Status has an Update button instead of a timer (a page that redraws itself counts its own refreshes).
+- **Found on the device**: Arduino's loop task had 8 KB of stack; checking a valid Ed25519 signature on it restarted
+  the board (a wrong one is turned away early). The loop task has 16 KB now (`SET_LOOP_TASK_STACK_SIZE`, no ESP-IDF
+  rebuild).
+- Cost: firmware 2,592,291 bytes (+1,920 on the HTTP update page it replaces).
 

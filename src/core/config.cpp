@@ -79,6 +79,7 @@ bool Config::load() {
   if (doc["launcher"]["resumeLastApp"].is<bool>()) launcher.resumeLastApp = doc["launcher"]["resumeLastApp"].as<bool>();
   if (doc["phone"]["clipboard"].is<bool>()) phone.shareClipboard = doc["phone"]["clipboard"].as<bool>();
   if (doc["phone"]["sound"].is<bool>()) phone.sound = doc["phone"]["sound"].as<bool>();
+  if (doc["developer"]["wireless"].is<bool>()) developer.wireless = doc["developer"]["wireless"].as<bool>();
   return true;
 }
 
@@ -104,6 +105,7 @@ bool Config::save() const {
   doc["launcher"]["resumeLastApp"] = launcher.resumeLastApp;
   doc["phone"]["clipboard"] = phone.shareClipboard;
   doc["phone"]["sound"] = phone.sound;
+  doc["developer"]["wireless"] = developer.wireless;
   std::string out;
   serializeJsonPretty(doc, out);
   return fs::writeFile(path_, out + "\n");

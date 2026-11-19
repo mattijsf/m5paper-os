@@ -11,6 +11,11 @@
 
 namespace pos {
 
+WirelessStatus& wirelessStatus() {
+  static WirelessStatus s;
+  return s;
+}
+
 namespace {
 
 // The few std::istringstream operations the parser needs, on a string. <sstream> pulled libstdc++'s locale and wide-character
@@ -144,6 +149,10 @@ RemoteCommand parseRemoteCommand(const std::string& raw) {
     c.crc = static_cast<uint32_t>(std::strtoul(rest.c_str() + sp2 + 1, &e2, 16));
     if (*e1 != ' ' || *e2 != '\0') return bad("usage: put <path> <size> <crc32 hex>");
     c.kind = RemoteCommand::Put;
+  } else if (word == "ota") {
+    if (!ints(1) || n[0] <= 0) return bad("usage: ota <size>");
+    c.kind = RemoteCommand::Ota;
+    c.size = static_cast<uint64_t>(n[0]);
   } else if (word == "cat") {
     std::string rest;
     in.rest(rest);
@@ -371,6 +380,26 @@ void Remote::handleLine(const std::string& line) {
         return;
       }
       break;
+    case RemoteCommand::Ota: {
+      hal::Updater* up = os_.platform().update;
+      if (ota_.active) endOta("a new update started");
+      if (!up || up->slotSize() == 0) {
+        say("#err this device cannot be updated");
+        return;
+      }
+      if (c.size > static_cast<uint64_t>(up->slotSize()) + update::kHeaderBytes) {
+        say("#err the package is larger than the slot");
+        return;
+      }
+      ota_ = Ota{};
+      ota_.active = true;
+      ota_.size = c.size;
+      ota_.lastByteMs = now;
+      ota_.writer = std::make_unique<update::ImageWriter>(*up, update::firmwareKey());
+      POS_LOG("update", "receiving an update, %u bytes", static_cast<unsigned>(c.size));
+      say("#ota go");
+      return;
+    }
     case RemoteCommand::Reboot:
       say("#ok");
       flushAll();
@@ -397,6 +426,12 @@ void Remote::abortPut(const std::string& why) {
 
 void Remote::feed(const uint8_t* data, size_t n) {
   while (n > 0) {
+    if (ota_.active || ota_.discard > 0) {
+      const size_t used = feedOta(data, n);
+      data += used;
+      n -= used;
+      continue;
+    }
     if (put_.active) {
       const size_t used = feedRaw(data, n);
       data += used;
@@ -438,6 +473,54 @@ size_t Remote::feedRaw(const uint8_t* data, size_t n) {
   return offered - n;
 }
 
+size_t Remote::feedOta(const uint8_t* data, size_t n) {
+  ota_.lastByteMs = clock_.millis();
+  if (ota_.discard > 0) {  // what was on its way after a refusal
+    const size_t drop = static_cast<size_t>(std::min<uint64_t>(n, ota_.discard));
+    ota_.discard -= drop;
+    return drop;
+  }
+  const size_t take = static_cast<size_t>(std::min<uint64_t>(n, ota_.size - ota_.got));
+  const uint64_t before = ota_.got;
+  const std::string bad = ota_.writer->feed(data, take);
+  ota_.got += take;
+  if (!bad.empty()) {
+    const uint64_t left = ota_.size - ota_.got;
+    endOta(bad);
+    ota_.discard = left;
+    return take;
+  }
+  if (ota_.writer->headerRead()) {
+    const update::Header& h = ota_.writer->header();
+    char b[96];
+    std::snprintf(b, sizeof b, "Receiving build %s: %u of %u KB", h.build.c_str(), static_cast<unsigned>(ota_.writer->imageBytes() / 1024),
+                  static_cast<unsigned>(h.size / 1024));
+    wirelessStatus().activity = b;
+  }
+  if (ota_.got / 4096 != before / 4096 && ota_.got < ota_.size) say("#ack " + std::to_string(ota_.got));
+  if (ota_.got >= ota_.size) endOta(ota_.writer->finish());
+  return take;
+}
+
+void Remote::endOta(const std::string& why) {
+  const std::string build = ota_.writer && ota_.writer->headerRead() ? ota_.writer->header().build : std::string();
+  if (!why.empty() && ota_.writer) ota_.writer->abort();
+  ota_.active = false;
+  ota_.writer.reset();
+  if (!why.empty()) {
+    POS_LOG("update", "refused: %s", why.c_str());
+    wirelessStatus().activity = "Update refused: " + why;
+    say("#err " + why);
+    return;
+  }
+  POS_LOG("update", "build %s is in place: restarting", build.c_str());
+  wirelessStatus().activity = "Build " + build + " received. Restarting...";
+  say("#ack " + std::to_string(ota_.got));
+  say("#ok");
+  flushAll();
+  host_.reboot();
+}
+
 // The last byte of an upload is in: check it and put the file in its place.
 void Remote::finishPut() {
   const bool wrote = put_.file.close();
@@ -465,6 +548,8 @@ void Remote::tick() {
   pump();  // reply bytes still waiting for room in the USB buffer
   const uint32_t now = clock_.millis();
   if (put_.active && now - put_.lastByteMs > 8000) abortPut("upload timed out");
+  if (ota_.active && now - ota_.lastByteMs > 8000) endOta("the upload stopped");
+  if (ota_.discard > 0 && now - ota_.lastByteMs > 2000) ota_.discard = 0;
   for (size_t i = 0; i < timed_.size();) {
     if (static_cast<int32_t>(now - timed_[i].at) >= 0) {
       timed_[i].ev.ms = now;

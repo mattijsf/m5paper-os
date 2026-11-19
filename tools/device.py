@@ -8,6 +8,9 @@ Commands: ls [DIR] | cat /data/power.csv | rm PATH | status (key names + lengths
 Options:  --port /dev/cu.usbmodemXXXX (default: the first /dev/cu.usbmodem*)
           --limit N   the whole run ends after N seconds with exit code 3 (it never hangs): default 90, script: from its length
           --sim   talk to .pio/build/sim/program --headless --remote instead of a device
+          --wifi [HOST]  over Wi-Fi instead of USB (Settings > Developer > Wireless development on the device; D39):
+                  HOST, else $PAPEROS_HOST, else the saved address (tools/ota.py host), else the last update's. The
+                  device signs nobody in but the Mac with the update key (~/.config/paperos/ota-signing.key).
           -v      also print device log lines seen while waiting for a reply
 The port is opened exclusively: a second tool on the same port ends at once with "in use by another program".
 Live view in a browser (click = tap): tools/view.py.
@@ -27,12 +30,104 @@ import zlib
 W, H = 540, 960
 
 
-class Link:
-    """Line/byte transport to the firmware: a serial port or the simulator's stdio."""
+WIFI_PORT = 8266  # update::kPort: wireless development
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+KEY_FILE = os.environ.get("PAPEROS_OTA_KEY") or os.path.expanduser("~/.config/paperos/ota-signing.key")
 
-    def __init__(self, port=None, sim=False, sim_args=()):
+
+def wifi_host(host=None):
+    """The device's address for --wifi: given, $PAPEROS_HOST, the saved one (tools/ota.py host), the last update's."""
+    if host and host != "auto":
+        return host
+    if os.environ.get("PAPEROS_HOST"):
+        return os.environ["PAPEROS_HOST"]
+    for path in (os.path.join(os.path.dirname(KEY_FILE), "ota-host"), os.path.join(ROOT, "out", "ota", "last-host")):
+        if os.path.exists(path):
+            text = open(path).read().strip()
+            if text:
+                return text
+    sys.exit("no address for --wifi: give it (--wifi 192.168.1.60), or save it once: uv run --script tools/ota.py host ADDRESS")
+
+
+def sign(message):
+    """Ed25519 signature with the update key (cryptography: in PlatformIO's Python and in the uv scripts)."""
+    from cryptography.hazmat.primitives import serialization
+    if not os.path.exists(KEY_FILE):
+        sys.exit(f"no signing key at {KEY_FILE}: wireless development signs in with it (make ota-key made it)")
+    with open(KEY_FILE, "rb") as f:
+        key = serialization.load_pem_private_key(f.read(), password=None)
+    return key.sign(message)
+
+
+class _Sock:
+    """A socket that reads and writes like the serial port (readline, read, write, flush) with a timeout."""
+
+    def __init__(self, sock):
+        self.s = sock
+        self.buf = b""
+
+    def _more(self):
+        chunk = self.s.recv(65536)
+        if not chunk:
+            raise TimeoutError("the device closed the connection")
+        self.buf += chunk
+
+    def readline(self):
+        import socket
+        try:
+            while b"\n" not in self.buf:
+                self._more()
+        except socket.timeout:
+            out, self.buf = self.buf, b""
+            return out
+        i = self.buf.index(b"\n") + 1
+        out, self.buf = self.buf[:i], self.buf[i:]
+        return out
+
+    def read(self, n):
+        import socket
+        try:
+            while len(self.buf) < n:
+                self._more()
+        except socket.timeout:
+            pass
+        out, self.buf = self.buf[:n], self.buf[n:]
+        return out
+
+    def write(self, data):
+        self.s.sendall(data)
+
+    def flush(self):
+        pass
+
+
+class Link:
+    """Line/byte transport to the firmware: a serial port, the simulator's stdio, or Wi-Fi (wireless development)."""
+
+    def __init__(self, port=None, sim=False, sim_args=(), wifi=None):
         self.sim = sim
+        self.wifi = wifi
         self.answered = False  # once the device answered, it is awake: no more resends (they only hide a hang)
+        if wifi:
+            import socket
+            host = wifi_host(wifi)
+            try:
+                sock = socket.create_connection((host, WIFI_PORT), timeout=6)
+            except OSError as e:
+                sys.exit(f"no connection to {host}:{WIFI_PORT} ({e}): is Settings > Developer > Wireless development on?")
+            sock.settimeout(10)
+            self.r = self.w = _Sock(sock)
+            hello = self.r.readline().decode(errors="replace").strip()  # #hello paperos 1 <build> <nonce hex>
+            parts = hello.split()
+            if len(parts) != 5 or parts[:3] != ["#hello", "paperos", "1"]:
+                sys.exit(f"{host}:{WIFI_PORT} is no PaperOS device ({hello!r})")
+            self.build = parts[3]
+            self.w.write(b">auth " + sign(("paperos-remote:" + parts[4]).encode()).hex().encode() + b"\n")
+            answer = self.r.readline().decode(errors="replace").strip()
+            if answer != "#ok":
+                sys.exit(f"the device did not sign this Mac in: {answer or 'no answer'} (a firmware with another update key?)")
+            self.answered = True
+            return
         if sim:
             root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             self.proc = subprocess.Popen(
@@ -61,7 +156,7 @@ class Link:
             self.r = self.w = self.ser
 
     def send(self, line):
-        if not self.sim:
+        if not self.sim and not self.wifi:
             self.ser.reset_input_buffer()
         global LAST_COMMAND
         LAST_COMMAND = line
@@ -88,7 +183,9 @@ class Link:
     def close(self):
         """Close the port. Do not keep an open port unread (for example while a camera works): close it and open a new
         Link later. 2026-11-16: with the port held but unread for ~15 s, a >shot went unanswered for 60 s."""
-        if self.sim:
+        if self.wifi:
+            self.w.s.close()
+        elif self.sim:
             self.w.close()
             self.proc.wait(timeout=10)
         else:
@@ -369,6 +466,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port")
     ap.add_argument("--sim", action="store_true")
+    ap.add_argument("--wifi", nargs="?", const="auto", metavar="HOST", help="over Wi-Fi (Settings > Developer > Wireless development)")
     ap.add_argument("--sim-data", help="--sim: the simulator's data root (default sim-data/), e.g. a test card with a Wi-Fi network")
     ap.add_argument("-v", "--verbose", action="store_true")
     ap.add_argument("cmd", choices=["shot", "tap", "long", "swipe", "log", "refresh", "status", "ls", "cat", "rm", "set", "poweroff", "wait-boot", "diff", "script", "scripts"])
@@ -418,7 +516,7 @@ def main():
         print("IDENTICAL" if bad == 0 else f"DIFFERENT: {bad} of {len(pa)} pixels")
         sys.exit(0 if bad == 0 else 1)
 
-    link = Link(a.port, a.sim, ("--data", a.sim_data) if a.sim_data else ())
+    link = Link(a.port, a.sim, ("--data", a.sim_data) if a.sim_data else (), wifi=a.wifi)
     try:
         if a.cmd == "shot":
             if len(a.args) != 1:

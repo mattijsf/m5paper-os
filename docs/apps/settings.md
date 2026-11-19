@@ -13,8 +13,8 @@ System configuration and developer tools.
 | Reading | default font size (S/M/L/XL), margins (narrow/normal/wide), line spacing |
 | Home Assistant | base URL (read-only here), token present yes/no, "Test connection" (GET `/api/`), last error |
 | Storage | SD card present/size/free; `/data` used/free; "Clear caches" |
-| Developer | Display lab (DISPLAY.md), log tail, heap/PSRAM free, refresh counters, reboot |
-| About | version, build date and build id, board, MAC, "Update over Wi-Fi" (below), licences (fonts, icons, libraries) |
+| Developer | a menu (nothing on it changes by itself): Wireless development (its page: the switch, address, status, the Mac commands; D39), Status (memory, refreshes, battery, uptime, power log, log tail; an Update button, no timer), Display lab (DISPLAY.md); Sleep test, Power off, HTTP test, Reboot |
+| About | version, build date and build id, board, MAC, licences (fonts, icons, libraries) |
 
 ## As built (P2-6)
 
@@ -129,33 +129,28 @@ card's write speed) and on again when it stops. Checked in headless Chrome (Play
 upload). Stop (or back) ends it; ten minutes without a request end it too ("Stopped after 10 minutes without use", Start again).
 Golden `files-storage`, `files-wifi` (UI script `files-wifi`, a fake Wi-Fi network on its test card).
 
-## Update over Wi-Fi (task P7-3, DECISIONS.md D37)
+## Wireless development (task P7-20, DECISIONS.md D39; replaces the Update over Wi-Fi page of D37)
 
-Settings > About > Update over Wi-Fi (`UpdatePage`). While the page is open the Paper joins Wi-Fi and listens on port 8266
-(`update::kPort`, device and simulator) for a firmware package from the Mac:
+Settings > Developer > Wireless development (`WirelessPage`), one switch (`developer.wireless`, default off) for both:
 
-```bash
-make ota-key   # once: the signing key (~/.config/paperos/ota-signing.key) and its public half in src/core/update_key.h
-make flash     # once after that, over USB: the firmware on the device must hold the public key
-make ota       # from then on: builds, signs and sends (HOST=192.168.1.23 names the device)
-```
-
-- The page shows the address with the port, "On the Mac: make ota", what arrives ("Receiving build 3fa9c1d2e4b7", "1.2 MB of 2.5 MB"),
-  the reason when a package is refused, and under it the build that runs and its slot. After a good image: "Build ...
-  received. Restarting...", then the restart (2.5 s later, so the sender has its answer).
-- It stops listening when the page is left, or after five minutes without a request. A firmware built before a key
-  existed says "This firmware has no update key" and does not listen.
-- `tools/ota.py send` takes the device's address from `--host` (`make ota HOST=...`), `$OTA_HOST`, a device on USB
-  (`device.py status`), the last update (`out/ota/last-host`), or its usual address (`tools/ota.py host ADDRESS` saves
-  it in `~/.config/paperos/ota-host`; the owner gave the device a reservation in the router on 2026-11-18, so it is
-  saved on this Mac), and checks it with `GET /` (the page answers
-  `{"paperos":"update","build":...}`). It never searches the network: that set a router against the Mac once (D37).
-- Requests (`update::Server`): `GET /` (who this is), `POST /update` (the package; 200, or 400 / 403 / 409 / 413 / 500
-  with the reason as text). The package format is in `src/core/update.h`.
-- The new firmware is kept once it has run 15 s; before that a reset brings the old one back, and the page then says
-  "The last update did not start: this is the firmware from before."
-- Tests: `tests/unit/update_test.cpp` (the header and its signature, every refusal, a whole image), UI script `update`
-  (golden `update-page`; `settings-about` has the row), and by hand against the simulator: open the page with
-  `--remote`, then `uv run --script tools/ota.py send --sim` (the image lands in `/data/ota/image.bin`, the simulator
-  exits as its restart).
-
+- **Remote control over Wi-Fi**: the commands of `core/remote.h` (frame dump, tap, swipe, log, status, put, ls, rm, set,
+  reboot, ...) on port 8266 (`update::kPort`), served by `platform/posix/remote_server` (device and simulator). The Mac:
+  `tools/device.py --wifi [HOST] shot out.png`, `make view ARGS=--wifi` (the live view), `tools/push.py`-style uploads.
+- **Firmware updates**: `make ota` sends the signed package with the remote command `>ota <size>` over the same
+  connection (`update::ImageWriter`: the header checked before a byte is written, the SHA-256 before it boots; the
+  bootloader's rollback as in D37). The device restarts into it.
+- **Sign-in**: a new connection gets `#hello paperos 1 <build> <nonce>`; it must answer `>auth <signature>`, the
+  Ed25519 signature of `paperos-remote:<nonce>` with the update key (`~/.config/paperos/ota-signing.key` on the Mac).
+  Anything else is answered `#err not signed with this device's key` and closed; ten seconds without a sign-in close
+  it too. One connection at a time; a new one replaces the old.
+- **While on**, Wi-Fi is kept up (`NetService::keepAlive` every second; joined again every 30 s when it drops, from the
+  boot on), so the device does not light-sleep: development only, it costs battery. Auto-off on battery still applies.
+- The page shows the address with the port and the state ("Joining Wi-Fi...", "Waiting for the Mac.", "A Mac is
+  connected.", an update's progress); only that line is looked at again, every 2 s, and drawn only when it changed.
+- The Mac finds the device by `HOST=` / `--wifi HOST`, `$PAPEROS_HOST` (device.py) or `$OTA_HOST` (ota.py), the address
+  a device on USB reports, the last update's, or the saved one (`tools/ota.py host ADDRESS`). Never by a search.
+- Measured on the device (2026-11-19): a frame dump over Wi-Fi 0.87 s with the sign-in; an update of 2.5 MB 24.9 s.
+- Tests: `tests/unit/update_test.cpp` (the writer: every refusal and a whole image in odd pieces; the sign-in: this
+  nonce, this key, nothing else; `>ota` parsing); UI script `settings` (goldens `settings-developer`,
+  `settings-wireless`, `settings-status`); by hand against the simulator (it listens on localhost:8266 with the
+  switch on: `device.py --wifi localhost`, `ota.py send --sim`).

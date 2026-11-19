@@ -7,6 +7,7 @@
 #include "core/app.h"
 #include "core/companion.h"
 #include "core/file_server.h"
+#include "core/remote.h"
 #include "core/update.h"
 #include "core/fs.h"
 #include "core/os.h"
@@ -953,18 +954,96 @@ class DisplayLabPage : public Page {
   ui::Label* counters_ = nullptr;
 };
 
-class DeveloperPage : public Page {
+// Wireless development (D39): the switch, where the device listens, and whether a Mac is signed in. Only the status line
+// is looked at again (every 2 s), and only a changed text is drawn: nothing else on this page changes by itself.
+class WirelessPage : public Page {
  public:
   void build(ui::Column& root) override {
-    setTitle("Developer");
+    setTitle("Wireless development");
     root.add<ui::Spacer>(ui::s1);
-    auto* lab = root.add<ui::ListItem>("Display lab", "Gray ramp, ghost test, text samples", false);
-    lab->setChevron();
-    lab->onClick = [this] { ctx().nav.push<DisplayLabPage>(); };
-    heap_ = root.add<ui::ListItem>("Memory free", "", false);
-    counters_ = root.add<ui::ListItem>("Refreshes since boot", "", false);
-    battery_ = root.add<ui::ListItem>("Battery", "", false);
-    uptime_ = root.add<ui::ListItem>("Time since boot", "", false);
+    auto* sw = root.add<ui::ListItem>("Wireless development", "Remote and updates from the Mac", true, ui::Icon::Wifi);
+    sw->setToggle(cfg().developer.wireless, [this, sw](bool on) {
+      if (on && !update::keySet(update::firmwareKey())) {
+        ctx().toast("This firmware has no update key: make ota-key, then make flash");
+        sw->toggle()->setOn(false);
+        return;
+      }
+      cfg().developer.wireless = on;  // the platform's server follows the setting at its next pass
+      save();
+      refresh();
+    });
+    root.add<ui::Spacer>(ui::s2);
+    root.add<ui::Label>("Address", Type::Caption, ui::secondary);
+    address_ = root.add<ui::Label>("", Type::Title);
+    root.add<ui::Spacer>(ui::s1);
+    state_ = root.add<ui::Label>("", Type::Body);
+    state_->maxLines = 2;
+    root.add<ui::Spacer>(ui::s2);
+    root.add<ui::Label>("On the Mac, in the PaperOS folder", Type::Caption, ui::secondary);
+    auto* help = root.add<ui::Label>("make ota\n"
+                                     "make view ARGS=--wifi\n"
+                                     "tools/device.py --wifi shot out.png",
+                                     Type::Body);
+    help->maxLines = 3;
+    help->keepLineBreaks = true;
+    root.add<ui::Spacer>(ui::s2);
+    auto* note = root.add<ui::Label>("Only the Mac with this firmware's signing key gets in. While on, Wi-Fi stays up, from the start "
+                                     "of the device on: it costs battery.",
+                                     Type::Caption, ui::secondary);
+    note->maxLines = 3;
+    refresh();
+  }
+  void onShow() override {
+    shown_ = true;
+    refresh();
+    if (!ticking_) tick();
+  }
+  void onHide() override { shown_ = false; }
+
+ private:
+  void tick() {
+    ticking_ = true;
+    ctx().timer(2000, [this] {
+      if (!shown_) {
+        ticking_ = false;
+        return;
+      }
+      refresh();
+      tick();
+    });
+  }
+  void refresh() {
+    const WirelessStatus& w = wirelessStatus();
+    const bool on = cfg().developer.wireless;
+    address_->setText(on && w.listening ? w.address + ":" + std::to_string(w.port) : on ? "..." : "Off");
+    std::string state;
+    if (!on) state = "Switched off.";
+    else if (!w.listening) state = "Joining Wi-Fi...";
+    else if (!w.client) state = "Waiting for the Mac.";
+    else state = w.activity.empty() ? "A Mac is connected." : w.activity;
+    state_->setText(state);
+  }
+  ui::Label *address_ = nullptr, *state_ = nullptr;
+  bool shown_ = false, ticking_ = false;
+};
+
+// Facts for development, read when the page opens and on "Update": no timer (a page that redraws itself every few seconds
+// counts its own refreshes and flashes the panel for nothing).
+class StatusPage : public Page {
+ public:
+  void build(ui::Column& root) override {
+    setTitle("Status");
+    root.add<ui::Spacer>(ui::s1);
+    auto* facts = root.add<ui::Column>(ui::s1);
+    for (int i = 0; i < 4; ++i) {
+      static const char* kNames[] = {"Memory free", "Refreshes", "Battery", "Since boot"};
+      auto* row = facts->add<ui::Row>(ui::s2);
+      row->add<ui::Label>(kNames[i], Type::Body);
+      facts_[i] = row->add<ui::Label>("", Type::Body);  // the value takes the rest of the line, right-aligned
+      facts_[i]->flex = 1;
+      facts_[i]->align = ui::TextAlign::Right;
+    }
+    root.add<ui::Spacer>(ui::s1);
     plog_ = root.add<ui::ListItem>("Power log", "", false);
     plog_->setToggle(cfg().power.log, [this](bool on) {
       cfg().power.log = on;
@@ -974,8 +1053,55 @@ class DeveloperPage : public Page {
     root.add<ui::Spacer>(ui::s1);
     root.add<ui::Label>("Log", Type::Caption, ui::secondary);
     log_ = root.add<ui::Label>("", Type::Caption);
-    log_->maxLines = 2;
+    log_->maxLines = 12;
+    log_->keepLineBreaks = true;
     log_->flex = 1;
+    root.add<ui::Button>("Update", [this] { update(); }, ui::Button::Kind::Secondary);
+    root.add<ui::Spacer>(ui::s2);
+    update();
+  }
+  void onShow() override { update(); }
+
+ private:
+  void update() {
+    hal::MemoryInfo m = hal::memoryInfo();
+    facts_[0]->setText(kbText(m.heapFree) + " heap, " + kbText(m.psramFree) + " PSRAM");
+    const auto& c = ctx().os().displayManager().counts();
+    facts_[1]->setText("Q " + std::to_string(c.quality) + "  T " + std::to_string(c.text) + "  F " + std::to_string(c.fast));
+    hal::Power& pw = ctx().os().platform().power;
+    char b[64];
+    std::snprintf(b, sizeof b, "%d mV  %d%%  %s", pw.batteryMv(), pw.batteryPercent(), pw.usbConnected() || pw.charging() ? "USB" : "battery");
+    facts_[2]->setText(b);
+    const uint32_t sec = ctx().clock.millis() / 1000;
+    std::snprintf(b, sizeof b, "%u h %02u min", static_cast<unsigned>(sec / 3600), static_cast<unsigned>(sec / 60 % 60));
+    facts_[3]->setText(b);
+    PowerLog& pl = ctx().os().powerLog();
+    plog_->setSubtitle(cfg().power.log ? std::to_string(pl.lines()) + (pl.lines() == 1 ? " line" : " lines") + " since boot, Wi-Fi " + std::to_string(pl.wifiSeconds()) + " s" : "Off");
+    std::string tail = logTail(12);
+    while (!tail.empty() && tail.back() == '\n') tail.pop_back();
+    log_->setText(tail);
+  }
+  ui::ListItem* plog_ = nullptr;
+  ui::Label* facts_[4] = {};
+  ui::Label* log_ = nullptr;
+};
+
+// A menu: nothing on it changes by itself (D39: the live parts have their own pages).
+class DeveloperPage : public Page {
+ public:
+  void build(ui::Column& root) override {
+    setTitle("Developer");
+    root.add<ui::Spacer>(ui::s1);
+    wireless_ = root.add<ui::ListItem>("Wireless development", "", true, ui::Icon::Wifi);
+    wireless_->setChevron();
+    wireless_->onClick = [this] { ctx().nav.push<WirelessPage>(); };
+    auto* status = root.add<ui::ListItem>("Status", "Memory, refreshes, battery, log", false);
+    status->setChevron();
+    status->onClick = [this] { ctx().nav.push<StatusPage>(); };
+    auto* lab = root.add<ui::ListItem>("Display lab", "Gray ramp, ghost test, text samples", false);
+    lab->setChevron();
+    lab->onClick = [this] { ctx().nav.push<DisplayLabPage>(); };
+    root.add<ui::Spacer>(0, 1);
     auto* row = root.add<ui::Row>(ui::s2);
     auto* sleep = row->add<ui::Button>("Sleep test", ui::Button::Kind::Secondary);
     sleep->flex = 1;
@@ -1000,9 +1126,11 @@ class DeveloperPage : public Page {
     http->flex = 1;
     auto* reboot = row2->add<ui::Button>("Reboot", [] { hal::restart(); }, ui::Button::Kind::Secondary);
     reboot->flex = 1;
-    update();
+    root.add<ui::Spacer>(ui::s2);
   }
-  void onShow() override { update(); }
+  void onShow() override {
+    wireless_->setSubtitle(cfg().developer.wireless ? "On: remote control and updates from the Mac" : "Off: remote control and updates from the Mac");
+  }
 
  private:
   // HTTPS GET of a public page: brings Wi-Fi up if needed; shows the status, time and free heap right after.
@@ -1022,200 +1150,7 @@ class DeveloperPage : public Page {
     });
   }
 
-  void update() {
-    hal::MemoryInfo m = hal::memoryInfo();
-    heap_->setTrailingText(kbText(m.heapFree) + " heap, " + kbText(m.psramFree) + " PSRAM");
-    const auto& c = ctx().os().displayManager().counts();
-    counters_->setTrailingText("Q " + std::to_string(c.quality) + "  T " + std::to_string(c.text) + "  F " + std::to_string(c.fast));
-    {
-      hal::Power& pw = ctx().os().platform().power;
-      char b[64];
-      std::snprintf(b, sizeof b, "%d mV  %d%%  %s", pw.batteryMv(), pw.batteryPercent(), pw.usbConnected() || pw.charging() ? "USB" : "battery");
-      battery_->setTrailingText(b);
-      const uint32_t s = ctx().clock.millis() / 1000;
-      std::snprintf(b, sizeof b, "%u h %02u min", static_cast<unsigned>(s / 3600), static_cast<unsigned>(s / 60 % 60));
-      uptime_->setTrailingText(b);
-      PowerLog& pl = ctx().os().powerLog();
-      plog_->setSubtitle(cfg().power.log ? std::to_string(pl.lines()) + (pl.lines() == 1 ? " line" : " lines") + " since boot, Wi-Fi " + std::to_string(pl.wifiSeconds()) + " s" : "Off");
-    }
-    std::string tail = logTail(6);
-    while (!tail.empty() && tail.back() == '\n') tail.pop_back();
-    for (auto& ch : tail)
-      if (ch == '\n') ch = ' ';
-    log_->setText(tail);
-  }
-  ui::ListItem *heap_ = nullptr, *counters_ = nullptr, *battery_ = nullptr, *uptime_ = nullptr, *plog_ = nullptr;
-  ui::Label* log_ = nullptr;
-};
-
-// Update over Wi-Fi (docs/apps/settings.md, DECISIONS.md D37): while this page is open the Paper takes a new firmware
-// from the Mac (`make ota`) on the home Wi-Fi. Only a package signed with the key whose public half is in this firmware
-// is written, to the slot that is not running; then the device restarts into it. Leaving the page stops listening; so
-// do five minutes without a request.
-class UpdatePage : public Page {
- public:
-  static constexpr uint32_t kIdleStopMs = 5u * 60 * 1000;
-
-  void build(ui::Column& root) override {
-    setTitle("Update over Wi-Fi");
-    root.add<ui::Spacer>(ui::s2);
-    state_ = root.add<ui::Label>("", Type::Body);
-    state_->maxLines = 3;
-    root.add<ui::Spacer>(ui::s2);
-    addrCap_ = root.add<ui::Label>("Address", Type::Caption, ui::secondary);
-    addr_ = root.add<ui::Label>("", Type::Title);
-    root.add<ui::Spacer>(ui::s2);
-    help_ = root.add<ui::Label>("On the Mac, in the PaperOS folder:\nmake ota", Type::Body);
-    help_->maxLines = 3;
-    help_->keepLineBreaks = true;
-    root.add<ui::Spacer>(ui::s2);
-    activity_ = root.add<ui::Label>("", Type::Body);
-    activity_->maxLines = 3;
-    activity_->keepLineBreaks = true;
-    root.add<ui::Spacer>(0, 1);
-    hal::Updater* up = ctx().os().platform().update;
-    std::string running = "This firmware: build " + hal::buildId();
-    if (up && !up->runningSlot().empty()) running += ", slot " + up->runningSlot();
-    if (up && up->rolledBack()) running += "\nThe last update did not start: this is the firmware from before.";
-    auto* build = root.add<ui::Label>(running, Type::Caption, ui::secondary);
-    build->maxLines = 3;
-    build->keepLineBreaks = true;
-    root.add<ui::Spacer>(ui::s2);
-    button_ = root.add<ui::Button>("Stop", [this] {
-      if (running_) ctx().nav.pop();  // leaving stops listening (onHide)
-      else start();
-    }, ui::Button::Kind::Secondary);
-    root.add<ui::Spacer>(ui::s2);
-    showRunning(false);
-  }
-  void onShow() override {
-    if (!running_ && !starting_) start();
-  }
-  void onHide() override { stopServer(""); }
-  bool staysOpen() const override { return running_ || starting_; }
-  // As FilesPage: a screen can go without onHide; stop through the pointers kept at start.
-  ~UpdatePage() override {
-    if (!running_) return;
-    if (http_) http_->stop();
-    if (radio_) radio_->setPowerSave(true);
-  }
-
-  std::string debugState() const override {
-    return std::string(running_ ? "running" : "stopped") + "|" + state_->text() + "|" + activity_->text();
-  }
-
- private:
-  void showRunning(bool on) {
-    addrCap_->visible = addr_->visible = help_->visible = on;
-    button_->setText(on ? "Stop" : "Start again");
-    button_->visible = (on || !starting_) && !restarting_;
-    if (auto* h = state_->host()) h->relayout();
-  }
-
-  void start() {
-    hal::HttpServer* http = ctx().os().platform().http;
-    hal::Updater* up = ctx().os().platform().update;
-    if (!http || !up || up->slotSize() == 0) {
-      state_->setText("Not available on this device");
-      return;
-    }
-    if (!update::keySet(update::firmwareKey())) {
-      state_->setText("This firmware has no update key. On the Mac: make ota-key, then flash once over USB.");
-      showRunning(false);
-      button_->visible = false;
-      return;
-    }
-    starting_ = true;
-    state_->setText("Joining Wi-Fi...");
-    activity_->setText("");
-    showRunning(false);
-    NetService* net = &ctx().os().net();
-    hal::Net* radio = &ctx().os().platform().net;
-    ctx().async([net, radio] {
-      NetService::Result r = net->ensureConnected();
-      if (r.ok) radio->setPowerSave(false);  // full speed while receiving
-      return r;
-    }, [this, http, up](NetService::Result r) {
-      starting_ = false;
-      if (!r.ok) {
-        state_->setText("No Wi-Fi: " + r.error);
-        showRunning(false);
-        return;
-      }
-      hal::Clock* clock = &ctx().os().platform().clock;
-      server_ = std::make_shared<update::Server>(*up, update::firmwareKey(), hal::buildId(), [clock] { return clock->millis(); });
-      auto srv = server_;
-      http_ = http;
-      radio_ = &ctx().os().platform().net;
-      if (!http->start([srv](hal::ServerRequest& q) { return srv->handle(q); }, update::kPort)) {
-        state_->setText("Could not start listening");
-        showRunning(false);
-        return;
-      }
-      running_ = true;
-      const bool sim = std::string(ctx().os().platform().name) == "simulator";
-      const std::string ip = sim ? "localhost" : ctx().os().net().link().ip;
-      addr_->setText(ip + ":" + std::to_string(http->port()));
-      state_->setText("Waiting for an update while this page is open. Only firmware signed with this device's key is taken.");
-      showRunning(true);
-      tick();
-    });
-  }
-
-  // Once a second: what arrives, Wi-Fi and the device kept up, the idle stop, the restart into the new firmware.
-  void tick() {
-    if (!running_ || !server_) return;
-    ctx().os().net().keepAlive();
-    ctx().os().keepAwake();
-    const update::Stats s = server_->stats();
-    std::string a;
-    if (s.done) a = "Build " + s.build + " received.\nRestarting...";
-    else if (s.busy && s.size > 0) a = "Receiving build " + s.build + "\n" + bytesText(s.received) + " of " + bytesText(s.size);
-    else if (s.busy) a = "Receiving...";
-    else a = s.last;
-    if (a != activity_->text()) {
-      activity_->setText(a);
-      if (auto* h = activity_->host()) h->relayout();  // one line became two
-    }
-    if (s.done) {  // the answer to the sender is on its way: stop listening, show the line, restart
-      restarting_ = true;
-      state_->setText("The new firmware is in place.");
-      showRunning(false);
-      ctx().timer(2500, [this] {
-        ctx().os().flushConfig();
-        if (http_) http_->stop();
-        running_ = false;
-        hal::restart();
-      });
-      return;
-    }
-    const uint32_t idle = ctx().os().platform().clock.millis() - server_->lastRequestMs();
-    if (!s.busy && idle >= kIdleStopMs) {
-      stopServer("Stopped after 5 minutes without an update");
-      return;
-    }
-    ctx().timer(1000, [this] { tick(); });
-  }
-
-  void stopServer(const std::string& why) {
-    if (!running_) return;
-    running_ = false;
-    if (http_) http_->stop();
-    hal::Net* radio = &ctx().os().platform().net;
-    ctx().background([radio] { radio->setPowerSave(true); });
-    server_.reset();
-    if (!why.empty()) {
-      state_->setText(why);
-      showRunning(false);
-    }
-  }
-
-  ui::Label *state_ = nullptr, *addrCap_ = nullptr, *addr_ = nullptr, *help_ = nullptr, *activity_ = nullptr;
-  ui::Button* button_ = nullptr;
-  std::shared_ptr<update::Server> server_;
-  hal::HttpServer* http_ = nullptr;
-  hal::Net* radio_ = nullptr;
-  bool running_ = false, starting_ = false, restarting_ = false;
+  ui::ListItem* wireless_ = nullptr;
 };
 
 class AboutPage : public Page {
@@ -1229,9 +1164,6 @@ class AboutPage : public Page {
     root.add<ui::ListItem>("Board", board, false);
     const std::string mac = hal::macAddress();
     root.add<ui::ListItem>("Wi-Fi MAC", mac.empty() ? "not available" : mac, false);
-    auto* update = root.add<ui::ListItem>("Update over Wi-Fi", "New firmware from the Mac: make ota", false);
-    update->setChevron();
-    update->onClick = [this] { ctx().nav.push<UpdatePage>(); };
     caption(root, "Licences");
     auto* l = root.add<ui::Label>(
         "Inter, Literata: SIL Open Font License 1.1. Lucide icons: ISC. M5GFX, M5Unified, ArduinoJson: MIT.", Type::Body);

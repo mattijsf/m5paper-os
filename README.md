@@ -14,7 +14,7 @@ uv tool install --python 3.12 platformio
 make shot      # builds the simulator, writes out/shot.png
 make run       # simulator window
 make flash     # build and flash a connected PaperS3
-make ota       # the same over Wi-Fi: the device shows Settings > About > Update over Wi-Fi (docs/apps/settings.md)
+make ota       # the same over Wi-Fi: Settings > Developer > Wireless development on (docs/apps/settings.md)
 ```
 
 Documentation is in `docs/` (start with `docs/STATUS.md`).

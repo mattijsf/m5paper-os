@@ -1479,4 +1479,12 @@ None of these block Phase 1, Phase 2, or the reader.
   (`AppContext::link`). An idle power-off resumes only a book or a game. 362 unit tests, 313 screenshots, firmware
   2,591,475 bytes. On the device (flashed over USB): the board after a minute, a tap on an agenda row. An install by
   `make ota` that the user stopped at 2.2 of 2.5 MB left the running firmware untouched.
+- 2026-11-19: P7-20 wireless development (D39): Settings > Developer > Wireless development, one switch for remote
+  control and updates over Wi-Fi (port 8266, signed in with the update key; `device.py --wifi`, `make view ARGS=--wifi`,
+  `make ota` as the remote command `>ota`). The Update over Wi-Fi page is gone; Developer is a menu with Wireless
+  development and Status pages.
+  Found on the device: a valid Ed25519 check overran the 8 KB loop task stack and restarted the board; 16 KB now. On the
+  device: a frame dump over Wi-Fi 0.87 s, an update 24.9 s (slot app1, confirmed), the live view. 364 unit tests, 308
+  screenshots, firmware 2,592,291 bytes. Open: the first network read of an idle sleep screen on the device (the
+  10-minute check's log had scrolled away; STATUS "Pending device checks", P7-19).
 
