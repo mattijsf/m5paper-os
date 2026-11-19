@@ -145,7 +145,7 @@ class MainActivity : Activity() {
             }
         }
         agendaRow.end = agenda
-        calendarsRow = row(null, "Calendars").apply {
+        calendarsRow = row(Ink.ICON_CALENDARS, "Calendars").apply {
             end = chevron()
             clickable { startActivity(Intent(this@MainActivity, CalendarsActivity::class.java)) }
         }

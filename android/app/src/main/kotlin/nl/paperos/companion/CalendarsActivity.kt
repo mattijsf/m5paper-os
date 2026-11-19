@@ -84,6 +84,7 @@ class CalendarsActivity : Activity() {
                 )
             }
             val row = Ink.Row(this, Ink.ICON_CALENDAR, c.name.ifEmpty { "Unnamed" })
+            row.sub("") // no second line: the title centred in the row
             row.end = Ink.Toggle(this).apply {
                 on = c.id !in Link.agendaSkipped
                 onChange = { shared ->

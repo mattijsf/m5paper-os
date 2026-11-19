@@ -577,9 +577,10 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
 - **Clock sync (2026-11-19)**: the fix (wait for SNTP's own answer) is built, not yet on the device (it was not reachable
   over Wi-Fi). Check: after the install the log says `clock was ... s off` then `time sync ok`, and the status bar matches
   the Mac's clock; again the next day.
-- **Calendars to the Paper (2026-11-19)**: Paper > Calendars in the companion app is built and installed on the Pixel, not
-  yet looked at (the phone was locked). Check: the page lists the calendars, all on; one off empties its events on the
-  Paper after the next relay read; on again brings them back.
+- **Calendars to the Paper (2026-11-19)**: phone side done on the Pixel: the page listed the 13 calendars by account, all
+  on; one switched off was stored (`agenda_skip`), the header said "12 of 13" and the relay sent the whole window at once
+  (`agenda_sent` 8, no error). Open: the Paper side (its events gone from the Agenda after the next relay read); the Paper
+  was off.
 - **Remote control and firmware update from the phone (P7-21, 2026-11-19)**: done on the device (Pixel 9 Pro, Paper on
   battery over Wi-Fi): after `make ota` the Paper pushed its address ("address to the phone: pushed"), the app showed
   "at 192.168.1.60" a minute later, the live screen came up, a tap from the phone opened Weather (`[touch] x=437 y=626`),
@@ -1550,5 +1551,5 @@ None of these block Phase 1, Phase 2, or the reader.
   `NetService::tick` logs how far the RTC was off (`clock was N s off`). Firmware 2,596,975 bytes. Not yet on the device.
 - 2026-11-19: calendars to the Paper. Companion app: Paper > Calendars (`CalendarsActivity`), one switch per calendar the calendar app shows,
   grouped by account. The app keeps the ones switched off (`agenda_skip`), so a new calendar is on; `Agenda.selection`
-  leaves them out of the query; a change sends the whole window. JVM test `calendarsSwitchedOffAreLeftOut`. Installed on
-  the Pixel, not yet looked at. D28, COMPANION.md 7.1, apps/agenda.md, android/README.md.
+  leaves them out of the query; a change sends the whole window. JVM test `calendarsSwitchedOffAreLeftOut`. On the Pixel:
+  list, a switch off and on, the whole window sent (screenshots out/phone-main.png, out/phone-calendars.png). D28, COMPANION.md 7.1, apps/agenda.md, android/README.md.

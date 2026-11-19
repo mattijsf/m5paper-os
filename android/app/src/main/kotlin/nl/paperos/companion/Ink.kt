@@ -66,6 +66,7 @@ object Ink {
     const val ICON_SHIELD = 57855
     const val ICON_UNLINK = 57757
     const val ICON_CALENDAR = 57443
+    const val ICON_CALENDARS = 59047
     const val ICON_REMOTE = 58634 // tablet-smartphone
     const val ICON_ARROW_LEFT = 57416
     const val ICON_FIRMWARE = 58597 // hard-drive-download
