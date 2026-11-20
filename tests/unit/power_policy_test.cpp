@@ -416,3 +416,48 @@ TEST_CASE("Os::setup: a surface that keeps the panel (scheduled refresh) gets no
     CHECK((display.pushes == 0) == keeps);
   }
 }
+
+namespace {
+// The main loop minute by minute (Loop: step, then PowerPolicy::idle) until the device switches off; false if it did not.
+bool runUntilOff(Env& e, int minutes, bool* sleepScreenBeforeOff = nullptr) {
+  for (int i = 0; i < minutes; ++i) {
+    e.clock.ms += 60 * 1000;
+    e.os.loopOnce();
+    if (sleepScreenBeforeOff && e.shell->showingSleepScreen()) *sleepScreenBeforeOff = true;
+    e.policy.idle(1000);
+    if (!e.power.offs.empty()) return true;
+  }
+  return false;
+}
+}  // namespace
+
+TEST_CASE("PowerPolicy + Shell: an idle device that switches off never shows Tap to start") {
+  // On battery the Shell's idle sleep screen and the auto-off are due at the same time: the Shell leaves it to the power-off.
+  Env e;
+  e.os.config().power.autoOffMin = 15;
+  bool dozed = false;
+  REQUIRE(runUntilOff(e, 20, &dozed));
+  CHECK_FALSE(dozed);
+  CHECK_FALSE(e.shell->showingSleepScreen());
+
+  // On USB the sleep screen stays on ("Tap to start"); unplugged, the device switches off once the 12 hours are over, and
+  // the sleep screen is drawn again as "Powered off" (the Shell is no longer dozing).
+  Env u;
+  u.os.config().power.autoOffMin = 15;
+  u.power.usb = true;
+  CHECK_FALSE(runUntilOff(u, 20));
+  CHECK(u.shell->showingSleepScreen());
+  u.power.usb = false;
+  REQUIRE(runUntilOff(u, 13 * 60));
+  CHECK_FALSE(u.shell->showingSleepScreen());
+
+  // Wireless development on: the same, switched off later.
+  Env w;
+  w.os.config().power.autoOffMin = 15;
+  w.os.config().developer.wireless = true;
+  CHECK_FALSE(runUntilOff(w, 20));
+  CHECK(w.shell->showingSleepScreen());
+  w.os.config().developer.wireless = false;
+  REQUIRE(runUntilOff(w, 2));
+  CHECK_FALSE(w.shell->showingSleepScreen());
+}

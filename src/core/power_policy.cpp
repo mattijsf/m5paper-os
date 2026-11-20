@@ -50,7 +50,10 @@ void PowerPolicy::idle(uint32_t maxWaitMs) {
   // Wireless development keeps the device on:
   // switched off, nobody could reach it until the side button. The idle sleep screen still comes (the Shell), on.
   const bool keepOn = cfg.developer.wireless;
-  if (!keepOn && autoOffDue(sinceInput, limit, p.power.usbConnected(), usbSeen_ ? now - usbSeenMs_ : kUsbNeverSeen)) {
+  const uint32_t sinceUsb = usbSeen_ ? now - usbSeenMs_ : kUsbNeverSeen;
+  // Told before the Shell's idle timer runs (same idle time): on its way off it leaves the panel to powerOffNow.
+  os_.setOffWhenIdle(!keepOn && limit > 0 && !p.power.usbConnected() && (sinceUsb == kUsbNeverSeen || sinceUsb >= kUsbGraceMs));
+  if (!keepOn && autoOffDue(sinceInput, limit, p.power.usbConnected(), sinceUsb)) {
     powerOffNow();
     return;
   }

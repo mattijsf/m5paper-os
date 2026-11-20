@@ -72,6 +72,12 @@ Shell writes `lastApp` to `/data/system.json` and closes the app so it saves), t
 - **On USB** (or USB seen in the last 12 hours) the device does not switch off: at the same idle time it shows what
   Settings > Power "Then show" says, the sleep screen staying on (default) or the launcher (apps/launcher.md "When
   unused", D38).
+- **The panel never says "Tap to start" on a device that is off**. On battery the Shell's idle sleep screen and the auto-off were due at the same moment: the
+  loop runs timers first, so the Shell drew the screen that stays on and the power-off then left it (its
+  `prepareForIdleOff` found a sleep screen already there). Now PowerPolicy tells the Os whether the idle time ends in a
+  power-off (`Os::offWhenIdle`), and the Shell then leaves the panel to the power-off ("Powered off"). And when a sleep
+  screen that stayed on is followed by a power-off after all (12 hours after USB, wireless development switched off), the
+  power-off draws it again as "Powered off". Tests: `power_policy_test` (the loop minute by minute), `app_test`.
 - Boot after power-off is a cold start. Target: **under 2.5 s from button to the previous
   screen** (task P3-6): the launcher restores the last app and the app restores its state from
   `/data`. Do not connect Wi-Fi during boot.

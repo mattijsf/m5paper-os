@@ -289,7 +289,9 @@ void Shell::idleCheck() {
   const bool home = cfg.power.idleShow == IdleShow::Home;
   // In use without a touch: the screen says so, something is half typed, a finger rests on the panel.
   const bool held = os_.touching() || root_.keyboardShowing() || (!stack_.empty() && stack_.back().screen->staysOpen());
-  const bool nothingToDo = sleeping_ || (home && (!app_ || appStaysOpen_));
+  // Going off at this idle time (on battery): PowerPolicy's power-off draws the sleep screen, "Powered off". Drawing the one
+  // that stays on first said "Tap to start" on a device that was off a moment later.
+  const bool nothingToDo = sleeping_ || os_.offWhenIdle() || (home && (!app_ || appStaysOpen_));
   if (minutes > 0 && !held && !nothingToDo) {
     const uint32_t now = os_.platform().clock.millis();
     const uint32_t limit = static_cast<uint32_t>(minutes) * 60000u;
@@ -355,7 +357,23 @@ void Shell::prepareForPowerOff() { prepareSleep(false, false); }
 void Shell::prepareForIdleOff() { prepareSleep(true, false); }
 
 void Shell::prepareSleep(bool idle, bool stayOn) {
-  if (sleeping_) return;  // (a sleep screen that stays on is there already: what it saved stands)
+  if (sleeping_) {
+    // A sleep screen is there already: what it saved stands. But one that said "Tap to start" (on USB, USB seen in the
+    // last 12 hours, wireless development on) is wrong once the device switches off after all (the 12 hours ran out,
+    // wireless development switched off): draw it again as "Powered off".
+    if (dozing_ && !stayOn) {
+      dozing_ = false;
+      if (sleepTimer_) os_.timers().cancel(sleepTimer_);
+      sleepTimer_ = 0;
+      SleepInfo info;
+      const bool have = loadSleepInfo(info);
+      POS_LOG("shell", "sleep screen: powered off after all, drawn again");
+      drawSleepScreenFor(os_.canvas(), have ? &info : nullptr, os_.platform().clock.now(), os_.config().power.sleepBoard,
+                         sleepUpdated_, false);
+      os_.displayManager().forceClean();
+    }
+    return;
+  }
   os_.flushConfig();  // a setting changed in the last second (Os::saveConfigSoon)
   // Remember what was open (the next start resumes it), ask the app what the sleep screen should show, then leave the app
   // so it saves its state, and leave the sleep screen on the panel. An app left without anyone asking comes back only if

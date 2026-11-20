@@ -574,6 +574,10 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **"Tap to start" on a device that is off (2026-11-20)**: fixed and tested on the host (unit tests run the loop minute by
+  minute); not yet on the device (unreachable over Wi-Fi when the fix was ready). Check after the install: on battery
+  with wireless development off, the idle time ends in one Quality refresh to "Powered off" (camera or a look at the
+  panel); with wireless development on, "Tap to start" still comes and a tap leaves it.
 - **Remote control and firmware update from the phone (P7-21, 2026-11-19)**: done on the device (Pixel 9 Pro, Paper on
   battery over Wi-Fi): after `make ota` the Paper pushed its address ("address to the phone: pushed"), the app showed
   "at 192.168.1.60" a minute later, the live screen came up, a tap from the phone opened Weather (`[touch] x=437 y=626`),
@@ -1570,4 +1574,10 @@ None of these block Phase 1, Phase 2, or the reader.
   "No text on the page" after 16.9 s (the site refuses the reader service). **Once the device restarted** while that
   Reuters read was running and the Mac polled `>log` over Wi-Fi about once a second; no reset reason in the log, not seen
   again in three more tries (Notes for later tasks).
-
+- 2026-11-20: "Tap to start" on a device that was off. Two ways there: (1) on battery, every idle power-off: the Shell's idle timer and PowerPolicy's auto-off fall due
+  together, the loop runs the timer first, the Shell drew the sleep screen that stays on, and `prepareForIdleOff` then
+  returned early (a sleep screen was there); (2) a sleep screen that stayed on (USB in the last 12 hours, wireless
+  development) followed by a power-off later. Fix: `Os::offWhenIdle` (set by PowerPolicy) makes the Shell leave the idle
+  time to the power-off, and `prepareSleep` redraws a staying-on sleep screen as "Powered off" when the device switches off
+  after all. Unit tests fail without the fix (battery: "Tap to start" before every power-off). 374 unit tests, 315
+  screenshots; firmware 2,599,251 bytes (with the Hacker News work of the same day). Not yet on the device.

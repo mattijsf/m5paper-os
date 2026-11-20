@@ -84,6 +84,10 @@ class Os {
   uint32_t lastInputMs() const { return lastInputMs_; }
   // Counts as a touch for auto-off (not for gestures): something is being used without a finger (files arriving over Wi-Fi).
   void keepAwake() { lastInputMs_ = p_.clock.millis(); }
+  // Whether the idle time ends in a power-off (PowerPolicy: on battery, no USB in the last 12 hours, no wireless
+  // development). Then the Shell does not draw the sleep screen that stays on: the power-off draws "Powered off".
+  bool offWhenIdle() const { return offWhenIdle_; }
+  void setOffWhenIdle(bool off) { offWhenIdle_ = off; }
   PowerLog& powerLog() { return powerLog_; }
   bool touching() const { return gestures_.touching(); }
   // Milliseconds until the loop next has work of its own (timers, settle / clean, long press); kNoDeadline if none.
@@ -108,6 +112,7 @@ class Os {
   std::unique_ptr<Surface> surface_;
   GestureRecognizer gestures_;
   uint32_t lastInputMs_ = 0;
+  bool offWhenIdle_ = false;
   bool configDirty_ = false, configTimer_ = false;
   // Tap-to-panel trace ("[lat]" log line, DISPLAY.md "Tap latency"): the touch event (Down or Up) that led to the
   // gestures of this pass, and when they were dispatched. 0 = nothing to report.

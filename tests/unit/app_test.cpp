@@ -990,3 +990,46 @@ TEST_CASE("sleep screen: its parts are tap targets; an app opened with a link re
   CHECK(pos::apps::idletest::gLinkSeen.empty());
   CHECK(pos::apps::idletest::gDateSeen.empty());
 }
+
+namespace {
+// The sleep screen as drawn on its own, to compare with what the Shell left on the canvas.
+bool canvasIs(Env& env, bool on) {
+  Canvas c;
+  c.setColorDepth(lgfx::color_depth_t::grayscale_8bit);
+  REQUIRE(c.createSprite(kScreenW, kScreenH));
+  SleepInfo info;
+  const bool have = loadSleepInfo(info);
+  drawSleepScreenFor(c, have ? &info : nullptr, env.clock.now(), env.os.config().power.sleepBoard, "", on);
+  const auto* a = static_cast<const uint8_t*>(c.getBuffer());
+  const auto* b = static_cast<const uint8_t*>(env.os.canvas().getBuffer());
+  return std::equal(a, a + kScreenW * kScreenH, b);
+}
+}  // namespace
+
+TEST_CASE("idle, Sleep screen: switched off after all, it says Powered off, not Tap to start") {
+  // On USB (or wireless development on) the idle sleep screen stays on; the power-off that comes later (USB gone 12
+  // hours, wireless development switched off) must not leave "Tap to start" on a device that is off.
+  Env env;
+  env.os.config().power.autoOffMin = 5;
+  env.os.config().power.refreshHours = 0;
+  pass(env, 301000);
+  REQUIRE(env.shell->showingSleepScreen());
+  CHECK(canvasIs(env, true));
+  env.shell->prepareForIdleOff();  // what PowerPolicy::powerOffNow does before power.powerOff
+  CHECK_FALSE(env.shell->showingSleepScreen());
+  CHECK(canvasIs(env, false));
+  CHECK_FALSE(canvasIs(env, true));
+  env.tapAt(270, 480);  // off: a tap does nothing (on the device nothing would read it)
+  env.step();
+  CHECK(canvasIs(env, false));
+}
+
+TEST_CASE("idle, Sleep screen: not when the idle time ends in a power-off (on battery): that one draws Powered off") {
+  Env env;
+  env.os.config().power.autoOffMin = 5;
+  env.os.setOffWhenIdle(true);  // what PowerPolicy says on battery, no USB for 12 hours, no wireless development
+  pass(env, 301000);
+  CHECK_FALSE(env.shell->showingSleepScreen());  // left to PowerPolicy::powerOffNow -> prepareForIdleOff
+  env.shell->prepareForIdleOff();
+  CHECK(canvasIs(env, false));
+}
