@@ -869,6 +869,10 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
 
 None of these block Phase 1, Phase 2, or the reader.
 
+11. **A Home Assistant websocket for the Home app (asked 2026-11-20)**: Possible: ESP-IDF has `esp_transport_ws`; `subscribe_entities` works for a non-admin user.
+   Only while Home is shown (D10's reason, Wi-Fi kept up while asleep, does not apply then). Cost: a second TLS connection
+   (~45 KB internal RAM, ~97 KB free), a websocket in the simulator's fixtures, D10 amended. Waiting for the user's yes.
+
 ## Notes for later tasks
 
 - **A restart and a 7 s UI stall during a long HTTPS read while the Mac polls over Wi-Fi** (2026-11-19, Hacker News,
