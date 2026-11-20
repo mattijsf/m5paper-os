@@ -1584,3 +1584,11 @@ None of these block Phase 1, Phase 2, or the reader.
   after all. Unit tests fail without the fix (battery: "Tap to start" before every power-off). 374 unit tests, 315
   screenshots; firmware 2,599,251 bytes (with the Hacker News work of the same day). On the device: the staying-on screen
   switched off by `>poweroff` showed "Powered off" (the owner looked); the battery case not yet.
+- 2026-11-20: P7-22 Pixelpuzzel. A daily 10 x 10 nonogram: 24 pictures drawn for
+  PaperOS, each (and its mirror) proven solvable line by line in the unit tests (four first drafts were not: two corners
+  the clues cannot tell apart; redrawn); tap, swipe a stretch, long press for the other mark, met clues gray, the picture
+  with its grays when solved, clock / streak / Kopieer score as Somdoku. Found on the way: adding Lucide's `puzzle` to the
+  icon font changed every icon by a pixel (277 screenshots); the tile uses `blocks` (already in the font), and
+  `chess-knight` (for P7-23) changes nothing. 27 goldens re-accepted (the launcher with its twelfth tile, `fonts-sheet`,
+  the lab's push counters), 6 new. 378 unit tests, 322 screenshots; firmware 2,618,439 bytes (with the Hacker News work
+  in progress in the same checkout). D41, apps/pixelpuzzle.md, APPS.md, ROADMAP P7-22 / P7-23.

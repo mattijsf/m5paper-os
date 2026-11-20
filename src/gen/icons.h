@@ -76,6 +76,7 @@ enum class Icon : uint8_t {
   Sunset,
   LampFloor,
   Tv,
+  ChessKnight,
   Hackernews,  // drawn: assets/icons-drawn/hackernews.txt
   Paperos,  // drawn: assets/icons-drawn/paperos.txt
   Teletekst,  // drawn: assets/icons-drawn/teletekst.txt
@@ -154,6 +155,7 @@ constexpr uint32_t kIconCodepoint[] = {
   0xE17A,  // sunset
   0xE2DB,  // lamp-floor
   0xE195,  // tv
+  0xE6A2,  // chess-knight
   0,  // hackernews (drawn)
   0,  // paperos (drawn)
   0,  // teletekst (drawn)

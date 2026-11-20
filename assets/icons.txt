@@ -70,3 +70,4 @@ sunrise
 sunset
 lamp-floor
 tv
+chess-knight

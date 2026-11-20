@@ -742,3 +742,16 @@ wake, announced through Home Assistant; or push while a page is open): the owner
   listens to nobody. The phone says so when it cannot connect.
 - **Not encrypted** after the sign-in (as D39): the frames cross the home Wi-Fi in the clear while the remote is open.
 - Cost: firmware +3.6 KB (2,596,623 bytes); with `>ota` allowed and the Maintenance texts, 2,596,659.
+
+## D41. Two more games: a daily picture puzzle and chess
+
+- **Pixelpuzzel** (apps/pixelpuzzle.md): a daily nonogram, as Somdoku and the word game are daily games (one puzzle a
+  day, a streak, a score to copy). Pictures drawn for PaperOS rather than generated: a generated grid is noise, the point
+  is the picture that appears. Each is proven solvable without guessing by a line solver in the unit tests, so a day is
+  never a coin toss; a solution is any grid that fits the clues. Swipes fill a stretch: one refresh for a whole line.
+- **Chess** (P7-23): the owner chose the Lichess computer (Stockfish on Lichess's servers, their account, a personal
+  token `LICHESS_TOKEN` on the card, read only at boot) and an offline game against a small engine on the Paper; not
+  correspondence games against people.
+- The launcher tiles: Pixelpuzzel after Hacker News (the others keep their places). Its icon is `blocks`, already in
+  the icon font: adding Lucide's `puzzle` changed the drawing of every icon by a pixel (277 screenshots), `chess-knight`
+  changed none (measured 2026-11-20).

@@ -512,6 +512,14 @@ P6-11 last (it needs the relay and a device that can pair).
   control and Firmware update (a Mac-signed package, `make ota-phone`). (2026-11-19: done on the Paper and the Pixel:
   the address by the relay, the live screen, a tap opened Weather, an update from the phone in 26 s, confirmed.)
 
+- [x] **P7-22 Pixelpuzzel**. Read: D41, apps/pixelpuzzle.md, apps/somdoku.md. A daily 10 x 10 picture puzzle (nonogram): pictures
+  drawn for PaperOS, each proven solvable line by line (also mirrored), tap / swipe a stretch / long press for the other
+  mark, met clues gray, solved when every line has its clue, the picture in grays at the end, clock, streak, Kopieer
+  score as the other games.
+- [ ] **P7-23 Chess** (same request; the owner's answers: against the Lichess computer and offline against the Paper,
+  token `LICHESS_TOKEN` on the card, present since 2026-11-20). Read: D41. A board with tap-to-move, the Lichess
+  computer (levels 1-8, Board API) when online, a small engine on the Paper offline; the game kept in the store.
+
 ## Phase 8: Optional, ask the owner first
 
 - [ ] **P8-1 Notification-sensor feeds** (DECISIONS.md D8) as a replacement if the WhatsApp
