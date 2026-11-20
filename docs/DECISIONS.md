@@ -613,8 +613,8 @@ the budget runs short (sizes from the linker map):
   the board shows up to five. One switch takes the board away: Settings > Power > "Today on the sleep screen".
 - **Nothing new is fetched at power-off** (no Wi-Fi join for a picture): the board is drawn from the saved agenda and the
   weather app's saved copy; a copy older than a day is not shown.
-- **Not on it yet**: Home Assistant states (thermostat, a door, the car): they need a choice of items and their own
-  reads (ROADMAP P7-17).
+- **Not on it**: Home Assistant states (thermostat, a door, the car). ROADMAP P7-17 proposed them; the user dropped it
+  on 2026-11-20 ("Don't want this, do not suggest anymore").
 
 ## D36. Read later: a link shared from the phone is an article in the books folder
 

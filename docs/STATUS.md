@@ -276,8 +276,8 @@ Living file. Update it at the end of every task (see ROADMAP.md "How to work a t
   live weather and the phone's agenda (`out/p7-16/dev-board.png`: 10° / 7°, "Rain, 40%", four blocks, three events
   of today and two of Thursday, emoji in titles drawn); one RTC wake (`poweroff 25`): "2 feed(s), 0 unread, weather
   read, 4201 ms (4969 ms since boot)", the five weather requests 34-60 ms each on the open connection. Not seen: the
-  picture on the panel itself (the camera pointed elsewhere): "Pending device checks". **Next: P7-17** (Home Assistant
-  states on the board) waits for the owner's choice of items ("Open questions" 9). **Later the same day, with the
+  picture on the panel itself (the camera pointed elsewhere): "Pending device checks". P7-17 (Home Assistant
+  states on the board) was dropped by the user on 2026-11-20. **Later the same day, with the
   camera on the panel**: the board on the panel after a real power-off
   (`poweroff 45 50`: date, weather, four blocks, five agenda rows with emoji, the WhatsApp icon with 1, the rules) and,
   after the RTC wake, the same with "Updated 14:41" (`out/p7-18/cam-board-off-upright.png`,
@@ -854,9 +854,8 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
    Assistant in the browser pane); `weather.office` reads on the device. The pin is approximate: move it
    in Home Assistant if it matters.
 
-9. **Home Assistant states on the Today board (P7-17, asked 2026-11-18)**: which two or three items of the Home app
-   should the sleep screen show (the thermostat's temperature, a door or window, the car, something else)? They are read
-   at a scheduled wake, so they are as old as the board.
+9. ~~**Home Assistant states on the Today board (P7-17, asked 2026-11-18)**~~ **Closed 2026-11-20**: the user dropped
+   P7-17 ("Don't want this, do not suggest anymore"). Do not propose it again.
 
 10. ~~**The router blocks this Mac's connections to the Paper's port 80 (2026-11-18, 18:10)**~~ **Gone 2026-11-19
    07:40**: after a restart of the Mac with every VPN disconnected (Tailscale, OpenVPN,

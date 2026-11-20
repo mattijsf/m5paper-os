@@ -474,7 +474,7 @@ P6-11 last (it needs the relay and a device that can pair).
   through the test screen `sleepboard` with live weather and agenda, and one RTC wake logged "weather read"; the
   picture on the panel itself is a pending check: the camera pointed elsewhere.)
 
-- [ ] **P7-17 Home Assistant states on the Today board** (follows P7-16; ask the owner which). Two or three states from
+- [-] **P7-17 Home Assistant states on the Today board** (dropped 2026-11-20; not built). (follows P7-16; ask the owner which). Two or three states from
   `home.json` (thermostat, a door, the car) as a row on the board: needs a way to mark the items (a key in `home.json`),
   their reads in the scheduled refresh, and a text per item type.
 
