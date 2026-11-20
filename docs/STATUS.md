@@ -1605,3 +1605,7 @@ None of these block Phase 1, Phase 2, or the reader.
   answered a live GitHub pull request with 403, markdown.new read it in 4.0 s, title and conversation on page 1
   (`out/dev-hn3/article2.png`). Jina refused GitHub all afternoon though it read it in the morning (perhaps this
   network's many test requests).
+- 2026-11-20: P7-22 on the device (build 5879fbadcacf, over Wi-Fi): the Pixelpuzzel tile opened day 1 (the heart); a
+  swipe filled row 3 in one push (its "10" turned gray), a tap filled one cell (tap to panel 118 ms, one 39 x 39 Fast
+  push), a long press put a cross (out/device-pp-play.png). The test moves were undone by the same gestures (the remote
+  may not delete `/data/apps`), so the user's day-1 game starts as "Verder" with some 15 s on its clock.
