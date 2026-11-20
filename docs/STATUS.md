@@ -1658,3 +1658,10 @@ None of these block Phase 1, Phase 2, or the reader.
   counter and the running calls): with 5 s reads the test's mute was undone by a read before its call landed. On the device
   (build 6225453cdbc7): `[home] tab 3 read` every 5.0 s, 36-225 ms each. Firmware 2,658,595 bytes. The owner asked about
   a websocket instead (D10 chose REST): see Open questions.
+- 2026-11-20: The Home app now
+  logs a player's state when it changes (`[home] media media_player.living_room: playing, source 'TV', title 'TV', volume 24`)
+  and each media call (`[home] call media_player.volume_set {"volume_level":0.24}`). On the device (build c1c2d73d6e98) one
+  plus tap sent only `volume_set`; Home Assistant then reported source TV. No automation in the home-assistant repo selects
+  a source. Not known yet: whether the switch is the Sonos and the TV over HDMI-CEC (a volume change from the Sonos app or
+  the house dashboard would do the same) or something in Home Assistant. Asked the user.
+

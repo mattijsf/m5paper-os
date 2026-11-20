@@ -443,7 +443,10 @@ class HomeScreen : public Screen {
                     if (results[i].ok() && parseState(results[i].body, s)) {
                       // A change made here since the read started, or still on its way, wins over what was read: the
                       // read 1.5 s after the call brings the player's own answer.
-                      if (!changedLocally(ids[i], seqAtStart)) states_[ids[i]] = s;
+                      if (!changedLocally(ids[i], seqAtStart)) {
+                        logMedia(ids[i], s);
+                        states_[ids[i]] = s;
+                      }
                       ++ok;
                     } else {
                       if (results[i].error == HaError::NotFound) ++notFound;
@@ -480,6 +483,17 @@ class HomeScreen : public Screen {
   }
 
   // ---- acting
+
+  // A player's state in the log when it changes (what plays is no secret; it says why the card shows what it shows).
+  void logMedia(const std::string& id, const EntityState& s) {
+    if (id.compare(0, 13, "media_player.") != 0) return;
+    const std::string sig = s.state + "|" + s.source + "|" + s.title + "|" + std::to_string(s.volume) + "|" + (s.muted ? "m" : "");
+    std::string& last = mediaLog_[id];
+    if (sig == last) return;
+    last = sig;
+    ctx().log("media %s: %s, source '%s', title '%s', volume %d%s", id.c_str(), s.state.c_str(), s.source.c_str(), s.title.c_str(),
+              s.volume, s.muted ? ", muted" : "");
+  }
 
   // Local changes that reads must not undo: a counter per entity bumped by every local change, and the calls still running.
   void markLocal(const std::string& entity) { ++localSeq_[entity]; }
@@ -591,6 +605,7 @@ class HomeScreen : public Screen {
     const std::string entity = it.entity;
     markLocal(entity);
     ++inFlight_[entity];
+    ctx().log("call %s %s", service.c_str(), data.c_str());
     send({Call{service, entity, data}}, std::move(revert), "", [this, entity] { --inFlight_[entity]; });
   }
 
@@ -710,6 +725,7 @@ class HomeScreen : public Screen {
   Timers::Id pollTimer_ = 0;
   std::map<std::string, uint32_t> localSeq_;
   std::map<std::string, int> inFlight_;
+  std::map<std::string, std::string> mediaLog_;
   bool targetPending_ = false;
   Timers::Id targetTimer_ = 0;
   bool volumePending_ = false;
