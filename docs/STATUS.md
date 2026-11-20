@@ -574,9 +574,9 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
-- **Sonos calls from the Music tab (P7-24, 2026-11-20)**: the read works on the device; `volume_set`, `volume_mute`,
-  `media_play_pause` and next / previous were not sent (the Sonos was playing the TV). Check: a volume tap changes the
-  Sonos and the read 1.5 s later shows it.
+- **Sonos calls from the Music tab (P7-24, 2026-11-20)**: read and `volume_set` work on the device (the owner's test with
+  Spotify: 12 % -> 14 % -> 12 %, the source stayed Spotify Connect). Not sent yet from the Paper: `volume_mute`,
+  `media_play_pause`, next / previous.
 - **"Tap to start" on a device that is off (2026-11-20)**: on the device (build 90655809cd0e, over Wi-Fi): with wireless
   development on the idle minute (`>set idle-min 1`) brought the board with "Tap to start" and the device stayed on
   (`[shell] not used for 1 min: the sleep screen`, out/device-idle.png); `>poweroff 300` from that screen switched it off
@@ -1664,4 +1664,9 @@ None of these block Phase 1, Phase 2, or the reader.
   plus tap sent only `volume_set`; Home Assistant then reported source TV. No automation in the home-assistant repo selects
   a source. Not known yet: whether the switch is the Sonos and the TV over HDMI-CEC (a volume change from the Sonos app or
   the house dashboard would do the same) or something in Home Assistant. Asked the user.
+- 2026-11-20: the TV-input switch did not come back. The owner's test (build c1c2d73d6e98, Spotify playing): `[home] media
+  media_player.living_room: playing, source 'Spotify Connect', title 'Heavydirtysoul', volume 12`, then `volume_set` 0.14 and
+  0.12, no source change. The earlier switch is not explained: the Paper sent only `volume_set` then
+  too (13:31), and the builds before 45f787c sent the same calls. If it comes back, the `[home] media` / `[home] call` lines
+  say what Home Assistant reported around the tap.
 
