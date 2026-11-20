@@ -24,7 +24,8 @@ namespace {
 
 constexpr uint32_t kPollMs = 2500;   // Lichess: ask for its move this often
 constexpr int kPollMax = 48;         // two minutes, then say it does not answer
-constexpr uint32_t kEngineNodes = 60000;
+// About 0.3 ms per node on the device (level 4, first move: 10,272 nodes in 3,052 ms, 2026-11-20): at most ~6 s a move.
+constexpr uint32_t kEngineNodes = 20000;
 
 // Every pixel of the board is pure ink or paper (dark squares hatched, frames in ink): a move then changes only black and
 // white pixels, so its Feedback push stays one Fast pass with no Text settle after it (DISPLAY.md).

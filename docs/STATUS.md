@@ -1626,5 +1626,10 @@ None of these block Phase 1, Phase 2, or the reader.
   ink and a met clue is struck through instead of grayed. On the device (build 42ec608946b6): a selection 51 ms tap to
   push, a move 194 ms to its last push, no settle on the board, Lichess's reply (real game) 4 Fast bands. `epd-timing`:
   Fast 246-250 ms per push whatever the size, Text 820-824 ms; in the driver source the bands of one move overlap (no
-  core change). 384 unit tests, 334 screenshots (11 re-accepted). The engine's time per move at level 4 on the device is
-  logged (`[chess] level N: ... in N ms, N nodes`) but not yet measured: pending.
+  core change). 384 unit tests, 334 screenshots (11 re-accepted).
+- 2026-11-20: the chess engine on the device (`[chess] level N: <move> in N ms, N nodes`): level 4, first reply 10,272
+  nodes in 3,052 ms (0.3 ms a node: a 60,000-node limit would have been ~18 s). Legal-move filtering no longer searches
+  the board for the king after every candidate move: the same 10,272 nodes in 2,792 ms; the next reply 12,032 nodes in
+  3,131 ms. Node limit 60,000 -> 20,000 (at most ~5.5 s a move). Faster would need move generation without a copy and a
+  vector per node (not done). A real Lichess game (level 1) was played and resigned on the device: the AI challenge, two
+  moves each way, resign; the Lichess game is closed.

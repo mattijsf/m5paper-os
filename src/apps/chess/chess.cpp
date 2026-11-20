@@ -173,6 +173,9 @@ std::vector<Move> Position::legalMoves() const {
   out.reserve(48);
   const bool w = whiteToMove;
   const int sign = w ? 1 : -1;
+  int king = -1;  // found once: after a move it is there, or where the king went (no search of the board per move)
+  for (int s = 0; s < 64 && king < 0; ++s)
+    if (board[s] == sign * King) king = s;
   auto add = [&](int from, int to, int promo = 0) {
     Move m;
     m.from = static_cast<int8_t>(from);
@@ -180,7 +183,8 @@ std::vector<Move> Position::legalMoves() const {
     m.promo = static_cast<int8_t>(promo);
     Position next = *this;
     next.play(m);
-    if (!next.inCheck(w)) out.push_back(m);
+    const int k = from == king ? to : king;
+    if (k < 0 || !next.attacked(k, !w)) out.push_back(m);
   };
   auto own = [&](int p) { return p != 0 && isWhite(p) == w; };
   for (int s = 0; s < 64; ++s) {

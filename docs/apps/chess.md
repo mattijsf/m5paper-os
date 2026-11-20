@@ -33,8 +33,8 @@ the thirteenth tile, so it is on the launcher's second page.
 ## Against the Paper
 
 `chess::bestMove` (`chess.h`): alpha-beta with quiescence (captures only) over material and piece-square tables,
-iterative deepening to the level's depth (1..4), moves ordered captures first (MVV-LVA), at most 60,000 nodes so a move
-cannot take long on the device; level 1 picks at random among the moves within a pawn and a half of the best. It runs on
+iterative deepening to the level's depth (1..4), moves ordered captures first (MVV-LVA), at most 20,000 nodes so a move
+cannot take long on the device (about 0.27 ms a node there: level 4 answers in 2.8-3.1 s in the opening, at most ~5.5 s); level 1 picks at random among the moves within a pawn and a half of the best. It runs on
 the worker (`ctx.async`). The game ends by mate, stalemate, the fifty-move rule, threefold repetition or too little material
 (`Game::result`).
 
