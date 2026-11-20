@@ -516,9 +516,9 @@ P6-11 last (it needs the relay and a device that can pair).
   drawn for PaperOS, each proven solvable line by line (also mirrored), tap / swipe a stretch / long press for the other
   mark, met clues gray, solved when every line has its clue, the picture in grays at the end, clock, streak, Kopieer
   score as the other games.
-- [ ] **P7-23 Chess** (same request; the owner's answers: against the Lichess computer and offline against the Paper,
-  token `LICHESS_TOKEN` on the card, present since 2026-11-20). Read: D41. A board with tap-to-move, the Lichess
-  computer (levels 1-8, Board API) when online, a small engine on the Paper offline; the game kept in the store.
+- [x] **P7-23 Chess** (same request; the owner's answers: against the Lichess computer and offline against the Paper,
+  token `LICHESS_TOKEN` on the card, present since 2026-11-20). Read: D41, apps/chess.md. A board with tap-to-move, the
+  Lichess computer (levels 1-8, Board API) when online, a small engine on the Paper offline; the game kept in the store.
 
 ## Phase 8: Optional, ask the owner first
 

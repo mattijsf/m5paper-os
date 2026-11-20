@@ -1,0 +1,4 @@
+# Test data for tests/ui/chess-lichess.script: fake values only.
+WIFI_SSID=HomeNet
+WIFI_PASSWORD=home-password
+LICHESS_TOKEN=lip_fake_test_token_000

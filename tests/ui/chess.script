@@ -1,0 +1,33 @@
+# app: chess
+# time: 2026-11-20T09:00:00
+# Chess against the Paper (no token on this card, so De Paper is chosen): the setup, Begin, a piece selected (dots where
+# it may go), e2-e4, the Paper's answer, Opgeven (two taps), the end, Nieuwe partij back to the setup.
+wait 1000
+shot chess-setup
+expect-state view=setup
+expect-state vs=paper
+tap 270 577             # Begin
+wait 900
+shot chess-board
+expect-state board=30,176
+tap 300 566             # e2
+wait 900
+shot chess-selected
+expect-state selected=e2
+tap 300 446             # e4
+wait 3000
+shot chess-answered
+expect-state moves=e2e4,
+expect-state waiting=0
+tap 270 742             # Opgeven: the first tap only asks
+wait 600
+shot chess-resign-ask
+expect-state over=0
+tap 270 742             # the second ends the game
+wait 900
+shot chess-resigned
+expect-state over=1
+tap 270 742             # Nieuwe partij
+wait 900
+shot chess-new
+expect-state view=setup

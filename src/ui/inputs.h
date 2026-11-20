@@ -42,6 +42,7 @@ class Stepper : public Widget {
   std::function<void(int)> onChange;
   int value() const { return value_; }
   void setValue(int v, Hint h = Hint::Feedback);  // clamped; no callback
+  void setRange(int min, int max, Hint h = Hint::Feedback);  // the value is clamped into it; no callback
   Size measure(int availW) override { return {availW, kTouchMin}; }
   void layout() override;
   void draw(Canvas& c) override;

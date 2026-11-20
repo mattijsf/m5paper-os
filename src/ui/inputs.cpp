@@ -108,6 +108,17 @@ void Stepper::setValue(int v, Hint h) {
   invalidate(h);
 }
 
+void Stepper::setRange(int min, int max, Hint h) {
+  if (min == min_ && max == max_) return;
+  min_ = min;
+  max_ = std::max(min, max);
+  const int v = std::max(min_, std::min(value_, max_));
+  minus_->enabled = v > min_;
+  plus_->enabled = v < max_;
+  value_ = v;
+  invalidate(h);
+}
+
 void Stepper::layout() {
   minus_->frame = Rect{frame.x, frame.y, kTouchMin, frame.h};
   plus_->frame = Rect{static_cast<int16_t>(frame.x + frame.w - kTouchMin), frame.y, kTouchMin, frame.h};

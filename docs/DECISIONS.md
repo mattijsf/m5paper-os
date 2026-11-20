@@ -759,6 +759,11 @@ wake, announced through Home Assistant; or push while a page is open): the owner
 - **Chess** (P7-23): the owner chose the Lichess computer (Stockfish on Lichess's servers, their account, a personal
   token `LICHESS_TOKEN` on the card, read only at boot) and an offline game against a small engine on the Paper; not
   correspondence games against people.
-- The launcher tiles: Pixelpuzzel after Hacker News (the others keep their places). Its icon is `blocks`, already in
-  the icon font: adding Lucide's `puzzle` changed the drawing of every icon by a pixel (277 screenshots), `chess-knight`
-  changed none (measured 2026-11-20).
+- The launcher tiles: Pixelpuzzel after Hacker News, Schaken after it (the others keep their places); Schaken is the
+  thirteenth tile and opens the launcher's second page (the launcher pages its grid; not changed for this).
+  Pixelpuzzel's icon is `blocks`, already in the icon font: adding Lucide's `puzzle` changed the drawing of every icon by
+  a pixel (277 screenshots), `chess-knight` changed none (measured 2026-11-20).
+- Chess pieces are drawn as shapes in code, not as icons: Lucide's chess icons are outlines (black and white pieces would
+  look alike) and a new glyph can shift the whole icon font (above).
+- Against Lichess the Paper asks `/api/account/playing` every 2.5 s while it waits for a move, instead of holding the
+  Board API's game stream open: one answer per request like everything else on the Paper, Wi-Fi up only while waiting.

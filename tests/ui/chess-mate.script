@@ -1,0 +1,16 @@
+# app: chess
+# time: 2026-11-20T09:00:00
+# A kept game against the Paper with black (preset store: 1. f3 e5 2. g4): the board opens with black at the bottom, the
+# queen goes to h4, mate: the end and the result.
+wait 1000
+shot chess-black
+expect-state white=0
+expect-state view=board
+tap 300 626             # d8 (black at the bottom: d8 is the fifth column, the last row)
+wait 900
+expect-state selected=d8
+tap 60 386              # h4
+wait 1200
+shot chess-mate
+expect-state over=1
+expect-state moves=f2f3,e7e5,g2g4,d8h4

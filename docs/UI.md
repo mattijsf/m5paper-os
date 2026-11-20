@@ -158,7 +158,7 @@ class Widget {
 | `ListItem` | 96 px row: leading icon, title, subtitle, trailing text / chevron / toggle / badge | divider below |
 | `Toggle` | on/off pill 88x48 | on = filled ink with paper knob; pure black/white |
 | `LevelBar` | 10 segments, tap a segment to set 10..100% | replaces sliders: dragging is poor on e-ink |
-| `Stepper` | minus, value, plus | temperatures, font size |
+| `Stepper` | minus, value, plus; `setRange` changes the limits (chess: 8 Lichess levels, 4 of the Paper) | temperatures, font size |
 | `Segmented` | 2 to 4 options | selected = filled ink; the option under a finger that stays down shows after `kPressDelayMs`, a quick tap goes straight to the new selection |
 | `Pager` | "3 / 12" with previous/next targets; also handles horizontal swipes | every list longer than one screen uses it; an arrow shows pressed only when the finger stays down (`kPressDelayMs`): a quick tap is one pass, the new page |
 | `Badge` | filled ink circle/pill with count | unread counts |

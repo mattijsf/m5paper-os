@@ -1,0 +1,22 @@
+# app: chess
+# time: 2026-11-20T09:00:00
+# Chess against the Lichess computer (fixtures, a fake token on the card): Lichess is chosen, level 8 at most, Begin creates
+# the game, e2-e4 goes to Lichess, its answer e7-e5 comes from /api/account/playing, Opgeven resigns there too.
+wait 1000
+shot chess-lichess-setup
+expect-state vs=lichess
+tap 270 577             # Begin
+wait 1500
+expect-state view=board
+tap 300 566             # e2
+wait 900
+tap 300 446             # e4
+wait 4000
+shot chess-lichess-answered
+expect-state moves=e2e4,e7e5
+tap 270 742
+wait 600
+tap 270 742
+wait 1500
+shot chess-lichess-resigned
+expect-state over=1

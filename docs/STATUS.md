@@ -1609,3 +1609,13 @@ None of these block Phase 1, Phase 2, or the reader.
   swipe filled row 3 in one push (its "10" turned gray), a tap filled one cell (tap to panel 118 ms, one 39 x 39 Fast
   push), a long press put a cross (out/device-pp-play.png). The test moves were undone by the same gestures (the remote
   may not delete `/data/apps`), so the user's day-1 game starts as "Verder" with some 15 s on its clock.
+- 2026-11-20: P7-23 Schaken (same request; the owner chose the Lichess computer and an offline game against the Paper).
+  Rules and engine in `apps/chess/chess.{h,cpp}`: move generation checked against the standard perft counts (start position
+  to depth 4, Kiwipete, positions 3-5), mate / stalemate / fifty moves / repetition / material, an alpha-beta engine
+  with quiescence and a 60,000-node limit (levels 1-4). Lichess (`apps/chess/lichess.{h,cpp}`): the AI challenge, moves
+  through the Board API, its answer by asking `/api/account/playing` every 2.5 s, resign, the result from the game
+  export; the token (`LICHESS_TOKEN`, 24 characters on the card) only in the Authorization header. Pieces drawn as shapes
+  (black solid, white with a 2 px outline). Found in the simulator and fixed: a fresh store chose De Paper even with a
+  token; a failed game creation left the board playable (now back to the setup with the reason). `Stepper::setRange`.
+  The thirteenth tile opens the launcher's second page. 384 unit tests (6 new), 334 screenshots (12 new, 23 launcher
+  goldens re-accepted); firmware 2,657,715 bytes. Device check: below. D41, apps/chess.md, APPS.md, UI.md, ROADMAP.
