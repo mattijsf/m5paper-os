@@ -6,6 +6,7 @@ APIs answer (checked against the live services on 2026-11-18):
   hacker-news.firebaseio.com/v0/item/<id>.json   one story: by, descendants, kids (the site's order), score, time, title, url, text
   hn.algolia.com/api/v1/search?tags=...          hits with objectID and the attributes asked for; nbHits
   r.jina.ai (POST {"url": ...})                  a page as text: "Title: ...", "Markdown Content:", the page as Markdown
+  markdown.new (POST {"url": ...})               the second reader: JSON success, title, content (a YAML front matter, Markdown)
 
 The stories, names and comments are made up: nothing of the real site is copied. Times count back from the moment the UI
 scripts start at, so the ages on the screenshots stay the same.
@@ -136,6 +137,40 @@ KIDS_2 = [38250203, 38250201]
 S4 = TOP[3][0]  # its comments can not be read (503)
 
 READER = "r.jina.ai"
+FALLBACK = "markdown.new"
+# A site that shows the first reader a CAPTCHA: no text, a warning. The second reads it (ARTICLE_5).
+CAPTCHA_5 = """Title: panels.example.com
+
+URL Source: https://panels.example.com/waveforms
+
+Warning: This page maybe requiring CAPTCHA, please make sure you are authorized to access this page.
+
+Markdown Content:
+
+"""
+ARTICLE_5 = """---
+title: "E-ink at 120 Hz: what the waveforms really do"
+description: A panel does not refresh, it is driven.
+---
+
+# E-ink at 120 Hz: what the waveforms really do
+
+An e-ink panel has no frame rate in the way a screen has one. What it has is a **waveform**: a table that says, for every pair of old and new gray, which voltage to put on a pixel in each of a few dozen frames.
+
+[Subscribe to the newsletter](https://panels.example.com/subscribe)
+
+## Frames, not refreshes
+
+The controller runs those frames at 85 or 120 Hz. A fast update is a short table, ten frames or so, that only knows black and white; a full one is forty frames of pushing the particles back and forth until no trace of the old picture is left.
+
+- Short tables leave a ghost.
+- Long tables flash.
+- Temperature changes everything: a cold panel needs longer tables.
+
+## Why it matters
+
+Most of what feels slow about e-ink is the choice of table, not the panel. Pick the short one for a page turn and the long one now and then, and the panel feels quick and stays clean.
+"""
 # The article of the first story, as the reader service answers (plain text: a few lines about the page, then Markdown).
 ARTICLE_1 = """Title: A file system that fits on a postcard
 
@@ -278,11 +313,26 @@ def main(out_dir):
             with open(name + ".status", "w") as f:
                 f.write("%d\n" % status)
 
+    def write_fallback(url, value, status=None):
+        body = json.dumps({"url": url}, separators=(",", ":"))
+        name = os.path.join(out_dir, "POST_%s__b%s" % (FALLBACK, fnv1a(body)))
+        with open(name + ".json", "w") as f:
+            f.write(json.dumps(value, ensure_ascii=False, separators=(",", ":")) + "\n")
+        if status:
+            with open(name + ".status", "w") as f:
+                f.write("%d\n" % status)
+
     write_article(TOP[0][2], ARTICLE_1)
+    write_article(TOP[4][2], CAPTCHA_5)
+    write_fallback(TOP[4][2], {"success": True, "url": TOP[4][2], "title": TOP[4][1], "content": ARTICLE_5,
+                               "timestamp": "2026-01-15 12:30:00", "method": "Cloudflare Workers AI", "duration_ms": 0})
     # A page the service can not fetch: its error, as JSON with a sentence for people.
     write_article(TOP[3][2], error={"data": None, "path": "url", "code": 422, "name": "SubmittedDataMalformedError", "status": 42203,
                                     "message": "Domain 'blog.example.net' could not be resolved",
                                     "readableMessage": "SubmittedDataMalformedError: Domain 'blog.example.net' could not be resolved"}, status=422)
+    # The second reader can not read it either: the first one's words are shown.
+    write_fallback(TOP[3][2], {"success": False, "error": "Error from The API: All conversion methods failed. The page might be empty or inaccessible."},
+                   status=500)
 
 
 if __name__ == "__main__":

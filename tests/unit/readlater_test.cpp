@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <vector>
 
+#include "apps/hackernews/hackernews_model.h"
 #include "apps/reader/articles.h"
 #include "apps/reader/book.h"
 #include "core/fs.h"
@@ -128,6 +129,7 @@ TEST_CASE("read later: a link that answers is saved as an article; one that neve
   CHECK(reader::waitingLinks() == 5);
   std::vector<std::string> asked;
   const reader::Transport send = [&](const hal::HttpRequest& req) {
+    if (req.url == hackernews::kFallbackUrl) return answer(500, "{\"success\":false}");  // the second reader service: nothing
     asked.push_back(req.body);
     if (req.body.find("www.example.com") != std::string::npos) return answer(200, kPage);
     if (req.body.find("empty.example") != std::string::npos) return answer(200, "Title: Empty\n\nMarkdown Content:\n\n");

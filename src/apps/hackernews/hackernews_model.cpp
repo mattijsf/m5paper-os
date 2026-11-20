@@ -5,8 +5,11 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <chrono>
 #include <cstdlib>
+#include <set>
 
+#include "core/log.h"
 #include "core/strings.h"
 #include "core/text_clean.h"
 #include "core/utf8.h"
@@ -478,10 +481,57 @@ bool wordChar(char c) { return std::isalnum(static_cast<unsigned char>(c)) != 0 
 
 // One paragraph's Markdown as marked text: **bold** as bold marks, *emphasis* as italic marks, the backticks of inline
 // code and the backslash before an escaped character dropped.
+// The end of a bracketed part that starts at `at` ('[' or '('): the index of its closing mark, npos if it is not closed.
+size_t closing(const std::string& s, size_t at) {
+  const char open = s[at], close = open == '[' ? ']' : ')';
+  int depth = 0;
+  for (size_t i = at; i < s.size(); ++i) {
+    if (s[i] == '\\') {
+      ++i;
+      continue;
+    }
+    if (s[i] == open) ++depth;
+    else if (s[i] == close && --depth == 0) return i;
+  }
+  return std::string::npos;
+}
+
+// Links as their words, pictures gone: "[the text](https://...)" is "the text", "![a chart](x.png)" nothing (the second
+// reader service keeps them; the first is asked to leave them out). Code spans stay as they are.
+std::string dropLinks(const std::string& s) {
+  if (s.find("](") == std::string::npos) return s;
+  std::string out;
+  out.reserve(s.size());
+  bool code = false;
+  for (size_t i = 0; i < s.size(); ++i) {
+    const char c = s[i];
+    if (c == '`') code = !code;
+    const bool image = c == '!' && i + 1 < s.size() && s[i + 1] == '[';
+    if (code || (c != '[' && !image)) {
+      out += c;
+      continue;
+    }
+    const size_t open = image ? i + 1 : i;
+    const size_t close = closing(s, open);
+    if (close == std::string::npos || close + 1 >= s.size() || s[close + 1] != '(') {
+      out += c;
+      continue;
+    }
+    const size_t end = closing(s, close + 1);
+    if (end == std::string::npos) {
+      out += c;
+      continue;
+    }
+    if (!image) out += dropLinks(s.substr(open + 1, close - open - 1));  // (a picture inside a link goes too)
+    i = end;
+  }
+  return out;
+}
+
 std::string inlineMarked(const std::string& raw) {
   CleanOptions opt;
   opt.shortenLinks = false;
-  const std::string s = cleanText(raw, opt);
+  const std::string s = cleanText(dropLinks(raw), opt);
   std::string out;
   out.reserve(s.size() + 8);
   bool bold = false, italic = false, code = false;
@@ -562,7 +612,30 @@ size_t listMarker(const std::string& t, std::string& number) {
 
 }  // namespace
 
-std::string articleMarked(const std::string& md) {
+namespace {
+
+// Page furniture a browser hides or nobody reads, as the second reader service gives it (it converts a whole page, no
+// reader mode): GitHub's first of all, the site Hacker News links to most, which the first service refuses at times. A
+// paragraph that is one of these (marks aside) goes; one that starts with the session banner goes too.
+bool furniture(const std::string& marked) {
+  static const char* const kLines[] = {
+      "Skip to content", "Dismiss alert", "Copy link Copy Markdown", "All reactions", "Sorry, something went wrong.", "Uh oh!",
+      "There was an error while loading. Please reload this page.", "There was a problem hiding this comment.",
+      "Choose a reason for hiding this comment", "The reason will be displayed to describe this comment to others. Learn more.",
+      "Choose a reason Spam Abuse Off Topic Outdated Duplicate Resolved Low Quality Hide comment", "View reviewed changes",
+      "Contributor", "Contributor Author", "Member", "Collaborator", "Owner", "Author"};
+  std::string text;
+  for (char c : marked)
+    if (static_cast<unsigned char>(c) > 0x06) text += c;
+  if (startsWith(text, "You signed in with another tab or window.")) return true;
+  for (const char* line : kLines)
+    if (text == line) return true;
+  return false;
+}
+
+}  // namespace
+
+std::string articleMarked(const std::string& md, bool web) {
   std::string out, para, inset;  // inset: what the paragraph being collected is moved in by (no-break spaces: a list in a list)
   int heading = 0;          // of the paragraph being collected: 0 none, else the level
   bool code = false, codeFirst = true, tableRow = false;
@@ -572,9 +645,13 @@ std::string articleMarked(const std::string& md) {
     if (continues) out += kSoftBreak;
     out += line;
   };
+  // A short paragraph seen before is page furniture ("All reactions", "Sorry, something went wrong." under every comment
+  // of a page the second reader service gives whole): once is enough.
+  std::set<std::string> seen;
   auto flush = [&] {
     const std::string text = inlineMarked(para);
-    if (!text.empty()) addLine((heading ? std::string("\x05") + static_cast<char>('0' + heading) : std::string()) + inset + text, false);
+    const std::string line = (heading ? std::string("\x05") + static_cast<char>('0' + heading) : std::string()) + inset + text;
+    if (!text.empty() && (!web || ((text.size() > 60 || seen.insert(line).second) && !furniture(text)))) addLine(line, false);
     para.clear();
     inset.clear();
     heading = 0;
@@ -625,9 +702,20 @@ std::string articleMarked(const std::string& md) {
       flush();
       continue;
     }
+    // What a page's source left in the text: "<!DOCTYPE html>", a lone tag, a template's "{{ message }}".
+    const bool tag = t[0] == '<' && t.back() == '>' && t.find("://") == std::string::npos;
+    const bool templ = startsWith(t, "{{") && t.size() >= 4 && t.compare(t.size() - 2, 2, "}}") == 0;
+    if (web && (tag || templ)) {
+      flush();
+      continue;
+    }
     if (t[0] == '#') {
       size_t level = 0;
       while (level < t.size() && t[level] == '#') ++level;
+      if (level == t.size()) {  // "###": a heading without words
+        flush();
+        continue;
+      }
       if (level <= 6 && level < t.size() && t[level] == ' ') {
         flush();
         para = trimmed(t.substr(level), " #");
@@ -688,34 +776,185 @@ hal::HttpRequest articleRequest(const std::string& url) {
   req.headers = {{"Content-Type", "application/json"},
                  {"Accept", "text/plain"},
                  {"X-Retain-Images", "none"},        // no pictures: their addresses are noise here
-                 {"X-Md-Link-Style", "discarded"}};  // a link is its words
+                 {"X-Md-Link-Style", "discarded"},   // a link is its words
+                 {"X-Timeout", "6"}};                // a page that is still loading after 6 s is a CAPTCHA (15 s without)
   req.timeoutMs = 30000;  // the service fetches the page first
   return req;
 }
 
+hal::HttpRequest fallbackRequest(const std::string& url) {
+  hal::HttpRequest req;
+  req.method = "POST";
+  req.url = kFallbackUrl;
+  JsonDocument doc;
+  doc["url"] = url;
+  serializeJson(doc, req.body);
+  req.headers = {{"Content-Type", "application/json"}, {"Accept", "application/json"}};
+  req.timeoutMs = 20000;  // it renders a page in a browser when it has to (1-5 s)
+  return req;
+}
+
+std::string fallbackAnswer(const std::string& json, const std::string& url) {
+  JsonDocument doc;
+  if (deserializeJson(doc, json) || !(doc["success"] | false)) return {};
+  const char* content = doc["content"] | "";
+  if (!*content) return {};
+  std::string title = doc["title"] | "";
+  std::replace(title.begin(), title.end(), '\n', ' ');
+  std::string out;
+  if (!title.empty()) out += "Title: " + title + "\n\n";
+  out += "URL Source: " + url + "\n\nMarkdown Content:\n";
+  out += content;
+  return out;
+}
+
+namespace {
+
+constexpr char kMarker[] = "Markdown Content:";
+
+// What the service says about the page before its text ("Warning: Target URL returned error 403: Forbidden").
+std::string warningOf(const std::string& body) {
+  const size_t marker = body.find(kMarker);
+  if (marker == std::string::npos) return {};
+  for (const std::string& line : split(body.substr(0, marker), '\n'))
+    if (startsWith(line, "Warning: ")) return cleanText(line.substr(9));
+  return {};
+}
+
+bool readable(const hal::HttpResponse& r) { return r.status == 200 && r.error.empty() && r.body.size() <= kMaxArticleBytes; }
+
+// How much an article has to read: the bytes of its marked text outside headings (a warning and a title are no page).
+size_t bodyBytes(const Article& a) {
+  size_t n = 0, at = 0;
+  while (at < a.text.size()) {
+    size_t eol = a.text.find('\n', at);
+    if (eol == std::string::npos) eol = a.text.size();
+    if (a.text[at] != '\x05') n += eol - at;
+    at = eol + 1;
+  }
+  return n;
+}
+
+// A value of the YAML front matter as text: "a", "\"a \\\"b\\\"\"", "'it''s'".
+std::string yamlText(std::string v) {
+  v = trimmed(v);
+  if (v.size() >= 2 && v.front() == '"' && v.back() == '"') {
+    std::string out;
+    for (size_t i = 1; i + 1 < v.size(); ++i) {
+      if (v[i] == '\\' && i + 2 < v.size()) ++i;
+      out += v[i];
+    }
+    return out;
+  }
+  if (v.size() >= 2 && v.front() == '\'' && v.back() == '\'') {
+    std::string out;
+    for (size_t i = 1; i + 1 < v.size(); ++i) {
+      out += v[i];
+      if (v[i] == '\'' && v[i + 1] == '\'') ++i;
+    }
+    return out;
+  }
+  return v;
+}
+
+// Markdown that starts with a YAML front matter ("---", "title: ...", "---", as the second service gives it): the text after
+// it, and its title in `title`. Markdown without one as it is.
+std::string skipFrontMatter(const std::string& md, std::string& title) {
+  size_t at = 0;
+  while (at < md.size() && (md[at] == '\n' || md[at] == '\r' || md[at] == ' ')) ++at;
+  if (md.compare(at, 4, "---\n") != 0) return md;
+  const size_t first = at + 4;
+  const size_t eol = md.find('\n', first);
+  const std::string line = md.substr(first, eol == std::string::npos ? std::string::npos : eol - first);
+  const size_t colon = line.find(':');
+  if (colon == std::string::npos || colon == 0 || line[0] == ' ' || line.find(' ') < colon) return md;  // "key: value", else a rule
+  size_t close = first;
+  while (true) {
+    close = md.find("\n---", close);
+    if (close == std::string::npos) return md;
+    const size_t after = close + 4;
+    if (after >= md.size() || md[after] == '\n' || md[after] == '\r') break;
+    close = after;
+  }
+  for (const std::string& l : split(md.substr(first, close - first), '\n'))
+    if (startsWith(l, "title:") && title.empty()) title = cleanText(yamlText(l.substr(6)));
+  return close + 4 >= md.size() ? std::string() : md.substr(close + 5);
+}
+
+}  // namespace
+
+// Whether marked text opens with a heading that is the page's title ("The page" and "The page, again", "Title | Site" and
+// "Title"): then the title is not put above it. A first heading that is something else ("Conversation") gets it.
+static bool opensWith(const std::string& text, const std::string& title) {
+  if (text.size() < 2 || text[0] != '\x05') return false;
+  const size_t eol = text.find('\n');
+  const std::string heading = lowerAscii(text.substr(2, eol == std::string::npos ? std::string::npos : eol - 2));
+  const std::string t = lowerAscii(title);
+  return !heading.empty() && (startsWith(heading, t) || startsWith(t, heading));
+}
+
+bool needsFallback(const hal::HttpResponse& r) {
+  // A time-out: the second may be quicker. No Wi-Fi, or nothing left the device: the second is not there either.
+  if (r.status == 0) return !r.notSent && !startsWith(r.error, "No Wi-Fi");
+  if (r.status != 200 || !r.error.empty()) return true;
+  if (r.body.size() > kMaxArticleBytes) return false;
+  Article a;
+  if (!parseArticle(r.body, a)) return true;
+  return !warningOf(r.body).empty();
+}
+
+hal::HttpResponse readPage(const Transport& send, const std::string& url, uint32_t budgetMs) {
+  const auto t0 = std::chrono::steady_clock::now();
+  hal::HttpRequest first = articleRequest(url);
+  if (budgetMs > 0) first.timeoutMs = std::min(first.timeoutMs, budgetMs);
+  hal::HttpResponse r = send(first);
+  if (!needsFallback(r)) return r;
+  hal::HttpRequest second = fallbackRequest(url);
+  if (budgetMs > 0) {
+    const auto spent = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
+    if (spent + 3000 > static_cast<long long>(budgetMs)) return r;
+    second.timeoutMs = std::min<uint32_t>(second.timeoutMs, budgetMs - static_cast<uint32_t>(spent));
+  }
+  hal::HttpResponse f = send(second);
+  std::string body = readable(f) ? fallbackAnswer(f.body, url) : std::string();
+  Article theirs, mine;
+  if (body.empty() || !parseArticle(body, theirs)) {
+    POS_LOG("hn", "reader %d, second reader %d: nothing better", r.status, f.status);
+    return r;
+  }
+  // The first service's text, with its warning, when it is the longer one (a site that answered 401 but sent the page).
+  if (readable(r) && parseArticle(r.body, mine) && bodyBytes(mine) >= bodyBytes(theirs)) {
+    POS_LOG("hn", "second reader: %u bytes of text, the first had more", static_cast<unsigned>(bodyBytes(theirs)));
+    return r;
+  }
+  POS_LOG("hn", "reader %d, second reader read it: %u bytes of text", r.status, static_cast<unsigned>(bodyBytes(theirs)));
+  f.body = std::move(body);
+  return f;
+}
+
 bool parseArticle(const std::string& body, Article& out) {
   out = Article{};
-  static const char kMarker[] = "Markdown Content:";
   const size_t marker = body.find(kMarker);
   const std::string head = marker == std::string::npos ? std::string() : body.substr(0, marker);
-  std::string warning;
-  for (const std::string& line : split(head, '\n')) {
+  for (const std::string& line : split(head, '\n'))
     if (startsWith(line, "Title: ") && out.title.empty()) out.title = cleanText(line.substr(7));
-    if (startsWith(line, "Warning: ") && warning.empty()) warning = cleanText(line.substr(9));
-  }
-  const std::string text = articleMarked(marker == std::string::npos ? body : body.substr(marker + sizeof kMarker - 1));
+  const std::string warning = warningOf(body);
+  std::string fmTitle;
+  const std::string md = skipFrontMatter(marker == std::string::npos ? body : body.substr(marker + sizeof kMarker - 1), fmTitle);
+  if (out.title.empty()) out.title = fmTitle;
+  const std::string text = articleMarked(md, marker != std::string::npos);
   if (text.empty()) return false;
   // What the service said about the page ("Target URL returned error 403") is worth reading before the text.
   if (!warning.empty()) out.text = "\x05" "4" + warning + "\n";
-  if (!out.title.empty() && text[0] != '\x05') out.text += "\x05" "2" + out.title + "\n";
+  if (!out.title.empty() && !opensWith(text, out.title)) out.text += "\x05" "2" + out.title + "\n";
   out.text += text;
   return true;
 }
 
 ArticleResult fetchArticle(const Transport& send, const std::string& url) {
   ArticleResult res;
-  const hal::HttpResponse r = send(articleRequest(url));
-  if (r.status == 200 && r.error.empty() && r.body.size() <= kMaxArticleBytes && parseArticle(r.body, res.article)) {
+  const hal::HttpResponse r = readPage(send, url);
+  if (readable(r) && parseArticle(r.body, res.article)) {
     res.ok = true;
     return res;
   }

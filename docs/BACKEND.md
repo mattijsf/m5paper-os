@@ -154,8 +154,9 @@ was installed in that repo's `docs/HANDOVER.md`.
 Home Assistant holds no message or mail text (D22); with the companion app it will hold ciphertext and metadata (timing, sizes,
 count) only. Decrypted text lives on the device: in memory and in its cache on the device's internal flash (`/data/cache/inbox/`).
 The device's sleep screen, which anyone near it can read, shows the unread count only (a count per app), never a sender or text.
-A link shared for reading later (apps/reader.md "Articles") is read through the reader service of D34: its address
-goes to that third party, as an article opened in Hacker News does. The agenda's event titles and times are on it (D28, the Today board: POWER.md), unless "Today on the sleep screen" is off. Someone else
+A link shared for reading later (apps/reader.md "Articles") is read through the reader services of D34: its address
+goes to that third party (and to the second service, markdown.new, when the first cannot read the page), as an
+article opened in Hacker News does. The agenda's event titles and times are on it (D28, the Today board: POWER.md), unless "Today on the sleep screen" is off. Someone else
 also uses this Home Assistant: nothing of the inbox may appear on a dashboard or under `www/`.
 
 ## No fallback through Home Assistant

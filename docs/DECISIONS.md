@@ -584,6 +584,13 @@ the budget runs short (sizes from the linker map):
   **The article is what a story opens**: a tap on a story with a link shows the article, its comments are a button on it ("14 comments"); a long
   press opens the comments straight away; a story without a link opens its comments. So the third party is asked
   for every story opened that has a link.
+  **A second reader service**: `markdown.new` (Cloudflare, no key, 500 requests a day), asked only when Jina Reader fails, finds no text or
+  says the site refused it; of two texts the longer wins. Compared on 30 front-page links: each read 26, not the same
+  ones; Jina's text is cleaner (a reader mode; markdown.new keeps more of the page around the article), so Jina stays
+  first. Others tried and left: defuddle.md (clean, but a 429 after ten requests), pure.md (asks for payment), the
+  Wayback Machine (it stores the sites' refusals, and Jina will not read it). Reuters, the New York Times and
+  tweakers.net stay out of reach of every free service. The cost: the address also goes to a second third party, only
+  for a page the first could not read. One code path for Hacker News and Read later (`hackernews::readPage`).
 - **Job adverts are not shown** (the search does not know them), comments are not saved (20 to 300 KB a thread), no
   login, votes or replies.
 - **Test stories are made up** (`tests/fixtures/make-hackernews-fixtures.py`): the repository holds no text of the site.

@@ -101,20 +101,45 @@ order, comment HTML into text, the thread as paragraphs, the saved copy, the rea
   them. So the screens never pile up: list, article, comments at most, in either order.
 
 - The page a story links to, as text from a **reader service**: `POST https://r.jina.ai/` with `{"url": "<the link>"}`
-  (Jina Reader, no key; headers `X-Retain-Images: none`, `X-Md-Link-Style: discarded`, `Accept: text/plain`). It fetches
-  the page and answers a few lines about it (`Title:`, `URL Source:`, sometimes `Warning:`) and the page as Markdown.
-  **What leaves the device is the article's address, to that service**, and only when an article is opened; nothing about
-  the user. D34 says why a third party.
+  (Jina Reader, no key; headers `X-Retain-Images: none`, `X-Md-Link-Style: discarded`, `Accept: text/plain`,
+  `X-Timeout: 6`: without it a site that shows the service a CAPTCHA holds it 15 s, with it 6, and a slow page still
+  comes whole). It fetches the page and answers a few lines about it (`Title:`, `URL Source:`, sometimes `Warning:`)
+  and the page as Markdown.
+- **A second reader service when the first cannot read the page**: `POST https://markdown.new/` with the same body (Cloudflare's
+  Markdown for agents, no key, 500 requests a day per address). It is asked when the first answers an error (a status,
+  its limit of 20 a minute, a time-out), no text, or a `Warning:` (the site refused it: "Target URL returned error
+  403", a CAPTCHA). Not without Wi-Fi, not for a page over 400 KB. It answers JSON (`success`, `title`, `content`: a
+  YAML front matter, then the page as Markdown with its links); `fallbackAnswer` makes that the first service's format,
+  so the rest (and a saved Read later file) knows one format. Of two texts the longer is shown (a site that answered
+  the first 401 but sent the page anyway); when the second has nothing, the first's answer and error stand.
+  `hackernews::readPage` does both, for this app and for Read later. Measured on 2026-11-20 with 30 front-page links:
+  each read 26, not the same 26 (the second read a Synology advisory and a WSJ article the first did not; the first a
+  YouTube page and a blog the second did not); neither reads reuters.com, nytimes.com or tweakers.net (a CAPTCHA, a
+  privacy gate), nor does the Wayback Machine have more than the sites' refusals. The second is faster (0.2-1.2 s
+  against 0.4-12 s) but keeps more of a page's furniture ("Advertisement", "Subscribe now", sometimes a menu); so it
+  is the second, not the first.
+- **What leaves the device is the article's address, to those services** (the second only when the first could not
+  read it), and only when an article is opened; nothing about the user. D34 says why a third party.
 - `articleMarked` turns the Markdown into the reader's marked text: headings (`#` and `##` level 2, deeper ones level 3;
   a line underlined with `=` or `-`), paragraphs, list items with a bullet or their number (a list in a list moved in),
   code blocks and table rows as lines that stay lines, `**bold**`; the marks of emphasis, inline code, escapes and
-  lines across are dropped. The page's title is put first when the text does not start with a heading; a `Warning:`
-  of the service ("Target URL returned error 403") stands above it.
+  lines across are dropped, a link is its words and a picture goes (`[text](url)`, `![alt](url)`: the second service
+  keeps them), a YAML front matter is skipped (its `title:` is the title when there is no `Title:` line), a heading
+  without words goes. For a service's answer only (not a Markdown file of the user's in Read, where a refrain may
+  repeat): a lone HTML tag or `{{ template }}` line goes, and a short paragraph (60 bytes at most) is kept the first
+  time only: a GitHub page through the second service repeats "All reactions" and "Sorry, something went wrong."
+  under every comment (73 pages before, 49 after), and a short list of furniture lines goes wherever it stands
+  (`furniture`: GitHub's hidden session banner "You signed in with another tab or window...", "Skip to content", "Copy
+  link Copy Markdown", the hide-comment menu, "Contributor"; 39 pages left, the conversation from page 1). GitHub is
+  the site Hacker News links to most, and on 2026-11-20 Jina Reader answered 403 for it (it read it that morning).
+  The page's title is put first unless the text opens with a heading that is the title (one starts with the other:
+  "Title | Site" and "Title"; a first heading "Conversation" gets the title above it); a `Warning:` of the service
+  ("Target URL returned error 403") stands above it.
 - Set like the comments (Inter 22), headings in Inter 28 semibold; pages turn as in the comments. **Link** shows the
   address as a QR code for the phone, with "Copy link" (the clipboard, so also the phone's when it is shared: D23); a
   link too long for the code (over about 210 characters) gives the story's page on the site.
-- **Failures**: the service's own sentence when it gives one ("Domain 'x' could not be resolved"), else "The reader
-  answered 503", "No text on the page", "The page is too long" (over 400 KB), or the network's reason; with Retry.
+- **Failures** (when the second service has nothing either): the first service's own sentence when it gives one
+  ("Domain 'x' could not be resolved"), else "The reader answered 503", "No text on the page", "The page is too long" (over 400 KB), or the network's reason; with Retry.
 - The article is not kept: without a network "Article not loaded" (the comments button still works).
 
 ## Opened again
@@ -131,7 +156,7 @@ the list, and the four keys are emptied.
 ## Data
 
 Two public services for the site itself, no key, nothing about the user or the device in a request (the article's
-reader service is a third: "The article"):
+reader services are a third and a fourth: "The article"):
 
 | What | Request |
 |---|---|
@@ -182,13 +207,15 @@ as text like the Teletekst logo (UI.md "Icons"). The site's mark: for this priva
   in the repository. Times count back from the moment the UI scripts start, so the ages on the screenshots stay.
 - UI scripts: `hackernews` (the list and its pages, a story's article and its pages, the link sheet, its comments and
   their pages, Next thread, back to the article; a long press to the comments and the article over them; a story with
-  its own text, one without comments, one whose article and comments fail, the other lists), `hackernews-offline`
+  its own text, one without comments, one whose article and comments fail, one whose article only the second reader
+  service reads, the other lists), `hackernews-offline`
   (nothing saved, no network), `hackernews-saved` (saved lists without Wi-Fi, a story's article and comments without
   it), `hackernews-resume` (the article, the comments over the article, the comments of a long press come back).
 - Unit tests: addresses, ids, stories in the order of the ids, an item, comment HTML, the tree (order, depth, replies,
   deleted, orphans, a thousand deep), ages and lines, paragraphs and margins, a place that survives a new read, the saved
   copy, the reads through a transport that answers from the fixtures and one that fails, the order of a story's two
-  requests, Markdown to marked text, the reader's answer, request and errors.
+  requests, Markdown to marked text (links, pictures, a front matter), the reader's answer, request and errors, when
+  the second reader service is asked and which text wins.
 - A look at the real site without the device: `.pio/build/sim/program --app hackernews --fixtures none` (libcurl).
 
 ## Speed and flicker (camera session, 2026-11-18)
@@ -229,6 +256,10 @@ fractional advance rounded and drew it cut off, about half a pixel a character. 
 is now set as wide as the font means, so the fixture thread is five pages where it was four.
 
 ## On the device
+
+2026-11-20, the second reader service (`out/dev-hn3/`): a live GitHub pull request, which Jina Reader answered with 403
+in 1.5 s, came from markdown.new in 4.0 s (`[hn] reader 403, second reader read it: 23540 bytes of text`): the pull
+request's title, the conversation from page 1, 39 pages, none of GitHub's furniture.
 
 2026-11-19, the article first (`out/dev-hn2/`): a live story opened its article as text (36 pages), "55 comments" the
 comments, "Article" back to the page it was on. A site that refuses the reader service (reuters.com) shows "No text on

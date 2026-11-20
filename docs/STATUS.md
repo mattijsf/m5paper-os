@@ -902,8 +902,9 @@ None of these block Phase 1, Phase 2, or the reader.
 - **Sites that refuse the reader service (P7-18, 2026-11-18)**: tweakers.net (DPG Media: a firewall and a consent
   wall) gives no article, and its sister sites will not either. Ways round, none built: the phone reads the page
   itself (it has the owner's consent cookies in its browser, not in the companion app: a WebView with its own consent
-  would be needed) and sends the text through the relay in pieces; another reader service; the site's RSS feed where
-  it carries the full text. Ask the owner which sites matter before building any of them.
+  would be needed) and sends the text through the relay in pieces; the site's RSS feed where it carries the full text.
+  Ask the owner which sites matter before building any of them. (Another reader service is built since 2026-11-20,
+  markdown.new as the second: it gets DPG Media's privacy gate too, and so do reuters.com and nytimes.com.)
 - **An article that was open when the device was reset shows "New" again** (seen after a flash, 2026-11-18): the
   reader writes its progress when the book is left; the badge had already dropped. Harmless; a power cut while reading
   does the same for a book's position (existing behaviour).
@@ -1592,3 +1593,15 @@ None of these block Phase 1, Phase 2, or the reader.
   `chess-knight` (for P7-23) changes nothing. 27 goldens re-accepted (the launcher with its twelfth tile, `fonts-sheet`,
   the lab's push counters), 6 new. 378 unit tests, 322 screenshots; firmware 2,618,439 bytes (with the Hacker News work
   in progress in the same checkout). D41, apps/pixelpuzzle.md, APPS.md, ROADMAP P7-22 / P7-23.
+- 2026-11-20: a second reader service for articles. `hackernews::readPage`: Jina Reader first (now with `X-Timeout: 6`: a CAPTCHA page answers in 6 s, not
+  15), markdown.new (Cloudflare, no key, 500 a day) when Jina fails, finds no text or says the site refused it; of two
+  texts the longer; Hacker News and Read later both use it. Compared on 30 front-page links (each read 26, not the same
+  ones); defuddle.md, pure.md and the Wayback Machine tried and left; reuters.com, nytimes.com and tweakers.net stay
+  unreadable (D34). The Markdown conversion now drops links' addresses and pictures (the second keeps them), a YAML
+  front matter, and for a service's answer page furniture (lone tags, `{{ }}`, repeated short lines, GitHub's hidden
+  session banner and comment menus: a GitHub page 73 pages before, 39 after); the title stays above a first heading
+  that is not the title. New UI step and golden `hackernews-article-fallback`. 378 unit tests, 322 screenshots;
+  firmware 2,619,383 bytes with Pixelpuzzel (this change +4.7 KB). **On the device** (`make ota`, off USB): Jina
+  answered a live GitHub pull request with 403, markdown.new read it in 4.0 s, title and conversation on page 1
+  (`out/dev-hn3/article2.png`). Jina refused GitHub all afternoon though it read it in the morning (perhaps this
+  network's many test requests).

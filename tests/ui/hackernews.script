@@ -125,6 +125,13 @@ back
 wait 500
 back
 wait 500
+# A site that shows the reader service a CAPTCHA: the second service (markdown.new) reads the page.
+tap 270 693
+wait 1500
+shot hackernews-article-fallback
+expect-state article=38250005|Page 1 of 2
+back
+wait 500
 # The other lists.
 tap 207 173
 wait 1500

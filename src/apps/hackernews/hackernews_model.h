@@ -135,7 +135,8 @@ ui::TextPos posOf(const ThreadText& t, const Anchor& a);
 
 // ---- the article a story links to, as text (a reader service: docs/apps/hackernews.md "The article")
 
-constexpr const char* kReaderUrl = "https://r.jina.ai/";
+constexpr const char* kReaderUrl = "https://r.jina.ai/";          // the reader service (Jina Reader)
+constexpr const char* kFallbackUrl = "https://markdown.new/";     // the second one, when the first can not read a page
 constexpr size_t kMaxArticleBytes = 400 * 1024;  // a long article is 50 KB of text
 
 struct Article {
@@ -145,11 +146,26 @@ struct Article {
 
 // The request for the text of the page at `url`: its address goes to the service, nothing else.
 hal::HttpRequest articleRequest(const std::string& url);
-// The service's answer ("Title: ...", "Markdown Content:", then the page as Markdown) into `out`. False if it holds no text.
+// The same for the second service (markdown.new).
+hal::HttpRequest fallbackRequest(const std::string& url);
+// The second service's answer (JSON: success, title, content) in the first one's format, "" if it holds no page.
+std::string fallbackAnswer(const std::string& json, const std::string& url);
+// Whether the second service is worth asking after the first answered `r`: it refused or failed (a status, a time-out, its
+// limit of requests), found no text, or says the site refused it ("Warning: Target URL returned error 403", a CAPTCHA). Not
+// when nothing left the device (no Wi-Fi) or the page is too long.
+bool needsFallback(const hal::HttpResponse& r);
+// The page at `url` as text, in the first service's format: the first service, then the second when needsFallback (of two
+// texts the longer). The first service's answer when the second has nothing better: its error is the one to show.
+// `budgetMs` > 0: both requests together take at most that long.
+hal::HttpResponse readPage(const Transport& send, const std::string& url, uint32_t budgetMs = 0);
+// A service's answer ("Title: ...", "Markdown Content:", then the page as Markdown, maybe after a YAML front matter) into
+// `out`. False if it holds no text.
 bool parseArticle(const std::string& body, Article& out);
 // Markdown as marked text: headings (# and ## are level 2, deeper ones 3), paragraphs, list items with a bullet, code blocks and
-// table rows as lines that stay lines, **bold**; the marks of emphasis, inline code and links are dropped.
-std::string articleMarked(const std::string& markdown);
+// table rows as lines that stay lines, **bold**; the marks of emphasis, inline code and links are dropped. `web`: a page
+// from a reader service, so what its source left (a lone tag, "{{ template }}") goes and a short paragraph is kept once
+// (page furniture); not for a Markdown file of the user's (a poem's refrain stays).
+std::string articleMarked(const std::string& markdown, bool web = false);
 
 struct ArticleResult {
   bool ok = false;

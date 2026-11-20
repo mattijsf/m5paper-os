@@ -69,13 +69,13 @@ ArticleFetch fetchArticles(const Transport& send, int64_t now, uint32_t budgetMs
   for (const readlater::Link& link : todo) {
     if (offline) break;
     const std::string host = readlater::hostOf(link.url);
-    hal::HttpRequest request = hackernews::articleRequest(link.url);
+    uint32_t left = 0;  // for this link's reads: the first reader service, the second when the first can not read it
     if (budgetMs > 0) {
       const auto spent = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
       if (spent + 5000 > static_cast<long long>(budgetMs)) break;
-      request.timeoutMs = std::min<uint32_t>(request.timeoutMs, budgetMs - static_cast<uint32_t>(spent));
+      left = budgetMs - static_cast<uint32_t>(spent);
     }
-    const hal::HttpResponse r = send(request);
+    const hal::HttpResponse r = hackernews::readPage(send, link.url, left);
     const auto queued = std::find_if(s.queue.begin(), s.queue.end(), [&](const readlater::Link& l) { return l.url == link.url; });
     hackernews::Article article;
     std::string why;

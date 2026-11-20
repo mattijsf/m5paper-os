@@ -154,13 +154,14 @@ A link shared from the phone waits on the Paper as an article, read like a book.
 - **Queue**: `core/readlater`, `/data/readlater.json`: up to 20 links (address, the words before it, when, tries) and
   the files of the articles nobody opened yet. The relay read queues (`inbox::fetchRelay`, whoever reads).
 - **Reading the page**: `reader::fetchArticles` (`apps/reader/articles`), on the worker: the request of the Hacker News
-  app's article (`POST r.jina.ai`, D34: the link's address goes to that service, nothing else), its answer saved as it
-  is to `/sd/books/Articles/<title> - <host>.md` (`readlater::fileName`: what a FAT name cannot hold is taken out, 70
+  app's article (`hackernews::readPage`: `POST r.jina.ai`, and `POST markdown.new` when that cannot read the page,
+  D34: the link's address goes to those services, nothing else), its answer saved as it is (the second service's in the
+  first one's format) to `/sd/books/Articles/<title> - <host>.md` (`readlater::fileName`: what a FAT name cannot hold is taken out, 70
   characters, " - " inside the title becomes a dash; a name that is taken gets " (2)"). **When**: in the scheduled refresh, after the relay
   and the weather (it gives the links 25 s of its 45), and when the library is shown with links waiting ("Reading 2
   links..." as a toast, then the list again; once per visit). **Not at the launcher's relay check**, which only queues: a
   page takes seconds, and on the one worker an app opened meanwhile would wait for it.
-- **A link that cannot be read**: no text on the page, a page over 400 KB, a 4xx of the service, or **a site that turns
+- **A link that cannot be read** (by neither reader service): no text on the page, a page over 400 KB, a 4xx of the service, or **a site that turns
   the reader service away** (the service then answers 200 with "Warning: Target URL returned error 403" and the site's
   notice as the page: "The site refused the reader (403)"; seen with tweakers.net on the device, 2026-11-18: DPG Media's
   firewall, the answer took 16.8 s): dropped at once, nothing is saved. No

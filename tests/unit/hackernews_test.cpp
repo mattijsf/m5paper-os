@@ -432,6 +432,24 @@ TEST_CASE("hackernews: Markdown of an article to marked text") {
   CHECK(articleMarked("# Title\n\n## Part ##\n\n### Detail\n\nText") == "\x05" "2Title\n\x05" "2Part\n\x05" "3Detail\nText");
   CHECK(articleMarked("Title\n=====\n\nSub\n---\n\nText") == "\x05" "2Title\n\x05" "2Sub\nText");
   CHECK(articleMarked("#hashtag is text") == "#hashtag is text");
+  // Links are their words, pictures go (the second reader service keeps both).
+  CHECK(articleMarked("See [the **docs**](https://x.example/a_(b)) and ![a chart](c.png) [1] `[a](b)`.") ==
+        "See the \x01" "docs\x02 and [1] [a](b).");
+  CHECK(articleMarked("[![logo](l.png)](https://x.example/)\n\nText") == "Text");
+  CHECK(articleMarked("[ Subscribe now ](https://x.example/s) [unclosed](x") == "Subscribe now [unclosed](x");
+  // What a page's source left (a lone tag, a template, a heading without words) goes; a short paragraph only once.
+  CHECK(articleMarked("<!DOCTYPE html>\n\nSkip\n\n{{ message }}\n\n###\n\n### Note\n\nShare this\n\nA comment.\n\n### Note\n\n"
+                      "Share this\n\n<https://x.example/>\n\n<b>bold</b> text", true) ==
+        "Skip\n\x05" "3Note\nShare this\nA comment.\n<https://x.example/>\n<b>bold</b> text");
+  const std::string longer = "A paragraph long enough to be text and not furniture, said twice on purpose.";
+  CHECK(articleMarked(longer + "\n\n" + longer, true) == longer + "\n" + longer);
+  // GitHub's furniture, which the second service keeps (its session banner is hidden in a browser).
+  CHECK(articleMarked("Skip to content\n\nYou signed in with another tab or window. Reload to refresh your session. Dismiss alert\n\n"
+                      "**nmouha** commented Nov 10, 2026\n\nCopy link Copy Markdown\n\nContributor\n\nThe fix.\n\n"
+                      "Sorry, something went wrong.\n\n### Uh oh!\n\nThere was an error while loading. Please reload this page.", true) ==
+        "\x01nmouha\x02 commented Nov 10, 2026\nThe fix.");
+  CHECK(articleMarked("Skip to content\n\nText.") == "Skip to content\nText.");  // a file of the user's
+  CHECK(articleMarked("Refrain.\n\nVerse.\n\nRefrain.\n\n{{ kept }}") == "Refrain.\nVerse.\nRefrain.\n{{ kept }}");  // a file of the user's
   // Emphasis: bold is marked, the marks of emphasis, inline code and escapes go; signs and snake_case stay.
   CHECK(articleMarked("A **bold** word, an _emphasised_ one, `code_here` and 2 * 3 = 6.") ==
         "A \x01" "bold\x02 word, an \x03" "emphasised\x04 one, code_here and 2 * 3 = 6.");
@@ -473,13 +491,17 @@ TEST_CASE("hackernews: the reader's answer and request") {
   CHECK(a.text == "\x05" "2The page, again\nText.");
   REQUIRE(parseArticle("Title: Blocked\n\nWarning: Target URL returned error 403: Forbidden\n\nMarkdown Content:\nJust a moment...\n", a));
   CHECK(a.text == "\x05" "4Target URL returned error 403: Forbidden\n\x05" "2Blocked\nJust a moment...");
+  REQUIRE(parseArticle("Title: Fix a bug \xC2\xB7 Pull Request #1\n\nMarkdown Content:\n## Conversation\n\nText.\n", a));
+  CHECK(a.text == "\x05" "2Fix a bug \xC2\xB7 Pull Request #1\n\x05" "2Conversation\nText.");  // a heading that is not the title
+  REQUIRE(parseArticle("Title: The heading | Site\n\nMarkdown Content:\n# The Heading\n\nText.\n", a));
+  CHECK(a.text == "\x05" "2The Heading\nText.");
   REQUIRE(parseArticle("No marker at all, only text.", a));
   CHECK(a.text == "No marker at all, only text.");
   CHECK_FALSE(parseArticle("Title: Empty\n\nMarkdown Content:\n\n", a));
   CHECK_FALSE(parseArticle("", a));
 }
 
-TEST_CASE("hackernews: an article is one request; the service's own words when it fails") {
+TEST_CASE("hackernews: an article is one request when the first service reads it; its own words when it fails") {
   FixtureNet net;
   hal::HttpRequest sent;
   const Transport fixtures = net.transport();
@@ -535,4 +557,99 @@ TEST_CASE("hackernews: an article is one request; the service's own words when i
   CHECK(fetchArticle(fail(503, "", "<html>"), "https://x.example/").error == "The reader answered 503");
   CHECK(fetchArticle(fail(200, "", "Title: x\n\nMarkdown Content:\n"), "https://x.example/").error == "No text on the page");
   CHECK(fetchArticle(fail(200, "", std::string(kMaxArticleBytes + 1, 'a')), "https://x.example/").error == "The page is too long");
+}
+
+TEST_CASE("hackernews: the second reader service, when the first can not read the page") {
+  const hal::HttpRequest req = fallbackRequest("https://w.example/a");
+  CHECK(req.method == "POST");
+  CHECK(req.url == "https://markdown.new/");
+  CHECK(req.body == "{\"url\":\"https://w.example/a\"}");
+  bool timeout = false;
+  for (const auto& h : articleRequest("https://w.example/a").headers) timeout = timeout || (h.first == "X-Timeout" && h.second == "6");
+  CHECK(timeout);  // a CAPTCHA page holds the first service 15 s without it
+
+  // Its answer is JSON with the page as Markdown after a YAML front matter: in the first service's format.
+  const std::string page = "{\"success\":true,\"url\":\"https://w.example/a\",\"title\":\"The \\\"real\\\"\\npage\",\"content\":"
+                           "\"---\\ntitle: \\\"The \\\\\\\"real\\\\\\\" page\\\"\\nmeta:\\n  author: x\\n---\\n\\nIt has text.\\n\\n## More\\n\\nAnd more.\"}";
+  CHECK(fallbackAnswer(page, "https://w.example/a") ==
+        "Title: The \"real\" page\n\nURL Source: https://w.example/a\n\nMarkdown Content:\n---\ntitle: \"The \\\"real\\\" page\"\nmeta:\n  author: x\n---\n\n"
+        "It has text.\n\n## More\n\nAnd more.");
+  CHECK(fallbackAnswer("{\"success\":false,\"error\":\"Error from The API: All conversion methods failed.\"}", "https://w.example/a") == "");
+  CHECK(fallbackAnswer("{\"success\":true,\"content\":\"\"}", "https://w.example/a") == "");
+  CHECK(fallbackAnswer("<html>", "https://w.example/a") == "");
+
+  Article a;
+  REQUIRE(parseArticle(fallbackAnswer(page, "https://w.example/a"), a));
+  CHECK(a.title == "The \"real\" page");
+  CHECK(a.text == "\x05" "2The \"real\" page\nIt has text.\n\x05" "2More\nAnd more.");
+  REQUIRE(parseArticle("Markdown Content:\n---\ntitle: 'It''s here'\n---\nText.", a));  // the title from the front matter
+  CHECK(a.title == "It's here");
+  CHECK(a.text == "\x05" "2It's here\nText.");
+  REQUIRE(parseArticle("Markdown Content:\n---\n\nAfter a rule.", a));  // a rule, not a front matter
+  CHECK(a.text == "After a rule.");
+  REQUIRE(parseArticle("Markdown Content:\n---\nNot: yaml at all\n\nText.", a));  // never closed: text
+  CHECK(ui::plainText(ui::parseMarked(a.text).front()) == "Not: yaml at all");
+  CHECK_FALSE(parseArticle("Markdown Content:\n---\ntitle: reuters.com\n---", a));  // only a front matter: the site refused it
+
+  std::vector<std::string> asked;
+  const auto answer = [](int status, std::string body, std::string error = "", bool notSent = false) {
+    hal::HttpResponse r;
+    r.status = status;
+    r.body = std::move(body);
+    r.error = std::move(error);
+    r.notSent = notSent;
+    return r;
+  };
+  const auto services = [&](hal::HttpResponse first, hal::HttpResponse second) {
+    asked.clear();
+    return Transport([&asked, first, second](const hal::HttpRequest& r) {
+      asked.push_back(r.url);
+      return r.url == kReaderUrl ? first : second;
+    });
+  };
+  const hal::HttpResponse good = answer(200, page);
+  const std::string text = "Title: Fine\n\nMarkdown Content:\nA page of text.\n";
+
+  // The first reads it: the second is not asked.
+  ArticleResult r = fetchArticle(services(answer(200, text), good), "https://w.example/a");
+  CHECK(r.ok);
+  CHECK(asked.size() == 1);
+  CHECK(r.article.title == "Fine");
+  // A CAPTCHA page (no text, a warning), its limit of requests, a time-out, an error: the second reads it.
+  const hal::HttpResponse captcha =
+      answer(200, "Title: reuters.com\n\nWarning: This page maybe requiring CAPTCHA, please make sure you are authorized to access this page.\n\nMarkdown Content:\n\n");
+  for (const hal::HttpResponse& first : {captcha, answer(429, "RateLimitTriggeredError"), answer(0, "", "timeout"), answer(502, "")}) {
+    r = fetchArticle(services(first, good), "https://w.example/a");
+    CHECK(r.ok);
+    CHECK(asked == std::vector<std::string>{kReaderUrl, kFallbackUrl});
+    CHECK(r.article.title == "The \"real\" page");
+  }
+  // The site refused the first but it sent a page: the longer text of the two.
+  const hal::HttpResponse walled = answer(200, "Title: Walled\n\nWarning: Target URL returned error 401: Unauthorized\n\nMarkdown Content:\n" +
+                                                   std::string(400, 'x') + "\n");
+  r = fetchArticle(services(walled, good), "https://w.example/a");
+  CHECK(asked.size() == 2);
+  CHECK(r.article.title == "Walled");
+  r = fetchArticle(services(answer(200, "Title: Walled\n\nWarning: Target URL returned error 403: Forbidden\n\nMarkdown Content:\nJust a moment...\n"), good),
+                   "https://w.example/a");
+  CHECK(r.article.title == "The \"real\" page");
+  // The second can not read it either: the first's words.
+  const hal::HttpResponse none = answer(500, "{\"success\":false,\"error\":\"Error from The API: All conversion methods failed.\"}");
+  r = fetchArticle(services(answer(422, "{\"message\":\"Domain 'x.example' could not be resolved\"}"), none), "https://x.example/");
+  CHECK_FALSE(r.ok);
+  CHECK(asked.size() == 2);
+  CHECK(r.error == "Domain 'x.example' could not be resolved");
+  r = fetchArticle(services(captcha, answer(200, "{\"success\":true,\"title\":\"reuters.com\",\"content\":\"---\\ntitle: reuters.com\\n---\"}")), "https://x.example/");
+  CHECK(r.error == "No text on the page");
+  // Without Wi-Fi, or when nothing left the device, the second is not there either; a page too long stays too long.
+  CHECK(fetchArticle(services(answer(0, "", "No Wi-Fi: No known network in range"), good), "https://x.example/").error ==
+        "No Wi-Fi: No known network in range");
+  CHECK(asked.size() == 1);
+  fetchArticle(services(answer(0, "", "DNS failed", true), good), "https://x.example/");
+  CHECK(asked.size() == 1);
+  CHECK(fetchArticle(services(answer(200, std::string(kMaxArticleBytes + 1, 'a')), good), "https://x.example/").error == "The page is too long");
+  CHECK(asked.size() == 1);
+  // A budget too small for the second: the first's answer.
+  CHECK(readPage(services(captcha, good), "https://x.example/", 2000).body == captcha.body);
+  CHECK(asked.size() == 1);
 }
