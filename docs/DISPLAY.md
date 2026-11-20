@@ -285,7 +285,7 @@ Where the time went and what was done:
   a band costs is its diff and push call (2-30 ms). Measured with `epd-timing` (which waits after each push, so it shows
   each one alone): a Fast push 246-250 ms whatever its size (60 x 60 to 251 x 28), a Text push 820-824 ms. So what saves
   time on the panel is no settle (pure black/white changes) and no `relayout()` for a change of a few widgets (the chess
-  board and the picture puzzle, apps/chess.md, apps/pixelpuzzle.md).
+  board, apps/chess.md; the picture puzzle did the same with ink crosses and struck-through clues before it was removed).
 - **Config writes**: Settings write `config.json` about a second after the last change (`Os::saveConfigSoon`; flushed before
   power-off); a flash write on the tap cost 25-50 ms before the redraw.
 - **Data cache** (D25, the core built from source): 64 KB with 64-byte lines instead of 32 KB / 32 B. A screen change during

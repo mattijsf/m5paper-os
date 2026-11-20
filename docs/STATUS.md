@@ -1633,3 +1633,7 @@ None of these block Phase 1, Phase 2, or the reader.
   3,131 ms. Node limit 60,000 -> 20,000 (at most ~5.5 s a move). Faster would need move generation without a copy and a
   vector per node (not done). A real Lichess game (level 1) was played and resigned on the device: the AI challenge, two
   moves each way, resign; the Lichess game is closed.
+- 2026-11-20: Pixelpuzzel removed: the app, its tests, scripts and goldens, its
+  doc; ROADMAP P7-22 dropped, D41 says so; the code stays in git history (120f805). Schaken is now the twelfth tile, on the
+  launcher's first page (no pager). The saved game `/data/apps/pixelpuzzle.json` stays on the device (the remote may not
+  delete `/data/apps`; harmless, nothing reads it).

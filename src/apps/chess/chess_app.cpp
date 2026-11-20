@@ -706,7 +706,7 @@ POS_REGISTER_APP(ChessApp, {
     .id = "chess",
     .name = "Schaken",
     .icon = Icon::ChessKnight,
-    .order = 102,  // after Pixelpuzzel: the tiles of the other apps keep their places
+    .order = 102,  // after Hacker News: the tiles of the other apps keep their places
     .stayOpen = true,  // a game: thinking is not leaving
 });
 

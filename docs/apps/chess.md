@@ -1,7 +1,7 @@
 # Schaken
 
-Chess on the panel. Task P7-23, D41. App id `chess`, tile "Schaken" (icon `chess-knight`), after Pixelpuzzel:
-the thirteenth tile, so it is on the launcher's second page.
+Chess on the panel. Task P7-23, D41. App id `chess`, tile "Schaken" (icon `chess-knight`), after Hacker
+News.
 
 ## Setup
 

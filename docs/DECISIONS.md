@@ -752,17 +752,14 @@ wake, announced through Home Assistant; or push while a page is open): the owner
 
 ## D41. Two more games: a daily picture puzzle and chess
 
-- **Pixelpuzzel** (apps/pixelpuzzle.md): a daily nonogram, as Somdoku and the word game are daily games (one puzzle a
-  day, a streak, a score to copy). Pictures drawn for PaperOS rather than generated: a generated grid is noise, the point
-  is the picture that appears. Each is proven solvable without guessing by a line solver in the unit tests, so a day is
-  never a coin toss; a solution is any grid that fits the clues. Swipes fill a stretch: one refresh for a whole line.
+- **Pixelpuzzel** (P7-22): a daily nonogram with pictures drawn for PaperOS, each proven solvable without guessing.
+  **Removed the same day**; the code is in git history (120f805).
 - **Chess** (P7-23): the owner chose the Lichess computer (Stockfish on Lichess's servers, their account, a personal
   token `LICHESS_TOKEN` on the card, read only at boot) and an offline game against a small engine on the Paper; not
   correspondence games against people.
-- The launcher tiles: Pixelpuzzel after Hacker News, Schaken after it (the others keep their places); Schaken is the
-  thirteenth tile and opens the launcher's second page (the launcher pages its grid; not changed for this).
-  Pixelpuzzel's icon is `blocks`, already in the icon font: adding Lucide's `puzzle` changed the drawing of every icon by
-  a pixel (277 screenshots), `chess-knight` changed none (measured 2026-11-20).
+- The launcher tile: Schaken after Hacker News (the others keep their places), the twelfth tile. A new icon can shift the
+  whole icon font: adding Lucide's `puzzle` changed the drawing of every icon by a pixel (277 screenshots), `chess-knight`
+  changed none (measured 2026-11-20); check the screenshot count after adding one.
 - Chess pieces are drawn as shapes in code, not as icons: Lucide's chess icons are outlines (black and white pieces would
   look alike) and a new glyph can shift the whole icon font (above).
 - Against Lichess the Paper asks `/api/account/playing` every 2.5 s while it waits for a move, instead of holding the

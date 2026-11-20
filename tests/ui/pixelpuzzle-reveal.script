@@ -1,8 +1,0 @@
-# app: pixelpuzzle
-# time: 2026-11-24T09:00:00
-# Pixelpuzzel 5 (the sailboat) solved earlier that day (preset store): the done view with the grays the puzzle did not show
-# (sky and water), the time and a streak of three days.
-wait 1000
-expect-state view=done
-expect-state name=Een_zeilboot
-shot pixelpuzzle-reveal

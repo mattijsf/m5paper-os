@@ -230,5 +230,4 @@ the first guess there (cleaning the saved messages) cost nothing measurable on t
 | Agenda (the phone's calendar, one way) | `apps/agenda.md` | P7 |
 | Teletekst (NOS Teletekst, page by page) | `apps/teletekst.md` | P7 |
 | Hacker News (story lists, comments, articles as text) | `apps/hackernews.md` | P7 |
-| Pixelpuzzel (a daily picture puzzle, a nonogram) | `apps/pixelpuzzle.md` | P7 |
 | Schaken (chess against the Lichess computer or the Paper) | `apps/chess.md` | P7 |
