@@ -27,6 +27,8 @@ constexpr int kRowsPerPage = 5;
 constexpr uint32_t kRefreshAfterActionMs = 1500;
 constexpr uint32_t kPollMs = 30000;
 constexpr uint32_t kActiveWindowMs = 2 * 60 * 1000;
+constexpr uint32_t kVolumeDelayMs = 600;  // a run of volume taps is one call
+constexpr int kVolumeStep = 2;
 
 
 std::string celsiusText(double v) {
@@ -99,6 +101,14 @@ class HomeScreen : public Screen {
     ui::Stepper* target = nullptr;
     ui::Label* contacts = nullptr;
     std::vector<const Item*> contactItems;
+    // media player (docs/apps/home.md "Music tab")
+    const Item* media = nullptr;
+    ui::Label *mName = nullptr, *mState = nullptr, *mTitle = nullptr, *mDetail = nullptr, *mOrigin = nullptr;
+    ui::Label* mLevel = nullptr;  // "Volume" or "Volume, muted"
+    ui::IconButton *mPrev = nullptr, *mPlay = nullptr, *mNext = nullptr, *mMute = nullptr;
+    ui::Column* mVolume = nullptr;
+    ui::Stepper* mStepper = nullptr;
+    ui::LevelBar* mBar = nullptr;
   };
 
   ui::Column* buildTab(int index) {
@@ -112,6 +122,9 @@ class HomeScreen : public Screen {
       else if (it.type == "climate" && !v.climate) v.climate = &it;
       else if (it.type == "room") v.tileItems.push_back(&it);
       else if (it.type == "contact") v.contactItems.push_back(&it);
+      else if (it.type == "media") {
+        if (!v.media) v.media = &it;
+      }
       else v.page.items.push_back(&it);
     }
     if (!scenes.empty()) {
@@ -128,6 +141,7 @@ class HomeScreen : public Screen {
       }
     }
     if (v.climate) buildClimateCard(v);
+    if (v.media) buildMediaCard(v);
     if (!v.tileItems.empty()) {
       for (size_t i = 0; i < v.tileItems.size(); i += 2) {
         auto* row = v.content->add<ui::Row>(ui::s1, ui::Align::Start);
@@ -183,6 +197,71 @@ class HomeScreen : public Screen {
       scheduleTarget(*vp->climate, halfDegrees / 2.0);
     };
     v.climateCard->add<ui::Spacer>(ui::s1);
+  }
+
+  // What plays, the three buttons, the volume (docs/apps/home.md "Music tab").
+  void buildMediaCard(TabView& v) {
+    TabView* vp = &v;
+    ui::Column* c = v.content;
+    c->add<ui::Spacer>(ui::s2);
+    auto* head = c->add<ui::Row>(ui::s2);
+    v.mName = head->add<ui::Label>(v.media->name, Type::BodyStrong);
+    v.mName->flex = 1;
+    v.mState = head->add<ui::Label>("", Type::Caption, ui::secondary);
+    v.mState->align = ui::TextAlign::Right;
+    v.mTitle = c->add<ui::Label>("", Type::Headline);
+    v.mTitle->maxLines = 2;
+    v.mDetail = c->add<ui::Label>("", Type::Body, ui::secondary);
+    v.mDetail->maxLines = 2;
+    v.mOrigin = c->add<ui::Label>("", Type::Caption, ui::secondary);
+    c->add<ui::Spacer>(ui::s2);
+    auto* buttons = c->add<ui::Row>(ui::s4);
+    buttons->add<ui::Spacer>(0, 1);
+    v.mPrev = buttons->add<ui::IconButton>(Icon::SkipBack);
+    v.mPlay = buttons->add<ui::IconButton>(Icon::Play);
+    v.mNext = buttons->add<ui::IconButton>(Icon::SkipForward);
+    buttons->add<ui::Spacer>(0, 1);
+    v.mPrev->onClick = [this, vp] { mediaCall(*vp->media, "media_player.media_previous_track"); };
+    v.mNext->onClick = [this, vp] { mediaCall(*vp->media, "media_player.media_next_track"); };
+    v.mPlay->onClick = [this, vp] { onPlayPause(*vp); };
+    c->add<ui::Spacer>(ui::s2);
+    v.mVolume = c->add<ui::Column>(ui::s1);
+    v.mLevel = v.mVolume->add<ui::Label>("Volume", Type::Caption, ui::secondary);
+    auto* vrow = v.mVolume->add<ui::Row>(ui::s1);
+    v.mMute = vrow->add<ui::IconButton>(Icon::Volume2);
+    v.mMute->onClick = [this, vp] { onMute(*vp); };
+    v.mStepper = vrow->add<ui::Stepper>(0, 0, 100, kVolumeStep, [](int p) { return std::to_string(p) + "%"; });
+    v.mStepper->flex = 1;
+    v.mStepper->onChange = [this, vp](int p) { onVolume(*vp, p, false); };
+    v.mBar = v.mVolume->add<ui::LevelBar>(10);
+    v.mBar->onChange = [this, vp](int p) { onVolume(*vp, p, true); };
+  }
+
+  void applyMedia(TabView& v) {
+    const MediaView mv = mediaView(*v.media, states_);
+    v.mState->setText(mv.stateText);
+    v.mTitle->setText(mv.title);
+    v.mDetail->setText(mv.detail);
+    v.mOrigin->setText(mv.origin);
+    const Icon play = mv.playing ? Icon::Pause : Icon::Play;
+    if (v.mPlay->icon != play) {
+      v.mPlay->icon = play;
+      v.mPlay->invalidate(Hint::Content);
+    }
+    v.mPrev->visible = mv.canPrevious;
+    v.mNext->visible = mv.canNext;
+    v.mVolume->visible = mv.canVolume && !mv.unavailable;
+    v.mMute->visible = mv.canMute;
+    const Icon mute = mv.muted ? Icon::VolumeX : Icon::Volume2;
+    if (v.mMute->icon != mute) {
+      v.mMute->icon = mute;
+      v.mMute->invalidate(Hint::Content);
+    }
+    if (mv.volume >= 0 && !volumePending_) {
+      v.mStepper->setValue(mv.volume, Hint::Content);
+      v.mBar->setPercent(std::max(10, mv.volume), Hint::Content);
+    }
+    v.mLevel->setText(mv.muted ? "Volume, muted" : "Volume");
   }
 
   // ---- showing
@@ -295,6 +374,7 @@ class HomeScreen : public Screen {
           if (c->second.target > -999 && !targetPending_) v.target->setValue(static_cast<int>(std::lround(c->second.target * 2)), Hint::Content);
         }
       }
+      if (v.media) applyMedia(v);
       if (v.contacts) {
         std::string open;
         for (const Item* it : v.contactItems) {
@@ -482,6 +562,67 @@ class HomeScreen : public Screen {
     });
   }
 
+  // ---- media
+
+  void mediaCall(const Item& it, const std::string& service, const std::string& data = "{}", std::function<void()> revert = {}) {
+    touched();
+    send({Call{service, it.entity, data}}, std::move(revert));
+  }
+
+  // Restores the player's state if a call fails.
+  std::function<void()> restorer(const std::string& entity) {
+    const EntityState before = states_.count(entity) ? states_[entity] : EntityState{};
+    return [this, entity, before] {
+      states_[entity] = before;
+      applyAll();
+    };
+  }
+
+  void onPlayPause(TabView& v) {
+    const std::string entity = v.media->entity;
+    auto revert = restorer(entity);
+    EntityState& s = states_[entity];
+    if (s.known) s.state = s.state == "playing" ? "paused" : "playing";  // the button and the state flip at once
+    applyAll();
+    if (body_->host()) body_->host()->relayout();  // "Playing" and "Paused" differ in width
+    mediaCall(*v.media, "media_player.media_play_pause", "{}", revert);
+  }
+
+  void onMute(TabView& v) {
+    const std::string entity = v.media->entity;
+    auto revert = restorer(entity);
+    const bool mute = !states_[entity].muted;
+    states_[entity].muted = mute;
+    applyAll();
+    mediaCall(*v.media, "media_player.volume_mute", std::string("{\"is_volume_muted\":") + (mute ? "true" : "false") + "}", revert);
+  }
+
+  // The Stepper's taps are sent together, 0.6 s after the last; a tap on the boxes at once.
+  void onVolume(TabView& v, int percent, bool now) {
+    touched();
+    const std::string entity = v.media->entity;
+    if (!volumePending_) volumeBefore_ = states_.count(entity) ? states_[entity] : EntityState{};
+    volumePending_ = true;
+    states_[entity].volume = percent;
+    if (now) v.mStepper->setValue(percent, Hint::Content);
+    else v.mBar->setPercent(std::max(10, percent), Hint::Content);
+    if (volumeTimer_) ctx().os().timers().cancel(volumeTimer_);
+    const Item* item = v.media;
+    auto sendIt = [this, item, entity, percent] {
+      volumeTimer_ = 0;
+      volumePending_ = false;
+      char data[40];
+      std::snprintf(data, sizeof data, "{\"volume_level\":%.2f}", percent / 100.0);
+      const EntityState before = volumeBefore_;
+      mediaCall(*item, "media_player.volume_set", data, [this, entity, before] {
+        states_[entity] = before;
+        applyAll();
+      });
+    };
+    if (now) sendIt();
+    else volumeTimer_ = ctx().timer(kVolumeDelayMs, sendIt);
+  }
+
   void openLightSheet(const Item& it) {
     ui::openSheet(*body_, [&](ui::Sheet& sheet) {
       ui::Column* c = sheet.content();
@@ -539,6 +680,9 @@ class HomeScreen : public Screen {
   bool pollTimerArmed_ = false;
   bool targetPending_ = false;
   Timers::Id targetTimer_ = 0;
+  bool volumePending_ = false;
+  EntityState volumeBefore_;
+  Timers::Id volumeTimer_ = 0;
 };
 
 class HomeApp : public App {

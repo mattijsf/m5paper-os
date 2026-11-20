@@ -31,10 +31,14 @@ TEST_CASE("home: the default home.json parses, with the full Evening scene and t
   Config c;
   std::string err;
   REQUIRE(parseConfig(defaultConfigJson(), c, err));
-  REQUIRE(c.tabs.size() == 3);
+  REQUIRE(c.tabs.size() == 4);
   CHECK(c.tabs[0].title == "Lights");
   CHECK(c.tabs[1].title == "Climate");
   CHECK(c.tabs[2].title == "More");
+  CHECK(c.tabs[3].title == "Music");
+  REQUIRE(c.tabs[3].items.size() == 1);
+  CHECK(c.tabs[3].items[0].type == "media");
+  CHECK(c.tabs[3].items[0].entity == "media_player.living_room");
   const Item& evening = c.tabs[0].items[0];
   CHECK(evening.type == "scene");
   CHECK(evening.name == "Evening");
@@ -58,7 +62,7 @@ TEST_CASE("home: the default home.json parses, with the full Evening scene and t
   CHECK(all.also[0] == "light.kitchen_spots_relative");
   CHECK_FALSE(all.dimmable);
   for (const Item& it : c.tabs[0].items) CHECK(it.entity != "light.hall");  // gone since version 2
-  CHECK(configVersion(defaultConfigJson()) == 2);
+  CHECK(configVersion(defaultConfigJson()) == 3);
   CHECK(nameOf(c, "light.coffee_table") == "Coffee table");  // the dashboard's lamp names
   CHECK(nameOf(c, "light.some_other_lamp") == "some other lamp");
   CHECK(configVersion("{\"tabs\":[]}") == 1);
@@ -222,23 +226,100 @@ TEST_CASE("home: loadConfig writes the default once, the card's copy wins, a bro
   Card card;
   std::string note;
   Config c = loadConfig(note);
-  CHECK(c.tabs.size() == 3);
+  CHECK(c.tabs.size() == 4);
   CHECK(pos::fs::exists("/data/home.json"));
   // An internal copy as new as the default stays; an older one (no "version": the list the firmware wrote before) is replaced.
-  pos::fs::writeFile("/data/home.json", R"({"version":2,"tabs":[{"title":"Mine","items":[{"type":"light","entity":"light.q"}]}]})");
+  pos::fs::writeFile("/data/home.json", R"({"version":3,"tabs":[{"title":"Mine","items":[{"type":"light","entity":"light.q"}]}]})");
   c = loadConfig(note);
   REQUIRE(c.tabs.size() == 1);
   CHECK(c.tabs[0].title == "Mine");
   pos::fs::writeFile("/data/home.json", R"({"tabs":[{"title":"Old","items":[{"type":"light","entity":"light.hall"}]}]})");
   c = loadConfig(note);
-  CHECK(c.tabs.size() == 3);
+  CHECK(c.tabs.size() == 4);
   std::string saved;
   REQUIRE(pos::fs::readFile("/data/home.json", saved));
-  CHECK(configVersion(saved) == 2);
+  CHECK(configVersion(saved) == 3);
   pos::fs::writeFile("/sd/paperos/home.json", R"({"tabs":[{"title":"Card","items":[{"type":"light","entity":"light.q"}]}]})");
   CHECK(loadConfig(note).tabs[0].title == "Card");
   pos::fs::writeFile("/sd/paperos/home.json", "{ broken");
   c = loadConfig(note);
-  CHECK(c.tabs.size() == 3);  // the default
+  CHECK(c.tabs.size() == 4);  // the default
   CHECK(note.find("home.json") != std::string::npos);
+}
+
+TEST_CASE("home: a media player's attributes, its view and its saved copy") {
+  EntityState s;
+  REQUIRE(parseState(R"({"entity_id":"media_player.living_room","state":"playing","attributes":{"volume_level":0.24,"is_volume_muted":false,
+    "media_title":"Voices In My Head","media_artist":"Sonata Arctica","media_album_name":"Reckoning Night","media_playlist":"Metalmix",
+    "source":"Spotify Connect","supported_features":8321599}})", s));
+  CHECK(s.volume == 24);
+  CHECK_FALSE(s.muted);
+  CHECK(s.features == 8321599);
+  Item it;
+  it.type = "media";
+  it.entity = "media_player.living_room";
+  States st{{it.entity, s}};
+  MediaView v = mediaView(it, st);
+  CHECK(v.playing);
+  CHECK(v.stateText == "Playing");
+  CHECK(v.title == "Voices In My Head");
+  CHECK(v.detail == "Sonata Arctica \xC2\xB7 Reckoning Night");
+  CHECK(v.origin == "Spotify \xC2\xB7 Metalmix");  // "Connect" left out
+  CHECK(v.volume == 24);
+  CHECK(v.canPrevious);
+  CHECK(v.canNext);
+  CHECK(v.canVolume);
+  CHECK(v.canMute);
+
+  // The saved copy keeps everything the card shows.
+  States back = statesFromJson(statesToJson(st));
+  MediaView b = mediaView(it, back);
+  CHECK(b.title == v.title);
+  CHECK(b.detail == v.detail);
+  CHECK(b.origin == v.origin);
+  CHECK(b.volume == 24);
+  CHECK(back[it.entity].features == 8321599);
+
+  // Paused and muted; a player without previous / next / mute.
+  REQUIRE(parseState(R"({"state":"paused","attributes":{"volume_level":0.5,"is_volume_muted":true,"media_title":"X",
+    "media_album_artist":"Band","supported_features":4}})", s));
+  st[it.entity] = s;
+  v = mediaView(it, st);
+  CHECK(v.paused);
+  CHECK(v.stateText == "Paused");
+  CHECK(v.detail == "Band");
+  CHECK(v.muted);
+  CHECK(statesFromJson(statesToJson(st))[it.entity].muted);
+  CHECK(v.canVolume);
+  CHECK_FALSE(v.canPrevious);
+  CHECK_FALSE(v.canNext);
+  CHECK_FALSE(v.canMute);
+
+  // The TV input: no title, the source is what plays.
+  REQUIRE(parseState(R"({"state":"playing","attributes":{"source":"TV"}})", s));
+  st[it.entity] = s;
+  v = mediaView(it, st);
+  CHECK(v.title == "TV");
+  CHECK(v.origin.empty());
+  CHECK(v.volume == -1);
+  CHECK(v.canNext);  // no supported_features: everything shows
+  REQUIRE(parseState(R"({"state":"playing","attributes":{"media_title":"TV","source":"TV"}})", s));  // as the real Sonos reports it
+  st[it.entity] = s;
+  v = mediaView(it, st);
+  CHECK(v.title == "TV");
+  CHECK(v.origin.empty());
+
+  // Idle, unavailable, not read.
+  REQUIRE(parseState(R"({"state":"idle","attributes":{"media_title":"Old song"}})", s));
+  st[it.entity] = s;
+  v = mediaView(it, st);
+  CHECK(v.title == "Nothing playing");
+  CHECK(v.stateText.empty());
+  CHECK(v.detail.empty());
+  REQUIRE(parseState(R"({"state":"unavailable","attributes":{}})", s));
+  st[it.entity] = s;
+  v = mediaView(it, st);
+  CHECK(v.unavailable);
+  CHECK(v.stateText == "Unavailable");
+  CHECK_FALSE(mediaView(it, States{}).known);
 }

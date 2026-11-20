@@ -71,3 +71,9 @@ sunset
 lamp-floor
 tv
 chess-knight
+play
+skip-back
+skip-forward
+volume-2
+volume-x
+music

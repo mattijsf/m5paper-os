@@ -17,7 +17,7 @@ struct Call {
 };
 
 struct Item {
-  std::string type;    // light, scene, switch, fan, climate, room, contact, sensor
+  std::string type;    // light, scene, switch, fan, climate, room, contact, sensor, media
   std::string name;
   std::string entity;  // what gets commands (light: the *_relative stand-in; climate, switch, fan) or is read (contact, sensor)
   std::string icon;    // name of a gen::Icon, "" = a default for the type
@@ -63,6 +63,11 @@ struct EntityState {
   double current = -1000;  // climate current_temperature (-1000 = none)
   double target = -1000;   // climate temperature
   std::string unit;        // unit_of_measurement
+  // media_player (docs/apps/home.md "Music tab")
+  std::string title, artist, album, playlist, source;
+  int volume = -1;         // volume_level in percent, -1 = not reported
+  bool muted = false;
+  long features = -1;      // supported_features, -1 = not reported (everything shows)
   bool unavailable() const { return state == "unavailable" || state == "unknown"; }
   bool on() const { return state == "on"; }
 };
@@ -79,6 +84,22 @@ struct LightView {
   bool unavailable = false;
 };
 LightView lightView(const Item& item, const States& states);
+
+// supported_features bits of a media_player (Home Assistant's MediaPlayerEntityFeature).
+enum MediaFeature : long { kVolumeSet = 4, kVolumeMute = 8, kPreviousTrack = 16, kNextTrack = 32 };
+
+struct MediaView {
+  bool known = false, unavailable = false;
+  bool playing = false, paused = false;
+  std::string stateText;  // "Playing", "Paused", "Unavailable", "" (the title says "Nothing playing")
+  std::string title;      // the song, the source when there is none (the TV input), "Nothing playing"
+  std::string detail;     // artist · album
+  std::string origin;     // source (without "Connect") · playlist
+  int volume = -1;        // percent, -1 unknown
+  bool muted = false;
+  bool canPrevious = true, canNext = true, canVolume = true, canMute = true;
+};
+MediaView mediaView(const Item& item, const States& states);
 
 // The saved copy of the last states (/data/cache/home/states.json): shown first, refreshed after.
 std::string statesToJson(const States& s);

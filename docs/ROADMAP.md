@@ -518,6 +518,15 @@ P6-11 last (it needs the relay and a device that can pair).
   token `LICHESS_TOKEN` on the card, present since 2026-11-20). Read: D41, apps/chess.md. A board with tap-to-move, the
   Lichess computer (levels 1-8, Board API) when online, a small engine on the Paper offline; the game kept in the store.
 
+- [~] **P7-24 Sonos in the Home app** (2026-11-20: built, read live on the device; the calls are a pending device check). Read: apps/home.md "Music tab", BACKEND.md. A fourth Home tab **Music** for the
+  Sonos in the living room (`media_player.living_room`): what plays (title, artist and album,
+  source and playlist), previous / play-pause / next, volume (a Stepper in steps of 2 % sent 0.6 s after the last tap, the
+  ten boxes for a jump) and mute. Item type `media` in `home.json` (version 3), its attributes in the states and their saved
+  copy, the buttons a player cannot use left out (`supported_features`). No cover, no progress bar (both change while
+  nobody touches the panel), no sources yet. Done when: unit tests (media attributes, the view, the cache, the default
+  file), `home.script` with goldens for the Music tab (playing, paused, a volume change), `make check` green, the tab read
+  and the volume set on the device.
+
 ## Phase 8: Optional, ask the owner first
 
 - [ ] **P8-1 Notification-sensor feeds** (DECISIONS.md D8) as a replacement if the WhatsApp

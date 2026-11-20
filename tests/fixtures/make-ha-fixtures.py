@@ -42,6 +42,10 @@ STATES = {
     "switch.bathroom_fan": ("off", {}),
     "switch.air_conditioning": ("on", {}),
     "fan.air_purifier": ("off", {}),
+    # music: the Sonos in the living room, as the house dashboard's mock has it
+    "media_player.living_room": ("playing", {"volume_level": 0.24, "is_volume_muted": False, "media_title": "Voices In My Head",
+                                           "media_artist": "Sonata Arctica", "media_album_name": "Reckoning Night",
+                                           "media_playlist": "Metalmix", "source": "Spotify Connect", "supported_features": 8321599}),
 }
 
 def name(method, path):
@@ -54,7 +58,9 @@ def main(out):
         with open(os.path.join(out, name("GET", "/api/states/" + eid)), "w") as f:
             json.dump(body, f)
     # service calls: success answers (a list of changed states); the failing ones carry a .status file
-    for svc in ["light/turn_on", "light/turn_off", "climate/set_temperature", "fan/turn_on", "fan/turn_off", "switch/turn_on"]:
+    for svc in ["light/turn_on", "light/turn_off", "climate/set_temperature", "fan/turn_on", "fan/turn_off", "switch/turn_on",
+                "media_player/media_play_pause", "media_player/media_next_track", "media_player/media_previous_track",
+                "media_player/volume_set", "media_player/volume_mute"]:
         with open(os.path.join(out, name("POST", "/api/services/" + svc)), "w") as f:
             f.write("[]")
     p = os.path.join(out, name("POST", "/api/services/switch/turn_off"))

@@ -77,6 +77,12 @@ enum class Icon : uint8_t {
   LampFloor,
   Tv,
   ChessKnight,
+  Play,
+  SkipBack,
+  SkipForward,
+  Volume2,
+  VolumeX,
+  Music,
   Hackernews,  // drawn: assets/icons-drawn/hackernews.txt
   Paperos,  // drawn: assets/icons-drawn/paperos.txt
   Teletekst,  // drawn: assets/icons-drawn/teletekst.txt
@@ -156,6 +162,12 @@ constexpr uint32_t kIconCodepoint[] = {
   0xE2DB,  // lamp-floor
   0xE195,  // tv
   0xE6A2,  // chess-knight
+  0xE13C,  // play
+  0xE15F,  // skip-back
+  0xE160,  // skip-forward
+  0xE1AB,  // volume-2
+  0xE1AC,  // volume-x
+  0xE122,  // music
   0,  // hackernews (drawn)
   0,  // paperos (drawn)
   0,  // teletekst (drawn)

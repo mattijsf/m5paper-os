@@ -21,7 +21,8 @@ std::string dump(JsonVariantConst v) {
 }
 
 bool knownType(const std::string& t) {
-  return t == "light" || t == "scene" || t == "switch" || t == "fan" || t == "climate" || t == "room" || t == "contact" || t == "sensor";
+  return t == "light" || t == "scene" || t == "switch" || t == "fan" || t == "climate" || t == "room" || t == "contact" || t == "sensor" ||
+         t == "media";
 }
 
 }  // namespace
@@ -122,7 +123,7 @@ gen::Icon iconByName(const std::string& name, gen::Icon fallback) {
                                 {"droplets", gen::Icon::Droplets}, {"fan", gen::Icon::Fan},             {"wind", gen::Icon::Wind},
                                 {"settings", gen::Icon::Settings}, {"air-vent", gen::Icon::AirVent},    {"door-open", gen::Icon::DoorOpen},
                                 {"moon", gen::Icon::Moon},         {"sun", gen::Icon::Sun},             {"power", gen::Icon::Power},
-                                {"lamp-floor", gen::Icon::LampFloor}};
+                                {"lamp-floor", gen::Icon::LampFloor}, {"music", gen::Icon::Music}};
   for (const Pair& p : kIcons)
     if (name == p.n) return p.i;
   return fallback;
@@ -161,6 +162,15 @@ bool parseState(const std::string& json, EntityState& out) {
   if (a["current_temperature"].is<double>()) out.current = a["current_temperature"].as<double>();
   if (a["temperature"].is<double>()) out.target = a["temperature"].as<double>();
   out.unit = str(a["unit_of_measurement"]);
+  out.title = str(a["media_title"]);
+  out.artist = str(a["media_artist"]);
+  if (out.artist.empty()) out.artist = str(a["media_album_artist"]);
+  out.album = str(a["media_album_name"]);
+  out.playlist = str(a["media_playlist"]);
+  out.source = str(a["source"]);
+  if (a["volume_level"].is<double>()) out.volume = static_cast<int>(std::lround(a["volume_level"].as<double>() * 100));
+  out.muted = a["is_volume_muted"] | false;
+  if (a["supported_features"].is<long>()) out.features = a["supported_features"].as<long>();
   return true;
 }
 
@@ -199,6 +209,63 @@ LightView lightView(const Item& item, const States& states) {
   return v;
 }
 
+namespace {
+
+std::string joinDot(const std::string& a, const std::string& b) {
+  if (a.empty()) return b;
+  if (b.empty()) return a;
+  return a + " \xC2\xB7 " + b;  // " · "
+}
+
+// "Spotify Connect" -> "Spotify" (as the house dashboard words it).
+std::string sourceWord(std::string s) {
+  const std::string tail = " Connect";
+  if (s.size() > tail.size() && s.compare(s.size() - tail.size(), tail.size(), tail) == 0) s.resize(s.size() - tail.size());
+  return s;
+}
+
+}  // namespace
+
+MediaView mediaView(const Item& item, const States& states) {
+  MediaView v;
+  auto it = states.find(item.entity);
+  if (it == states.end() || !it->second.known) return v;  // not read yet: an empty card
+  const EntityState& e = it->second;
+  v.known = true;
+  v.unavailable = e.unavailable();
+  v.playing = e.state == "playing";
+  v.paused = e.state == "paused";
+  v.volume = e.volume;
+  v.muted = e.muted;
+  if (e.features >= 0) {
+    v.canPrevious = e.features & kPreviousTrack;
+    v.canNext = e.features & kNextTrack;
+    v.canVolume = e.features & kVolumeSet;
+    v.canMute = e.features & kVolumeMute;
+  }
+  if (v.unavailable) {
+    v.stateText = "Unavailable";
+    v.title = "Not reachable";
+    return v;
+  }
+  if (!v.playing && !v.paused) {
+    v.title = "Nothing playing";
+    return v;
+  }
+  v.stateText = v.playing ? "Playing" : "Paused";
+  const std::string source = sourceWord(e.source);
+  if (!e.title.empty()) {
+    v.title = e.title;
+    v.detail = joinDot(e.artist, e.album);
+    v.origin = joinDot(source == e.title ? "" : source, e.playlist);  // the TV input names itself "TV" twice
+  } else {  // the TV input, a radio station without a song: the source is what plays
+    v.title = source.empty() ? "Music" : source;
+    v.detail = e.artist;
+    v.origin = e.playlist;
+  }
+  return v;
+}
+
 std::string statesToJson(const States& s) {
   JsonDocument doc;
   for (const auto& kv : s) {
@@ -209,6 +276,15 @@ std::string statesToJson(const States& s) {
     if (kv.second.current > -999) o["c"] = kv.second.current;
     if (kv.second.target > -999) o["t"] = kv.second.target;
     if (!kv.second.unit.empty()) o["u"] = kv.second.unit;
+    const EntityState& e = kv.second;
+    if (!e.title.empty()) o["mt"] = e.title;
+    if (!e.artist.empty()) o["ma"] = e.artist;
+    if (!e.album.empty()) o["mb"] = e.album;
+    if (!e.playlist.empty()) o["mp"] = e.playlist;
+    if (!e.source.empty()) o["ms"] = e.source;
+    if (e.volume >= 0) o["v"] = e.volume;
+    if (e.muted) o["m"] = true;
+    if (e.features >= 0) o["f"] = e.features;
   }
   return dump(doc);
 }
@@ -225,6 +301,14 @@ States statesFromJson(const std::string& json) {
     e.current = kv.value()["c"] | -1000.0;
     e.target = kv.value()["t"] | -1000.0;
     e.unit = str(kv.value()["u"]);
+    e.title = str(kv.value()["mt"]);
+    e.artist = str(kv.value()["ma"]);
+    e.album = str(kv.value()["mb"]);
+    e.playlist = str(kv.value()["mp"]);
+    e.source = str(kv.value()["ms"]);
+    e.volume = kv.value()["v"] | -1;
+    e.muted = kv.value()["m"] | false;
+    e.features = kv.value()["f"] | -1L;
     out[kv.key().c_str()] = e;
   }
   return out;

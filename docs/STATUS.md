@@ -574,6 +574,9 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Sonos calls from the Music tab (P7-24, 2026-11-20)**: the read works on the device; `volume_set`, `volume_mute`,
+  `media_play_pause` and next / previous were not sent (the Sonos was playing the TV). Check: a volume tap changes the
+  Sonos and the read 1.5 s later shows it.
 - **"Tap to start" on a device that is off (2026-11-20)**: on the device (build 90655809cd0e, over Wi-Fi): with wireless
   development on the idle minute (`>set idle-min 1`) brought the board with "Tap to start" and the device stayed on
   (`[shell] not used for 1 min: the sleep screen`, out/device-idle.png); `>poweroff 300` from that screen switched it off
@@ -1636,3 +1639,12 @@ None of these block Phase 1, Phase 2, or the reader.
   doc; ROADMAP P7-22 dropped, D41 says so; the code stays in git history (120f805). Schaken is now the twelfth tile, on the
   launcher's first page (no pager). The saved game `/data/apps/pixelpuzzle.json` stays on the device (the remote may not
   delete `/data/apps`; harmless, nothing reads it).
+- 2026-11-20: P7-24 Sonos in the Home app. A fourth Home tab, Music, for `media_player.living_room`: what plays (title, artist and album, source without "Connect" and playlist), previous / play-pause / next,
+  volume (Stepper 2 % a tap sent once 0.6 s after the last, the ten boxes at once) and mute; buttons the player cannot use
+  are left out (`supported_features`). Item type `media`, its attributes in the states and their saved copy; home.json
+  version 3. Icons play, skip-back, skip-forward, volume-2, volume-x, music. 382 unit tests, 331 screenshots (3 new, 14
+  re-accepted: the Home tab bar has four tabs, fonts-sheet six icons); firmware 2,656,227 bytes. **On the device**
+  (build 836c8b55b55d, `make ota` over Wi-Fi): the tab read the real Sonos (`[home] tab 3 read: 1 entities`): the TV
+  input at 11 %, title "TV" (its source was shown twice: fixed, the source is left out when it is the title),
+  out/p7-24-device-music.png. Not done on the device: a volume or play/pause call (someone was watching TV): Pending device
+  checks.
