@@ -1648,3 +1648,9 @@ None of these block Phase 1, Phase 2, or the reader.
   input at 11 %, title "TV" (its source was shown twice: fixed, the source is left out when it is the title),
   out/p7-24-device-music.png. Not done on the device: a volume or play/pause call (someone was watching TV): Pending device
   checks.
+- 2026-11-20: Music tab read every 5 s while shown. The reads were fast (36-120 ms); the change waited for the Home app's
+  30 s poll. Now one poll timer whose interval follows the tab (Music 5 s, others 30 s, both only within 2 minutes of a
+  touch). A read no longer undoes a change made since it started or still on its way to Home Assistant (a per-entity
+  counter and the running calls): with 5 s reads the test's mute was undone by a read before its call landed. On the device
+  (build 6225453cdbc7): `[home] tab 3 read` every 5.0 s, 36-225 ms each. Firmware 2,658,595 bytes. The owner asked about
+  a websocket instead (D10 chose REST): see Open questions.

@@ -26,6 +26,7 @@ constexpr const char* kCacheFile = "/data/cache/home/states.json";
 constexpr int kRowsPerPage = 5;
 constexpr uint32_t kRefreshAfterActionMs = 1500;
 constexpr uint32_t kPollMs = 30000;
+constexpr uint32_t kMediaPollMs = 5000;  // the Music tab: a new song or the TV shows within seconds (a read is ~40 ms)
 constexpr uint32_t kActiveWindowMs = 2 * 60 * 1000;
 constexpr uint32_t kVolumeDelayMs = 600;  // a run of volume taps is one call
 constexpr int kVolumeStep = 2;
@@ -59,6 +60,7 @@ class HomeScreen : public Screen {
     tabbar_->onSelect = [this](int i) {
       touched();
       showTab(i);
+      armPoll(true);
     };
     showTab(0);
     applyAll();
@@ -68,7 +70,10 @@ class HomeScreen : public Screen {
     touched();
     refresh(tab_, true);
   }
-  void onHide() override { pollTimerArmed_ = false; }
+  void onHide() override {
+    if (pollTimer_) ctx().os().timers().cancel(pollTimer_);
+    pollTimer_ = 0;
+  }
 
   std::string debugState() const override {
     std::string s = "tab=" + std::to_string(tab_);
@@ -400,11 +405,14 @@ class HomeScreen : public Screen {
     armPoll();
   }
 
-  void armPoll() {
-    if (pollTimerArmed_) return;
-    pollTimerArmed_ = true;
-    ctx().timer(kPollMs, [this] {
-      pollTimerArmed_ = false;
+  bool mediaTab() const { return tab_ >= 0 && tab_ < static_cast<int>(views_.size()) && views_[tab_].media; }
+
+  // One timer; switching to or from the Music tab sets it again with that tab's interval.
+  void armPoll(bool restart = false) {
+    if (pollTimer_ && !restart) return;
+    if (pollTimer_) ctx().os().timers().cancel(pollTimer_);
+    pollTimer_ = ctx().timer(mediaTab() ? kMediaPollMs : kPollMs, [this] {
+      pollTimer_ = 0;
       if (ctx().clock.millis() - lastTouchMs_ < kActiveWindowMs) {  // used lately: keep the visible tab fresh
         refresh(tab_, true);
         armPoll();
@@ -426,14 +434,16 @@ class HomeScreen : public Screen {
     for (const std::string& id : ids) paths.push_back("/api/states/" + id);
     HaClient ha = ctx().ha();
     ctx().async([ha, paths]() mutable { return ha.getMany(paths); },
-                [this, tab, ids](std::vector<HaResult> results) {
+                [this, tab, ids, seqAtStart = localSeq_](std::vector<HaResult> results) {
                   busy_ = false;
                   int ok = 0, notFound = 0;
                   HaError firstError = HaError::None;
                   for (size_t i = 0; i < results.size(); ++i) {
                     EntityState s;
                     if (results[i].ok() && parseState(results[i].body, s)) {
-                      states_[ids[i]] = s;
+                      // A change made here since the read started, or still on its way, wins over what was read: the
+                      // read 1.5 s after the call brings the player's own answer.
+                      if (!changedLocally(ids[i], seqAtStart)) states_[ids[i]] = s;
                       ++ok;
                     } else {
                       if (results[i].error == HaError::NotFound) ++notFound;
@@ -471,8 +481,18 @@ class HomeScreen : public Screen {
 
   // ---- acting
 
-  // Runs service calls on the worker; `revert` runs on the UI thread if any failed.
-  void send(std::vector<Call> calls, std::function<void()> revert, const std::string& okToast = "") {
+  // Local changes that reads must not undo: a counter per entity bumped by every local change, and the calls still running.
+  void markLocal(const std::string& entity) { ++localSeq_[entity]; }
+  bool changedLocally(const std::string& entity, const std::map<std::string, uint32_t>& seqAtStart) const {
+    auto now = localSeq_.find(entity);
+    auto then = seqAtStart.find(entity);
+    const uint32_t a = now == localSeq_.end() ? 0 : now->second, b = then == seqAtStart.end() ? 0 : then->second;
+    auto f = inFlight_.find(entity);
+    return a != b || (f != inFlight_.end() && f->second > 0);
+  }
+
+  // Runs service calls on the worker; `revert` runs on the UI thread if any failed, `done` always (after revert).
+  void send(std::vector<Call> calls, std::function<void()> revert, const std::string& okToast = "", std::function<void()> done = {}) {
     HaClient ha = ctx().ha();
     ctx().async(
         [ha, calls]() mutable {
@@ -485,7 +505,8 @@ class HomeScreen : public Screen {
           }
           return static_cast<int>(err);
         },
-        [this, revert, okToast](int err) {
+        [this, revert, okToast, done](int err) {
+          if (done) done();
           if (err != static_cast<int>(HaError::None)) {
             if (revert) revert();
             ctx().toast(haErrorText(static_cast<HaError>(err)));
@@ -498,6 +519,7 @@ class HomeScreen : public Screen {
 
   void setLocal(const std::string& entity, const std::string& state, int brightness = -2) {
     EntityState& s = states_[entity];
+    markLocal(entity);
     s.known = true;
     s.state = state;
     if (brightness != -2) s.brightness = brightness;
@@ -566,7 +588,10 @@ class HomeScreen : public Screen {
 
   void mediaCall(const Item& it, const std::string& service, const std::string& data = "{}", std::function<void()> revert = {}) {
     touched();
-    send({Call{service, it.entity, data}}, std::move(revert));
+    const std::string entity = it.entity;
+    markLocal(entity);
+    ++inFlight_[entity];
+    send({Call{service, entity, data}}, std::move(revert), "", [this, entity] { --inFlight_[entity]; });
   }
 
   // Restores the player's state if a call fails.
@@ -601,8 +626,12 @@ class HomeScreen : public Screen {
   void onVolume(TabView& v, int percent, bool now) {
     touched();
     const std::string entity = v.media->entity;
-    if (!volumePending_) volumeBefore_ = states_.count(entity) ? states_[entity] : EntityState{};
+    if (!volumePending_) {
+      volumeBefore_ = states_.count(entity) ? states_[entity] : EntityState{};
+      ++inFlight_[entity];  // reads leave the volume alone from the first tap until the call is back
+    }
     volumePending_ = true;
+    markLocal(entity);
     states_[entity].volume = percent;
     if (now) v.mStepper->setValue(percent, Hint::Content);
     else v.mBar->setPercent(std::max(10, percent), Hint::Content);
@@ -618,6 +647,7 @@ class HomeScreen : public Screen {
         states_[entity] = before;
         applyAll();
       });
+      --inFlight_[entity];  // mediaCall holds it now
     };
     if (now) sendIt();
     else volumeTimer_ = ctx().timer(kVolumeDelayMs, sendIt);
@@ -677,7 +707,9 @@ class HomeScreen : public Screen {
   int pendingTab_ = -1;
   std::string statusText_;
   uint32_t lastTouchMs_ = 0;
-  bool pollTimerArmed_ = false;
+  Timers::Id pollTimer_ = 0;
+  std::map<std::string, uint32_t> localSeq_;
+  std::map<std::string, int> inFlight_;
   bool targetPending_ = false;
   Timers::Id targetTimer_ = 0;
   bool volumePending_ = false;
