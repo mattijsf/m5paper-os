@@ -1619,3 +1619,12 @@ None of these block Phase 1, Phase 2, or the reader.
   token; a failed game creation left the board playable (now back to the setup with the reason). `Stepper::setRange`.
   The thirteenth tile opens the launcher's second page. 384 unit tests (6 new), 334 screenshots (12 new, 23 launcher
   goldens re-accepted); firmware 2,657,715 bytes. Device check: below. D41, apps/chess.md, APPS.md, UI.md, ROADMAP.
+- 2026-11-20: render speed of the two games. Measured on the device
+  first: every chess move ended in a `screen` push and a Text settle over 140,000 pixels (a `relayout()` per move) and the
+  gray(10) dark squares made every square change a Fast push plus a settle. Now: the board is pure black/white (dark
+  squares hatched, last-move frame in ink), the view relayouts only when a button comes or goes, the puzzle's crosses are
+  ink and a met clue is struck through instead of grayed. On the device (build 42ec608946b6): a selection 51 ms tap to
+  push, a move 194 ms to its last push, no settle on the board, Lichess's reply (real game) 4 Fast bands. `epd-timing`:
+  Fast 246-250 ms per push whatever the size, Text 820-824 ms; in the driver source the bands of one move overlap (no
+  core change). 384 unit tests, 334 screenshots (11 re-accepted). The engine's time per move at level 4 on the device is
+  logged (`[chess] level N: ... in N ms, N nodes`) but not yet measured: pending.

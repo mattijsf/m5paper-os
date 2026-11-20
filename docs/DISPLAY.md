@@ -279,7 +279,13 @@ Where the time went and what was done:
   sums the metrics kept in the glyph cache (identical, tested for every baked character and face), `ui::ellipsize` halves.
 - **Regions that change together are one invalidation** (2026-11-18): Feedback and Content pushes are split into bands
   of changed rows, and each band is a push that waits for the one before; a screen's parent column invalidated once is
-  one push (Hacker News `oneChange`).
+  one push (Hacker News `oneChange`). **Checked again 2026-11-20 in the driver** (`Panel_EPD.inl`, `task_update`): a
+  queued update is written into the per-pixel step buffer while earlier waveforms run, and every frame drives all rows, so
+  bands queued within a few ms overlap and finish about one waveform after the last one arrives; they do not add up. What
+  a band costs is its diff and push call (2-30 ms). Measured with `epd-timing` (which waits after each push, so it shows
+  each one alone): a Fast push 246-250 ms whatever its size (60 x 60 to 251 x 28), a Text push 820-824 ms. So what saves
+  time on the panel is no settle (pure black/white changes) and no `relayout()` for a change of a few widgets (the chess
+  board and the picture puzzle, apps/chess.md, apps/pixelpuzzle.md).
 - **Config writes**: Settings write `config.json` about a second after the last change (`Os::saveConfigSoon`; flushed before
   power-off); a flash write on the tap cost 25-50 ms before the redraw.
 - **Data cache** (D25, the core built from source): 64 KB with 64-byte lines instead of 32 KB / 32 B. A screen change during

@@ -26,8 +26,16 @@ constexpr uint32_t kPollMs = 2500;   // Lichess: ask for its move this often
 constexpr int kPollMax = 48;         // two minutes, then say it does not answer
 constexpr uint32_t kEngineNodes = 60000;
 
-const Color kDark = gray(10);   // dark squares: visible on the panel, black pieces stand out on them
-const Color kLight = ui::paper;
+// Every pixel of the board is pure ink or paper (dark squares hatched, frames in ink): a move then changes only black and
+// white pixels, so its Feedback push stays one Fast pass with no Text settle after it (DISPLAY.md).
+void hatch(Canvas& c, int x, int y, int n) {
+  c.fillRect(x, y, n, n, ui::paper);
+  for (int k = 2; k < 2 * n - 1; k += 5) {  // diagonal lines, one in five pixels: reads as a light gray square
+    const int x0 = x + std::min(k, n - 1), y0 = y + std::max(0, k - (n - 1));
+    const int x1 = x + std::max(0, k - (n - 1)), y1 = y + std::min(k, n - 1);
+    c.drawLine(x0, y0, x1, y1, ui::ink);
+  }
+}
 
 // ---- pieces, drawn as shapes in a 60-unit square ---------------------------------------------------------------------
 
@@ -176,11 +184,13 @@ class Board : public ui::Widget {
         const int s = squareAt(col, row);
         const int x = left() + col * kSq, y = top() + row * kSq;
         const bool dark = (ch::fileOf(s) + ch::rankOf(s)) % 2 == 0;
-        const Color bg = dark ? kDark : kLight;
-        c.fillRect(x, y, kSq, kSq, bg);
-        if (s == lastFrom || s == lastTo)  // the last move: a frame in both squares
-          for (int t = 0; t < 3; ++t) c.drawRect(x + t, y + t, kSq - 2 * t, kSq - 2 * t, ui::secondary);
-        if (pos->board[s]) drawPiece(c, pos->board[s], x, y, kSq, bg);
+        if (dark)
+          hatch(c, x, y, kSq);
+        else
+          c.fillRect(x, y, kSq, kSq, ui::paper);
+        if (s == lastFrom || s == lastTo)  // the last move: a 2 px ink frame with a paper line inside, in both squares
+          for (int t = 0; t < 3; ++t) c.drawRect(x + t, y + t, kSq - 2 * t, kSq - 2 * t, t < 2 ? ui::ink : ui::paper);
+        if (pos->board[s]) drawPiece(c, pos->board[s], x, y, kSq, ui::paper);
         if (s == selected)
           for (int t = 0; t < 5; ++t) c.drawRect(x + t, y + t, kSq - 2 * t, kSq - 2 * t, ui::ink);
       }
@@ -318,6 +328,7 @@ class ChessScreen : public Screen {
   void showBoard() {
     setup_->visible = false;
     play_->visible = true;
+    laidOut_ = false;  // the view changed: lay it out once
     refresh();
   }
 
@@ -345,10 +356,17 @@ class ChessScreen : public Screen {
       s = p.inCheck(p.whiteToMove) ? "Schaak! Jij bent aan zet." : "Jij bent aan zet.";
     status_->setText(s);
     moves_->setText(lastMoves());
-    resign_->visible = over_.empty() && (!game_.moves.empty() || !gameId_.empty());
-    again_->visible = !over_.empty();
-    retry_->visible = !problem_.empty() && over_.empty();
-    if (root_->host()) root_->host()->relayout();
+    board_->invalidate(Hint::Feedback);
+    // A whole-screen layout only when a button comes or goes; a move changes the board and two lines of text.
+    const bool resign = over_.empty(), again = !over_.empty(),
+               retry = !problem_.empty() && over_.empty();
+    if (resign != resign_->visible || again != again_->visible || retry != retry_->visible || !laidOut_) {
+      resign_->visible = resign;
+      again_->visible = again;
+      retry_->visible = retry;
+      laidOut_ = true;
+      if (root_->host()) root_->host()->relayout();
+    }
   }
 
   // "12. Pg1-f3  Lb8-c6": the last full move (or the last half).
@@ -426,12 +444,24 @@ class ChessScreen : public Screen {
     const uint32_t seed = static_cast<uint32_t>(game_.moves.size() * 7919u + ctx().clock.millis());
     waiting_ = true;
     refresh();
-    ctx().async([p, level, seed] { return ch::bestMove(p, level, seed, kEngineNodes); },
-                [this](ch::Move m) {
-                  waiting_ = false;
-                  if (m.valid()) theirMove(m);
-                  else refresh();
-                });
+    const uint32_t t0 = ctx().clock.millis();
+    struct Answer {
+      ch::Move move;
+      uint32_t nodes = 0;
+    };
+    ctx().async(
+        [p, level, seed] {
+          Answer a;
+          a.move = ch::bestMove(p, level, seed, kEngineNodes, &a.nodes);
+          return a;
+        },
+        [this, t0, level](Answer a) {
+          waiting_ = false;
+          ctx().log("level %d: %s in %u ms, %u nodes", level, ch::uci(a.move).c_str(), static_cast<unsigned>(ctx().clock.millis() - t0),
+                    static_cast<unsigned>(a.nodes));
+          if (a.move.valid()) theirMove(a.move);
+          else refresh();
+        });
   }
 
   void theirMove(const ch::Move& m) {
@@ -653,6 +683,7 @@ class ChessScreen : public Screen {
   Board* board_ = nullptr;
 
   bool hasToken_ = false;
+  bool laidOut_ = false;  // the board view was laid out with its buttons (refresh relayouts only when they change)
   bool vsLichess_ = false, userWhite_ = true, started_ = false, waiting_ = false, resignArmed_ = false;
   ch::Game game_;
   ch::Position pos_;

@@ -56,25 +56,33 @@ class Board : public ui::Widget {
 
   void draw(Canvas& c) override {
     if (!puzzle || !cells) return;
-    // Clues: a met one in gray (the player can leave that line alone).
+    // Clues, always in ink; a met one gets an ink line through it (the player can leave that line alone). Only black and
+    // white pixels change when a line is met, so the push stays Fast without a settle.
     for (int r = 0; r < kN; ++r) {
       std::string text;
       for (int v : puzzle->rows[static_cast<size_t>(r)]) text += (text.empty() ? "" : " ") + std::to_string(v);
       if (text.empty()) text = "0";
-      const Color col = game::lineDone(*puzzle, *cells, r) ? ui::disabled : ui::ink;
-      ui::drawText(c, text, gridX() - 10, gridY() + r * kCell + kCell / 2, ui::Type::Body, col, ui::Anchor::MiddleRight, ui::paper);
+      const int y = gridY() + r * kCell + kCell / 2;
+      ui::drawText(c, text, gridX() - 10, y, ui::Type::Body, ui::ink, ui::Anchor::MiddleRight, ui::paper);
+      if (game::lineDone(*puzzle, *cells, r)) {
+        const int w = ui::measureText(c, text, ui::Type::Body);
+        c.fillRect(gridX() - 14 - w, y - 1, w + 8, 2, ui::ink);
+      }
     }
     for (int k = 0; k < kN; ++k) {
       game::Clue clue = puzzle->cols[static_cast<size_t>(k)];
       if (clue.empty()) clue.push_back(0);
-      const Color col = game::lineDone(*puzzle, *cells, kN + k) ? ui::disabled : ui::ink;
+      const int x = gridX() + k * kCell + kCell / 2;
       for (size_t j = 0; j < clue.size(); ++j) {
         const int y = gridY() - 8 - static_cast<int>(clue.size() - 1 - j) * kClueLine - kClueLine / 2;
-        ui::drawText(c, std::to_string(clue[j]), gridX() + k * kCell + kCell / 2, y, ui::Type::Body, col, ui::Anchor::MiddleCenter,
-                     ui::paper);
+        ui::drawText(c, std::to_string(clue[j]), x, y, ui::Type::Body, ui::ink, ui::Anchor::MiddleCenter, ui::paper);
+      }
+      if (game::lineDone(*puzzle, *cells, kN + k)) {
+        const int top = gridY() - 8 - static_cast<int>(clue.size()) * kClueLine;
+        c.fillRect(x - 1, top + 2, 2, gridY() - 6 - top, ui::ink);
       }
     }
-    // Cells: filled = ink, crossed = a gray cross.
+    // Cells: filled = ink, crossed = an ink cross.
     for (int i = 0; i < kN * kN; ++i) {
       const int x = gridX() + (i % kN) * kCell, y = gridY() + (i / kN) * kCell;
       const uint8_t v = (*cells)[static_cast<size_t>(i)];
@@ -83,8 +91,8 @@ class Board : public ui::Widget {
       } else if (v == game::Crossed) {
         const int m = 10;
         for (int d = 0; d < 2; ++d) {
-          c.drawLine(x + m + d, y + m, x + kCell - m + d, y + kCell - m, ui::secondary);
-          c.drawLine(x + kCell - m + d, y + m, x + m + d, y + kCell - m, ui::secondary);
+          c.drawLine(x + m + d, y + m, x + kCell - m + d, y + kCell - m, ui::ink);
+          c.drawLine(x + kCell - m + d, y + m, x + m + d, y + kCell - m, ui::ink);
         }
       }
     }

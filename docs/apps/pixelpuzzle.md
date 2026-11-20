@@ -7,7 +7,9 @@ News in the launcher.
 
 - 10 x 10 cells. Left of each row and above each column the lengths of its runs of filled cells, in order ("2 2" = two
   cells, a gap, two cells; "0" = an empty line). Fill the cells so every row and column has its numbers; a picture
-  appears. A row or column that has its numbers already shows them in gray (`ui::disabled`).
+  appears. A row or column that has its numbers already gets an ink line through them (a gray clue would make each such push
+  a Fast pass and a Text settle; with the line every changed pixel is black or white, so it stays one Fast pass: user,
+  2026-11-20, "prefer fast mode").
 - **Solved = every line has its clue**, not "equals the drawing": a grid that fits all clues counts (crosses are empty
   cells). No checking or hints while playing, as Somdoku.
 - **The pictures are drawn for PaperOS** (`src/apps/pixelpuzzle/pixelpuzzle.cpp`, 24 of them: a heart, a house, a cat,
@@ -25,7 +27,7 @@ News in the launcher.
 - **Play**: the grid (40 px cells, 4.3 mm on the panel; the screen's side margins are 10 px so the row clues fit, as
   Teletekst), the note ("Nog 7 regels."), and Vullen | Kruisje. The clue area above the grid is as tall as the day's
   longest column clue.
-  - **Tap** a cell: the mark of the mode (filled, or a gray cross), or empty if it had that mark.
+  - **Tap** a cell: the mark of the mode (filled, or an ink cross), or empty if it had that mark.
   - **Swipe** along a row or column (from a cell, at least 80 px): the same for every cell of the stretch, decided by the
     first cell. One refresh for many cells: on e-ink that is the fast way to fill a line.
   - **Long press**: the other mark (a cross while filling, and the other way round).

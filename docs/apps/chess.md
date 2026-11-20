@@ -12,10 +12,16 @@ the thirteenth tile, so it is on the launcher's second page.
 
 ## The board
 
-- 60 px squares (480 px), the user's side at the bottom; light squares paper, dark ones gray(10). The pieces are drawn
-  as shapes (`drawPiece` in `chess_app.cpp`, no font): black pieces solid ink, white ones paper with a 2 px ink outline
-  (the silhouette drawn eight times around, then the piece in paper on it). The last move is framed in gray(3) in both
-  squares.
+- 60 px squares (480 px), the user's side at the bottom; light squares paper, dark ones a diagonal ink hatch (one line
+  in five pixels, as in a printed diagram). The pieces are drawn as shapes (`drawPiece` in `chess_app.cpp`, no font):
+  black pieces solid ink, white ones paper with a 2 px ink outline (the silhouette drawn eight times around, then the
+  piece in paper on it). The last move is framed in ink (2 px) in both squares.
+- **Every pixel of the board is pure black or white**: a
+  selection or a move is one Fast push (`Hint::Feedback`) with no Text settle after it (DISPLAY.md: no settle when the
+  changed pixels are black/white). The view is laid out again only when a button comes or goes (Opgeven shows from the
+  start of a game), not on every move. On the device: a selection 51 ms from the tap to the push; a move 194 ms to its
+  last push; each Fast push 248 ms of waveform, the bands of one move overlapping in the driver. Only the two lines of
+  text (whose turn, the last move) get a small Text settle.
 - **Tap a piece**, then where it goes: the piece gets a thick ink frame, its squares a dot (a ring for a capture). Tap it
   again, or another of your pieces, to change your mind. A pawn that reaches the last rank becomes a queen.
 - Above the board: whose turn it is ("Jij bent aan zet.", "Schaak! ...", "Lichess denkt na...", "De Paper denkt
