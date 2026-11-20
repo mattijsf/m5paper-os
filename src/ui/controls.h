@@ -58,6 +58,12 @@ class IconButton : public Pressable {
  public:
   explicit IconButton(Icon icon = Icon::Check) : icon(icon) {}
   Icon icon;
+  // Plain: the icon. Filled: an ink disc with a paper icon (the main action, as a player's play). Ring: an ink ring around
+  // the icon (a mode that is on, as shuffle). Pressed inverts each.
+  enum class Look : uint8_t { Plain, Filled, Ring };
+  Look look = Look::Plain;
+  void setLook(Look l, Hint h = Hint::Content) { if (l != look) { look = l; invalidate(h); } }
+  void setIcon(Icon i, Hint h = Hint::Content) { if (i != icon) { icon = i; invalidate(h); } }
   Size measure(int) override { return {kTouchMin, kTouchMin}; }
   void draw(Canvas& c) override;
 };

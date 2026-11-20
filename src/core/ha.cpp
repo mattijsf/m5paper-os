@@ -60,7 +60,9 @@ HaResult HaClient::request(const std::string& method, const std::string& path, c
   } else if (resp.status < 200 || resp.status >= 300) {
     r.error = HaError::Other;
   }
-  if (r.error != HaError::None) POS_LOG("ha", "%s %s -> %d (%s%s%s)", method.c_str(), path.c_str(), r.status, haErrorText(r.error), r.detail.empty() ? "" : ": ", r.detail.c_str());  // path only: no token (detail is the transport's error text)
+  // Path only, and without its query: no token (the media proxy's address carries one; detail is the transport's error text).
+  const std::string shown = path.substr(0, path.find('?'));
+  if (r.error != HaError::None) POS_LOG("ha", "%s %s -> %d (%s%s%s)", method.c_str(), shown.c_str(), r.status, haErrorText(r.error), r.detail.empty() ? "" : ": ", r.detail.c_str());
   return r;
 }
 

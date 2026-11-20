@@ -47,6 +47,10 @@ static bool imageSize(const uint8_t* p, size_t n, bool& png, int& w, int& h) {
 std::shared_ptr<Canvas> loadImageFit(const std::string& virtualPath, int boxW, int boxH) {
   std::string data;
   if (!fs::readFile(virtualPath, data)) return nullptr;
+  return loadImageFitData(data, boxW, boxH);
+}
+
+std::shared_ptr<Canvas> loadImageFitData(const std::string& data, int boxW, int boxH) {
   const uint8_t* p = reinterpret_cast<const uint8_t*>(data.data());
   bool png;
   int w, h;

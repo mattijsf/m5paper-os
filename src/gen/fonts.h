@@ -30,11 +30,11 @@ extern const uint8_t kLiterataRegular32[];  // 46224 bytes
 constexpr size_t kLiterataRegular32Size = 46224;
 extern const uint8_t kLiterataRegular38[];  // 58724 bytes
 constexpr size_t kLiterataRegular38Size = 58724;
-extern const uint8_t kLucide32[];  // 16304 bytes
-constexpr size_t kLucide32Size = 16304;
-extern const uint8_t kLucide64[];  // 38928 bytes
-constexpr size_t kLucide64Size = 38928;
+extern const uint8_t kLucide32[];  // 17372 bytes
+constexpr size_t kLucide32Size = 17372;
+extern const uint8_t kLucide64[];  // 41500 bytes
+constexpr size_t kLucide64Size = 41500;
 
-constexpr size_t kTotalFontBytes = 500456;
+constexpr size_t kTotalFontBytes = 504096;
 
 }  // namespace pos::gen

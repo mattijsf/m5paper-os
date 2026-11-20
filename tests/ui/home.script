@@ -36,20 +36,31 @@ tap 472 268             # Air conditioning toggle: the service call fails (fixtu
 wait 700
 shot home-more-failed
 wait 2500
-tap 455 925             # Music tab: the Sonos, playing
-wait 1500
+tap 455 925             # Music tab: the Sonos, playing; the cover is read after the state
+wait 2500
 shot home-music
-tap 270 372             # play/pause: paused at once
+tap 270 419             # play/pause: paused at once
 wait 300
 shot home-music-paused
 wait 2500               # read again: the fixture plays
-tap 480 512             # volume plus, twice: 28 %, sent once 0.6 s after the last tap
+tap 480 546             # volume plus, twice: 28 %, sent once 0.6 s after the last tap
 wait 200
-tap 480 512
+tap 480 546
 wait 200
-tap 60 512              # mute
+tap 60 546              # mute
+wait 200
+tap 76 419              # shuffle off
+wait 200
+tap 463 419             # repeat: all -> one
 wait 300
 shot home-music-volume
+wait 2500
+tap 270 720             # Stations: the sheet with the Sonos favourites
+wait 800
+shot home-music-stations
+tap 395 548             # KINK: the sheet closes, the station is the title at once
+wait 400
+shot home-music-station-chosen
 wait 2500
 tap 331 925             # back to More for the polling
 wait 1500

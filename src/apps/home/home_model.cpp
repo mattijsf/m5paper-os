@@ -171,6 +171,11 @@ bool parseState(const std::string& json, EntityState& out) {
   if (a["volume_level"].is<double>()) out.volume = static_cast<int>(std::lround(a["volume_level"].as<double>() * 100));
   out.muted = a["is_volume_muted"] | false;
   if (a["supported_features"].is<long>()) out.features = a["supported_features"].as<long>();
+  if (a["shuffle"].is<bool>()) out.shuffle = a["shuffle"].as<bool>() ? 1 : 0;
+  out.repeat = str(a["repeat"]);
+  for (JsonVariantConst v : a["source_list"].as<JsonArrayConst>())
+    if (v.is<const char*>()) out.sources.push_back(v.as<std::string>());
+  out.picture = str(a["entity_picture"]);
   return true;
 }
 
@@ -237,11 +242,22 @@ MediaView mediaView(const Item& item, const States& states) {
   v.paused = e.state == "paused";
   v.volume = e.volume;
   v.muted = e.muted;
+  v.shuffle = e.shuffle == 1;
+  if (!e.repeat.empty()) v.repeat = e.repeat;
+  v.canShuffle = e.shuffle >= 0;
+  v.canRepeat = !e.repeat.empty();
+  v.sources = e.sources;
+  v.canSource = !e.sources.empty();
+  v.source = e.source;
+  v.sourceText = sourceWord(e.source);
   if (e.features >= 0) {
     v.canPrevious = e.features & kPreviousTrack;
     v.canNext = e.features & kNextTrack;
     v.canVolume = e.features & kVolumeSet;
     v.canMute = e.features & kVolumeMute;
+    v.canShuffle = v.canShuffle && (e.features & kShuffleSet);
+    v.canRepeat = v.canRepeat && (e.features & kRepeatSet);
+    v.canSource = v.canSource && (e.features & kSelectSource);
   }
   if (v.unavailable) {
     v.stateText = "Unavailable";
@@ -253,6 +269,10 @@ MediaView mediaView(const Item& item, const States& states) {
     return v;
   }
   v.stateText = v.playing ? "Playing" : "Paused";
+  if (!e.picture.empty()) {
+    v.picture = e.picture;
+    v.coverKey = e.title + "|" + e.artist + "|" + e.album + "|" + e.source;
+  }
   const std::string source = sourceWord(e.source);
   if (!e.title.empty()) {
     v.title = e.title;
@@ -264,6 +284,12 @@ MediaView mediaView(const Item& item, const States& states) {
     v.origin = e.playlist;
   }
   return v;
+}
+
+std::string nextRepeat(const std::string& repeat) {
+  if (repeat == "off") return "all";
+  if (repeat == "all") return "one";
+  return "off";
 }
 
 std::string statesToJson(const States& s) {
@@ -285,6 +311,13 @@ std::string statesToJson(const States& s) {
     if (e.volume >= 0) o["v"] = e.volume;
     if (e.muted) o["m"] = true;
     if (e.features >= 0) o["f"] = e.features;
+    if (e.shuffle >= 0) o["sh"] = e.shuffle;
+    if (!e.repeat.empty()) o["rp"] = e.repeat;
+    if (!e.sources.empty()) {
+      JsonArray a = o["sl"].to<JsonArray>();
+      for (const std::string& x : e.sources) a.add(x);
+    }
+    // e.picture is not saved: its address carries an access token
   }
   return dump(doc);
 }
@@ -309,6 +342,10 @@ States statesFromJson(const std::string& json) {
     e.volume = kv.value()["v"] | -1;
     e.muted = kv.value()["m"] | false;
     e.features = kv.value()["f"] | -1L;
+    e.shuffle = kv.value()["sh"] | -1;
+    e.repeat = str(kv.value()["rp"]);
+    for (JsonVariantConst x : kv.value()["sl"].as<JsonArrayConst>())
+      if (x.is<const char*>()) e.sources.push_back(x.as<std::string>());
     out[kv.key().c_str()] = e;
   }
   return out;

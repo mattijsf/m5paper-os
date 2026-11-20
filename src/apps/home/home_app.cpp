@@ -8,11 +8,14 @@
 #include <deque>
 #include <memory>
 
+#include <ArduinoJson.h>
+
 #include "apps/home/home_model.h"
 #include "core/app.h"
 #include "core/fs.h"
 #include "core/os.h"
 #include "core/timefmt.h"
+#include "ui/image.h"
 #include "ui/root.h"
 #include "ui/widgets.h"
 
@@ -37,6 +40,32 @@ std::string celsiusText(double v) {
   std::snprintf(buf, sizeof buf, "%.1f \xC2\xB0" "C", v);
   return buf;
 }
+
+constexpr int kCoverPx = 200;
+
+// The cover (200 x 200 grays, decoded on the worker) in a thin frame, or the frame with a music icon. A new cover is a
+// picture pass on its own box (Hint::Image).
+class CoverView : public ui::Widget {
+ public:
+  ui::Size measure(int) override { return {kCoverPx, kCoverPx}; }
+  void set(std::shared_ptr<Canvas> cv) {
+    if (cv == cover_) return;
+    cover_ = std::move(cv);
+    invalidate(Hint::Image);
+  }
+  bool has() const { return cover_ != nullptr; }
+  void draw(Canvas& c) override {
+    if (cover_) cover_->pushSprite(&c, frame.x, frame.y);
+    else {
+      c.fillRect(frame.x, frame.y, frame.w, frame.h, ui::paper);
+      ui::drawIcon(c, Icon::Music, frame.x + frame.w / 2, frame.y + frame.h / 2, 64, ui::secondary, ui::paper);
+    }
+    c.drawRect(frame.x, frame.y, frame.w, frame.h, ui::ink);
+  }
+
+ private:
+  std::shared_ptr<Canvas> cover_;
+};
 
 class HomeScreen : public Screen {
  public:
@@ -108,12 +137,14 @@ class HomeScreen : public Screen {
     std::vector<const Item*> contactItems;
     // media player (docs/apps/home.md "Music tab")
     const Item* media = nullptr;
-    ui::Label *mName = nullptr, *mState = nullptr, *mTitle = nullptr, *mDetail = nullptr, *mOrigin = nullptr;
+    CoverView* mCover = nullptr;
+    ui::Label *mHead = nullptr, *mTitle = nullptr, *mDetail = nullptr, *mOrigin = nullptr;
     ui::Label* mLevel = nullptr;  // "Volume" or "Volume, muted"
-    ui::IconButton *mPrev = nullptr, *mPlay = nullptr, *mNext = nullptr, *mMute = nullptr;
+    ui::IconButton *mShuffle = nullptr, *mPrev = nullptr, *mPlay = nullptr, *mNext = nullptr, *mRepeat = nullptr, *mMute = nullptr;
     ui::Column* mVolume = nullptr;
     ui::Stepper* mStepper = nullptr;
     ui::LevelBar* mBar = nullptr;
+    ui::ListItem* mStations = nullptr;
   };
 
   ui::Column* buildTab(int index) {
@@ -204,32 +235,42 @@ class HomeScreen : public Screen {
     v.climateCard->add<ui::Spacer>(ui::s1);
   }
 
-  // What plays, the three buttons, the volume (docs/apps/home.md "Music tab").
+  // The cover, what plays beside it, the five buttons, the volume, the stations (docs/apps/home.md "Music tab").
   void buildMediaCard(TabView& v) {
     TabView* vp = &v;
     ui::Column* c = v.content;
     c->add<ui::Spacer>(ui::s2);
-    auto* head = c->add<ui::Row>(ui::s2);
-    v.mName = head->add<ui::Label>(v.media->name, Type::BodyStrong);
-    v.mName->flex = 1;
-    v.mState = head->add<ui::Label>("", Type::Caption, ui::secondary);
-    v.mState->align = ui::TextAlign::Right;
-    v.mTitle = c->add<ui::Label>("", Type::Headline);
-    v.mTitle->maxLines = 2;
-    v.mDetail = c->add<ui::Label>("", Type::Body, ui::secondary);
+    auto* top = c->add<ui::Row>(ui::s2, ui::Align::Start);
+    v.mCover = top->add<CoverView>();
+    auto* text = top->add<ui::Column>(4);
+    text->flex = 1;
+    v.mHead = text->add<ui::Label>(v.media->name, Type::Caption, ui::secondary);
+    v.mTitle = text->add<ui::Label>("", Type::Title);
+    v.mTitle->maxLines = 3;
+    v.mDetail = text->add<ui::Label>("", Type::Body, ui::secondary);
     v.mDetail->maxLines = 2;
-    v.mOrigin = c->add<ui::Label>("", Type::Caption, ui::secondary);
+    v.mOrigin = text->add<ui::Label>("", Type::Caption, ui::secondary);
+    v.mOrigin->maxLines = 2;
     c->add<ui::Spacer>(ui::s2);
-    auto* buttons = c->add<ui::Row>(ui::s4);
+    auto* buttons = c->add<ui::Row>(ui::s1);
+    buttons->add<ui::Spacer>(0, 1);
+    v.mShuffle = buttons->add<ui::IconButton>(Icon::Shuffle);
     buttons->add<ui::Spacer>(0, 1);
     v.mPrev = buttons->add<ui::IconButton>(Icon::SkipBack);
+    buttons->add<ui::Spacer>(0, 1);
     v.mPlay = buttons->add<ui::IconButton>(Icon::Play);
+    v.mPlay->look = ui::IconButton::Look::Filled;
+    buttons->add<ui::Spacer>(0, 1);
     v.mNext = buttons->add<ui::IconButton>(Icon::SkipForward);
     buttons->add<ui::Spacer>(0, 1);
+    v.mRepeat = buttons->add<ui::IconButton>(Icon::Repeat);
+    buttons->add<ui::Spacer>(0, 1);
+    v.mShuffle->onClick = [this, vp] { onShuffle(*vp); };
     v.mPrev->onClick = [this, vp] { mediaCall(*vp->media, "media_player.media_previous_track"); };
-    v.mNext->onClick = [this, vp] { mediaCall(*vp->media, "media_player.media_next_track"); };
     v.mPlay->onClick = [this, vp] { onPlayPause(*vp); };
-    c->add<ui::Spacer>(ui::s2);
+    v.mNext->onClick = [this, vp] { mediaCall(*vp->media, "media_player.media_next_track"); };
+    v.mRepeat->onClick = [this, vp] { onRepeat(*vp); };
+    c->add<ui::Spacer>(ui::s1);
     v.mVolume = c->add<ui::Column>(ui::s1);
     v.mLevel = v.mVolume->add<ui::Label>("Volume", Type::Caption, ui::secondary);
     auto* vrow = v.mVolume->add<ui::Row>(ui::s1);
@@ -240,33 +281,87 @@ class HomeScreen : public Screen {
     v.mStepper->onChange = [this, vp](int p) { onVolume(*vp, p, false); };
     v.mBar = v.mVolume->add<ui::LevelBar>(10);
     v.mBar->onChange = [this, vp](int p) { onVolume(*vp, p, true); };
+    v.mStations = c->add<ui::ListItem>("Stations");
+    v.mStations->setIcon(Icon::Radio);
+    v.mStations->setChevron();
+    v.mStations->onClick = [this, vp] {
+      touched();
+      openStations(*vp);
+    };
   }
 
   void applyMedia(TabView& v) {
     const MediaView mv = mediaView(*v.media, states_);
-    v.mState->setText(mv.stateText);
+    v.mHead->setText(mv.stateText.empty() ? v.media->name : v.media->name + " \xC2\xB7 " + mv.stateText);
     v.mTitle->setText(mv.title);
     v.mDetail->setText(mv.detail);
     v.mOrigin->setText(mv.origin);
-    const Icon play = mv.playing ? Icon::Pause : Icon::Play;
-    if (v.mPlay->icon != play) {
-      v.mPlay->icon = play;
-      v.mPlay->invalidate(Hint::Content);
-    }
+    v.mPlay->setIcon(mv.playing ? Icon::Pause : Icon::Play);
     v.mPrev->visible = mv.canPrevious;
     v.mNext->visible = mv.canNext;
+    v.mShuffle->visible = mv.canShuffle;
+    v.mShuffle->setLook(mv.shuffle ? ui::IconButton::Look::Ring : ui::IconButton::Look::Plain);
+    v.mRepeat->visible = mv.canRepeat;
+    v.mRepeat->setIcon(mv.repeat == "one" ? Icon::Repeat1 : Icon::Repeat);
+    v.mRepeat->setLook(mv.repeat == "off" ? ui::IconButton::Look::Plain : ui::IconButton::Look::Ring);
     v.mVolume->visible = mv.canVolume && !mv.unavailable;
     v.mMute->visible = mv.canMute;
-    const Icon mute = mv.muted ? Icon::VolumeX : Icon::Volume2;
-    if (v.mMute->icon != mute) {
-      v.mMute->icon = mute;
-      v.mMute->invalidate(Hint::Content);
-    }
+    v.mMute->setIcon(mv.muted ? Icon::VolumeX : Icon::Volume2);
     if (mv.volume >= 0 && !volumePending_) {
       v.mStepper->setValue(mv.volume, Hint::Content);
       v.mBar->setPercent(std::max(10, mv.volume), Hint::Content);
     }
     v.mLevel->setText(mv.muted ? "Volume, muted" : "Volume");
+    v.mStations->visible = mv.canSource && !mv.unavailable;
+    v.mStations->setTrailingText(mv.sourceText);
+    loadCover(v, mv);
+  }
+
+  // The cover is read when the song changes (not when the proxy's token in its address does), decoded on the worker. Until
+  // the new one is there the old one stays: one picture pass, not two.
+  void loadCover(TabView& v, const MediaView& mv) {
+    if (mv.coverKey == coverKey_) return;
+    coverKey_ = mv.coverKey;
+    if (mv.coverKey.empty() || mv.picture.empty() || mv.picture[0] != '/') {
+      v.mCover->set(nullptr);
+      return;
+    }
+    HaClient ha = ctx().ha();
+    CoverView* view = v.mCover;
+    ctx().async(
+        [ha, path = mv.picture]() mutable {
+          HaResult r = ha.get(path);
+          return r.ok() ? ui::loadImageFitData(r.body, kCoverPx, kCoverPx) : std::shared_ptr<Canvas>();
+        },
+        [this, view, key = mv.coverKey](std::shared_ptr<Canvas> cv) {
+          if (key != coverKey_) return;  // the song changed again meanwhile
+          view->set(std::move(cv));
+          ctx().log("cover %s", view->has() ? "read" : "not read");
+        });
+  }
+
+  void openStations(TabView& v) {
+    const MediaView mv = mediaView(*v.media, states_);
+    TabView* vp = &v;
+    ui::openSheet(*body_, [&](ui::Sheet& sheet) {
+      ui::Column* c = sheet.content();
+      c->add<ui::Label>("Stations", Type::Title);
+      // Two buttons a row (72 px targets, no scrolling: eight stations are four rows); the one playing is filled.
+      for (size_t i = 0; i < mv.sources.size(); i += 2) {
+        auto* row = c->add<ui::Row>(ui::s1);
+        for (size_t k = i; k < i + 2; ++k) {
+          if (k >= mv.sources.size()) {
+            row->add<ui::Spacer>(0, 1);
+            continue;
+          }
+          const std::string src = mv.sources[k];
+          auto* b = row->add<ui::Button>(src, src == mv.source ? ui::Button::Kind::Primary : ui::Button::Kind::Secondary);
+          b->flex = 1;
+          b->onClick = sheet.closing([this, vp, src] { selectSource(*vp, src); });
+        }
+      }
+      sheet.addButton("Close", {}, ui::Button::Kind::Secondary);
+    });
   }
 
   // ---- showing
@@ -628,6 +723,45 @@ class HomeScreen : public Screen {
     mediaCall(*v.media, "media_player.media_play_pause", "{}", revert);
   }
 
+  void onShuffle(TabView& v) {
+    const std::string entity = v.media->entity;
+    auto revert = restorer(entity);
+    const bool on = states_[entity].shuffle != 1;
+    states_[entity].shuffle = on ? 1 : 0;
+    applyAll();
+    mediaCall(*v.media, "media_player.shuffle_set", std::string("{\"shuffle\":") + (on ? "true" : "false") + "}", revert);
+  }
+
+  void onRepeat(TabView& v) {
+    const std::string entity = v.media->entity;
+    auto revert = restorer(entity);
+    const std::string next = nextRepeat(states_[entity].repeat.empty() ? "off" : states_[entity].repeat);
+    states_[entity].repeat = next;
+    applyAll();
+    mediaCall(*v.media, "media_player.repeat_set", "{\"repeat\":\"" + next + "\"}", revert);
+  }
+
+  // The station shows at once (as the title, as the TV input does); its song comes with the next read.
+  void selectSource(TabView& v, const std::string& source) {
+    const std::string entity = v.media->entity;
+    auto revert = restorer(entity);
+    EntityState& s = states_[entity];
+    s.source = source;
+    s.title.clear();
+    s.artist.clear();
+    s.album.clear();
+    s.playlist.clear();
+    s.picture.clear();
+    s.state = "playing";
+    applyAll();
+    if (body_->host()) body_->host()->relayout();
+    JsonDocument doc;
+    doc["source"] = source;
+    std::string data;
+    serializeJson(doc, data);
+    mediaCall(*v.media, "media_player.select_source", data, revert);
+  }
+
   void onMute(TabView& v) {
     const std::string entity = v.media->entity;
     auto revert = restorer(entity);
@@ -723,6 +857,7 @@ class HomeScreen : public Screen {
   std::string statusText_;
   uint32_t lastTouchMs_ = 0;
   Timers::Id pollTimer_ = 0;
+  std::string coverKey_;
   std::map<std::string, uint32_t> localSeq_;
   std::map<std::string, int> inFlight_;
   std::map<std::string, std::string> mediaLog_;

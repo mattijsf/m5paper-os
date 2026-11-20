@@ -81,9 +81,19 @@ void Button::draw(Canvas& c) {
 // ---- IconButton
 
 void IconButton::draw(Canvas& c) {
-  if (pressed_) c.fillRoundRect(frame.x, frame.y, frame.w, frame.h, kRadius, ink);
-  drawIcon(c, icon, frame.x + frame.w / 2, frame.y + frame.h / 2, 32, pressed_ ? paper : (enabled ? ink : disabled),
-           pressed_ ? ink : paper);
+  const int cx = frame.x + frame.w / 2, cy = frame.y + frame.h / 2, r = std::min(frame.w, frame.h) / 2;
+  bool inverted = pressed_;
+  if (look == Look::Filled) {
+    inverted = !pressed_;
+    if (inverted) c.fillCircle(cx, cy, r, ink);
+    else c.fillCircle(cx, cy, r, paper), c.drawCircle(cx, cy, r, ink), c.drawCircle(cx, cy, r - 1, ink);
+  } else if (pressed_) {
+    c.fillRoundRect(frame.x, frame.y, frame.w, frame.h, kRadius, ink);
+  } else if (look == Look::Ring) {
+    c.drawRoundRect(frame.x + 4, frame.y + 4, frame.w - 8, frame.h - 8, kRadius, ink);
+    c.drawRoundRect(frame.x + 5, frame.y + 5, frame.w - 10, frame.h - 10, kRadius - 1, ink);
+  }
+  drawIcon(c, icon, cx, cy, 32, inverted ? paper : (enabled ? ink : disabled), inverted ? ink : paper);
 }
 
 // ---- Toggle

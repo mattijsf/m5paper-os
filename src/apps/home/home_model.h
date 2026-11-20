@@ -68,6 +68,10 @@ struct EntityState {
   int volume = -1;         // volume_level in percent, -1 = not reported
   bool muted = false;
   long features = -1;      // supported_features, -1 = not reported (everything shows)
+  int shuffle = -1;        // 0 / 1, -1 = not reported
+  std::string repeat;      // "off", "all", "one", "" = not reported
+  std::vector<std::string> sources;  // source_list (Sonos: TV and the radio favourites)
+  std::string picture;     // entity_picture: a path with an access token in it. Never logged, never in the saved copy
   bool unavailable() const { return state == "unavailable" || state == "unknown"; }
   bool on() const { return state == "on"; }
 };
@@ -86,7 +90,9 @@ struct LightView {
 LightView lightView(const Item& item, const States& states);
 
 // supported_features bits of a media_player (Home Assistant's MediaPlayerEntityFeature).
-enum MediaFeature : long { kVolumeSet = 4, kVolumeMute = 8, kPreviousTrack = 16, kNextTrack = 32 };
+enum MediaFeature : long {
+  kVolumeSet = 4, kVolumeMute = 8, kPreviousTrack = 16, kNextTrack = 32, kSelectSource = 2048, kShuffleSet = 32768, kRepeatSet = 262144
+};
 
 struct MediaView {
   bool known = false, unavailable = false;
@@ -98,7 +104,17 @@ struct MediaView {
   int volume = -1;        // percent, -1 unknown
   bool muted = false;
   bool canPrevious = true, canNext = true, canVolume = true, canMute = true;
+  bool shuffle = false;
+  std::string repeat = "off";  // off, all, one
+  bool canShuffle = false, canRepeat = false, canSource = false;  // shown only when the player reports the state too
+  std::vector<std::string> sources;
+  std::string source;      // the source as reported ("Spotify Connect"), to tick it in the list
+  std::string sourceText;  // as shown ("Spotify"), "" when none
+  std::string coverKey;    // what plays (title|artist|album): the cover is read again only when this changes; "" = no cover
+  std::string picture;
 };
+// The next repeat mode: off -> all -> one -> off.
+std::string nextRepeat(const std::string& repeat);
 MediaView mediaView(const Item& item, const States& states);
 
 // The saved copy of the last states (/data/cache/home/states.json): shown first, refreshed after.

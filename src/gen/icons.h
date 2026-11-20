@@ -83,6 +83,10 @@ enum class Icon : uint8_t {
   Volume2,
   VolumeX,
   Music,
+  Shuffle,
+  Repeat,
+  Repeat1,
+  Radio,
   Hackernews,  // drawn: assets/icons-drawn/hackernews.txt
   Paperos,  // drawn: assets/icons-drawn/paperos.txt
   Teletekst,  // drawn: assets/icons-drawn/teletekst.txt
@@ -168,6 +172,10 @@ constexpr uint32_t kIconCodepoint[] = {
   0xE1AB,  // volume-2
   0xE1AC,  // volume-x
   0xE122,  // music
+  0xE15E,  // shuffle
+  0xE146,  // repeat
+  0xE1FD,  // repeat-1
+  0xE142,  // radio
   0,  // hackernews (drawn)
   0,  // paperos (drawn)
   0,  // teletekst (drawn)

@@ -77,3 +77,7 @@ skip-forward
 volume-2
 volume-x
 music
+shuffle
+repeat
+repeat-1
+radio

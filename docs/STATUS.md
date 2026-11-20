@@ -576,7 +576,7 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
 ## Pending device checks
 - **Sonos calls from the Music tab (P7-24, 2026-11-20)**: read and `volume_set` work on the device (the owner's test with
   Spotify: 12 % -> 14 % -> 12 %, the source stayed Spotify Connect). Not sent yet from the Paper: `volume_mute`,
-  `media_play_pause`, next / previous.
+  `media_play_pause`, next / previous, `shuffle_set`, `repeat_set`, `select_source`.
 - **"Tap to start" on a device that is off (2026-11-20)**: on the device (build 90655809cd0e, over Wi-Fi): with wireless
   development on the idle minute (`>set idle-min 1`) brought the board with "Tap to start" and the device stayed on
   (`[shell] not used for 1 min: the sleep screen`, out/device-idle.png); `>poweroff 300` from that screen switched it off
@@ -1669,4 +1669,12 @@ None of these block Phase 1, Phase 2, or the reader.
   0.12, no source change. The earlier switch is not explained: the Paper sent only `volume_set` then
   too (13:31), and the builds before 45f787c sent the same calls. If it comes back, the `[home] media` / `[home] call` lines
   say what Home Assistant reported around the tap.
-
+- 2026-11-20: the Music tab after the house dashboard's player: the cover (200 x 200, `entity_picture` through Home Assistant's media proxy, decoded on the worker, a Quality
+  pass on its own box; read again only when the song changes, never logged or saved: the address carries an access token;
+  `ui::loadImageFitData` decodes from memory; the HA client's error log leaves out a path's query), the text beside it,
+  shuffle / previous / play (an ink disc) / next / repeat (off, all, one; on = an ink ring: `IconButton::Look`), and
+  Stations (the Sonos favourites and TV in a sheet, two buttons a row, the playing one filled; `select_source`). No
+  progress bar (it would change while nobody touches the panel). Icons shuffle, repeat, repeat-1, radio. 383 unit tests,
+  333 screenshots (2 new, 4 re-accepted); firmware 2,671,851 bytes (+13 KB). **On the device** (build 94dcbc5b9b3f): the
+  real cover of the song playing read and drawn (`[home] cover read`, `push Q rect=25,154,198,196 why=image`), shuffle and
+  repeat on as the Sonos reports them, out/p7-24-device-music.png. Not yet sent from the Paper: shuffle, repeat, a station.

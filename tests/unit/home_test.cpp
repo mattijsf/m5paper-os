@@ -323,3 +323,63 @@ TEST_CASE("home: a media player's attributes, its view and its saved copy") {
   CHECK(v.stateText == "Unavailable");
   CHECK_FALSE(mediaView(it, States{}).known);
 }
+
+TEST_CASE("home: a media player's shuffle, repeat, stations and cover") {
+  EntityState s;
+  REQUIRE(parseState(R"({"state":"playing","attributes":{"media_title":"Kings & Queens","media_artist":"Ava Max","source":"Spotify Connect",
+    "shuffle":false,"repeat":"all","source_list":["TV","KINK","NPO Radio 2"],"supported_features":8321599,
+    "entity_picture":"/api/media_player_proxy/media_player.living_room?token=abc&cache=1"}})", s));
+  Item it;
+  it.type = "media";
+  it.entity = "media_player.living_room";
+  States st{{it.entity, s}};
+  MediaView v = mediaView(it, st);
+  CHECK(v.canShuffle);
+  CHECK_FALSE(v.shuffle);
+  CHECK(v.canRepeat);
+  CHECK(v.repeat == "all");
+  CHECK(v.canSource);
+  REQUIRE(v.sources.size() == 3);
+  CHECK(v.sources[1] == "KINK");
+  CHECK(v.sourceText == "Spotify");
+  CHECK(v.source == "Spotify Connect");
+  CHECK_FALSE(v.coverKey.empty());
+  CHECK(v.picture.rfind("/api/media_player_proxy/", 0) == 0);
+
+  // A new token in the address alone keeps the cover; another song changes it.
+  const std::string key = v.coverKey;
+  st[it.entity].picture = "/api/media_player_proxy/media_player.living_room?token=def&cache=1";
+  CHECK(mediaView(it, st).coverKey == key);
+  st[it.entity].title = "Sweet but Psycho";
+  CHECK(mediaView(it, st).coverKey != key);
+
+  // The saved copy keeps shuffle, repeat and the stations, never the address with its token.
+  const std::string json = statesToJson(st);
+  CHECK(json.find("token") == std::string::npos);
+  States back = statesFromJson(json);
+  MediaView b = mediaView(it, back);
+  CHECK(b.canShuffle);
+  CHECK(b.repeat == "all");
+  CHECK(b.sources.size() == 3);
+  CHECK(b.coverKey.empty());
+
+  // Without the features (or the state) the controls stay away.
+  REQUIRE(parseState(R"({"state":"playing","attributes":{"media_title":"X","shuffle":true,"repeat":"off","source_list":["TV"],
+    "supported_features":52}})", s));
+  st[it.entity] = s;
+  v = mediaView(it, st);
+  CHECK_FALSE(v.canShuffle);
+  CHECK_FALSE(v.canRepeat);
+  CHECK_FALSE(v.canSource);
+  REQUIRE(parseState(R"({"state":"playing","attributes":{"media_title":"X"}})", s));
+  st[it.entity] = s;
+  v = mediaView(it, st);
+  CHECK_FALSE(v.canShuffle);
+  CHECK_FALSE(v.canRepeat);
+  CHECK_FALSE(v.canSource);
+  CHECK(v.coverKey.empty());
+
+  CHECK(nextRepeat("off") == "all");
+  CHECK(nextRepeat("all") == "one");
+  CHECK(nextRepeat("one") == "off");
+}

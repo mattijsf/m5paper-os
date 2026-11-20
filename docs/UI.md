@@ -153,7 +153,7 @@ class Widget {
 | `Label` | text, one or more lines | token for style; `maxLines`, ellipsis; `keepLineBreaks` (a line feed starts a new line) |
 | `IconView` | icon glyph | 32 or 64 |
 | `Button` | primary (filled ink) / secondary (2 px outline) / text | height 72; pressed = inverted |
-| `IconButton` | 72x72 target with a 32 px icon | |
+| `IconButton` | 72x72 target with a 32 px icon; `look` Plain, Filled (ink disc, paper icon: a player's play) or Ring (ink ring: a mode that is on, as shuffle) | |
 | `Tile` | outlined square: 64 px icon + label, optional value and badge; ink and paper only (no gray well: DISPLAY.md "Gray areas cost a flicker"). `Size::Large` (two to a row, 196 high, title-size label: Home) and `Size::Small` (three to a row, 160 high, body-size label, caption size for a name wider than the tile's 137 px: the launcher) | pressed = 4 px border |
 | `ListItem` | 96 px row: leading icon, title, subtitle, trailing text / chevron / toggle / badge | divider below |
 | `Toggle` | on/off pill 88x48 | on = filled ink with paper knob; pure black/white |
