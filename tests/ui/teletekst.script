@@ -1,11 +1,11 @@
 # app: teletekst
 # Teletekst (docs/apps/teletekst.md): pages from the fixtures (tests/fixtures/make-teletekst-fixtures.py, made-up text).
-# Opens on page 100.
+# Opens on page 101, the news headlines.
 wait 1500
 shot teletekst
-expect-state page=100|want=100|Updated 13:34
+expect-state page=101|want=101|Updated 13:34
 # A tap on a headline's row opens its page (the link is the number at the end of the row).
-tap 200 350
+tap 200 270
 wait 1500
 shot teletekst-article
 expect-state page=104|
@@ -44,3 +44,8 @@ tap 70 822
 wait 1500
 shot teletekst-news
 expect-state page=101|
+# The previous page from 101: the index, 100.
+tap 60 896
+wait 1500
+shot teletekst-index
+expect-state page=100|want=100|Updated 13:34

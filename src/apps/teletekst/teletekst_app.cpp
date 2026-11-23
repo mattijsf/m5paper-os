@@ -40,7 +40,8 @@ constexpr uint32_t kSaveAfterMs = 800;
 // 0.1 s (camera, 2026-11-18). Without it Wi-Fi goes off 20 s after a read, mid-page for most readers.
 constexpr uint32_t kKeepWifiStepMs = 15000;
 constexpr int kKeepWifiSteps = 3;
-constexpr int64_t kResumeSec = 3600;         // reopened within the hour: the page that was open, else 100
+constexpr int64_t kResumeSec = 3600;         // reopened within the hour: the page that was open, else kStartPage
+constexpr int kStartPage = 101;              // the news headlines (100 is only the index)
 constexpr int kSavedPages = 16;              // copies kept on the flash (3-9 KB each)
 constexpr const char* kCacheDir = "/data/cache/teletekst/";
 
@@ -319,7 +320,7 @@ class TeletekstScreen : public Screen {
     // The page to start on, and its saved copy before the first frame.
     PageRef start;
     const int64_t now = ctx().clock.now(), left = static_cast<int64_t>(ctx().store.get("left", 0.0));
-    if (!(now >= left && now - left < kResumeSec && parseRef(ctx().store.get("page", "100"), start))) start = PageRef{kFirstPage, 0};
+    if (!(now >= left && now - left < kResumeSec && parseRef(ctx().store.get("page", ""), start))) start = PageRef{kStartPage, 0};
     want_ = start;
     int64_t fetched = 0;
     if (PagePtr saved = loadSaved(start, fetched)) {

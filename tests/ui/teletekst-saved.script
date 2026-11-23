@@ -1,9 +1,9 @@
 # app: teletekst
-# Teletekst's saved copies. Page 100 and an article are read and kept; then Wi-Fi goes away and the app starts again ten
+# Teletekst's saved copies. Page 101 and an article are read and kept; then Wi-Fi goes away and the app starts again ten
 # minutes later: the article that was open shows at once from its copy, and the line under it says why it may be old.
 # (data/config.json: power.autoOffMin 0, so the hour without a touch brings no sleep screen: D38)
 wait 1500
-tap 200 350
+tap 200 270
 wait 1500
 expect-state page=104|want=104|Updated 13:34
 wifi off
@@ -20,17 +20,18 @@ wait 1000
 shot teletekst-saved-toast
 expect-state page=104|want=104|Saved 13:34: No Wi-Fi
 wait 3500
-# A page with a copy: shown from it.
+# A page with a copy (101, the first page read): shown from it.
 tap 70 822
 wait 1500
-expect-state page=104|
+expect-state page=101|
+# Its previous page, 100, was never read: 101 stays.
 tap 60 896
 wait 1500
-expect-state page=104|
-# Left and opened again more than an hour later: page 100 again (its copy; still no Wi-Fi).
+expect-state page=101|
+# Left and opened again more than an hour later: page 101 again (its copy; still no Wi-Fi).
 back
 wait 3700000
 tap 100 776
 wait 1500
-shot teletekst-saved-index
-expect-state page=100|want=100|Saved 13:34: No Wi-Fi
+shot teletekst-saved-start
+expect-state page=101|want=101|Saved 13:34: No Wi-Fi

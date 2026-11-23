@@ -574,6 +574,8 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **Teletekst opens on 101 (2026-11-23)**: simulator only. On the device: open Teletekst after more than an hour, the
+  log says `[teletekst] page 101`.
 - **Sonos calls from the Music tab (P7-24, 2026-11-20)**: read and `volume_set` work on the device (the owner's test with
   Spotify: 12 % -> 14 % -> 12 %, the source stayed Spotify Connect). Not sent yet from the Paper: `volume_mute`,
   `media_play_pause`, next / previous, `shuffle_set`, `repeat_set`, `select_source`.
@@ -1681,3 +1683,6 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-23: P7-24 done. Shuffle, repeat, stations, mute,
   play/pause and next/previous stay under Pending device checks: no log of those calls was read (the device was asleep).
 
+- 2026-11-23: Teletekst opens on 101, the news headlines, instead of the index 100. UI scripts follow (the
+  index is now a shot of its own, `teletekst-index`; `teletekst-saved-index` became `teletekst-saved-start`). 383 unit
+  tests, 334 screenshots; firmware 2,671,847 bytes. Not on the device yet (Pending device checks: open Teletekst, 101).

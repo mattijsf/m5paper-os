@@ -82,8 +82,9 @@ for; a page asked without a subpage that turns out to have them is subpage 1.
   JSON as it came; 3-9 KB), the last 16 pages (`saved` in `/data/apps/teletekst.json`; older files are deleted). The
   file is written 0.8 s after the page arrived (`kSaveAfterMs`; at once when the screen is left): a flash write while
   the page is drawn holds the drawing up.
-- **Opening the app**: the page that was open if the app was left less than an hour ago (`page`, `left`), else page 100.
-  Its saved copy is drawn in the first frame; it is read again unless the copy is under two minutes old.
+- **Opening the app**: the page that was open if the app was left less than an hour ago (`page`, `left`), else page 101, the news
+  headlines (`kStartPage`; 100 is only an index). Its saved copy is drawn in the first frame; it is
+  read again unless the copy is under two minutes old.
 - **Going to a page**: a copy under two minutes old is shown without a read (back and forth costs no request). Otherwise
   the page changes when the answer is there: one change of the screen per tap. Only a read that takes longer than 300 ms
   (`kLoadingAfterMs`: Wi-Fi was off, a slow answer) shows the new number in the number button and "Loading 105..." in
@@ -107,9 +108,9 @@ for; a page asked without a subpage that turns out to have them is subpage 1.
   line and inland water, green neighbours, red numbers on black land.
 - A look at real pages without the device: fetch them with curl into a directory outside the repository under the
   fixture names (`GET_teletekst-data.nos.nl_json_702.json`) and run a script with `--fixtures <that directory>`.
-- UI scripts: `teletekst` (index, a headline tap, the number pad, the map with its subpage, a page that does not exist, a
-  coloured link), `teletekst-offline` (nothing saved, no network), `teletekst-saved` (saved copies without Wi-Fi, the page
-  that was open comes back, page 100 after an hour).
+- UI scripts: `teletekst` (the headlines of 101, a headline tap, the number pad, the map with its subpage, a page that does not exist, a
+  coloured link, the index 100), `teletekst-offline` (nothing saved, no network), `teletekst-saved` (saved copies without Wi-Fi, the page
+  that was open comes back, page 101 after an hour).
 - Unit tests: references, markup into cells (colours, links, mosaics, character references, too long, broken), the
   fixture pages, what is not a page, the saved copy, the mono font's 13 px for every character.
 

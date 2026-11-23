@@ -3,4 +3,4 @@
 # Retry; the buttons below are empty.
 wait 1500
 shot teletekst-offline
-expect-state page=none|want=100||error=No Wi-Fi
+expect-state page=none|want=101||error=No Wi-Fi
