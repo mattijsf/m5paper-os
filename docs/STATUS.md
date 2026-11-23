@@ -1678,3 +1678,6 @@ None of these block Phase 1, Phase 2, or the reader.
   333 screenshots (2 new, 4 re-accepted); firmware 2,671,851 bytes (+13 KB). **On the device** (build 94dcbc5b9b3f): the
   real cover of the song playing read and drawn (`[home] cover read`, `push Q rect=25,154,198,196 why=image`), shuffle and
   repeat on as the Sonos reports them, out/p7-24-device-music.png. Not yet sent from the Paper: shuffle, repeat, a station.
+- 2026-11-23: P7-24 done. Shuffle, repeat, stations, mute,
+  play/pause and next/previous stay under Pending device checks: no log of those calls was read (the device was asleep).
+
