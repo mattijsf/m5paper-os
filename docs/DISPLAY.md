@@ -56,7 +56,7 @@ flowchart TD
     S5 --> P["Panel (device)<br/>or SDL window + refresh log (simulator)"]
 ```
 
-The **shadow** is an exact 8-bit copy of the last pushed frame (259 KB). The diff compares quantised values, so
+The **shadow** is an exact 8-bit copy of the last pushed frame (518 KB). The diff compares quantised values, so
 anti-aliasing noise below one of the 16 levels never causes an update.
 
 ## Refresh classes

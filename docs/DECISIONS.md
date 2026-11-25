@@ -317,7 +317,7 @@ Supersedes D16, D17, D20 and the send path of D21.
     for internal RAM explicitly.
   - `SPIRAM_MALLOC_RESERVE_INTERNAL=32768`: kept for those.
   - `MBEDTLS_EXTERNAL_MEM_ALLOC`: TLS buffers in PSRAM.
-  - Core dumps off (there is no partition for them).
+  - Core dumps off (`ESP_COREDUMP_ENABLE_TO_NONE`; the `coredump` partition in `partitions.csv` stays unused).
   - The log ring (8 KB) and the serial upload buffer (4 KB) are heap blocks, so they live in PSRAM.
 - **After**: idle 141K internal free; every app 126-141K with nothing kept after leaving; Home during TLS lowest 69K. Tap
   latency unchanged; EPD self-test identical.

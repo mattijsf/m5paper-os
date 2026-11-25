@@ -117,7 +117,7 @@ task here.
 
 - [-] **P6-1 WhatsApp add-on in Home Assistant.** Dropped: superseded by D22 (no message text in Home Assistant).
 - [-] **P6-2 Proton Mail Bridge + IMAP integration.** Dropped: superseded by D22.
-- [-] **P6-3 Install the inbox package.** Dropped with the add-on route (D22); only `script.paperos_inbox_clear` remains in `ha/paperos_inbox.yaml`.
+- [-] **P6-3 Install the inbox package.** Dropped with the add-on route (D22); `ha/paperos_inbox.yaml` now holds the companion relay scripts and queue sensors.
 - [x] **P6-4 Inbox app.** WhatsApp and Mail lists, grouping, chat and mail detail, cache, errors, "Not set up yet" for a missing feed (apps/inbox.md).
 - [x] **P6-5 Badges and mark-all-read.** Seen marker, launcher badge, clear through the relay.
 - [x] **P6-6 Text clean-up.** `core/text_clean`: HTML to text, entities, emoji, long words, links shortened to the host.
