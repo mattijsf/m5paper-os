@@ -1,10 +1,27 @@
 # Display: rendering for e-ink
 
-Goal: updates feel quick, the screen almost never flashes, and ghosting stays invisible.
-Everything that reaches the panel goes through `core/display_manager` (task P1-3). Apps and
-widgets never call the panel.
+**Goal**: updates feel quick, the screen almost never flashes, and ghosting stays invisible.
 
-## Measured on our device (2026-11-15, spike firmware, M5GFX 0.3.0 default waveforms)
+**One rule**: everything that reaches the panel goes through `core/display_manager`. Apps and widgets draw into the
+canvas and call `invalidate(hint)`; they never call the panel.
+
+**Contents**
+
+- [Panel modes](#panel-modes) · [Pipeline](#pipeline) · [Refresh classes](#refresh-classes) · [Ghost budget](#ghost-budget)
+- [As implemented](#as-implemented) · [Unchanged pixels are left alone](#unchanged-pixels-are-left-alone) ·
+  [Gray areas cost a flicker](#gray-areas-cost-a-flicker)
+- [Navigation speed](#navigation-speed) · [Tap latency](#tap-latency) · [Rules for UI code](#rules-for-ui-code)
+- [Device implementation notes](#device-implementation-notes) · [Simulator emulation](#simulator-emulation) ·
+  [Test patterns](#test-patterns) · [What the panel does to grays](#what-the-panel-does-to-grays)
+- [Camera on the panel](#camera-on-the-panel) · [Calibration target](#calibration-target) ·
+  [Reader ghosting](#reader-ghosting)
+
+---
+
+## Panel modes
+
+The panel has three update modes. Measured on the device (M5GFX 0.3.0 default waveforms, push + waveform with
+`waitDisplay()`):
 
 | Update | Mode | Time |
 |---|---|---|
@@ -14,31 +31,33 @@ widgets never call the panel.
 | Box 200x200 | Fast | 268 ms |
 | Full screen | Fast | 504 ms |
 
-Times are push + waveform, measured with `waitDisplay()`. Consequences:
+| Mode | Shows | Speed | Use it for |
+|---|---|---|---|
+| **Fast** | black and white (grays as a dither) | 0.27-0.5 s | responding to input |
+| **Text** | 16 grays, no flash | 0.9-1.4 s | settling after Fast |
+| **Quality** | 16 grays, exact, with a flash | same as Text | cleaning ghosts, images |
 
-- **Text mode is too slow for interaction** (0.9 to 1.4 s). Use it to *settle*, not to respond.
-- **Fast mode is the interactive mode** (0.27 to 0.5 s) but shows only black and white.
-- Quality costs the same as Text, so when grays must be exact and a flash is acceptable there
-  is no speed reason to avoid it.
+Text is too slow to respond with; it settles. Quality costs no more than Text, so when grays must be exact and a flash is
+acceptable there is no speed reason to avoid it.
 
 ## Pipeline
 
-```
-widgets --draw--> Canvas (8-bit gray, 540x960)
-                     |
-            DisplayManager.commit()
-                     |  1. union of invalidated rects, clipped to screen
-                     |  2. diff against shadow (what the panel shows): shrink each rect to
-                     |     the pixels that really changed; drop rects with no change
-                     |  3. choose a mode per rect (below)
-                     |  4. hal::Display.push(canvas, rect, mode); update shadow
-                     |  5. account ghosting; schedule settle / clean passes
-                     v
-            panel (device)  or  SDL window + refresh log (simulator)
+```mermaid
+flowchart TD
+    W["Widgets"] -- "draw" --> C["Canvas<br/>8-bit gray, 540x960"]
+    W -- "invalidate(rect, hint)" --> R["Pending rects<br/>one per hint"]
+    C --> DM
+    R --> DM["DisplayManager.commit()"]
+    DM --> S1["1. clip each rect to the screen"]
+    S1 --> S2["2. diff against the shadow<br/>shrink to the pixels that really changed"]
+    S2 --> S3["3. choose a mode per rect"]
+    S3 --> S4["4. hal::Display.push(canvas, rect, mode)<br/>update the shadow"]
+    S4 --> S5["5. add to the ghost score<br/>schedule settle and clean passes"]
+    S5 --> P["Panel (device)<br/>or SDL window + refresh log (simulator)"]
 ```
 
-`shadow` is a copy of the last pushed frame quantised to 16 levels (4 bits per pixel, 259 KB).
-Comparison is done on quantised values, so sub-level anti-aliasing noise never causes an update.
+The **shadow** is an exact 8-bit copy of the last pushed frame (259 KB). The diff compares quantised values, so
+anti-aliasing noise below one of the 16 levels never causes an update.
 
 ## Refresh classes
 
@@ -55,287 +74,333 @@ enum class Hint : uint8_t {
 widget.invalidate(Hint::Content);
 ```
 
-The DisplayManager maps hints to panel modes:
-
-| Hint | First pass | Settle pass | Notes |
+| Hint | First pass | Settle pass | Why |
 |---|---|---|---|
-| Feedback | Fast, immediately (a pressed look: after 120 ms of holding, see "Navigation speed") | none if the *changed pixels* are pure black/white, else Text | the result of a tap must reach the panel within 100 ms of the Up |
+| Feedback | Fast, at once | none if the changed pixels are pure black/white, else Text | a tap's result reaches the panel within 100 ms of the finger going up |
 | Content | Fast | Text after 600 ms without further changes in the region | "fast then settle" |
-| Page | Fast | **none** (drops older settles inside the page; the part of one that sticks out of the page keeps its settle, see "As implemented") | the reader's page turns. Every `pageCleanEvery`-th (10) is one full-screen **Quality** pass instead, which also brings the 16 grays back. Decided 2026-11-16: the Text settle is a dark sweep over the whole text area 0.6 s after every turn (camera: the paper at ~60 % brightness for ~0.3 s); black/white text between cleans is preferred |
-| Screen | Fast full screen; **one Text pass instead** if the new pixels hold flat gray areas (`grayAreaMin`, below) | Text after 600 ms (none after the Text pass); **Quality instead** if the ghost budget is spent | navigation is the natural place to hide a clean |
-| Image | Quality on the image rect | none | only place a flash is expected |
+| Page | Fast | none | reader page turns; every 10th turn is one Quality pass instead ([Ghost budget](#ghost-budget)) |
+| Screen | Fast, or **one Text pass** if the new screen has flat gray areas | Text after 600 ms; **Quality instead** when the ghost budget is spent | navigation is the natural place to hide a clean |
+| Image | Quality on the image rect | none | the only place a flash is expected |
 
-**Fast then settle.** A Fast pass shows the new content thresholded to black/white right away
-(text is readable, edges slightly rough). When the user stops interacting, a Text pass over the
-same region restores the 16-level anti-aliasing without a flash. If new input arrives before the
-settle timer fires, the timer restarts, so rapid page turns stay at Fast speed.
+How a `Screen` commit picks its mode:
 
-The canvas always holds the full-gray frame; black and white for the Fast pass is made in `hal::Display`: on the device by
-the panel driver, in the simulator by the emulation. **It is an ordered dither, not a threshold** (found 2026-11-16 in the
-driver source, M5GFX `Panel_EPD`, `epd_fast`): a pixel is black if `value + Bayer4x4 * 16 < 248`. So grays are in the Fast
-pass as dots: a gray(9) divider has 6 of 16 pixels black, gray(13) 2 of 16, gray(3) 13 of 16; anti-aliased edges are speckled.
-The settle pass then turns the dots into the even gray. The simulator used a threshold at 50 % until then, which showed
-gray(8) and lighter **not at all** until the settle pass (dividers, gray icon wells, the word game's gray frames: "first the text,
-then the lines", user in the simulator window); it now uses the driver's formula (`platform/sim/display.cpp`; the pattern
-is indexed by logical x, y, the driver indexes it in panel coordinates). **Confirmed on the panel 2026-11-16** (camera session, Display lab "Fast" after a logged `mode=F ... why=page` push, `cam.py compare`): lightness per band, 0 = ink, 1 = white: g0 .01, g1 .03, g2 .13, g3 .23, g4 .27, g5 .30, g6 .38, g7 .44, g8 .54, g9 .57, g10 .61, g11 .64, g12 .71, g13 .81, g14 .94, g15 1.04: a steady rise that follows the predicted white share (g3 .19, g7 .44, g9 .62, g13 .88); a threshold would give two flat groups, and the real-gray ramp bunches at both ends instead. A reader page was tried first and showed nothing: at 1.3 camera pixels per panel pixel the 4 x 4 pattern on text edges blurs away. Text and Quality modes also dither between neighbouring levels in the driver (`(value + Bayer - 8) >> 4`); the
-simulator still shows the exact level there.
+```mermaid
+flowchart TD
+    A["Hint::Screen commit"] --> B{"ghost score ≥ ghostLimit (8)?"}
+    B -- yes --> Q["Quality over the whole screen<br/>score = 0, pending settles dropped"]
+    B -- no --> G{"≥ grayAreaMin (2000 px)<br/>of flat gray changed?"}
+    G -- yes --> T["one Text push of the changed box<br/>(why=screen-gray), no settle after it"]
+    G -- no --> F["Fast pass<br/>then Text settle 600 ms later"]
+```
+
+### Fast then settle
+
+A Fast pass shows the new content in black and white right away: text is readable, edges are slightly rough. When the
+region has been quiet for 600 ms, a Text pass over it restores the 16-level anti-aliasing without a flash. New input in
+the region restarts the timer, so rapid changes stay at Fast speed.
+
+```mermaid
+sequenceDiagram
+    participant T as Touch
+    participant DM as DisplayManager
+    participant P as Panel
+    T->>DM: tap (finger up)
+    DM->>P: Fast pass, black and white (~0.25 s)
+    Note over DM: settle timer: 600 ms
+    T->>DM: another change in the same region
+    DM->>P: Fast pass
+    Note over DM: timer restarts: 600 ms
+    DM->>P: Text pass, 16 grays, no flash (~0.8 s)
+```
+
+### The Fast pass is an ordered dither
+
+The canvas always holds the full-gray frame. Black and white for the Fast pass is made in `hal::Display`: by the panel
+driver on the device, by the emulation in the simulator. It is an **ordered dither, not a threshold** (M5GFX
+`Panel_EPD`, `epd_fast`): a pixel is black if `value + Bayer4x4 * 16 < 248`.
+
+- Grays appear in the Fast pass as dots: a gray(9) divider has 6 of 16 pixels black, gray(13) 2 of 16, gray(3) 13 of 16.
+- Anti-aliased edges look speckled until the settle pass turns the dots into even gray.
+- The simulator uses the same formula (`platform/sim/display.cpp`), indexed by logical x, y; the driver indexes it in
+  panel coordinates.
+- Text and Quality modes also dither between neighbouring levels in the driver (`(value + Bayer - 8) >> 4`); the
+  simulator shows the exact level there.
+
+Confirmed on the panel with the camera (Display lab "Fast" pattern). Lightness per level, 0 = ink, 1 = white:
+
+| Level | g0 | g2 | g3 | g5 | g7 | g9 | g11 | g13 | g15 |
+|---|---|---|---|---|---|---|---|---|---|
+| Fast pass, measured | .01 | .13 | .23 | .30 | .44 | .57 | .64 | .81 | 1.04 |
+| White share of the dither | | | .19 | | .44 | .62 | | .88 | |
+
+A steady rise that follows the dither; a threshold would give two flat groups. (On a reader page the pattern is not
+visible to the camera: at 1.3 camera pixels per panel pixel the 4x4 pattern blurs away.)
 
 ## Ghost budget
 
-Fast updates leave faint remains; many of them also build DC bias on the panel. The manager
-keeps a score:
+Fast updates leave faint remains, and many of them build DC bias on the panel. The manager keeps a score:
 
-- every Fast pass adds `changedPixels / screenPixels` (so a full-screen Fast = 1.0, a small
-  button = 0.01);
-- a Text settle pass subtracts half of what its region added;
-- a Quality pass over the full screen resets the score to 0.
+| Event | Score |
+|---|---|
+| Fast pass | + `changedPixels / screenPixels` (full screen = 1.0, a small button = 0.01) |
+| Text settle | − half of what its region added |
+| one Text push for a gray screen (`screen-gray`) | + half of what a Fast pass would add |
+| Quality pass over the full screen | reset to 0 |
+| Image (Quality on a box) | unchanged |
 
-When the score reaches **`ghostLimit` (default 8.0)**, the next `Hint::Screen` commit uses
-Quality for the whole screen (one flash, during navigation where it is least noticed). If no
-navigation happens and the score reaches `2 x ghostLimit`, the manager cleans on the next idle
-moment (2 s without input).
+```mermaid
+flowchart LR
+    S["score"] --> L1{"≥ ghostLimit (8)?"}
+    L1 -- yes --> N["next Screen commit is a Quality pass<br/>(one flash, during navigation)"]
+    S --> L2{"≥ 2 x ghostLimit (16)?"}
+    L2 -- yes --> I["clean at the next idle moment<br/>(2 s without a push)"]
+```
 
-**Page turns have their own cadence (`Hint::Page`, 2026-11-16)**: every `pageCleanEvery`-th page (default 10, `config.json`
-`display.pageCleanEvery`, 0 = off) is one full-screen Quality pass; the others are Fast without a settle pass. Why: measured with the
-camera, a page turn as `Content` added about 0.13 net to the score (a Fast of ~0.26 of the screen, the settle took half back), the
-reader never commits `Screen`, so only the idle clean at 2 x `ghostLimit` = 16 was left, after roughly 120 turns: 30 turns gave no
-clean, and the ghost grew to 2 % of contrast. On the device after the change: nine `why=page` Fast pushes, then `why=page-clean`
-Quality; ghost after 1 page 1.57 %, after 9 pages 1.21 % (within the noise of the old 1.23 % / 1.54 %), the turn finished on the panel
-about 0.67 s after the tap instead of 1.6 s, and no dark sweep.
+`ghostLimit`, the settle delay and the idle delay live in `config.json` under `display`, so they can be tuned on the
+device without rebuilding.
 
-`ghostLimit`, the settle delay and the idle delay live in `config.json` under `display` so they
-can be tuned on the device without rebuilding (task P7-1).
+### Page turns have their own cadence
 
-## As implemented (`core/display_manager.{h,cpp}`, P1-3)
+Every `pageCleanEvery`-th page (default 10, `display.pageCleanEvery`, 0 = off) is one full-screen Quality pass; the other
+turns are Fast without a settle.
 
-- API: `invalidate(Rect, Hint)`, `commit()`, `tick(nowMs)`, `nextDeadlineMs()`, `forceClean()`,
-  `ghostScore()`, `refreshLogTail()`, `shadowPacked()`. Parameters in `DisplayParams`
-  (`ghostLimit` 8, `settleMs` 600, `idleCleanMs` 2000, `pageCleanEvery` 10). Unit tests: `tests/unit/display_manager_test.cpp`.
-- One pending rect per hint (invalidations of the same hint are united). `commit()` handles
-  Feedback, Page, Content, Screen, Image in that order (Page before Content: the footer of a page turn is Content and must not make
-  the page wait for its push: measured, the page's push call took 322 ms behind the footer, 82 ms in front of it); later rects diff against the shadow the
-  earlier ones updated.
-- The shadow is the quantised canvas of everything pushed (not the thresholded Fast image).
-  `forceClean()` at boot makes it valid; before that every pixel counts as changed.
-- **A page push and older settles (2026-11-18)**: a `Page` push takes the pushed box out of every pending settle (the
-  sweep over the text must not come back) and leaves what lies outside it, as up to four rectangles: the rows above and
-  below, the strips beside it. Before, any settle that touched the page was dropped whole, so what a `Screen` change had
-  shown around a page stayed in the Fast pass's rough look until the next clean when a page was pushed within 0.6 s:
-  Teletekst's status line and buttons after the number pad closed over them; the title bar, title, byline and divider
-  of a Hacker News story and the whole first page of its comments (the page number in the footer is a `Page` push; a
-  dotted divider and speckled gray text in the goldens until then). So a screen that opens with a page now gets the
-  settle every other screen gets (a ripple at the anti-aliased edges, "Unchanged pixels are left alone"); page turns
-  stay one Fast pass. 25 goldens re-accepted with it (10 of Hacker News, 4 of the reader's menu: two rows under the
-  page, 11 of Teletekst, whose buttons changed the same day).
-- A settle region merges with any overlapping or touching Fast region and restarts its timer
-  (500 ms later change in the same area = new 600 ms from then). Unrelated regions keep their timers.
-- Screen at or over `ghostLimit`: Quality over the whole screen, drops pending settles.
-- **Screen with flat gray areas (2026-11-16)**: (written when the simulator thresholded: on the device a gray(13) well is in the
-  Fast pass as sparse dots, 2 of 16 pixels, not missing; whether one Text push is still the better trade there is for the camera.)
-  A Fast pass thresholds gray to black or white, so gray *areas* (the launcher's and
-  Home's gray(13) icon wells, the keyboard) were missing from the Fast pass and arrived only with the settle pass 0.6 s later: a second
-  refresh and on the panel a dark sweep: icon backgrounds showed late and the screen flashed. Now the diff of a
-  Screen pass also counts changed pixels of flat gray (levels 1..14 with the same level 2 px away on all four sides, so anti-aliased text
-  edges and 1 px dividers do not count; white or black 8-byte runs are skipped; it stops at the limit). At `grayAreaMin` (2000 px, a
-  disc of radius 25; `DisplayParams`, not in `config.json`) the pass is **one Text push** of the changed box (`why=screen-gray`): the final
-  screen at once, no settle afterwards, settles inside the box dropped (one that sticks out keeps only the strip outside the box, when
-  that is one rectangle: the Agenda's first frame was 2 px wider than its next and got a second Text pass over 494x882). Ghost score: half of what the Fast pass would add (what Fast then
-  settle nets). Screens without gray areas (text, lists) keep Fast then settle. The Text push takes longer on the panel than a Fast one
-  (full screen 1.37 s against 0.5 s), but ends with the final look; one waveform instead of two.
-  Image: Quality on the changed box only, does not touch the score.
-- Idle clean (`score >= 2 x ghostLimit`, 2 s without a push): `tick()` runs `forceClean()`.
-- Clean on demand: a swipe up from the bottom edge (UI.md "Gestures") runs `forceClean()` (`why=clean`). On the device
-  (2026-11-16, camera): one Quality push, 0.66 s visible on the panel, it removed 1.5 % of ghost from a reader page.
-- Every push is logged (`POS_LOG("disp", ...)` and the refresh log: `t= mode= rect= changed= why=`).
-- **`hal::Display::busy()` on the device is only "M5GFX update queue full"**: M5GFX cannot say
-  whether a waveform is running. So the "coalesce while busy" rule rarely triggers on the device;
-  M5GFX queues up to 8 updates itself and merges overlapping ones. `>set epd-timing on` makes the
-  device wait after each push and log `[epd] ... push+waveform <ms> done t=<ms>` (blocks the UI:
-  debug only).
+Why: as `Content`, a page turn added about 0.13 net to the score (a Fast pass over ~0.26 of the screen, the settle took
+half back). The reader never commits `Screen`, so only the idle clean at 16 was left, after roughly 120 turns, and the
+ghost grew to 2 % of contrast. The Text settle was also a dark sweep over the text 0.6 s after every turn.
 
-## Unchanged pixels are left alone (2026-11-17, `tools/patch_m5gfx.py` patch 4; measured on the panel the same day)
+| | `Content` (before) | `Page` (now) |
+|---|---|---|
+| Ghost after 1 / 9-10 / 30 turns | 1.23 / 1.54 / 1.99 % | 1.27 / 1.15 / 1.14 % (flat) |
+| Turn finished on the panel | 1.6 s after the tap | 0.67 s |
+| Dark sweep after a turn | yes | no |
 
-Navigation flashed, worst in Settings. Measured in the simulator
-(refresh log of a walk through Settings): every navigation is a Fast pass over 78 % of the screen (the content area,
-492 x 823) and, 0.6 s later, a Text settle over the same 78 %; no Quality pass in 16 navigations. Why that flashes is in
-the driver (M5GFX `Panel_EPD.inl`, `step_fast` / `step_text`): the update task keeps per pixel pair the *request* it last
-got, and a request carries its mode. So
+## As implemented
 
-- a **Text settle after a Fast pass** drives every pair of its rectangle again, the white background too (it was "white,
-  asked for by Fast", now it is "white, asked for by Text"): through the erase steps and then the Text waveform, which for
-  white is five frames toward black and back. The whole region darkens and returns: the "dark sweep" the camera saw;
-- a **Fast pass after a Text or Quality pass** does the same in small: every pair of its box gets the Fast waveform, for
-  white two frames toward black first;
-- a Text pass drives every pair that is not white again, changed or not (unchanged text flickers under a `screen-gray` push).
+`core/display_manager.{h,cpp}`. Unit tests: `tests/unit/display_manager_test.cpp`.
 
-The launcher and Home change screens with one Text pass after another (`screen-gray`), where white on white is skipped, so
-they flash less; list screens (Settings) are Fast then settle, and get two full-area flashes per navigation.
+**API**: `invalidate(Rect, Hint)`, `commit()`, `tick(nowMs)`, `nextDeadlineMs()`, `forceClean()`, `ghostScore()`,
+`refreshLogTail()`, `shadowPacked()`.
 
-Patch 4: a pair whose two pixel values are what was last requested is not driven again, whatever mode asked (a Fast
-request holds 0 or 15 per pixel, so an equal value after it is black or white, where Fast left it; an equal gray was put
-there by Text or Quality). Only what changes is driven: the settle touches the anti-aliased edges and gray lines, a
-navigation the pixels that differ. Quality is untouched (a clean drives everything). `>set epd-keep off` gives the stock
-rule back while the device runs, `on` the patch: for a comparison with the camera.
+**Parameters** (`DisplayParams`):
 
-**On the panel (2026-11-17, camera locked, 640x480 at 30 fps, `cam.py around tap` on Settings > Display and back; the
-stock rule and the patch in one session, switched with `>set epd-keep`)**. The number is how much the white that stays
-white (white in the frame dump before and after, away from ink) darkens while a push runs, in % of that video's
-white-to-ink contrast (`cam.py around` prints it per push since this day):
+| Parameter | Default | In `config.json` | Meaning |
+|---|---|---|---|
+| `ghostLimit` | 8.0 | yes | score at which the next Screen commit becomes a Quality pass |
+| `settleMs` | 600 | yes | quiet time before a Fast region gets its Text settle |
+| `idleCleanMs` | 2000 | yes | idle time before a forced clean at 2 x `ghostLimit` |
+| `pageCleanEvery` | 10 | yes | every Nth `Page` push is a Quality pass |
+| `grayAreaMin` | 2000 px | no | flat gray pixels that make a Screen pass one Text push |
+
+### Commit order
+
+One pending rect per hint (invalidations of the same hint are united). `commit()` handles them in this order, and each
+later rect diffs against the shadow the earlier ones updated:
+
+1. Feedback
+2. Page (before Content: a page turn's footer is Content and must not make the page wait; the page's push call took 322 ms
+   behind the footer, 82 ms in front of it)
+3. Content
+4. Screen
+5. Image
+
+### Settles
+
+- A settle region merges with any overlapping or touching Fast region and restarts its timer. Unrelated regions keep
+  their own timers.
+- A **`Page` push** removes the pushed box from every pending settle and keeps what lies outside it (up to four
+  rectangles: above, below and beside). So a screen that opens with a page still gets its settle around the page, while
+  page turns stay one Fast pass.
+- A **Quality** Screen pass drops all pending settles.
+- A **`screen-gray` Text push** drops the settles inside its box; one that sticks out keeps only the strip outside, when
+  that is one rectangle.
+
+### Gray screens: one Text push
+
+A Fast pass shows flat gray *areas* only as sparse dots, and the settle then fills them in 0.6 s later: a second
+refresh, seen as a dark sweep. So the diff of a Screen pass also counts changed pixels of **flat gray**: levels 1-14 with
+the same level 2 px away on all four sides (so anti-aliased edges and 1 px dividers do not count; it stops at the limit).
+
+At `grayAreaMin` (2000 px, a disc of radius 25) the pass is **one Text push** of the changed box (`why=screen-gray`): the
+final screen at once, one waveform instead of two. It takes longer on the panel than a Fast pass (full screen 1.37 s
+against 0.5 s), but ends with the final look. Screens without gray areas keep Fast then settle. See also
+[Gray areas cost a flicker](#gray-areas-cost-a-flicker).
+
+### Cleans
+
+- **Idle clean**: score ≥ 2 x `ghostLimit` and 2 s without a push: `tick()` runs `forceClean()`.
+- **Clean on demand**: a swipe up from the bottom edge (UI.md "Gestures") runs `forceClean()` (`why=clean`): one
+  Quality push, about 0.66 s visible on the panel; it removed 1.5 % of ghost from a reader page.
+- `forceClean()` also runs at boot to make the shadow valid; before that every pixel counts as changed.
+
+### Logging and busy state
+
+- Every push is logged: `POS_LOG("disp", ...)` and the refresh log, `t= mode= rect= changed= why= diff= call=`.
+- **`hal::Display::busy()` on the device only means "M5GFX update queue full"**: M5GFX cannot say whether a waveform is
+  running. It queues up to 8 updates and merges overlapping ones, so "coalesce while busy" rarely triggers on the device.
+- `>set epd-timing on` makes the device wait after each push and log `[epd] ... push+waveform <ms>`. It blocks the UI:
+  debug only.
+
+## Unchanged pixels are left alone
+
+`tools/patch_m5gfx.py` patch 4. Navigation used to flash, worst in Settings: every navigation was a Fast pass over 78 %
+of the screen and, 0.6 s later, a Text settle over the same area.
+
+**Cause** (M5GFX `Panel_EPD.inl`, `step_fast` / `step_text`): the update task remembers, per pixel pair, the *request* it
+last got, and a request carries its mode. So:
+
+- a **Text settle after a Fast pass** drives every pair of its rectangle again, the white background too ("white, asked by
+  Fast" is not "white, asked by Text"). For white the Text waveform goes five frames toward black and back: the whole
+  region darkens and returns, the "dark sweep";
+- a **Fast pass after a Text or Quality pass** does the same on a smaller scale (two frames toward black first);
+- a **Text pass** drives every pair that is not white, changed or not.
+
+**Fix**: a pair whose two pixel values equal what was last requested is not driven again, whatever mode asks. Only what
+changes is driven: the settle touches the anti-aliased edges and gray lines, a navigation the pixels that differ.
+Quality is untouched (a clean drives everything). `>set epd-keep off|on` switches between the stock rule and the patch
+on a running device, for comparisons.
+
+**On the panel** (camera, Settings > Display and back). How much the white that stays white darkens during a push, in %
+of the white-to-ink contrast:
 
 | | Fast pass of the navigation | Text settle 0.6 s later |
 |---|---|---|
-| stock rule (`epd-keep off`) | 25-31 % darker, visible 236-241 ms | **66-82 % darker**, visible 327-367 ms |
-| patch 4 (`epd-keep on`) | 0.3-0.4 %, visible 73-106 ms (what changed) | 0.5 % or less, "no visible change in its rect" |
+| Stock rule | 25-31 % darker, visible 236-241 ms | **66-82 % darker**, visible 327-367 ms |
+| Patch 4 | 0.3-0.4 %, visible 73-106 ms | 0.5 % or less: no visible change |
 
-So the background nearly reached ink during the settle and a quarter of the way during the Fast pass, twice per
-navigation; with the patch neither shows. The screen is final about 1.17 s after the tap instead of 1.34 s.
-The settle still does its work: Display lab, Check (a Fast pass) then Ramp (Fast, then the Text settle): the 16 levels read
-the same with the patch as with the stock rule (every level within 0.01: g0 0.03, g7 0.41, g12 0.74, g15 1.02). Ghost after
-20 navigations from a cleaned Settings list, against the same page after a Clean: **0.75 %** with the patch (p95 3.5 %),
-1.09 % with the stock rule (p95 4.3 %): one run each, so "not worse" is what it says; the ghost budget stays as it is.
-`>set epd-selftest on` after the flash: "identical" for Fast and Quality. (In that ramp g11 read 0.49 between g10 0.70 and
-g12 0.74, with and without the patch: not from this change; the set-up was moved since the ramp of 2026-11-16.)
-Also changed: a toast is a Content update, not a Screen change (it could trigger the full-screen Quality clean).
+- The screen is final about 1.17 s after the tap instead of 1.34 s.
+- The settle still does its work: the 16 levels of the Display lab ramp read the same with and without the patch
+  (within 0.01).
+- Ghost after 20 navigations: 0.75 % with the patch, 1.09 % with the stock rule. The ghost budget stays as it is.
+- `>set epd-selftest on`: "identical" for Fast and Quality.
 
-**Gray areas cost a flicker (2026-11-17)**: a Text pass shows as three pulses of change (camera: Settings to the launcher
-with its gray icon wells, 366 ms), a Fast pass as one (144-170 ms). Fast then settle on the same screen is one pulse
-and, a second later, three more where the gray is. Without gray (ink, paper, anti-aliased edges) the settle is a
-ripple of about a sixth of the Fast pulse. So: flat gray on a screen that is navigated to often is paid for on every
-visit; the launcher's wells went for that reason (apps/launcher.md "No gray on the launcher"), then those of every
-`Tile`. Screens that still go out as a Text pass (`why=screen-gray` in the UI test logs): Agenda's day view (gray event
-blocks), everything with the on-screen keyboard (gray keys), a book's cover page, the Display lab.
+### Gray areas cost a flicker
 
-## Navigation speed (2026-11-15)
+| Pass | Seen on the panel (camera) |
+|---|---|
+| Text pass | three pulses of change (Settings to a launcher with gray icon wells: 366 ms) |
+| Fast pass | one pulse (144-170 ms) |
+| Fast then settle, screen with gray | one pulse, then three more where the gray is, a second later |
+| Fast then settle, ink and paper only | one pulse, then a ripple of about a sixth of it at the edges |
 
-Measured on the device with `tools/device.py tap` and `refresh` (injected taps, so Down and Up are
-60 ms apart), opening a screen from a row or tile:
+**So flat gray on a screen that is visited often is paid for on every visit.** The launcher's gray icon wells went for
+that reason (apps/launcher.md "No gray on the launcher"), then those of every `Tile`.
 
-| | before | after |
+Screens that still go out as one Text pass (`why=screen-gray` in the UI test logs): the Agenda's day view (gray event
+blocks), anything with the on-screen keyboard (gray keys), a book's cover page, the Display lab.
+
+## Navigation speed
+
+Opening a screen from a row or tile, measured on the device with injected taps (`tools/device.py tap`, finger down and
+up 60 ms apart):
+
+| Step | Before | After |
 |---|---|---|
-| tap to the new screen's Fast pass done (epd timing mode) | 925 ms (Read tile), ~1 s (row) | **605 ms** (tile and back arrow; row alike) |
-| `diff` of the new screen against the shadow | 107-229 ms | 21-29 ms |
-| layout + drawing the new screen (`[perf] render`) | 116 ms | 56-60 ms |
-| `hal::Display::push` call of the screen pass | 531 ms | 88 ms |
+| Tap to the new screen's Fast pass done | 925 ms (tile), ~1 s (row) | **605 ms** |
+| Diff of the new screen | 107-229 ms | 21-29 ms |
+| Layout + drawing (`[perf] render`) | 116 ms | 56-60 ms |
+| `hal::Display::push` call | 531 ms | 88 ms |
 
-What was slow: (1) the pressed look of the tapped row was pushed on Down and its waveform (~250 ms) was
-still running when the screen was built and pushed. **While an EPD waveform runs, every access to PSRAM is
-several times slower** (the EPD task streams frame buffers from PSRAM): the diff, the drawing and the
-`pushSprite` conversion of the next screen all crawled, and the push call even waited ~0.5 s. (2) The diff
-looked at every pixel of the 400 000 changed ones.
+**What was slow**
 
-Fixes: (1) **Press feedback delay**: `Pressable` shows its pressed look only if the finger is still down
-after `ui::kPressDelayMs` = 120 ms; a quick tap goes straight to its result, one Fast pass, no waveform
-running while the next screen is built (and half the Fast passes, so less ghost budget). The 100 ms
-Feedback promise now applies to what the tap *does*, not to a pressed look for taps shorter than 120 ms.
-Segmented, LevelBar and TabBar still preview on Down (their result is the preview). (2) **Cheaper diff**: the
-shadow is an exact 8-bit copy of the last pushed canvas; per row 8 bytes at a time find the first and last
-changed pixel (sub-level noise trimmed at the ends), `changed` counts the changed span of each row (the
-ghost score is a hair high when pixels inside a span are unchanged), and the black/white check only runs for
-Feedback regions. The refresh log now prints `diff=<ms>` and `call=<ms>` per push, and the loop logs
-`[perf] render took <ms>` for passes of 30 ms or more.
+1. The pressed look of the tapped row was pushed on finger down, and its waveform (~250 ms) still ran while the next
+   screen was built. **While an EPD waveform runs, every PSRAM access is several times slower** (the EPD task streams
+   frame buffers from PSRAM): diff, drawing and the push all crawled.
+2. The diff looked at every one of the 400,000 changed pixels.
 
-Remaining cost of a screen change: Up (60-150 ms) + render 57 + diff 25 + push call 88 + the Fast waveform
-(~400 ms for a 492 x 824 area; fixed by the panel). Further savings would need a smaller changed area or a
-cheaper layout pass, not different scheduling.
+**Fixes**
 
-## Tap latency (2026-11-16)
+1. **Press feedback delay**: a `Pressable` shows its pressed look only if the finger is still down after
+   `ui::kPressDelayMs` = 120 ms. A quick tap goes straight to its result: one Fast pass, no waveform running while the
+   next screen is built, half the ghost score. `Segmented`, `LevelBar` and `TabBar` still preview on finger down (their
+   result is the preview).
+2. **Cheaper diff**: per row, 8 bytes at a time, find the first and last changed pixel; the black/white check runs only
+   for Feedback regions.
 
-Measured with `tools/latency.py` (injected taps, the firmware's `[lat]` line per tap: event -> gesture -> render -> commit, with
-the diff and push-call times of the push) and `tools/cam.py around` (when the panel changes). Medians, finger up to the update
-handed to the panel driver; the waveform follows (Fast ~0.13-0.17 s visible).
+**Remaining cost of a screen change**
 
-| Tap | before | after | what changed |
-|---|---|---|---|
-| reader page turn | 516 ms | **112 ms** | fast text, M5GFX patch 1, prefetch, `Hint::Page` |
-| open a screen (Settings row) | 807 ms (246 idle) | **150 ms** | fast text, M5GFX patches (two cores), 64 KB data cache, 120 MHz flash + PSRAM (D25), diff updates the shadow |
-| small control (stepper) | 52 ms | **5 ms** | config written 1 s later, not on the tap |
+| Part | Time |
+|---|---|
+| Finger up | 60-150 ms |
+| Render | 57 ms |
+| Diff | 25 ms |
+| Push call | 88 ms |
+| Fast waveform (492x824 area, fixed by the panel) | ~400 ms |
 
-| list page turn (Hacker News, 2026-11-18) | 415 ms, three passes | **105 ms, one pass** | the pager's pressed look waits `kPressDelayMs`; `measureText` from the glyph cache; `ellipsize` by halving |
-| segmented control with a list under it (2026-11-18) | 330 ms, three passes | **120 ms, one pass** | its highlight waits `kPressDelayMs`; one region |
+Later work (next section) took the push call and render down further.
 
-On the panel (camera, page turn): first change 0.53 s -> **0.38 s** after the tap, turn finished 0.67 s -> **0.55 s** (both include
-the camera's own ~0.2 s delay; at the start of the day, with the settle sweep, the turn ended at 1.6 s).
+## Tap latency
 
-Where the time went and what was done:
-- **Text drawing** (`ui/text.cpp` "Fast text path"): LovyanGFX decoded every BFF glyph with a malloc and wrote each pixel as a
-  1x1 fill: 10-20 ms per reader line, 155-361 ms per page. Glyphs are now rasterised once by LovyanGFX on a scratch canvas (exact:
-  the 16 alpha levels come back from black-on-white; the true glyph box from `drawChar` with the background fill turned off) and
-  blended straight into the 8-bit canvas with LovyanGFX's own positioning, fill and integer blend. Byte-identical
-  (`tests/unit/text_fast_test.cpp`, every font, anchor, colour pair, clipping, icons, the fake-bold strike over overlapping
-  glyphs). Page render 362 -> ~100 ms, screen render 121 -> 60 ms.
-- **Frame buffer write** (M5GFX patch 1, `tools/patch_m5gfx.py`, D24): our portrait UI on the landscape panel made M5GFX write
-  one 4-bit pixel per PSRAM byte, column-wise; while a waveform ran (the update task streams ~1 MB of PSRAM per frame) a page push
-  took 450-530 ms. Now 32 source rows per tile, quantised by table (Bayer and formulas unchanged) and written as whole bytes:
-  page push ~87 ms, also while a waveform runs. Identical frame buffer (`>set epd-selftest on`).
-- **Update task** (M5GFX patch 2): rows whose waveform finished get a zero line without reading the step buffer.
-- **Prefetch** (`TextBlock::prefetch`, reader): 600 ms after a page shows, the next page is drawn into a spare canvas; the turn
-  copies it in. **Skipping the diff for pages was tried and reverted**: a page turned under the open menu sheet then re-pushed the
-  sheet's unchanged gray text in Fast mode.
-- **A pressed look in flight** (2026-11-18): a pager arrow drawn pressed on the finger going down is a small Fast pass
-  whose waveform the page that follows must wait for (150 ms). `PagerBar` and `Segmented` now show their pressed look only
-  when the finger stays down (`kPressDelayMs`), like `Pressable`. Rule: nothing draws on Down that a Tap replaces.
-- **Measuring** (2026-11-18): `ui::measureText` asked LovyanGFX, which looks every glyph up again (12 us a character on
-  the device; a wrapped title is measured a dozen times, an ellipsis cut once per character: 30 ms for one line). It now
-  sums the metrics kept in the glyph cache (identical, tested for every baked character and face), `ui::ellipsize` halves.
-- **Regions that change together are one invalidation** (2026-11-18): Feedback and Content pushes are split into bands
-  of changed rows, and each band is a push that waits for the one before; a screen's parent column invalidated once is
-  one push (Hacker News `oneChange`). **Checked again 2026-11-20 in the driver** (`Panel_EPD.inl`, `task_update`): a
-  queued update is written into the per-pixel step buffer while earlier waveforms run, and every frame drives all rows, so
-  bands queued within a few ms overlap and finish about one waveform after the last one arrives; they do not add up. What
-  a band costs is its diff and push call (2-30 ms). Measured with `epd-timing` (which waits after each push, so it shows
-  each one alone): a Fast push 246-250 ms whatever its size (60 x 60 to 251 x 28), a Text push 820-824 ms. So what saves
-  time on the panel is no settle (pure black/white changes) and no `relayout()` for a change of a few widgets (the chess
-  board, apps/chess.md; the picture puzzle did the same with ink crosses and struck-through clues before it was removed).
-- **Config writes**: Settings write `config.json` about a second after the last change (`Os::saveConfigSoon`; flushed before
-  power-off); a flash write on the tap cost 25-50 ms before the redraw.
-- **Data cache** (D25, the core built from source): 64 KB with 64-byte lines instead of 32 KB / 32 B. A screen change during
-  the previous one's settle waveform 408 -> 306 ms.
-- **120 MHz flash and PSRAM** (D25): PSRAM 51 -> 64 MB/s, and code and fonts (in flash) run faster: page turn 199 -> 140 ms,
-  screen change 306 -> 190 ms (the collision with a running settle no longer shows in the median).
-- **Both cores for the frame buffer write** (M5GFX patch 3): a helper task on the other core (priority 1, below the EPD update
-  task) and the caller take 16-row chunks from one atomic counter; the caller waits only for a chunk the helper took. Page
-  push call 87 -> 61 ms; the self-test rect 28 -> 22 ms (still identical).
-- **Diff and shadow in one pass**: the diff copies each row's raw changed span into the shadow as it goes (rows with only
-  sub-level noise too); the second pass over the box after every push is gone. Unit tests and goldens unchanged.
-- **Reading position written a second after the turn** (every 5th turn), not on the tap: the flash write cost ~36 ms there.
-- Now (2026-11-16): page turn 112 ms, screen change 150 ms, small tap 5 ms.
-- **Teletekst (2026-11-18, camera session)**: a page from the network 440 -> 189-295 ms and five pushes -> one; what
-  was learnt holds for any app: do not push a "loading" state on the tap when the answer mostly comes within 0.2 s (its
-  waveform runs while the real screen is drawn: the page's push call 170 ms instead of 65), do not write the flash
-  while a screen is drawn (drawing 65-99 ms instead of 33), and what changes together goes out with one hint
-  (apps/teletekst.md "Speed and flicker").
-- **Chapter boundaries**: the reader loads the next chapter on the worker as soon as it starts within the next two pages, and
-  the turn into it uses that. Loading takes 129 ms at book open but ~930 ms while reading (the worker shares core 0 with the
-  panel's waveform task after each turn), so one page of lead was not always enough: a turn could still wait ~1 s. 60 turns
-  over several boundaries: median 105 ms, slowest 159 ms (boundary turns ~130 ms: the new chapter's layout).
-- **Frame dumps no longer block the UI**: `Remote` queues its replies and sends what the USB buffer takes on each loop pass
-  (16 KB TX buffer); a `>shot` held the UI loop ~1.07 s, now the 259 KB stream between passes, 0.5 s per dump.
+Measured with `tools/latency.py` (the firmware's `[lat]` line per tap: event → gesture → render → commit) and
+`tools/cam.py around` (when the panel changes). Medians, from finger up to the update handed to the panel driver; the
+waveform follows (Fast: ~0.13-0.17 s visible).
 
-## Rules for UI code (enforced in review, see UI.md)
+| Tap | Before | Now |
+|---|---|---|
+| Reader page turn | 516 ms | **105-112 ms** (slowest of 60: 159 ms) |
+| Open a screen (Settings row) | 807 ms | **150 ms** |
+| Small control (stepper) | 52 ms | **5 ms** |
+| List page turn (Hacker News) | 415 ms, three passes | **105 ms, one pass** |
+| Segmented control with a list under it | 330 ms, three passes | **120 ms, one pass** |
+
+On the panel (camera, page turn): first change 0.53 → **0.38 s** after the tap, turn finished 0.67 → **0.55 s** (both
+include the camera's own ~0.2 s delay).
+
+### Where the time went
+
+| Change | Effect |
+|---|---|
+| **Fast text path** (`ui/text.cpp`): glyphs rasterised once by LovyanGFX and blended into the canvas, byte-identical (`tests/unit/text_fast_test.cpp`) | page render 362 → ~100 ms, screen render 121 → 60 ms (LovyanGFX decoded each glyph with a malloc and wrote every pixel as a 1x1 fill) |
+| **Frame buffer write in tiles** (M5GFX patch 1, D24): 32 source rows per tile, whole bytes, same Bayer quantisation | page push 450-530 → ~87 ms, also while a waveform runs |
+| **Finished rows skipped** in the update task (patch 2) | less work per frame |
+| **Both cores** for the frame buffer write (patch 3): a helper task takes 16-row chunks from a shared counter | page push call 87 → 61 ms |
+| **Prefetch** (`TextBlock::prefetch`): 600 ms after a page shows, the next one is drawn into a spare canvas | the turn copies it in |
+| **64 KB data cache** with 64-byte lines (D25) | screen change during a running settle 408 → 306 ms |
+| **120 MHz flash and PSRAM** (D25): PSRAM 51 → 64 MB/s | page turn 199 → 140 ms, screen change 306 → 190 ms |
+| **Diff and shadow in one pass** | no second pass over the box after a push |
+| **`measureText` from the glyph cache**, `ellipsize` by halving | a title was measured a dozen times at 12 µs a character |
+| **No pressed look in flight**: `PagerBar` and `Segmented` wait `kPressDelayMs` too | the following page no longer waits 150 ms for a small Fast pass |
+| **Writes after the tap**: `config.json` ~1 s after the last change (`Os::saveConfigSoon`), the reading position a second after the turn | 25-50 ms of flash write off the tap |
+| **Next chapter loaded early**: on the worker as soon as it starts within the next two pages | boundary turns ~130 ms instead of up to ~1 s |
+| **Frame dumps stream between loop passes** (16 KB TX buffer) | a `>shot` no longer holds the UI for ~1 s |
+
+Tried and reverted: skipping the diff for pages (a page turned under an open menu sheet re-pushed the sheet's gray text
+in Fast mode).
+
+### Lessons for every app
+
+- **Nothing draws on finger down that a tap replaces.** Its waveform makes the real result wait.
+- **Do not push a "loading" state** when the answer mostly comes within 0.2 s: its waveform runs while the real screen is
+  drawn (Teletekst: push call 170 ms instead of 65).
+- **Do not write flash while a screen is drawn** (drawing 65-99 ms instead of 33).
+- **What changes together is one invalidation.** Queued bands overlap in the driver and finish about one waveform after
+  the last one arrives, so they do not add up on the panel; what a band costs is its diff and push call (2-30 ms).
+- **On the panel, the savings are no settle** (pure black/white changes) **and no relayout** for a change of a few
+  widgets. With `epd-timing`, a Fast push takes 246-250 ms whatever its size, a Text push 820-824 ms.
+
+## Rules for UI code
+
+Enforced in review; see also UI.md.
 
 1. **No animation, no scrolling.** Lists paginate. Progress is a static label.
-2. **Interactive state is pure black/white.** Pressed, selected, on/off must be drawable with
-   black and white only, so the Fast pass shows the final look. Grays are for secondary text,
-   dividers and images.
+2. **Interactive state is pure black/white.** Pressed, selected, on/off must be drawable in black and white only, so
+   the Fast pass shows the final look. Grays are for secondary text, dividers and images.
 3. **Invalidate the smallest widget.** A toggling switch invalidates itself, not its row.
-4. **Never invalidate from a timer faster than once per minute** (clock in the status bar).
+4. **Never invalidate from a timer faster than once per minute** (the status bar clock).
 5. **One commit per event.** Handle the event, change state, let the loop commit once.
-6. Coalesce: while the panel is busy (`display.busy()`), further commits merge their rects and
-   wait, except `Hint::Feedback` which may queue immediately (M5GFX handles overlapping updates).
-7. **Feedback and Content: one push per band of changed rows** (2026-11-17, `DisplayManager::pushPass`; a screen, a page and
-   an image stay one pass). Keys felt slow while typing and a key press refreshed a large area around the keyboard. There is one pending
-   rect per hint, so what one event changes became one box: a key going up at the bottom of the screen and its bullet in
-   the field at the top were a Fast push of 190x626 px for 3 600 changed pixels and, 0.6 s later, a Text settle over the
-   same box, with every key; a status bar icon and a label below it 190x948 for 1 310. Fast shows everything in its box in
-   black and white until the settle, so unchanged gray text and dividers between the two spots lost their grays for that
-   time (11 goldens showed it and were re-accepted). Now the diff ends a band after `kBandGap` = 48 unchanged rows and the
-   next band is pushed on its own (at most `kMaxBands` = 4, the last takes the rest), each with its own settle: the key
-   48x66, the bullet 16x32. The 40 ms taps of the UI scripts never showed a pressed key (press delay 120 ms):
-   `tap X Y 200` and `PAPEROS_TAP_MS=200` hold the finger; `tools/push-audit.py` lists pushes that are large for what
-   changed in them. Still whole: Shift and 123 redraw every key (the letters of all four rows change). Not measured on the
-   panel (STATUS "Pending device checks").
+6. **Coalesce**: while the panel is busy (`display.busy()`), further commits merge their rects and wait, except
+   `Hint::Feedback`, which may queue at once (M5GFX handles overlapping updates).
+7. **Feedback and Content go out per band of changed rows** (`DisplayManager::pushPass`; a screen, a page and an image
+   stay one pass).
+   - Without bands, a key press at the bottom and its bullet in the field at the top were one Fast push of 190x626 px for
+     3,600 changed pixels, and every unchanged gray in between lost its gray until the settle.
+   - The diff ends a band after `kBandGap` = 48 unchanged rows; the next band is pushed on its own, at most `kMaxBands` = 4
+     (the last takes the rest). The key is now 48x66, the bullet 16x32.
+   - In UI scripts, `tap X Y 200` or `PAPEROS_TAP_MS=200` holds the finger long enough to show a pressed key;
+     `tools/push-audit.py` lists pushes that are large for what changed in them.
 
-## Device implementation notes (`platform/device/display.cpp`, task P1-2)
+## Device implementation notes
+
+`src/platform/device/display.cpp`:
 
 ```cpp
 void push(const Canvas& frame, Rect r, Refresh mode) {
@@ -346,191 +411,172 @@ void push(const Canvas& frame, Rect r, Refresh mode) {
 }
 ```
 
-- This code is `src/platform/device/display.cpp` (the pushSprite call needs a `const_cast`: it
-  is not const in LovyanGFX). The same code ran in the spike and produced the numbers above. A cheaper transfer for small rects (push only the sub-rectangle with `pushImage` from
-  the canvas buffer) is an optimisation for task P7-1, not before.
-- `M5.Display.waitDisplay()` before light sleep and before power-off, or the image is left
-  half-driven.
-- `epd_fastest` is not used by default. Reserve it for future drag feedback.
+- `pushSprite` needs a `const_cast`: it is not const in LovyanGFX.
+- Call `M5.Display.waitDisplay()` before light sleep and before power-off, or the image is left half-driven.
+- `epd_fastest` is not used. Reserve it for future drag feedback.
 
-## Simulator emulation (`platform/sim/display.cpp`, task P1-4)
+## Simulator emulation
 
-The simulator keeps a `panel` buffer (what a real panel would show) separate from the canvas:
+`platform/sim/display.cpp` keeps a `panel` buffer (what a real panel would show) separate from the canvas:
 
 | Pushed mode | Effect on `panel` |
 |---|---|
 | Quality | region = canvas quantised to 16 levels; ghost residue cleared; counts as a flash |
 | Text | region = canvas quantised to 16 levels; residue halved |
-| Fast | region = canvas thresholded at 50% to black/white; where a pixel changed, 6% of the old value is left as residue |
+| Fast | region = canvas as the driver's ordered dither (black/white); where a pixel changed, 6 % of the old value is left as residue |
 
-Implementation notes (P1-4): `panel` holds 16-level values; the residue is a separate float layer
-(offset in levels). Screenshots, `>shot` and `snapshot4()` show `panel` **without** residue (stable
-goldens; the device frame matches after a settle pass); key `G` in the window overlays the residue,
-exaggerated 8x. A pixel counts as `changed` when its panel value changed. Headless one-shot runs
-use a fake clock (the log shows t=0); `--headless --remote` and the window use real time.
-
-Every push is appended to a **refresh log**: `t=<ms> mode=<Q|T|F> rect=x,y,w,h changed=<pixels>`.
-Screenshots come from `panel` (so they show thresholding and ghost residue). UI tests assert on
-the log, for example "a page turn causes no Quality push" or "tapping a toggle pushes at most
-120x80 pixels". This is how rendering quality is tested without hardware. The emulation is a
-model, not physics: final tuning happens on the device (task P7-1).
+- Screenshots, `>shot` and `snapshot4()` show `panel` **without** residue, so goldens are stable and the device frame
+  matches after a settle. Key `G` in the window overlays the residue, exaggerated 8x.
+- Every push is appended to the **refresh log**: `t=<ms> mode=<Q|T|F> rect=x,y,w,h changed=<pixels>`. UI tests assert on
+  it ("a page turn causes no Quality push", "a toggle pushes at most 120x80 pixels"): rendering is tested without
+  hardware.
+- Headless one-shot runs use a fake clock (the log shows t=0); `--headless --remote` and the window use real time.
+- The emulation is a model, not physics: the final check is on the device, with the camera.
 
 ## Test patterns
 
-Settings > Developer > Display lab (task P7-1) shows: the 16-step gray ramp, a ghosting test
-(checkerboard then white), a fine-text sample, and counters for pushes per mode. Use it to tune
-`ghostLimit` and the settle delay, and to compare custom waveforms.
+Settings > Developer > **Display lab** (`DisplayLabPage` in `apps/settings/settings_app.cpp`, goldens `lab-*`):
 
-**Fast (2026-11-16)**: a fifth pattern, the ramp upside down (white at the top, so it differs from Ramp in every band and
-is pushed also when coming from Ramp: with the same ramp the diff found nothing and the panel kept the Text-mode image)
-pushed as `Hint::Page`: one Fast pass and no settle pass, so the panel
-keeps what the driver's Fast mode makes of 16 grays. An ordered dither (what the driver source says, "Fast then settle" above)
-shows 16 bands of rising brightness; a threshold would show black bands and white bands only. For the camera: a still of the
-whole ramp is enough, no pixel detail needed. Check the counters line or `tools/device.py refresh` for an `F ... why=page`
-push: a Page push can be the reader's every-10th Quality clean, and then the ramp is in real grays. The segment "Check" is
-the checkerboard (five labels: "Checker" did not fit).
+| Pattern | Shows | Use |
+|---|---|---|
+| **Ramp** | 16 labelled bars, gray(0) to gray(15) | gray levels on the panel |
+| **Check** | checkerboard, one Fast pass | ghosting: Check, then White, shows what a Fast pass leaves behind |
+| **White** | white, one Fast pass | second half of the ghosting test |
+| **Text** | caption in gray 0/3/5/7/9, body in gray 0/3/5/7, the four reader sizes, 1 px lines in gray 0/7/9/11/13 | readability of grays |
+| **Fast** | the ramp upside down, pushed as `Hint::Page` (one Fast pass, no settle) | what the driver's Fast mode makes of 16 grays |
 
-**As built (2026-11-15, `DisplayLabPage` in `apps/settings/settings_app.cpp`)**: four patterns behind a Segmented control.
-**Ramp**: 16 labelled bars gray(0) to gray(15). **Checker** and **White**: pure black and white, shown with one Fast pass each, so Checker then
-White shows what a Fast pass leaves behind; "Clean (Quality)" is the cleaning pass. **Text**: the caption size in gray 0/3/5/7/9, the body size in
-gray 0/3/5/7, the four reader sizes, and 1 px lines in gray 0/7/9/11/13. A line below shows the pushes per mode and the ghost score against the
-limit. Goldens `lab-*`. It is a tool for checking by eye: nothing was tuned with it yet (frame dumps show the frame, not the panel).
+- "Clean (Quality)" runs a cleaning pass. A line below shows the pushes per mode and the ghost score against the limit.
+- Fast is upside down so it differs from Ramp in every band and is pushed even right after Ramp.
+- Check the counters line or `tools/device.py refresh` for an `F ... why=page` push: a Page push can also be the reader's
+  every-10th Quality clean.
 
-## What the panel does to grays (checked by eye, 2026-11-15)
+## What the panel does to grays
 
-Frame dumps and simulator screenshots cannot show this. On the physical panel the white is itself gray, and the mid-grays read **lighter**
-than on a monitor; thin anti-aliased gray text (the 18 px caption in gray(5)) was the first thing to become hard to read. Rules that follow
-(tokens and the content rule are in UI.md "Colour"): no text lighter than gray(3); no content text in gray at all (content is `ink`); a content
-line is not set in the caption size when the row has room. Measured by the user with the Display lab (Text pattern) the same day: caption text reads down to gray(3), body text down to gray(5), a 1 px line in gray(11) is
-barely visible and in gray(13) invisible; Read S 24 px is fine. Tokens now: `secondary` gray(3), `disabled` gray(5), `divider` gray(9). Not yet judged: the gray(9)
-dividers in a real list, the gray(13) icon wells (an area, not a line).
+Frame dumps and simulator screenshots cannot show this. On the physical panel the white is itself gray, and mid-grays
+read **lighter** than on a monitor; thin anti-aliased gray text goes first.
 
-## Camera on the panel (P7-7, `tools/cam.py`)
+Checked by eye with the Display lab Text pattern:
 
-A webcam pointed at the device sees what frame dumps cannot: ghosting, the Fast-then-settle sequence, the flash of a Quality pass, how
-grays and thin lines come out. It is the tool for those checks; a look by eye is needed only for what the camera cannot tell (touch feel,
-whether text is comfortable to read, ghosting too faint for the camera), batched as before.
+| Element | Lightest gray that still reads |
+|---|---|
+| Caption text (18 px) | gray(3) |
+| Body text | gray(5) |
+| 1 px line | gray(11) barely visible, gray(13) invisible |
 
-**The set-up is not stable**: the camera can be moved, daylight changes over the day. So:
+Rules that follow (tokens in UI.md "Colour"):
 
-- Every run finds the panel again: a SIFT match of the camera image against the frame dump of the same moment (`make device-shot`).
-  The outline is saved in `out/cam-corners.json` (gitignored) and reused only within the hour (`--max-age`), for pages without
-  features (a blank white page). Four ArUco markers (4x4_50, ids 0-3) stuck on the bezel are optional: if the calibration sees them, it
-  stores their panel coordinates and later images of the session are registered by the markers.
-- Every number is normalised by the same image: the light is a smooth surface fitted through the white areas, black and contrast are a
-  robust fit of camera value against the frame's gray. A number is "% of this image's white-to-black contrast".
-- Numbers are compared only within one session (before and after a change, A against B). No camera goldens, no thresholds in `make check`.
-- **Lock at the start of a session**: `cam.py lock` puts exposure, gain, white balance and focus
-  to fixed values through `uvc-util` (IOKit, no camera permission needed) and writes them to `out/cam-lock.json`.
-  Exposure and gain are **measured** since 2026-11-17: 33 ms (the most 30 fps allows) and the gain that brings the
-  panel's white to 185 of 255. Before, lock took "what auto exposure chose" from the camera, but the C922 reports its
-  defaults in automatic mode (25 ms, gain 0), so the lock froze a dark picture: white at 44-63 of 255 in the 3D printer
-  the device sits in (the light there cannot be changed much). Now gain 160, white 166-195. Focus: a sweep over
-  0..250 on the page shown (text works best), sharpest inside the panel. 2026-11-16: exposure 29.5 ms, 4000 K, focus 45 (sharpness 173
-  against 4-6 out of focus). The settings stay in the camera until it is unplugged; `cam.py unlock` gives the automatics back.
-  `uvc-util`: github.com/jtfrey/uvc-util (commit 8110da7), source read before building (IOKit and Foundation only), built with
-  `clang -O2 -o uvc-util -framework IOKit -framework Foundation uvc-util.m UVCController.m UVCType.m UVCValue.m` (no ARC) in
-  `~/.local/src/uvc-util/src`, installed to `~/.local/bin/uvc-util`.
-- **Camera**: Logitech C922 Pro Stream Webcam (since 2026-11-16), above the device, the panel turned 90 degrees in the image, about
-  300x540 camera pixels at 1920x1080. **Frame rate**: avfoundation gets uncompressed frames only (MJPEG cannot be chosen), and USB 2 carries
-  about 20 MB/s of them: 640x480 runs at 30 fps, 864x480 at 15, 1280x720 and 1920x1080 at 10 (measured 2026-11-16, exposure locked).
-  So stills use 1920x1080 and videos and `around` the largest mode that fits 30 fps (640x480: the panel is about 160x290 camera pixels,
-  enough for timing and for the gray levels, which matched the 1080p still within 0.02). Timings are good to about 33 ms.
-  Autofocus hunted on low-contrast pages (a blurred Ramp) until `lock` fixed the focus.
-- **Camera permission**: macOS gives the camera per app. An editor that never asks for the camera gets no Camera prompt (it does not appear in
-  System Settings > Privacy & Security > Camera), so ffmpeg started from its shell opens the camera and receives no frames. `cam.py`
-  therefore runs ffmpeg through a **capture server in one Terminal window** (`cam.py serve`, started by itself the first time, Unix
-  socket `out/cam-run/serve.sock` readable by the owner only, runs nothing but ffmpeg, quits after 30 idle minutes). Terminal has the
-  permission. From a terminal app (`TERM_PROGRAM` set) ffmpeg runs directly; `--via direct|terminal` overrides.
-- avfoundation timestamps do not advance reliably for this camera (`-t` never ends): stills and videos are stopped on the wall clock.
+- No text lighter than gray(3); content text is `ink`, never gray.
+- A content line is not set in the caption size when the row has room.
+- Tokens: `secondary` gray(3), `disabled` gray(5), `divider` gray(9).
 
-Commands (`uv run --script tools/cam.py ...`; every command has a run limit and prints progress, like `tools/device.py`):
+## Camera on the panel
+
+A webcam above the device sees what frame dumps cannot: ghosting, the Fast-then-settle sequence, the flash of a Quality
+pass, how grays and thin lines come out. A look by eye is only needed for what the camera cannot tell (touch feel,
+reading comfort, ghosting too faint for it).
+
+### Set-up
+
+| Item | Detail |
+|---|---|
+| Camera | Logitech C922, above the device; the panel turned 90° in the image, about 300x540 camera pixels at 1920x1080 |
+| Modes | avfoundation gets uncompressed frames only; USB 2 carries ~20 MB/s: 640x480 at 30 fps, 864x480 at 15, 1280x720 and 1920x1080 at 10 |
+| Use | stills at 1920x1080; videos and `around` at 640x480/30 fps (timings good to ~33 ms; grays match the 1080p still within 0.02) |
+| Lock | `cam.py lock` fixes exposure (33 ms), gain (white at 185 of 255), white balance and focus through `uvc-util` (IOKit, no camera permission) and writes `out/cam-lock.json`; `cam.py unlock` gives the automatics back |
+| Focus | a sweep over 0..250 on the page shown (text works best), sharpest inside the panel |
+| Permission | macOS gives the camera per app. An app that never asks for it gets no frames, so `cam.py` runs ffmpeg through a capture server in a Terminal window (`cam.py serve`, owner-only Unix socket, runs nothing but ffmpeg, quits after 30 idle minutes). From a terminal app (`TERM_PROGRAM` set) ffmpeg runs directly; `--via direct\|terminal` overrides |
+| Clock | avfoundation timestamps do not advance reliably for this camera: stills and videos stop on the wall clock |
+
+`uvc-util`: github.com/jtfrey/uvc-util, built with
+`clang -O2 -o uvc-util -framework IOKit -framework Foundation uvc-util.m UVCController.m UVCType.m UVCValue.m` (no ARC).
+
+### How a run measures
+
+- **Registration**: every run finds the panel again with a SIFT match of the camera image against the frame dump of the
+  same moment. The outline is saved (`out/cam-corners.json`) and reused within the hour for pages without features.
+  Four optional ArUco markers (4x4_50, ids 0-3) on the bezel can take over after a calibration.
+- **Normalisation**: light is a smooth surface fitted through the white areas; black and contrast are a robust fit of
+  camera value against the frame's gray. A number is "% of this image's white-to-black contrast".
+- **Comparisons only within one session** (before against after). The set-up moves between days: no camera goldens, no
+  thresholds in `make check`.
+- **Ghost** = how much darker than expected the camera sees pixels that the frame dump says are white and at least 3 px
+  from any ink. Known test: Display lab Check, then White, then `make cam-compare`; Clean (Quality) and `make
+  cam-compare` again gives the floor of the session. Use `compare --ref` for ghost numbers.
+
+### Commands
+
+`uv run --script tools/cam.py ...`; every command has a run limit and prints progress.
 
 | Command | What it does |
 |---|---|
-| `devices` | cameras and their modes. Screen-capture devices are never used; the built-in camera only with `--camera`. |
-| `make cam-shot` | `shot`: one still to `out/cam.png` after 2 s of warm-up. |
-| `make cam-video SECONDS=5` | `video`: `out/cam.mp4`, 60 fps if the camera offers it, else its best rate. |
-| `make cam-compare` | `device-shot` + `cam-shot` + `compare`: warp to 540x960, residual against the frame dump. Prints the **ghost number** (mean, p95) overall and per region (3 columns x 4 rows), the measured lightness per gray level on flat areas (the Display lab Ramp), and writes `out/cam-diff.png` (camera, frame dump, ghost heat map). |
-| `calibrate` | registers `out/cam.png` against `out/device.png`, saves the outline, draws it into `out/cam-calibrated.png`. |
-| `around tap X Y` / `long X Y` / `swipe X1 Y1 X2 Y2` | frame dump, video, the input through the serial port, the serial log read line by line, `>refresh`, frame dump after. Per push also "white that stays white ... darkest N % of contrast": the flash a pass shows on pixels it does not change. Each push in the refresh log gets a host time (its `[disp] push` line arrives when the push call returns), and the video says per push when its rect starts and stops changing on the panel. Writes `out/cam-timing.png` (change per frame, push markers), `out/cam-frames.png` (frames with the most change), `out/cam-around.mp4`, and `compare` of the last frame against the frame dump after. Refuses a serial port that another process holds. |
-| `compare --ref IMG` | ghost relative to a camera image of the same page after Clean (Quality) in the same session: the uneven light cancels out. Use this for ghost numbers. |
-| `make cam-target` (`target [--keep]`) | shows the calibration screen (`>set screen camcal`), takes a still, reports what the set-up is worth (below), saves the outline for pages without features, puts the launcher back. `--image` / `--frame` analyse saved files. |
-| `selftest` | synthetic camera images (perspective, uneven light, blur, noise): registration within 0.5 px, the ghost of Checker under White found in the right region and rising with the amount, timing of a synthetic Fast push within a frame. |
+| `devices` | cameras and their modes (screen capture never; the built-in camera only with `--camera`) |
+| `make cam-shot` | one still to `out/cam.png` after 2 s of warm-up |
+| `make cam-video SECONDS=5` | `out/cam.mp4`, 60 fps if offered, else the camera's best rate |
+| `make cam-compare` | frame dump + still + `compare`: warp to 540x960, residual against the frame dump; ghost number (mean, p95) overall and per region (3x4), lightness per gray level, `out/cam-diff.png` |
+| `calibrate` | registers `out/cam.png` against `out/device.png`, saves the outline |
+| `around tap X Y` / `long X Y` / `swipe X1 Y1 X2 Y2` | frame dump, video, the input, the serial log, the refresh log with host times, frame dump after. Per push: when its rect starts and stops changing on the panel, and how far the white that stays white darkens. Writes `out/cam-timing.png`, `out/cam-frames.png`, `out/cam-around.mp4` |
+| `compare --ref IMG` | ghost relative to a camera image of the same page after a Clean: uneven light cancels out |
+| `make cam-target` (`target [--keep]`) | shows the calibration screen, takes a still, reports what the set-up is worth, saves the outline |
+| `selftest` | synthetic camera images: registration within 0.5 px, ghost found in the right region, timing within a frame |
 
-**Calibration target** (alignment, lens correction, brightness and contrast). The screen `camcal` (`apps/uitest`, golden `camcal`; one Quality pass): a lattice of ink
-dots every 60 px over the whole panel, between its rows the 16 grays three times (rising, falling, shifted by eight: each
-level in three places), black and white bars, line pairs of 1 to 4 px running down and across, checkerboards, lines of
-text (the unique features for the first match), a 2 px frame on the outermost pixels. `cam.py target` reads the layout
-from the frame dump (it knows only the dot size and where the line pairs are) and reports:
+`--source FILE` replays a video instead of a camera. **The panel can show private messages**: images stay in `out/`
+(gitignored); never commit, upload or paste them, and do not record screens that show secrets.
 
-- **where the panel is**: the feature match, then a least-squares fit to where the camera sees the 144 dots, error in panel
-  pixels; the fitted outline is saved (`out/cam-corners.json`, used within the hour for pages without features);
-- **lens**: the same fit with one radial term; it says whether the picture is bent enough to matter;
-- **light**: how uneven it is, and whether the picture is too dark or near the camera's limit;
-- **reflections**: what ink reads at every dot is a map of stray light (the light is divided out, so ink that reads
-  lighter somewhere is light lying on top of the picture); the map is taken out of the gray readings;
-- **grays**: each level's lightness as the mean of its three places, how far the places differ (what a gray number is
-  worth), which neighbours are not told apart, the largest step;
-- **sharpness**: the contrast left in the line pairs: from which line width on the camera shows detail.
+### Calibration target
 
-Self-test 3 (`cam.py selftest`) runs the analysis on the golden through a synthetic camera, straight and with a bent
-lens (k1 0.04 found as 0.039).
+The screen `camcal` (`apps/uitest`, golden `camcal`, one Quality pass) checks alignment, lens, light and grays:
 
-**On the panel (2026-11-17; the device lies in a 3D printer, the light cannot be changed)**. First run, with the old lock
-(exposure 25 ms, gain 0): white at 44-63 of 255, too dark to trust. After the lock was fixed (33 ms, gain 160, focus 45):
-144 of 144 dots, 1.14 camera pixels per panel pixel; the panel found to 0.56 px by the feature match and 0.20 px
-(worst 0.43) by the dots; the lens term takes 0.04 px off: **no lens correction needed**. Light: the darkest part gets
-85 % of the brightest. **Black is far from even**: ink reads 28 to 67 % of the white around it, lightest at the lower
-middle of the left edge (a reflection, or the side the light comes from). So one black for the whole panel is wrong by
-a lot: the same gray differed by up to 0.23 between its three places. With the dots' map as each place's own black:
-0.12-0.13. Grays (mean of three places, repeatable to 0.02 between two runs): g0 -0.03, g1 -0.02, g2 0.06, g3 0.15, g4
-0.23, g5 0.30, g6 0.38, g7 0.53, g8 0.57, g9 0.63, g10 0.69, g11 0.78, g12 0.91, g13 0.96, g14 1.01: in order, g0 and
-g1 not told apart, the largest step g6 to g7. What is left between places is not the light, the black or the camera's
-tone curve (a fitted power curve took 0.02 off and ran to the end of its range: not kept); it changes with what the
-panel showed before (from the launcher the dark half read lighter toward the top; from a cleaned white screen it did
-not), so part of it is the panel's own. A single gray patch is good to about 0.06, the mean of three to 0.02. Lines: 4
-px 0.86 / 0.88 (down / across), 3 px 0.69 / 0.69, 2 px 0.48 / 0.45, 1 px 0: detail from 3 panel pixels on.
-**The map is used**: `compare` and `around` read the black map of the last target run (an hour) for their gray levels
-("each place with its own black"): the Display lab ramp then reads in order (g11 0.73; that morning, with one black,
-0.49 between g10 0.70 and g12 0.74). Ghost numbers do not use it (white areas only), so they compare with earlier runs.
+- a lattice of ink dots every 60 px over the whole panel;
+- the 16 grays three times between the dot rows (rising, falling, shifted by eight: each level in three places);
+- black and white bars, line pairs of 1 to 4 px down and across, checkerboards;
+- lines of text (features for the first match) and a 2 px frame on the outermost pixels.
 
-What "ghost" measures: pixels the frame dump says are white and at least 3 px away from any ink, and how much darker than expected the
-camera sees them. The known page for it is the Display lab: Checker, then White (one Fast pass each), then `make cam-compare`; "Clean
-(Quality)", then `make cam-compare` again gives the floor of the same session. On a reader page the previous page's lines sit in the
-same rows as the current ones, so a reader ghost shows mostly in the word gaps and margins: compare turns within one session.
+`cam.py target` reports:
 
-**First results (2026-11-16, C922)**: the registration matched every page with text (147-222 SIFT inliers). Display lab Checker then White:
-the checkerboard is plainly visible on the panel (`out/cam-diff-white.png`). Without a reference the numbers mix ghost and light
-(about 1-2 % in the lower and middle regions even after a Clean); `around tap 140 917` (Clean) with the same page before and after reports
-the ghost the Clean removed: **0.8-1.1 % of contrast in the checker area, 0.3-0.6 % in header and footer** (`out/cam-diff-removed.png`).
-The Quality push of the Clean shows on the panel from about +0.4 s to +1.5 s after the push call (dark frames at +0.65 to +0.94 s): about
-1.1 s of visible waveform, the refresh log's push call returns after 104 ms. The first Ramp shot was blurred (autofocus) and
-showed ghosts of earlier screens. **After `lock` and a Clean (in focus, repeated at 640x480 within 0.02)**, lightness on this image's
-scale (ink 0, white 1): g0 0.15, g1 0.15, g2 0.17, g3 0.19, g4 0.21, g5 0.23, g6 0.25, g7 0.33, g8 0.40, g9 0.42, g10 0.50, g11 0.65,
-g12 0.89, g13 0.95, g14 1.01, g15 1.04: monotonic, but the ends crowd: g0..g6 lie within 0.10 of each other and g12..g15 within 0.15
-of white, while g11 to g12 is a jump of 0.24. Consequences for UI tokens (UI.md) and the custom waveform (P7-1): gray(13) wells read
-almost white, gray(1)..gray(4) are hard to tell from ink. A faint vertical line shows in the dark bars at the same place in every shot
-(x about 410 of 540): a panel or driver artefact, not a ghost. At 30 fps the Clean's Quality push shows on the panel from +0.27 s to
-+1.23 s after the push call (0.96 s).
+| Check | How |
+|---|---|
+| Where the panel is | feature match, then a least-squares fit to the 144 dots; error in panel pixels |
+| Lens | the same fit with one radial term |
+| Light | how uneven it is; too dark or near the camera's limit |
+| Reflections | what ink reads at each dot is a map of stray light; taken out of the gray readings |
+| Grays | each level as the mean of its three places, their spread, levels not told apart, the largest step |
+| Sharpness | contrast left in the line pairs: from which line width on detail shows |
 
-**Reader ghosting (2026-11-16, camera locked, Alice; each block starts from a cleaned page, the ghost is measured against
-the same page after the menu's Clean)**: M after 1 turn 1.23 %, after 10 turns 1.54 %, after 30 turns 1.99 % (p95 4.9 / 5.8 /
-7.2 %); after 10 turns S 1.36 %, L 1.54 %, XL 1.71 %. No automatic Quality clean in any block (see "Ghost budget"). At 30 turns
-the ghost sits mostly in a rectangle over the upper half of the text (2.2-3.2 % per region), the lower middle stays at 0.2-0.8 %
-(`out/rg/M-30-diff.png`). One page turn at 30 fps (`around tap 400 500`): first visible change about 0.5 s after the tap, the Fast
-pass visible for about 0.17 s, the settle pass done on the panel about 1.6 s after the tap (before `Hint::Page`: see "Ghost budget"). Start times include the camera's own
-latency (about 0.2-0.25 s, the same offset appeared on the Clean); durations do not.
+Result on the current set-up (dim, fixed place):
 
-**Reader ghosting with `Hint::Page` (P4-6, 2026-11-16 15:40, a new camera session at dusk: exposure 26 ms, focus 45; Alice at M from
-page 108, each block: menu Clean, N turns, still, menu Clean on the same page as the reference)**: 1 turn 1.27 %, 9 turns 1.15 %,
-10 turns 1.11 % (the 10th is the Quality clean), 29 turns 1.22 % (two cleans on the way, 9 turns since the last), 30 turns 1.14 %
-(the 30th is a clean); p95 4.5-5.5 %. The page right after a clean reads 1.1 %: that is this session's floor, so the ghost does
-not grow with the number of pages any more (before `Hint::Page`: 1.23 / 1.54 / 1.99 % after 1 / 10 / 30). The refresh log showed
-what the cadence promises: 9 Fast, then `page-clean`. Worst region 1.8 % on a short page (4 lines) after a full one: the previous
-page's lines are faintly there in the normalised image (`out/rg2/29-diff.png`). `ghostLimit`, `pageCleanEvery` and the settle
-defaults stay as they are.
+| Item | Result |
+|---|---|
+| Registration | 144 of 144 dots, 1.14 camera px per panel px; 0.20 px error (worst 0.43) |
+| Lens | the radial term takes 0.04 px off: **no lens correction needed** |
+| Light | the darkest part gets 85 % of the brightest |
+| Black | **far from even**: ink reads 28-67 % of the white around it. With one black, a gray differs up to 0.23 between its places; with the dot map as each place's black, 0.12-0.13 |
+| Grays (mean of three places) | g0 −0.03, g3 0.15, g5 0.30, g7 0.53, g9 0.63, g11 0.78, g13 0.96, g14 1.01: in order, g0 and g1 not told apart, largest step g6 to g7 |
+| Precision | a single gray patch ~0.06, the mean of three ~0.02 |
+| Lines | 4 px 0.86, 3 px 0.69, 2 px 0.48, 1 px 0: detail from 3 panel pixels on |
 
-`--source FILE` replays a video in real time instead of a camera (tests of the pipeline without a camera). The panel can show private
-messages: the images stay in `out/` (gitignored); never commit, upload or paste them, and do not record screens that show secrets.
+`compare` and `around` use the black map of the last target run (within an hour) for gray levels. Ghost numbers do not
+(white areas only), so they stay comparable with earlier runs.
 
+What the camera showed about grays: the ends crowd. gray(0)-gray(6) lie within 0.10 of each other and gray(12)-gray(15)
+within 0.15 of white, so gray(13) wells read almost white and gray(1)-gray(4) are hard to tell from ink. A faint vertical
+line in the dark bars (x ≈ 410 of 540) is a panel or driver artefact, not a ghost.
+
+### Reader ghosting
+
+Measured with the camera locked, on a reader page at size M; each block starts from a cleaned page, and the ghost is
+measured against the same page after a Clean.
+
+| Turns | `Content` (before) | `Page` (now) |
+|---|---|---|
+| 1 | 1.23 % | 1.27 % |
+| 9-10 | 1.54 % | 1.15 % / 1.11 % (the 10th is the Quality clean) |
+| 29-30 | 1.99 % | 1.22 % / 1.14 % |
+| p95 | 4.9-7.2 % | 4.5-5.5 % |
+
+- With `Page`, the page right after a clean reads 1.1 %: that is the floor, so the ghost no longer grows with the
+  number of pages.
+- Text size changes little (after 10 turns as `Content`: S 1.36 %, M 1.54 %, L 1.54 %, XL 1.71 %).
+- The ghost sits mostly in the word gaps and margins, because each page's lines fall in the same rows as the last.
+- A Clean (Quality push) shows on the panel from ~0.3 s to ~1.2 s after the push call; the push call itself returns
+  after ~100 ms.
+- `ghostLimit`, `pageCleanEvery` and the settle defaults stay as they are.
