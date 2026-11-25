@@ -94,12 +94,12 @@ sequenceDiagram
 
 WhatsApp only. **Reply** opens the reply screen (`apps/inbox/compose.cpp`, title "Reply"):
 
-- "To <name>", a six-line text field (900 characters, line feeds kept), a counter, "Paste" and "Send".
+- "To `<name>`", a six-line text field (900 characters, line feeds kept), a counter, "Paste" and "Send".
 - The keyboard is an overlay. A long press on the field gives Paste / Copy all / Clear (UI.md).
 
 ### Sending
 
-**Send** always opens a confirmation sheet: "Send to <name>?", the text (seven lines at most), "Your phone sends it from
+**Send** always opens a confirmation sheet: "Send to `<name>`?", the text (seven lines at most), "Your phone sends it from
 your WhatsApp account", Send / Cancel.
 
 ```mermaid
@@ -138,7 +138,7 @@ sequenceDiagram
 | `whatsapp::openCompose(ctx, {name, key}, text)` | Opens the reply screen with the text |
 | `whatsapp::sendToFavorite(ctx, "Woordle challenge", "Somdoku 12:34")` | A reply to the newest live WhatsApp notification whose chat name is that name |
 
-With no match, `sendToFavorite` shows the toast "No WhatsApp notification from <name> on your phone" (or "No phone
+With no match, `sendToFavorite` shows the toast "No WhatsApp notification from `<name>` on your phone" (or "No phone
 paired: see Settings > Home Assistant"). The config key `inbox.whatsapp.favorites` was removed (D22).
 
 ## Behaviour

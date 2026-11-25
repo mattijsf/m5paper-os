@@ -191,7 +191,7 @@ Golden `weather-days`. All days of the daily forecast (ten), rows like on the fi
 | Situation | Screen |
 |---|---|
 | Read worked | the weather; status "Updated 13:34" |
-| Read failed, a saved copy exists | the saved weather; status "Saved data from 07:10: <reason>" ("Wed 07:10" on another day); see [Stale](#stale) |
+| Read failed, a saved copy exists | the saved weather; status "Saved data from 07:10: `<reason>`" ("Wed 07:10" on another day); see [Stale](#stale) |
 | Read failed, nothing saved | `EmptyState` "Cannot reach Home Assistant" + reason + Retry |
 | No `HA_URL` / `HA_TOKEN` | `EmptyState` "Not set up yet" |
 | Home Assistant answers 401 / 403, nothing saved | `EmptyState` "Home Assistant refused the token" + "Check HA_TOKEN in paperos_config on the SD card." + Retry (with a saved copy: status "Saved data from 07:10: Token rejected") |

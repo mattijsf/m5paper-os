@@ -70,7 +70,7 @@ Camera, Settings to the launcher (`cam.py around tap 36 92`, one session):
   from `/data/cache/<id>/badge` in `onShow()`; it never triggers network I/O itself (except the
   [Fresh badges](#fresh-badges) check). The Read tile's badge counts what there is to read later, links that wait and
   articles nobody opened (apps/reader.md "Articles", P7-18).
-- **Summary line**: "3 unread - Reading: <title>, 42%", read in `onShow()` from the apps' `/data/cache/<id>/badge` files
+- **Summary line**: "3 unread - Reading: `<title>`, 42%", read in `onShow()` from the apps' `/data/cache/<id>/badge` files
   and the reader's store (`/data/apps/read.json`, keys `last.title`, `last.percent`). Missing parts are left out, the
   whole line when both are; no network I/O. "N unread" leaves the Read tile's count out (`cachedUnread()`: messages
   only). Goldens `launcher` (without data) and `launcher-summary` (with).

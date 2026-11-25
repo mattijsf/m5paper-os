@@ -118,7 +118,7 @@ per request, like every other request on the Paper (`ctx.http`), and Wi-Fi only 
 | 401: a token Lichess does not know | "Lichess kent dit token niet (LICHESS_TOKEN op de kaart)." |
 | 403: a token without the scope | "Het token mag dit niet: maak er een met board:play en challenge:write." |
 | 429: wait a minute | "Lichess vraagt even te wachten. Probeer het over een minuut." |
-| Other | Lichess's own error text ("Lichess: ..."), or "Lichess antwoordde <status>." |
+| Other | Lichess's own error text ("Lichess: ..."), or "Lichess antwoordde `<status>`." |
 
 A game that could not be created goes back to the setup with the reason.
 

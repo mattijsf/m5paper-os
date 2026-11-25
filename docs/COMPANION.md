@@ -488,7 +488,7 @@ flowchart LR
   per key.
 - **Reply**: only on a WhatsApp key that is present and has `reply: true`. Sending pushes a `reply` to `to_phone` (Wi-Fi
   needed; nothing is queued on the Paper) and says "Sent to your phone". A later `result` shows as a toast in the inbox
-  ("Reply to Anna sent" / "Reply to Anna not sent: <reason>").
+  ("Reply to Anna sent" / "Reply to Anna not sent: `<reason>`").
 - **"Mark all read"**: clears the local items of that app and sends `dismiss` with their keys.
 - **Clipboard** (D23): a text field's clipboard sheet and the reply screen's Paste read `to_paper` first, so a `clip` the
   phone just sent is there. Any read of the queue (inbox, scheduled refresh) applies a `clip` too.
