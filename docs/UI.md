@@ -93,7 +93,7 @@ battery-low, battery-charging, refresh-cw, moon, power, sun, check, x, plus, min
 folder, file-text, type, info, triangle-alert, door-open, air-vent. Later: tv (Teletekst's loading state).
 Weather conditions (P7-11, apps/weather.md): sun, moon, cloud, cloud-sun, cloud-moon, cloud-rain, cloud-rain-wind, cloud-snow,
 cloud-lightning, cloud-fog, cloud-hail, wind, umbrella, droplets, sunrise, sunset.
-The Home app reuses the names of the icons in the user's Home Assistant dashboard so rooms look familiar.
+The Home app reuses the icon names of the user's Home Assistant dashboard so rooms look familiar.
 
 **Drawn icons** (2026-11-18) are for a mark that no line icon stands for: `assets/icons-drawn/<name>.txt`, 64 rows of `X`
 (ink) and `.`, any width up to 255 (lines starting with `//` are comments). The generator adds `Icon::<Name>` after the

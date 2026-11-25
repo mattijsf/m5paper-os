@@ -1650,7 +1650,8 @@ None of these block Phase 1, Phase 2, or the reader.
   doc; ROADMAP P7-22 dropped, D41 says so; the code stays in git history (120f805). Schaken is now the twelfth tile, on the
   launcher's first page (no pager). The saved game `/data/apps/pixelpuzzle.json` stays on the device (the remote may not
   delete `/data/apps`; harmless, nothing reads it).
-- 2026-11-20: P7-24 Sonos in the Home app. A fourth Home tab, Music, for `media_player.living_room`: what plays (title, artist and album, source without "Connect" and playlist), previous / play-pause / next,
+- 2026-11-20: P7-24 Sonos in the Home app. A fourth Home tab, Music, for `media_player.living_room`:
+  what plays (title, artist and album, source without "Connect" and playlist), previous / play-pause / next,
   volume (Stepper 2 % a tap sent once 0.6 s after the last, the ten boxes at once) and mute; buttons the player cannot use
   are left out (`supported_features`). Item type `media`, its attributes in the states and their saved copy; home.json
   version 3. Icons play, skip-back, skip-forward, volume-2, volume-x, music. 382 unit tests, 331 screenshots (3 new, 14
@@ -1691,9 +1692,8 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-23: Teletekst opens on 101, the news headlines, instead of the index 100. UI scripts follow (the
   index is now a shot of its own, `teletekst-index`; `teletekst-saved-index` became `teletekst-saved-start`). 383 unit
   tests, 334 screenshots; firmware 2,671,847 bytes. Not on the device yet (Pending device checks: open Teletekst, 101).
-- 2026-11-25: the repository holds no real house any more. The default home.json (version 5) is an example house with English names and made-up entity ids;
-  fixtures, unit tests, `home.script` and 19 goldens follow (one shot renamed: `home-lights-lounge-off`).
-  The owner's list goes on the card (`/sd/paperos/home.json`, apps/home.md "Config"). Also out of the docs: the home
-  network's name, family names, the office's address and coordinates. Weather keeps its defaults (`weather.thuis`,
-  `weather.office`): they name no place. Older commits still hold all of it. 383 unit tests, 334 screenshots; firmware
+- 2026-11-25: no personal details in the repository, before a push to GitHub. The default home.json (version 5) is an
+  example house with English names and made-up entity ids; fixtures, unit tests, `home.script` and goldens follow. The
+  owner's list goes on the card (`/sd/paperos/home.json`, apps/home.md "Config"). Docs and tests use example names and
+  LAN addresses. History rebuilt with conventional commit messages. 383 unit tests, 334 screenshots; firmware
   2,671,639 bytes. Not on the device (Pending device checks).
