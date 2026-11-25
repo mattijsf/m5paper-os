@@ -311,7 +311,7 @@ class ListScreen : public Screen {
   // the launcher: the list is done with. The seen marker moves to the newest message shown and the badge is 0 at once.
   // The store itself is changed on the worker, after any read of the relay that is still running there (one worker, in
   // order): done here, that read saved the messages it had loaded before the tap back over it, with their badge
-  //.
+  // (else the badge came back).
   void markAllRead() {
     const int64_t upTo = newestTs(feed_.items);
     if (upTo > ctx().store.get("seen", 0)) ctx().store.set("seen", static_cast<int>(upTo));

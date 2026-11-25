@@ -90,7 +90,7 @@ class PowerPage : public Page {
     auto* off = root.add<ui::Segmented>(std::vector<std::string>{"1 min", "5 min", "15 min", "30 min", "Never"},
                                         m == 1 ? 0 : m == 5 ? 1 : m == 15 ? 2 : m == 30 ? 3 : m == 0 ? 4 : 2);
     off->onChange = [this](int i) {
-      static const int kMin[] = {1, 5, 15, 30, 0};  // 1 min
+      static const int kMin[] = {1, 5, 15, 30, 0};
       cfg().power.autoOffMin = kMin[i];
       save();
     };

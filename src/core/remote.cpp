@@ -432,7 +432,7 @@ void Remote::abortPut(const std::string& why) {
 
 void Remote::feed(const uint8_t* data, size_t n) {
   // Whatever arrives counts as use, as a touch does: an update, an upload or a live view must not be cut by the idle time
-  // (2026-11-19: the sleep screen came in the middle of an update).
+  // (the sleep screen used to come in the middle of an update).
   if (n > 0) os_.keepAwake();
   while (n > 0) {
     if (ota_.active || ota_.discard > 0) {

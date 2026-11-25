@@ -216,7 +216,7 @@ PATCHES.append(("src/lgfx/v1/platforms/esp32/Panel_EPD.inl", TASK_A_OLD, TASK_A_
 PATCHES.append(("src/lgfx/v1/platforms/esp32/Panel_EPD.inl", TASK_B_OLD, TASK_B_NEW, "PAPEROS PATCH 2b"))
 PATCHES.append(("src/lgfx/v1/platforms/esp32/Panel_EPD.inl", TASK_C_OLD, TASK_C_NEW, "PAPEROS PATCH 2c"))
 
-# 4. Unchanged pixels are left alone when the refresh mode changes (2026-11-17,
+# 4. Unchanged pixels are left alone when the refresh mode changes (navigation flashed,
 #    worst in Settings). The stock code asks "is this the request the pixel pair already has", and a request carries its
 #    mode: after a Fast pass every pair of the Text settle is a new request, also the white background, which the Text
 #    waveform drives toward black for five frames and back: the whole region darkens 0.6 s after every navigation. The

@@ -30,7 +30,7 @@ struct RelayFetch {
 };
 RelayFetch fetchRelay(HaClient& ha, int64_t now, bool takeClip);
 
-// The launcher's own look.
+// The launcher's own look (nothing read the relay while no app was opened, so badges never showed).
 // Due: a phone is paired and nobody read or tried the relay in the last kLauncherCheckSec of this boot (a failed try
 // counts: away from the known Wi-Fi a try costs a scan of several seconds).
 constexpr int kLauncherCheckSec = 600;

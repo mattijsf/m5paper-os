@@ -290,7 +290,7 @@ void DisplayManager::pushBand(Rect r, Hint hint, int* restY) {
         settles_.clear();
       } else {
         // No settle pass: on the panel it is a dark sweep over the whole text area 0.6 s after every turn (camera,
-        // 2026-11-16); the user chose black/white text between cleans over that sweep.
+        // 2026-11-16); black/white text between cleans was chosen over that sweep.
         push(box, Refresh::Fast, changed, "page", dms);
         score_ += added;
         // An older settle inside the page would bring the sweep back. What sticks out of the page keeps its settle (a

@@ -4,8 +4,7 @@ src/ui/emoji.cpp.
 
 Sources, in this order for each code point:
   1. Microsoft Fluent Emoji, "High Contrast" style (MIT, assets/fonts/FluentEmoji-LICENSE.txt): drawn for black and white,
-     bold filled shapes; the user chose it over Noto Emoji on 2026-11-16 ("These are ugly. Especially the grandma and
-     grandpa"). Not kept in the repo (16 MB of SVG); fetch it first:
+     bold filled shapes; chosen over Noto Emoji. Not kept in the repo (16 MB of SVG); fetch it first:
        git clone --depth 1 --filter=blob:none --sparse https://github.com/microsoft/fluentui-emoji.git out/fluentui-emoji
        git -C out/fluentui-emoji sparse-checkout set --no-cone '/assets/*/metadata.json' '/assets/*/High Contrast/*.svg' \
          '/assets/*/Default/High Contrast/*.svg' '/LICENSE'

@@ -314,7 +314,7 @@ class KeyPad : public ui::Widget {
         c.fillRect(r.x + 7, r.y + 10, r.w - 14, r.h - 20, ui::paper);
         c.drawRect(r.x + 6, r.y + 9, r.w - 12, r.h - 18, ui::ink);
       } else if (mark == game::kAbsent) {
-        // Used up: faded well below the other keys.
+        // Used up: faded well below the other keys (gray(5) was still too easy to read).
         ui::strokeRound(c, r, ui::kRadiusSmall, 1, kSpentKey);
         fg = kSpentKey;
       } else {
