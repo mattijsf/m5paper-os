@@ -5,7 +5,7 @@ same source. Apps: e-book reader, Home Assistant remote, WhatsApp and mail inbox
 companion), agenda, weather, Teletekst, Hacker News, daily games, chess, settings. Built for long battery life and calm,
 quick e-ink rendering.
 
-Where things stand: `docs/STATUS.md`. What is planned: `docs/ROADMAP.md`. Why it is built this way: `docs/DECISIONS.md`.
+Where things stand: [STATUS](docs/STATUS.md). What is planned: [ROADMAP](docs/ROADMAP.md). Why it is built this way: [DECISIONS](docs/DECISIONS.md).
 
 ## Quick start (macOS)
 
@@ -73,19 +73,25 @@ firmware shows an example house (`docs/apps/home.md`). Neither is in the reposit
 
 ## Documentation
 
+The docs are Markdown in this repository and are also published as a site with search and diagrams:
+<https://mattijsf.github.io/m5paper-os/>. To run it locally: `cd site && npm install && npm run dev`
+(`npm run build` builds it into `site/dist`; the pages are generated from `docs/`, so edit the Markdown, not `site/`).
+
+
 | File | Content |
 |---|---|
-| `docs/STATUS.md` | where things stand, measurements, open questions |
-| `docs/ROADMAP.md` | phases and task cards with done-criteria |
-| `docs/DECISIONS.md` | what was decided and why |
-| `docs/ARCHITECTURE.md` | layers, directory layout, threads, HAL, memory and flash budgets |
-| `docs/HARDWARE.md` | PaperS3 specs, pins, power behaviour, toolchain facts |
-| `docs/DISPLAY.md` | e-ink rendering pipeline, refresh modes, ghost budget |
-| `docs/UI.md` | design system: tokens, widgets, gestures, patterns |
-| `docs/POWER.md` | power states, Wi-Fi policy, measurement plan |
-| `docs/SIMULATOR.md` | simulator, UI scripts, golden screenshots, fixtures |
-| `docs/APPS.md` | how to write an app |
+| [`docs/STATUS.md`](docs/STATUS.md) | where things stand, measurements, open questions |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | phases and task cards with done-criteria |
+| [`docs/DECISIONS.md`](docs/DECISIONS.md) | what was decided and why |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | layers, directory layout, threads, HAL, memory and flash budgets |
+| [`docs/HARDWARE.md`](docs/HARDWARE.md) | PaperS3 specs, pins, power behaviour, toolchain facts |
+| [`docs/DISPLAY.md`](docs/DISPLAY.md) | e-ink rendering pipeline, refresh modes, ghost budget |
+| [`docs/UI.md`](docs/UI.md) | design system: tokens, widgets, gestures, patterns |
+| [`docs/POWER.md`](docs/POWER.md) | power states, Wi-Fi policy, measurement plan |
+| [`docs/SIMULATOR.md`](docs/SIMULATOR.md) | simulator, UI scripts, golden screenshots, fixtures |
+| [`docs/APPS.md`](docs/APPS.md) | how to write an app |
 | `docs/apps/*.md` | one spec per app |
-| `docs/BACKEND.md` | Home Assistant API use, inbox relay, privacy |
-| `docs/COMPANION.md` | the Android companion app and its protocol |
-| `ha/paperos_inbox.yaml` | Home Assistant package for the companion relay |
+| [`docs/BACKEND.md`](docs/BACKEND.md) | Home Assistant API use, inbox relay, privacy |
+| [`docs/COMPANION.md`](docs/COMPANION.md) | the Android companion app and its protocol |
+| [`android/README.md`](android/README.md) | the companion app: components, build, install, privacy checks |
+| [`ha/paperos_inbox.yaml`](ha/paperos_inbox.yaml) | Home Assistant package for the companion relay |

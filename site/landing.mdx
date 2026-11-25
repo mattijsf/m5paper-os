@@ -1,0 +1,49 @@
+---
+title: PaperOS
+description: Custom firmware for the M5Stack M5PaperS3 e-ink device, with a desktop simulator built from the same source.
+template: splash
+hero:
+  tagline: Custom firmware for the M5Stack M5PaperS3. A reader, a Home Assistant remote, your phone's messages and calendar, and a few daily games, on a 4.7" e-ink panel that keeps its picture with the power off.
+  image:
+    html: '<div class="hero-screens"><img src="/m5paper-os/screens/launcher-summary.png" alt="The launcher" width="540" height="960" /><img src="/m5paper-os/screens/today-board.png" alt="The sleep screen with the day''s weather and agenda" width="540" height="960" /><img src="/m5paper-os/screens/home-lights.png" alt="The Home app" width="540" height="960" /></div>'
+  actions:
+    - text: Get started
+      link: /m5paper-os/getting-started/
+      icon: right-arrow
+    - text: Screens
+      link: /m5paper-os/screens/
+      variant: secondary
+    - text: View on GitHub
+      link: https://github.com/mattijsf/m5paper-os
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+<CardGrid>
+  <Card title="Made for e-ink" icon="document">
+    Nothing animates or scrolls. Every update picks the right panel mode: a fast black-and-white pass first, the 16
+    grays a moment later, and a clean only during navigation. See [Display](/m5paper-os/display/).
+  </Card>
+  <Card title="Twelve apps" icon="puzzle">
+    Reader, Home, WhatsApp, Mail, Agenda, Weather, Teletekst, Hacker News, two daily puzzles, chess and Settings,
+    each a small C++ class. See [Writing an app](/m5paper-os/writing-apps/).
+  </Card>
+  <Card title="Your phone, end-to-end encrypted" icon="phone">
+    An Android companion app passes notifications, the calendar and the clipboard to the device. Home Assistant relays
+    them but only ever sees ciphertext. See [Companion protocol](/m5paper-os/companion/).
+  </Card>
+  <Card title="Off most of the day" icon="moon">
+    The device sleeps between touches and switches itself off when unused, leaving the day's weather and agenda on the
+    panel. See [Power and Wi-Fi](/m5paper-os/power/).
+  </Card>
+  <Card title="Simulator first" icon="laptop">
+    The same code runs on the desktop with an e-ink emulation. UI scripts check 334 golden screenshots without a
+    device. See [Simulator and tests](/m5paper-os/simulator/).
+  </Card>
+  <Card title="Every decision written down" icon="open-book">
+    Forty-one numbered decisions, the current status with measurements, and a roadmap of task cards. See
+    [Decisions](/m5paper-os/decisions/).
+  </Card>
+</CardGrid>

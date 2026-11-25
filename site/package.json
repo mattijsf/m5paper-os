@@ -1,0 +1,17 @@
+{
+  "name": "paperos-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "docs:sync": "node scripts/sync-docs.mjs",
+    "dev": "npm run docs:sync && astro dev",
+    "build": "npm run docs:sync && astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.42.7",
+    "astro": "7.4.13",
+    "astro-mermaid": "2.2.0",
+    "mermaid": "11.12.0"
+  }
+}

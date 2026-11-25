@@ -1,0 +1,63 @@
+/* Ink on paper: the accent is the panel's ink, not a colour. Dark theme first (Starlight's default). */
+:root {
+  --sl-color-accent-low: #2a2a2a;
+  --sl-color-accent: #c8c8c8;
+  --sl-color-accent-high: #f2f2f2;
+}
+:root[data-theme="light"] {
+  --sl-color-accent-low: #e4e4e4;
+  --sl-color-accent: #3a3a3a;
+  --sl-color-accent-high: #111;
+}
+
+/* Screenshots are the panel: white paper with a hairline edge, in either theme. */
+.hero-screens {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+.hero-screens img,
+.screens img {
+  width: 100%;
+  height: auto;
+  background: #fff;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.5rem;
+  box-shadow: var(--sl-shadow-md);
+}
+.hero-screens img {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 9rem;
+}
+.hero-screens img:nth-child(2) {
+  transform: translateY(-1rem);
+}
+/* on a phone two screens are enough */
+@media (max-width: 30rem) {
+  .hero-screens img:nth-child(3) {
+    display: none;
+  }
+}
+
+/* Cards in ink too, instead of Starlight's four colours. */
+.card-grid > * {
+  --sl-card-border: var(--sl-color-gray-4);
+  --sl-card-bg: var(--sl-color-gray-6);
+}
+
+.screens {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 2rem 1.5rem;
+  margin-top: 2rem;
+}
+.screens figure {
+  margin: 0;
+}
+.screens figcaption {
+  margin-top: 0.5rem;
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-gray-3);
+  line-height: 1.4;
+}
