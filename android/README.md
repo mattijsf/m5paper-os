@@ -139,8 +139,7 @@ The PaperOS "Ink" style (`Ink.kt`, docs/UI.md):
 
 ### Launcher icon
 
-The PaperOS mark: a P whose bowl is the Paper (a sheet with a folded corner) and whose counter is its page of text, ink on
-paper.
+The PaperOS mark, ink on paper (its design: [UI.md "The PaperOS mark"](../docs/UI.md#the-paperos-mark)).
 
 - Adaptive icon from vector drawables only: `res/mipmap-anydpi/ic_launcher.xml`, `res/drawable/ic_launcher_foreground.xml`,
   `ic_launcher_monochrome.xml` for themed icons, background `ic_launcher_background` in `res/values/colors.xml`.
