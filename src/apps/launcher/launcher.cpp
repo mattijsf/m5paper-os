@@ -50,8 +50,8 @@ std::string agendaLine(hal::Clock& clock) {
   return agenda::nextLine(a, clock.now());
 }
 
-// Home screen: header, then a 2 x 3 grid of tiles from the app registry (sorted by order), paged if
-// there are more than six apps. A tap opens the app.
+// Home screen: header, then a 3 x 4 grid of small tiles from the app registry (sorted by order), paged if
+// there are more than twelve apps. A tap opens the app.
 class LauncherScreen : public Screen {
  public:
   explicit LauncherScreen(Shell& shell) : shell_(shell), apps_(AppRegistry::instance().sorted()) {}

@@ -1,8 +1,8 @@
-// Emoji for the panel (docs/UI.md "Emoji"): Noto Emoji's monochrome line art as 4-bit alpha bitmaps, one atlas per pixel size on
+// Emoji for the panel (docs/UI.md "Emoji"): Fluent Emoji High Contrast (Noto for the rest) as 4-bit alpha bitmaps, one atlas per pixel size on
 // the SD card (/sd/paperos/emoji/emoji-<px>.bin, made by tools/gen-emoji.py; `make emoji` copies them to the simulator and the
 // device). Only the atlas's index stays in memory (16 bytes per emoji); a bitmap is read when a text first needs it and then
 // kept by ui/text's glyph cache, so an emoji draws as fast as a letter afterwards. No card or no atlas: available() is false and
-// ui/text falls back to a short text form (":)") or "?".
+// ui/text falls back to a short text form (":)") for a few and drops the rest.
 #pragma once
 
 #include <cstddef>

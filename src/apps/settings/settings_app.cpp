@@ -1,6 +1,5 @@
-// Settings (docs/apps/settings.md): list of sections; Display, Power, Reading, Home Assistant (with Phone: pairing the companion
-// app), Storage, Developer and About are built; Wi-Fi shows a notice until the connectivity phase. Secret values are never
-// shown: only key names and "present".
+// Settings (docs/apps/settings.md): list of sections: Wi-Fi, Display, Power, Reading, Home Assistant (with Phone: pairing the
+// companion app), Storage, Developer and About. Secret values are never shown: only key names and "present".
 #include <algorithm>
 #include <cstdio>
 

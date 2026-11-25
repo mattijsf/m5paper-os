@@ -10,8 +10,8 @@
 //   program ... --name M5PaperS3       platform name shown in the footer (to compare with a device dump)
 //   program [--headless] --remote       also accept the remote commands (core/remote.h) on stdin, replies on stdout
 //
-// HAL: display/input/clock in display.cpp, input.cpp, clock.cpp (sim.h); Net and Power are stubs
-// here. Scripts and fixtures: docs/SIMULATOR.md (P1-5).
+// HAL: display/input/clock in display.cpp, input.cpp, clock.cpp (sim.h), Wi-Fi and HTTP fixtures in net.cpp, power
+// (SimPower) here. Scripts and fixtures: docs/SIMULATOR.md (P1-5).
 
 #include <SDL.h>
 #include <poll.h>
