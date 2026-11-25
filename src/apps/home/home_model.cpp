@@ -222,7 +222,7 @@ std::string joinDot(const std::string& a, const std::string& b) {
   return a + " \xC2\xB7 " + b;  // " · "
 }
 
-// "Spotify Connect" -> "Spotify" (as the house dashboard words it).
+// "Spotify Connect" -> "Spotify".
 std::string sourceWord(std::string s) {
   const std::string tail = " Connect";
   if (s.size() > tail.size() && s.compare(s.size() - tail.size(), tail.size(), tail) == 0) s.resize(s.size() - tail.size());

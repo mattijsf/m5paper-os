@@ -43,7 +43,7 @@ std::string nameOf(const Config& c, const std::string& entity);
 
 // Parses home.json. False with `error` set if it is not valid or has no tabs; unknown item types are skipped.
 bool parseConfig(const std::string& json, Config& out, std::string& error);
-// The firmware's default home.json (the user's house dashboard, trimmed).
+// The firmware's default home.json: an example house (default_config.cpp).
 const char* defaultConfigJson();
 // /sd/paperos/home.json wins over /data/home.json; a missing /data/home.json is written from the default, and so is one whose
 // "version" is older than the default's (the internal copy is the firmware's: own edits go on the card). An unreadable file

@@ -574,6 +574,11 @@ set-up moves). Webcam: C922, connected 2026-11-16; `cam.py lock` (uvc-util) fixe
   (`msToNextDeadline()` 19999 instead of none: the linger restarted 1 ms late). Not investigated yet.
 
 ## Pending device checks
+- **The owner's home.json on the card before the next flash (2026-11-25)**: the firmware's default home.json is an example
+  house since version 5; on a device its entities read "not found". The real list is in `sim-data/sd/paperos/home.json`
+  (not in git). Push it first: `tools/push.py --to /sd/paperos/ sim-data/sd/paperos/home.json` (USB, or `--wifi`), then
+  flash, then check that the Home tabs read (`[home] tab 0 read`). Tried over Wi-Fi on 2026-11-25: no connection
+  (Wireless development off or the device asleep). Until then the device runs the firmware from before this change.
 - **Teletekst opens on 101 (2026-11-23)**: simulator only. On the device: open Teletekst after more than an hour, the
   log says `[teletekst] page 101`.
 - **Sonos calls from the Music tab (P7-24, 2026-11-20)**: read and `volume_set` work on the device (the owner's test with
@@ -1686,3 +1691,9 @@ None of these block Phase 1, Phase 2, or the reader.
 - 2026-11-23: Teletekst opens on 101, the news headlines, instead of the index 100. UI scripts follow (the
   index is now a shot of its own, `teletekst-index`; `teletekst-saved-index` became `teletekst-saved-start`). 383 unit
   tests, 334 screenshots; firmware 2,671,847 bytes. Not on the device yet (Pending device checks: open Teletekst, 101).
+- 2026-11-25: the repository holds no real house any more. The default home.json (version 5) is an example house with English names and made-up entity ids;
+  fixtures, unit tests, `home.script` and 19 goldens follow (one shot renamed: `home-lights-lounge-off`).
+  The owner's list goes on the card (`/sd/paperos/home.json`, apps/home.md "Config"). Also out of the docs: the home
+  network's name, family names, the office's address and coordinates. Weather keeps its defaults (`weather.thuis`,
+  `weather.office`): they name no place. Older commits still hold all of it. 383 unit tests, 334 screenshots; firmware
+  2,671,639 bytes. Not on the device (Pending device checks).

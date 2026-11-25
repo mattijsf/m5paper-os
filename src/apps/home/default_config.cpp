@@ -1,15 +1,14 @@
-// The default home.json (docs/apps/home.md "Config"): taken from the user's house dashboard source
-// (read 2026-11-15; order and the Sofa lamp, the
-// Dining area scene and "All downstairs" as its Thuis tab has them, 2026-11-16; the Sonos of its media row as the Music tab, P7-24). Raise "version" with every change: the device's
-// /data/home.json is replaced by a newer default. Entity ids are NOT yet verified against the live
-// instance (STATUS.md, Pending device checks): the first Home refresh shows any that do not exist as "not found".
+// The default home.json (docs/apps/home.md "Config"): an example house, not a real one. It shows every item type; its entity
+// ids exist in no Home Assistant, so on a device they read "not found" until the owner's own list is on the card
+// (/sd/paperos/home.json, which wins over this one). Raise "version" with every change: the device's /data/home.json is
+// replaced by a newer default.
 #include "apps/home/home_model.h"
 
 namespace pos::home {
 
 const char* defaultConfigJson() {
   return R"JSON({
-  "version": 3,
+  "version": 5,
   "names": {
     "light.sofa_lamp": "Sofa lamp", "light.coffee_table": "Coffee table", "light.entrance": "Entrance",
     "light.dining_table": "Dining table", "light.dining_floor_lamp": "Dining floor lamp", "light.reading_corner": "Reading corner",

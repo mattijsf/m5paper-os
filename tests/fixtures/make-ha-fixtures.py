@@ -43,7 +43,7 @@ STATES = {
     "switch.bathroom_fan": ("off", {}),
     "switch.air_conditioning": ("on", {}),
     "fan.air_purifier": ("off", {}),
-    # music: the Sonos in the living room, as the house dashboard's mock has it
+    # music: the speaker in the living room
     "media_player.living_room": ("playing", {"volume_level": 0.24, "is_volume_muted": False, "media_title": "Voices In My Head",
                                            "media_artist": "Sonata Arctica", "media_album_name": "Reckoning Night",
                                            "media_playlist": "Metalmix", "source": "Spotify Connect", "supported_features": 8321599,

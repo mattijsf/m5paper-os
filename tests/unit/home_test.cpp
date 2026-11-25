@@ -27,7 +27,7 @@ struct Card {
 };
 }  // namespace
 
-TEST_CASE("home: the default home.json parses, with the full Evening scene and the dashboard's entities") {
+TEST_CASE("home: the default home.json parses, with the full Evening scene and every tab") {
   Config c;
   std::string err;
   REQUIRE(parseConfig(defaultConfigJson(), c, err));
@@ -47,8 +47,7 @@ TEST_CASE("home: the default home.json parses, with the full Evening scene and t
   CHECK(evening.calls[0].entity == "light.sofa_lamp");
   CHECK(callBody(evening.calls[0]) == "{\"brightness\":34,\"color_temp_kelvin\":2000,\"entity_id\":\"light.sofa_lamp\"}");
   CHECK(callBody(evening.calls[4]).find("\"xy_color\":[0.371,0.239]") != std::string::npos);
-  // As the house dashboard's Thuis tab (2026-11-16): two scenes, the Sofa lamp first, the living room, the kitchen, "All
-  // downstairs", then outside and upstairs.
+  // Two scenes, the Sofa lamp first, the living room, the kitchen, "All downstairs", then outside and upstairs.
   CHECK(c.tabs[0].items.size() == 12);
   CHECK(c.tabs[0].items[1].name == "Dining default");
   CHECK(c.tabs[0].items[1].calls.size() == 2);
@@ -62,8 +61,8 @@ TEST_CASE("home: the default home.json parses, with the full Evening scene and t
   CHECK(all.also[0] == "light.kitchen_spots_relative");
   CHECK_FALSE(all.dimmable);
   for (const Item& it : c.tabs[0].items) CHECK(it.entity != "light.hall");  // gone since version 2
-  CHECK(configVersion(defaultConfigJson()) == 3);
-  CHECK(nameOf(c, "light.coffee_table") == "Coffee table");  // the dashboard's lamp names
+  CHECK(configVersion(defaultConfigJson()) == 5);
+  CHECK(nameOf(c, "light.coffee_table") == "Coffee table");  // "names"
   CHECK(nameOf(c, "light.some_other_lamp") == "some other lamp");
   CHECK(configVersion("{\"tabs\":[]}") == 1);
   const Item& zit = c.tabs[0].items[4];
@@ -229,7 +228,7 @@ TEST_CASE("home: loadConfig writes the default once, the card's copy wins, a bro
   CHECK(c.tabs.size() == 4);
   CHECK(pos::fs::exists("/data/home.json"));
   // An internal copy as new as the default stays; an older one (no "version": the list the firmware wrote before) is replaced.
-  pos::fs::writeFile("/data/home.json", R"({"version":3,"tabs":[{"title":"Mine","items":[{"type":"light","entity":"light.q"}]}]})");
+  pos::fs::writeFile("/data/home.json", R"({"version":5,"tabs":[{"title":"Mine","items":[{"type":"light","entity":"light.q"}]}]})");
   c = loadConfig(note);
   REQUIRE(c.tabs.size() == 1);
   CHECK(c.tabs[0].title == "Mine");
@@ -238,7 +237,7 @@ TEST_CASE("home: loadConfig writes the default once, the card's copy wins, a bro
   CHECK(c.tabs.size() == 4);
   std::string saved;
   REQUIRE(pos::fs::readFile("/data/home.json", saved));
-  CHECK(configVersion(saved) == 3);
+  CHECK(configVersion(saved) == 5);
   pos::fs::writeFile("/sd/paperos/home.json", R"({"tabs":[{"title":"Card","items":[{"type":"light","entity":"light.q"}]}]})");
   CHECK(loadConfig(note).tabs[0].title == "Card");
   pos::fs::writeFile("/sd/paperos/home.json", "{ broken");
