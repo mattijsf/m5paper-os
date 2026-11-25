@@ -1,7 +1,7 @@
 # Hacker News
 
-Y Combinator's Hacker News: the story lists, a story's comments and the article it links to as text (task P7-14, D34; the article after "we can't show a reader/text mode
-version of the site (via third party service)?"). Read only: no account, no votes, no replies.
+Y Combinator's Hacker News: the story lists, a story's comments and the article it links to as text (task P7-14, D34,
+the article as text through a reader service). Read only: no account, no votes, no replies.
 
 Code: `src/apps/hackernews/` (`hackernews_model.*`: the two APIs' answers into stories and a comment tree in reading
 order, comment HTML into text, the thread as paragraphs, the saved copy, the reads; unit tested in

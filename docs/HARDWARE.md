@@ -3,7 +3,7 @@
 Facts the software depends on. "Source" says where each fact comes from, so it can be re-checked:
 **docs** = https://docs.m5stack.com/en/core/papers3, **M5Unified** / **M5GFX** = library source at
 version 0.3.0 (in `.pio/libdeps/papers3/`), **measured** = read from our own device (see
-`docs/STATUS.md` for the log).
+`docs/STATUS.md` "Measurements").
 
 ## Specs
 

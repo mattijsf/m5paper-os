@@ -90,8 +90,8 @@ Volume                                               ("Volume, muted" when muted
   them all back and shows the error in a toast (`haErrorText`).
 - A line above the tab bar says "Updated 13:34", "Saved data: No Wi-Fi", "Loading..." or "n not found in Home Assistant".
 - Cache: `/data/cache/home/states.json`, drawn before the first read. Polling: every 30 s while a touch was less than 2 minutes ago;
-  on the Music tab every 5 s (2026-11-20: a new song
-  or source waited for the 30 s read). A read of the one player is ~40 ms on the kept connection, and an unchanged state draws nothing.
+  on the Music tab every 5 s (with the 30 s read a new song
+  or source showed late). A read of the one player is ~40 ms on the kept connection, and an unchanged state draws nothing.
   Not built: extending the Wi-Fi linger during that window (the net service reconnects on the next poll, ~1.3 s fast path).
 - Fixtures: `tests/fixtures/make-ha-fixtures.py` writes one state per default entity and the service answers (fake data; the
   `switch/turn_off` answer is a 500 on purpose). Preset card `tests/ui/data/home/sd/paperos_config` holds fake values only.

@@ -42,8 +42,7 @@ one row per SSID with the strongest access point, signal and channel, and Connec
 to a page (`ui::PagedList`). One scan does not hear every access point, so the page scans three times in a row (1.5 s
 apart) and adds what is new **at the end**: a row that is listed never moves under a finger, and a scan that heard nothing
 new redraws nothing (`core/wifi.h` `ScanList`). The arrows in the title bar start over, in order of signal again. Until
-2026-11-17 the page scanned once and kept the seven strongest: user, "It only does a scan once but it doesn't find/show
-all". A known or open network joins at once, else a
+2026-11-17 the page scanned once and kept the seven strongest, so networks went missing. A known or open network joins at once, else a
 password page with the on-screen keyboard as a bottom overlay, masked with a Show/Hide button, Enter joins and saves),
 "Saved networks" (card entries marked, device entries can be forgotten by a tap), "Connect now". Settings > Home Assistant >
 "Test connection": `GET <base URL>/api/` with the token; the page shows the HTTP status, the time and the start of the reply;

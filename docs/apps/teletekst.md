@@ -122,7 +122,7 @@ and one being parsed at most), never as a local: the UI thread's stack on the de
 
 ## Speed and flicker (camera session, 2026-11-18)
 
-One session with the
+Speed and flicker checked with the camera. One session with the
 camera locked (`cam.py around`, 640x480 at 30 fps; times on the panel include the camera's own ~0.2 s), the firmware
 before (main at 747deb9) against the changes below. A tap is injected (Down and Up 60 ms apart).
 
@@ -169,7 +169,7 @@ style; the camera shows them legible).
 
 ## On the device
 
-Flashed and run on 2026-11-18 with injected taps, frame dumps and the log (STATUS.md Log):
+Flashed and run on 2026-11-18 with injected taps, frame dumps and the log:
 
 | | |
 |---|---|

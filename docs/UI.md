@@ -28,7 +28,7 @@ rules in `DISPLAY.md`.
 
 Anything that changes on touch (pressed, selected, on/off) uses only `ink` and `paper`.
 
-**Limits measured by a person's eyes on the panel (Display lab, Text pattern, 2026-11-15)**: caption size (18 px): gray(3) is the lightest that
+**Limits checked by eye on the panel (Display lab, Text pattern, 2026-11-15)**: caption size (18 px): gray(3) is the lightest that
 reads, anything lighter is hard; body size (22 px): gray(5) is the lightest that reads; 1 px lines: gray(13) is invisible, gray(11) "very thin, too
 thin to be usable"; Read S (24 px) is a comfortable reading size. So: caption text is never lighter than gray(3), body text never lighter than gray(5),
 1 px lines never lighter than gray(9).
@@ -100,7 +100,8 @@ The Home app reuses the icon names of the user's Home Assistant dashboard so roo
 Lucide ones and the bitmap (a bit a pixel) to `src/gen/icons.h` (`gen::kDrawnIcons`); `drawIcon` draws it as it is at 64 and
 at half size at 32, ink only, centred like a glyph. Three so far: `Icon::Paperos`, the PaperOS mark (below),
 `Icon::Hackernews` (a Y in a filled square, apps/hackernews.md "Icon") and `Icon::Teletekst`, the NOS Teletekst logo redrawn by hand
-on a 97 x 64 grid for the launcher tile. The logo is the NOS's mark: for this private device, not to be published.
+on a 97 x 64 grid for the launcher tile (white on black became ink
+on paper; the red O is the outlined one). The logo is the NOS's mark: for this private device, not to be published.
 
 **The PaperOS mark** (2026-11-18) is a P whose bowl is the Paper (a sheet with a folded corner) and whose counter is its page
 of text (three lines, the last one short). `Icon::Paperos`, 42 x 64 (`assets/icons-drawn/paperos.txt`): strokes 11 px, the
@@ -294,13 +295,14 @@ and the refresh log shows no Quality push outside `Hint::Image` and budget clean
 
 ### Emoji
 
-Every text drawn with `drawText` / `measureText` / `ellipsize` shows emoji. Source: **Microsoft Fluent Emoji, "High Contrast" style** (MIT, `assets/fonts/FluentEmoji-LICENSE.txt`): drawn
-for black and white, bold filled shapes that survive 16 grays and small sizes. Chosen by the user on 2026-11-16 over Noto
+Every text drawn with `drawText` / `measureText` / `ellipsize` shows emoji (group names like "Pap👴Mam👵…"
+lost theirs before). Source: **Microsoft Fluent Emoji, "High Contrast" style** (MIT, `assets/fonts/FluentEmoji-LICENSE.txt`): drawn
+for black and white, bold filled shapes that survive 16 grays and small sizes. Chosen over Noto
 Emoji ("These are ugly. Especially the grandma and grandpa"); the comparison of Noto, Fluent High Contrast, OpenMoji and
 gray-converted Fluent Flat and Twemoji is `tools/gen-emoji.py`'s history (colour sets turn yellow faces into pale gray, which
 the panel prints lighter still; OpenMoji's lines are too thin). The 36 single emoji Fluent lacks come from **Noto Emoji** (SIL
 OFL 1.1, `assets/fonts/NotoEmoji.ttf`, weight 600). **Flags are letters**: the country code in an outlined box like the
-keycaps (🇳🇱 -> `NL`, England, Scotland, Wales -> `ENG`, `SCO`, `WAL`: a gray flag is mostly stripes; Twemoji's flags in gray were tried first). `tools/gen-emoji.py` (needs the
+keycaps (🇳🇱 -> `NL`, England, Scotland, Wales -> `ENG`, `SCO`, `WAL`: on a black and white screen a gray flag is mostly stripes; Twemoji's flags in gray were tried first). `tools/gen-emoji.py` (needs the
 Fluent SVGs fetched first, see its top) renders 2308 emoji as 4-bit alpha bitmaps: 1405 single code points, 224 sequences
 (ZWJ sequences like 👩‍💻 and ❤️‍🔥, keycaps) and 679 flags (every pair of letters, used or not, and the three tag flags);
 one atlas per size: 18 (caption), 22 (body, bodyStrong), 24 (read-S), 28 (title, read-M and up, headline),

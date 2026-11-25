@@ -1,6 +1,6 @@
 # PaperOS Companion (Android)
 
-Companion app for the PaperOS inbox. Runs on the user's phone (Pixel 9 Pro, Android 17), reads
+Companion app for the PaperOS inbox. Runs on an Android phone (tested on a Pixel 9 Pro, Android 17), reads
 WhatsApp and Proton Mail notifications, and will later send them end to end encrypted through Home
 Assistant to the PaperS3 (HA relays ciphertext only). Decision and open questions: `docs/DECISIONS.md`
 and the P6 cards in `docs/ROADMAP.md`.

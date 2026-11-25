@@ -1,7 +1,7 @@
 # Word game
 
 A daily five-letter word game in Dutch: one word a day, six tries. PaperOS's own game in the genre of the daily word
-puzzles. Task P7-9; with a handover text of that web game.
+puzzles. Task P7-9.
 
 ## What it is not (DECISIONS.md D26)
 
@@ -51,12 +51,12 @@ Dutch (it is a Dutch game) and the title is `kName`. The app id was `vijfje` unt
 | typed, not played | 3 px ink frame, ink letter | |
 | empty / not tried | 1 px ink frame | 2 px ink outline |
 
-A used-up key is meant to fade: gray(5) was "still too easy to read", so its letter and
+A used-up key is meant to fade: gray(5) was still too easy to read, so its letter and
 outline are gray(10) (`kSpentKey`). The tiles keep gray(5): a played guess stays readable.
 
 An empty tile's frame is ink, not gray, on purpose: taking a letter back then changes only black and white pixels and is
 one Fast push. With a gray(9) frame the Fast pass showed no tile at all and the settle pass drew it again 0.6 s later
-. A typed letter still
+(`wordgame-backspace.script` keeps it so). A typed letter still
 gets its settle pass (anti-aliased edges), as all text does. Known leftover: a letter typed and taken back within 0.6 s
 leaves the letter's settle pass pending, one Text push on the empty tile (DisplayManager, not the app).
 

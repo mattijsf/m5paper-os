@@ -1,6 +1,7 @@
 # Schaken
 
-Chess on the panel. Task P7-23, D41. App id `chess`, tile "Schaken" (icon `chess-knight`), after Hacker
+Chess on the panel: against the Lichess computer and
+offline against the Paper. Task P7-23, D41. App id `chess`, tile "Schaken" (icon `chess-knight`), after Hacker
 News.
 
 ## Setup
@@ -16,7 +17,7 @@ News.
   in five pixels, as in a printed diagram). The pieces are drawn as shapes (`drawPiece` in `chess_app.cpp`, no font):
   black pieces solid ink, white ones paper with a 2 px ink outline (the silhouette drawn eight times around, then the
   piece in paper on it). The last move is framed in ink (2 px) in both squares.
-- **Every pixel of the board is pure black or white**: a
+- **Every pixel of the board is pure black or white** (render speed, Fast mode): a
   selection or a move is one Fast push (`Hint::Feedback`) with no Text settle after it (DISPLAY.md: no settle when the
   changed pixels are black/white). The view is laid out again only when a button comes or goes (Opgeven shows from the
   start of a game), not on every move. On the device: a selection 51 ms from the tap to the push; a move 194 ms to its

@@ -61,7 +61,7 @@ The DisplayManager maps hints to panel modes:
 |---|---|---|---|
 | Feedback | Fast, immediately (a pressed look: after 120 ms of holding, see "Navigation speed") | none if the *changed pixels* are pure black/white, else Text | the result of a tap must reach the panel within 100 ms of the Up |
 | Content | Fast | Text after 600 ms without further changes in the region | "fast then settle" |
-| Page | Fast | **none** (drops older settles inside the page; the part of one that sticks out of the page keeps its settle, see "As implemented") | the reader's page turns. Every `pageCleanEvery`-th (10) is one full-screen **Quality** pass instead, which also brings the 16 grays back. Decided: the Text settle is a dark sweep over the whole text area 0.6 s after every turn (camera: the paper at ~60 % brightness for ~0.3 s); black/white text between cleans is preferred |
+| Page | Fast | **none** (drops older settles inside the page; the part of one that sticks out of the page keeps its settle, see "As implemented") | the reader's page turns. Every `pageCleanEvery`-th (10) is one full-screen **Quality** pass instead, which also brings the 16 grays back. Decided 2026-11-16: the Text settle is a dark sweep over the whole text area 0.6 s after every turn (camera: the paper at ~60 % brightness for ~0.3 s); black/white text between cleans is preferred |
 | Screen | Fast full screen; **one Text pass instead** if the new pixels hold flat gray areas (`grayAreaMin`, below) | Text after 600 ms (none after the Text pass); **Quality instead** if the ghost budget is spent | navigation is the natural place to hide a clean |
 | Image | Quality on the image rect | none | only place a flash is expected |
 
@@ -134,7 +134,7 @@ can be tuned on the device without rebuilding (task P7-1).
   Fast pass as sparse dots, 2 of 16 pixels, not missing; whether one Text push is still the better trade there is for the camera.)
   A Fast pass thresholds gray to black or white, so gray *areas* (the launcher's and
   Home's gray(13) icon wells, the keyboard) were missing from the Fast pass and arrived only with the settle pass 0.6 s later: a second
-  refresh and on the panel a dark sweep. Now the diff of a
+  refresh and on the panel a dark sweep: icon backgrounds showed late and the screen flashed. Now the diff of a
   Screen pass also counts changed pixels of flat gray (levels 1..14 with the same level 2 px away on all four sides, so anti-aliased text
   edges and 1 px dividers do not count; white or black 8-byte runs are skipped; it stops at the limit). At `grayAreaMin` (2000 px, a
   disc of radius 25; `DisplayParams`, not in `config.json`) the pass is **one Text push** of the changed box (`why=screen-gray`): the final
@@ -155,7 +155,7 @@ can be tuned on the device without rebuilding (task P7-1).
 
 ## Unchanged pixels are left alone (2026-11-17, `tools/patch_m5gfx.py` patch 4; measured on the panel the same day)
 
-Measured in the simulator
+Navigation flashed, worst in Settings. Measured in the simulator
 (refresh log of a walk through Settings): every navigation is a Fast pass over 78 % of the screen (the content area,
 492 x 823) and, 0.6 s later, a Text settle over the same 78 %; no Quality pass in 16 navigations. Why that flashes is in
 the driver (M5GFX `Panel_EPD.inl`, `step_fast` / `step_text`): the update task keeps per pixel pair the *request* it last
@@ -323,7 +323,7 @@ Where the time went and what was done:
 6. Coalesce: while the panel is busy (`display.busy()`), further commits merge their rects and
    wait, except `Hint::Feedback` which may queue immediately (M5GFX handles overlapping updates).
 7. **Feedback and Content: one push per band of changed rows** (2026-11-17, `DisplayManager::pushPass`; a screen, a page and
-   an image stay one pass). There is one pending
+   an image stay one pass). Keys felt slow while typing and a key press refreshed a large area around the keyboard. There is one pending
    rect per hint, so what one event changes became one box: a key going up at the bottom of the screen and its bullet in
    the field at the top were a Fast push of 190x626 px for 3 600 changed pixels and, 0.6 s later, a Text settle over the
    same box, with every key; a status bar icon and a label below it 190x948 for 1 310. Fast shows everything in its box in
@@ -394,9 +394,9 @@ the checkerboard (five labels: "Checker" did not fit).
 **Ramp**: 16 labelled bars gray(0) to gray(15). **Checker** and **White**: pure black and white, shown with one Fast pass each, so Checker then
 White shows what a Fast pass leaves behind; "Clean (Quality)" is the cleaning pass. **Text**: the caption size in gray 0/3/5/7/9, the body size in
 gray 0/3/5/7, the four reader sizes, and 1 px lines in gray 0/7/9/11/13. A line below shows the pushes per mode and the ghost score against the
-limit. Goldens `lab-*`. It is a tool for a person's eyes: nothing was tuned with it yet (frame dumps show the frame, not the panel).
+limit. Goldens `lab-*`. It is a tool for checking by eye: nothing was tuned with it yet (frame dumps show the frame, not the panel).
 
-## What the panel does to grays
+## What the panel does to grays (checked by eye, 2026-11-15)
 
 Frame dumps and simulator screenshots cannot show this. On the physical panel the white is itself gray, and the mid-grays read **lighter**
 than on a monitor; thin anti-aliased gray text (the 18 px caption in gray(5)) was the first thing to become hard to read. Rules that follow
@@ -408,7 +408,7 @@ dividers in a real list, the gray(13) icon wells (an area, not a line).
 ## Camera on the panel (P7-7, `tools/cam.py`)
 
 A webcam pointed at the device sees what frame dumps cannot: ghosting, the Fast-then-settle sequence, the flash of a Quality pass, how
-grays and thin lines come out. It is the tool for those checks; a person's eyes are asked only for what the camera cannot tell (touch feel,
+grays and thin lines come out. It is the tool for those checks; a look by eye is needed only for what the camera cannot tell (touch feel,
 whether text is comfortable to read, ghosting too faint for the camera), batched as before.
 
 **The set-up is not stable**: the camera can be moved, daylight changes over the day. So:
@@ -425,7 +425,7 @@ whether text is comfortable to read, ghosting too faint for the camera), batched
   Exposure and gain are **measured** since 2026-11-17: 33 ms (the most 30 fps allows) and the gain that brings the
   panel's white to 185 of 255. Before, lock took "what auto exposure chose" from the camera, but the C922 reports its
   defaults in automatic mode (25 ms, gain 0), so the lock froze a dark picture: white at 44-63 of 255 in the 3D printer
-  the device sits in (about the light there). Now gain 160, white 166-195. Focus: a sweep over
+  the device sits in (the light there cannot be changed much). Now gain 160, white 166-195. Focus: a sweep over
   0..250 on the page shown (text works best), sharpest inside the panel. 2026-11-16: exposure 29.5 ms, 4000 K, focus 45 (sharpness 173
   against 4-6 out of focus). The settings stay in the camera until it is unplugged; `cam.py unlock` gives the automatics back.
   `uvc-util`: github.com/jtfrey/uvc-util (commit 8110da7), source read before building (IOKit and Foundation only), built with
@@ -458,7 +458,7 @@ Commands (`uv run --script tools/cam.py ...`; every command has a run limit and 
 | `make cam-target` (`target [--keep]`) | shows the calibration screen (`>set screen camcal`), takes a still, reports what the set-up is worth (below), saves the outline for pages without features, puts the launcher back. `--image` / `--frame` analyse saved files. |
 | `selftest` | synthetic camera images (perspective, uneven light, blur, noise): registration within 0.5 px, the ghost of Checker under White found in the right region and rising with the amount, timing of a synthetic Fast push within a frame. |
 
-**Calibration target (2026-11-17)**. The screen `camcal` (`apps/uitest`, golden `camcal`; one Quality pass): a lattice of ink
+**Calibration target** (alignment, lens correction, brightness and contrast). The screen `camcal` (`apps/uitest`, golden `camcal`; one Quality pass): a lattice of ink
 dots every 60 px over the whole panel, between its rows the 16 grays three times (rising, falling, shifted by eight: each
 level in three places), black and white bars, line pairs of 1 to 4 px running down and across, checkerboards, lines of
 text (the unique features for the first match), a 2 px frame on the outermost pixels. `cam.py target` reads the layout

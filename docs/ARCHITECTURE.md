@@ -237,7 +237,7 @@ sprites use it via `setPsram(true)`.
 | Worker stack | 16 KB | internal |
 | TLS session | ~45 KB | internal |
 
-Rules: no large stack arrays (UI thread stack is 8 KB); no unbounded `std::string` growth from
+Rules: no large stack arrays (UI thread stack is 16 KB); no unbounded `std::string` growth from
 network input (cap response bodies at 512 KB); check every allocation that can exceed 64 KB.
 
 ## Third-party libraries

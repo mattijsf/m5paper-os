@@ -95,7 +95,7 @@ No Wi-Fi switch: the net service switches it on and off itself. Goldens: `quick-
 `src/apps/launcher/launcher.cpp`, `src/ui/status_bar.cpp`, `src/ui/quick_panel.cpp`.
 UI test: `tests/ui/launcher.script`.
 
-## Fresh badges (2026-11-17)
+## Fresh badges
 
 The launcher shows what the apps cached, and until this day nothing read the phone's relay unless an app was opened.
 Now: when the launcher comes up (boot, leaving an app) and a phone is paired and nobody read or tried the relay in the
@@ -111,7 +111,7 @@ log says `[relay] launcher check: read`, and the panel changed only by the Wi-Fi
 Settings a moment later started no second read. Goldens: `agenda-launcher-page2` (the agenda line and "4 unread" are
 there before any app was opened), `inbox-badges-launcher`.
 
-## Power button (2026-11-17)
+## Power button
 
 The header is a row: the date, and in the right corner a `ui::IconButton` with the power icon (72 x 72, centre 480, 92).
 A tap is `Shell::sleepNow()`, the same as "Sleep now" in the quick panel: state saved, the sleep screen on the panel
@@ -122,7 +122,7 @@ above the grid is 12 instead of 24 (`kGridGap`), and the grid is where it was. T
 switches the device off through the sleep screen`; `tests/ui/sleep.script` taps it (`expect-off 0`, golden
 `sleep-launcher-button` equal to `sleep-plain`).
 
-## Twelve apps to a page (2026-11-17)
+## Twelve apps to a page
 
 The grid is 3 columns x 4 rows of small tiles (`ui::Tile::Size::Small`: 153 x 160, the same 64 px icon and well as the
 large tile, the label in the body size, the badge in the corner), 16 px apart. The nine apps fit one page with a row to
@@ -132,7 +132,7 @@ hold a value line). Tile centres for scripts and injected taps: x 100 / 270 / 43
 when the agenda line shows). Goldens: `launcher`, `launcher-summary`, `agenda-launcher`, `wordgame-launcher`,
 `inbox-badges-launcher` and the ones that show the launcher behind something.
 
-## No gray on the launcher (2026-11-17)
+## No gray on the launcher
 
 The small tiles have no gray well behind the icon. With the wells the launcher was a screen with flat gray areas, which
 goes out as one Text pass (DISPLAY.md `screen-gray`), and the Text waveform draws in steps. Camera, Settings to the
@@ -145,6 +145,6 @@ launcher (`cam.py around tap 36 92`, one session):
 | **without wells** (Fast then settle by itself: nothing gray) | **one pulse of 144 ms**, then a ripple of about a sixth of it (the anti-aliased edges) |
 
 Gray(13) read as 0.96-0.98 of white on the panel (DISPLAY.md): the wells were hardly there to the eye. The Home app's
-large tiles lost theirs the same day: Lights to its Climate tab was one Text pass,
+large tiles lost theirs too: Lights to its Climate tab was one Text pass,
 visible 397 ms; now a Fast pass of 195 ms and a settle the camera does not see.
 `>set gray-pass off` (device only) switches the one-Text-pass rule off for a comparison.

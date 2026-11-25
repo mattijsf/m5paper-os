@@ -2,7 +2,7 @@
 
 The user's own daily sum puzzle (live at https://somdoku.nl/) on the panel. Same puzzle,
 number, level and share text as the web game on the same day, so a score from the device can be shared in the user's
-WhatsApp group next to scores from phones. Task P7-8; added on 2026-11-15 (games + clipboard, D21).
+WhatsApp group next to scores from phones. Task P7-8 (games + clipboard, D21).
 
 ## Source of truth
 
@@ -38,7 +38,8 @@ a failure says "Geen wifi. Probeer het nog eens." or "Wel wifi, maar geen tijd o
   ready screen). It is redrawn only when the marks change, 30 ms after the move, as its own 11 x 11 ink-only push (no
   settle); with the cell in one push the settle would cover the title bar down to the cell.
 - **Done**: "Opgelost in 3:42", the streak, the timeline as tiles (kept = solid ink, changed = hatched square) and one
-  button, "Kopieer score" (to `core/clipboard`, toast "Score gekopieerd"). **No send button**. To share: paste the score into a reply in the inbox (the
+  button, "Kopieer score" (to `core/clipboard`, toast "Score gekopieerd"). **No send button** (WhatsApp
+  cannot be sent to directly since the companion relay, D22). To share: paste the score into a reply in the inbox (the
   reply field's long press > Paste; the phone sends it) or on the phone.
 
 As on the web: no checking, no hints, the game ends by itself when the grid equals the solution.
