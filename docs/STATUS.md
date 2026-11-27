@@ -11,7 +11,7 @@ before the next task. Update it at the end of every task (ROADMAP.md "How to wor
 - **Next task: P3-5 power measurements** (the first open card from the top): battery sessions with `/data/power.csv`,
   the 80 MHz CPU experiment, POWER.md estimates replaced by numbers. There is no current meter; every mAh figure in
   POWER.md is an estimate.
-- **Firmware**: 2,671,959 bytes (2.55 MiB, 51 % of the 5 MB app slot, 473,769 bytes under the 3 MB budget of
+- **Firmware**: 2,672,395 bytes (2.55 MiB, 51 % of the 5 MB app slot, 473,333 bytes under the 3 MB budget of
   ARCHITECTURE.md).
 - **Tests**: 384 host unit tests (`make test`), 334 UI screenshots compared with goldens (`make ui-test`), JVM tests for
   the companion app (`android/`).

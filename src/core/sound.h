@@ -1,4 +1,4 @@
-// The sound for new messages (Settings > Home Assistant > Phone, config phone.sound; docs/apps/inbox.md "Sound"). The one
+// The sound for new messages (Settings > Display and sound, config phone.sound; docs/apps/inbox.md "Sound"). The one
 // sound is hal::chime(): two short notes on the device's buzzer. Whoever reads the phone's relay reports what is new
 // (apps/inbox/relay_fetch); this decides whether it is heard. Process-wide and safe from any thread: the relay is read on
 // the worker.

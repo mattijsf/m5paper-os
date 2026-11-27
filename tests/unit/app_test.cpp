@@ -545,7 +545,7 @@ TEST_CASE("settings: never shows or logs secret values, only key names and 'pres
     env.tapAt(it->frame.x + 40, it->frame.y + 40);
   };
   std::string all;
-  for (const char* page : {"Home Assistant", "Developer", "About", "Storage", "Display", "Power", "Reading", "Wi-Fi"}) {
+  for (const char* page : {"Home Assistant", "Developer", "About", "Storage", "Display and sound", "Power", "Reading", "Wi-Fi"}) {
     tapItem(page);
     CHECK(env.shell->depth() == 3);  // launcher + list + page
     collectTexts(env.shell->root().root(), all);
@@ -576,10 +576,10 @@ TEST_CASE("settings: changing the ghost limit and settle delay applies at once a
   env.os.loadConfig();
   CHECK(env.os.displayManager().params().ghostLimit == doctest::Approx(8.0f));
   REQUIRE(env.shell->openApp("settings"));
-  auto* disp = findItem(env.shell->root().root(), "Display");
+  auto* disp = findItem(env.shell->root().root(), "Display and sound");
   REQUIRE(disp != nullptr);
   env.tapAt(disp->frame.x + 40, disp->frame.y + 40);
-  REQUIRE(env.shell->titleBar().title() == "Display");
+  REQUIRE(env.shell->titleBar().title() == "Display and sound");
 
   std::function<ui::Widget*(ui::Widget*, int)> find = [&](ui::Widget* w, int which) -> ui::Widget* {
     if (which == 0 && dynamic_cast<ui::Stepper*>(w)) return w;

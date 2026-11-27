@@ -266,7 +266,7 @@ changes is driven: the settle touches the anti-aliased edges and gray lines, a n
 Quality is untouched (a clean drives everything). `>set epd-keep off|on` switches between the stock rule and the patch
 on a running device, for comparisons.
 
-**On the panel** (camera, Settings > Display and back). How much the white that stays white darkens during a push, in %
+**On the panel** (camera, Settings > Display and sound and back). How much the white that stays white darkens during a push, in %
 of the white-to-ink contrast:
 
 | | Fast pass of the navigation | Text settle 0.6 s later |

@@ -5,15 +5,13 @@ expect-chimes 1
 shot inbox-sound-launcher
 tap 270 424             # Settings
 wait 900
-tap 270 556             # Home Assistant
+tap 270 268             # Display and sound
 wait 900
-tap 270 678             # Phone
-wait 900
-shot inbox-sound-phone
-tap 470 408             # the switch off: silent
+shot inbox-sound-settings
+tap 470 545             # the switch off: silent
 wait 900
 expect-chimes 1
-shot inbox-sound-phone-off
-tap 470 408             # on again: it plays once, so the user hears what it is
+shot inbox-sound-settings-off
+tap 470 545             # on again: it plays once, so the user hears what it is
 wait 900
 expect-chimes 2

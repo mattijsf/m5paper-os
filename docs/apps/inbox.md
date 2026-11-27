@@ -183,7 +183,7 @@ On open, on refresh, and back from a detail older than 60 s:
 
 ## Sound
 
-Option: Settings > Home Assistant > Phone > "Sound for new messages" (`phone.sound`, off by default). When on, a read of
+Option: Settings > Display and sound > "Sound for new messages" (`phone.sound`, off by default). When on, a read of
 the relay that brings new messages plays one chime on the buzzer: two short rising notes, a quarter of a second
 (`hal::chime()`, `core/sound.h`), however many messages came.
 
@@ -235,7 +235,7 @@ The decrypted notifications are turned into the feed items the list, grouping an
 
 **UI scripts**: `inbox`, `inbox-mail`, `inbox-empty`, `inbox-error`, `inbox-wifi`, `inbox-unpaired`, `inbox-gone`,
 `inbox-gone-mail`, `whatsapp-send`, `whatsapp-send-missing`, `whatsapp-reply-result`, `phone-pair` (Settings), `somdoku`
-(the score as a reply), `inbox-sound` (the option on: one chime for the launcher's read, the switch in Settings).
+(the score as a reply), `inbox-sound` (the option on: one chime for the launcher's read, the switch in Settings > Display and sound).
 
 **Fixtures**: `tests/fixtures/make-inbox-fixtures.py` encrypts fake notifications with pyca/cryptography for hosts `ha`,
 `ha-down`, `ha-empty`, `ha-gone` (.example.test) and writes the presets' paired state (`companion.json`). UI scripts run

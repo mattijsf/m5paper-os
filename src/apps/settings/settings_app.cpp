@@ -1,5 +1,6 @@
-// Settings (docs/apps/settings.md): list of sections: Wi-Fi, Display, Power, Reading, Home Assistant (with Phone: pairing the
-// companion app), Storage, Developer and About. Secret values are never shown: only key names and "present".
+// Settings (docs/apps/settings.md): list of sections: Wi-Fi, Display and sound, Power, Reading, Home Assistant (with
+// Phone: pairing the companion app), Storage, Developer and About. Secret values are never shown: only key names and
+// "present".
 #include <algorithm>
 #include <cstdio>
 
@@ -55,7 +56,7 @@ class Page : public Screen {
 class DisplayPage : public Page {
  public:
   void build(ui::Column& root) override {
-    setTitle("Display");
+    setTitle("Display and sound");
     root.add<ui::Spacer>(ui::s2);
     auto* clean = root.add<ui::Button>("Clean screen now", ui::Button::Kind::Secondary);
     clean->onClick = [this] { ctx().os().displayManager().forceClean(); };
@@ -77,6 +78,16 @@ class DisplayPage : public Page {
       ctx().os().applyDisplayConfig();
       save();
     };
+
+    // The buzzer when a read of the phone relay brings new messages (core/sound.h); switching it on plays it once.
+    root.add<ui::Spacer>(ui::s4);
+    auto* snd = root.add<ui::ListItem>("Sound for new messages", "A short beep, not from 22:00 to 07:00", true, ui::Icon::Volume2);
+    snd->setToggle(cfg().phone.sound, [this](bool on) {
+      cfg().phone.sound = on;
+      save();
+      sound::setNewMessages(on);
+      if (on) sound::play();
+    });
   }
 };
 
@@ -456,14 +467,6 @@ class PhonePage : public Page {
       clip->setToggle(cfg().phone.shareClipboard, [this](bool on) {
         cfg().phone.shareClipboard = on;
         save();
-      });
-      // The buzzer when a read of the relay brings new messages (core/sound.h); switching it on plays it once.
-      auto* snd = holder_->add<ui::ListItem>("Sound for new messages", "A short beep, not from 22:00 to 07:00", true, ui::Icon::MessageCircle);
-      snd->setToggle(cfg().phone.sound, [this](bool on) {
-        cfg().phone.sound = on;
-        save();
-        sound::setNewMessages(on);
-        if (on) sound::play();
       });
       holder_->add<ui::Spacer>(ui::s2);
       text("WhatsApp and Proton Mail notifications from this phone come here end-to-end encrypted. Home Assistant only relays them.",
@@ -1180,7 +1183,7 @@ class ListPage : public Screen {
     setTitle("Settings");
     root.add<ui::Spacer>(ui::s1);
     row(root, "Wi-Fi", ui::Icon::Wifi, [this] { ctx().nav.push<WifiPage>(); });
-    row(root, "Display", ui::Icon::Sun, [this] { ctx().nav.push<DisplayPage>(); });
+    row(root, "Display and sound", ui::Icon::Sun, [this] { ctx().nav.push<DisplayPage>(); });
     row(root, "Power", ui::Icon::Power, [this] { ctx().nav.push<PowerPage>(); });
     row(root, "Reading", ui::Icon::BookOpen, [this] { ctx().nav.push<ReadingPage>(); });
     row(root, "Home Assistant", ui::Icon::House, [this] { ctx().nav.push<HaPage>(); });

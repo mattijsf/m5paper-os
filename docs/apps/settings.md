@@ -19,7 +19,7 @@ flowchart LR
     S["Settings"] --> W["Wi-Fi"]
     W --> WJ["Join a network"]
     W --> WS["Saved networks"]
-    S --> D["Display"]
+    S --> D["Display and sound"]
     S --> P["Power"]
     S --> R["Reading"]
     S --> H["Home Assistant"]
@@ -37,9 +37,9 @@ flowchart LR
 
 | Screen | Content |
 |---|---|
-| Settings (list) | Wi-Fi, Display, Power, Reading, Home Assistant, Storage, Developer, About |
+| Settings (list) | Wi-Fi, Display and sound, Power, Reading, Home Assistant, Storage, Developer, About |
 | Wi-Fi | Current network and signal. "Join a network" lists networks (name, signal bars, lock); tap one, enter the password on `ui::Keyboard`, connect, save. Saved networks with "Forget". See [Wi-Fi pages](#wi-fi-pages). |
-| Display | "Clean screen now"; ghost limit (Stepper 4..16); settle delay (Segmented 300/600/1000 ms) |
+| Display and sound | "Clean screen now"; ghost limit (Stepper 4..16); settle delay (Segmented 300/600/1000 ms); "Sound for new messages" (toggle) |
 | Power | See the table below. |
 | Reading | Default font size (S/M/L/XL), margins (narrow/normal/wide), line spacing |
 | Home Assistant | Base URL (read-only here), token present yes/no, "Test connection" (GET `/api/`), last error; the Phone page |
@@ -82,8 +82,11 @@ Built in P2-6 (pages) and P3-7 (Wi-Fi pages, Home Assistant test).
 
 Page behaviour:
 
-- **Display**: "Clean screen now" is the one Quality refresh. Ghost limit and settle delay are applied to the
-  DisplayManager at once and saved.
+- **Display and sound**: "Clean screen now" is the one Quality refresh. Ghost limit and settle delay are applied to the
+  DisplayManager at once and saved. "Sound for new messages" (`phone.sound`, off) is the one sound on the device: a chime
+  on the buzzer when a read of the phone relay brings new messages, not from 22:00 to 07:00. Switching it on plays it
+  once. It sits here, not on the Phone page, so it is found without a paired phone (the Settings list has room for eight
+  rows). apps/inbox.md "Sound".
 - **Reading**: font size, margins, line spacing are stored only; the reader app does not read `reader.*` (checked in
   `src/apps/reader/`).
 - **Home Assistant**: base URL, token "present" / "not configured", key names. Values are never shown.
@@ -238,7 +241,6 @@ The pairing in `/data/companion.json` is secret: never shown, logged or readable
 | Control | Key, default | Effect |
 |---|---|---|
 | "Share the clipboard" | `phone.clipboard`, on | DECISIONS.md D23: a copy on the Paper goes to the phone; what the phone shares arrives before a paste |
-| "Sound for new messages" | `phone.sound`, off | A chime on the buzzer when a read of the relay brings new messages, not from 22:00 to 07:00. Switching it on plays it once. apps/inbox.md "Sound" |
 | "Unpair" | | With a confirmation. Sends `unpair` (best effort) and deletes the pairing and the saved notifications. |
 
 UI scripts: `phone-pair`, `inbox-sound`.
