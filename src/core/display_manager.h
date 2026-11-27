@@ -37,6 +37,10 @@ struct DisplayParams {
   // pass instead of Fast then settle: Fast thresholds those areas to black or white, so they appeared only with the
   // settle pass 0.6 s later, a second refresh. 0 = always Fast then settle.
   uint32_t grayAreaMin = 2000;
+  // The same for Feedback: a key of the on-screen keyboard going back from pressed (black) to its gray fill was a Fast
+  // push that showed the fill as dither, then a Text settle 0.6 s later: two refreshes per key. At this many flat gray
+  // pixels it is one Text push. Pressed looks are black and white (ink on paper or paper on ink) and stay Fast. 0 = off.
+  uint32_t grayFeedbackMin = 400;
 };
 
 struct RefreshEntry {
@@ -104,12 +108,14 @@ class DisplayManager {
   void pushBand(Rect r, Hint hint, int* restY);
   void push(Rect r, Refresh mode, uint32_t changed, const char* why, uint32_t diffMs = 0);
   // Diff `r` against the shadow: returns the bounding box of changed pixels (empty if none). With `grayArea` it also
-  // counts changed pixels of flat gray (see DisplayParams::grayAreaMin), stopping at grayAreaMin.
+  // counts changed pixels of flat gray (see DisplayParams::grayAreaMin), stopping at `grayMin`.
   // Also brings the shadow up to date for `r` (each row's raw changed span is copied as soon as it is measured): every push
   // path used to copy the box in a second pass over the same PSRAM (DISPLAY.md "Tap latency").
   // With `restY` the scan stops after kBandGap unchanged rows below a changed one and says where the next band starts
   // (the end of `r` when nothing is left).
-  Rect diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool wantBw, uint32_t* grayArea = nullptr, int* restY = nullptr);
+  // `grayMin`: where the gray count stops (the threshold the caller compares with).
+  Rect diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool wantBw, uint32_t* grayArea = nullptr, uint32_t grayMin = 0,
+            int* restY = nullptr);
   bool flatGray(int x, int y, uint8_t q) const;
   void updateShadow(Rect r);
   void addSettle(Rect r, float added, uint32_t nowMs);

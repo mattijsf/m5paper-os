@@ -76,7 +76,7 @@ widget.invalidate(Hint::Content);
 
 | Hint | First pass | Settle pass | Why |
 |---|---|---|---|
-| Feedback | Fast, at once | none if the changed pixels are pure black/white, else Text | a tap's result reaches the panel within 100 ms of the finger going up |
+| Feedback | Fast, at once; **one Text pass** if a flat gray fill comes back (a key going up) | none if the changed pixels are pure black/white, else Text | a tap's result reaches the panel within 100 ms of the finger going up |
 | Content | Fast | Text after 600 ms without further changes in the region | "fast then settle" |
 | Page | Fast | none | reader page turns; every 10th turn is one Quality pass instead ([Ghost budget](#ghost-budget)) |
 | Screen | Fast, or **one Text pass** if the new screen has flat gray areas | Text after 600 ms; **Quality instead** when the ghost budget is spent | navigation is the natural place to hide a clean |
@@ -190,6 +190,7 @@ ghost grew to 2 % of contrast. The Text settle was also a dark sweep over the te
 | `idleCleanMs` | 2000 | yes | idle time before a forced clean at 2 x `ghostLimit` |
 | `pageCleanEvery` | 10 | yes | every Nth `Page` push is a Quality pass |
 | `grayAreaMin` | 2000 px | no | flat gray pixels that make a Screen pass one Text push |
+| `grayFeedbackMin` | 400 px | no | flat gray pixels that make a Feedback push one Text push (0 = off) |
 
 ### Commit order
 
@@ -224,6 +225,12 @@ At `grayAreaMin` (2000 px, a disc of radius 25) the pass is **one Text push** of
 final screen at once, one waveform instead of two. It takes longer on the panel than a Fast pass (full screen 1.37 s
 against 0.5 s), but ends with the final look. Screens without gray areas keep Fast then settle. See also
 [Gray areas cost a flicker](#gray-areas-cost-a-flicker).
+
+Feedback does the same at `grayFeedbackMin` (400 px; `why=feedback-gray`), 2026-11-27: a keyboard key going back from
+pressed (black) to its gray fill was a Fast push that showed the fill as dither, then a Text settle of the key 0.6 s
+later, two refreshes per key; a shift or 123 key did the same over the whole keyboard (534 x 236). Now each is one Text
+push. Pressed looks are black and white and stay Fast; a letter or bullet in the field (anti-aliased, no flat gray)
+stays Fast then settle.
 
 ### Cleans
 
@@ -286,7 +293,8 @@ of the white-to-ink contrast:
 that reason (apps/launcher.md "No gray on the launcher"), then those of every `Tile`.
 
 Screens that still go out as one Text pass (`why=screen-gray` in the UI test logs): the Agenda's day view (gray event
-blocks), anything with the on-screen keyboard (gray keys), a book's cover page, the Display lab.
+blocks), anything with the on-screen keyboard (gray keys; while typing, a key going up and a layout switch are
+`why=feedback-gray`), a book's cover page, the Display lab.
 
 ## Navigation speed
 

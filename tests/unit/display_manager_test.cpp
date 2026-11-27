@@ -127,15 +127,65 @@ TEST_CASE("Feedback on pure black/white needs no settle pass; with grays it gets
   f.dm.commit();
   CHECK(f.dm.nextDeadlineMs() == kNoDeadline);
 
-  f.fill(Rect{300, 500, 40, 40}, gray(7));
+  // Gray specks (anti-aliased edges of a letter): Fast, then a settle.
+  for (int i = 0; i < 20; ++i) f.fill(Rect{static_cast<int16_t>(300 + i * 2), static_cast<int16_t>(500 + i), 1, 1}, gray(7));
   f.dm.invalidate(Rect{300, 500, 40, 40}, Hint::Feedback);
   f.dm.commit();
+  REQUIRE(f.display.pushes.size() == 2);
+  CHECK(f.display.pushes[1].mode == Refresh::Fast);
   CHECK(f.dm.nextDeadlineMs() == f.clock.ms + 600);
+}
+
+TEST_CASE("Feedback that brings back a gray fill (a key going up) is one Text push, no settle") {
+  Fixture f;
+  // The key pressed: black, Fast, no settle.
+  f.fill(Rect{84, 747, 48, 66}, kBlack);
+  f.dm.invalidate(Rect{84, 747, 48, 66}, Hint::Feedback);
+  f.dm.commit();
+  REQUIRE(f.display.pushes.size() == 1);
+  CHECK(f.display.pushes[0].mode == Refresh::Fast);
+  // Released while the panel still runs the Fast pass: the gray fill comes back in one Text push.
+  f.display.isBusy = true;
+  f.fill(Rect{84, 747, 48, 66}, gray(13));
+  f.fill(Rect{100, 770, 16, 20}, kBlack);  // the letter
+  f.dm.invalidate(Rect{84, 747, 48, 66}, Hint::Feedback);
+  f.dm.commit();
+  REQUIRE(f.display.pushes.size() == 2);
+  CHECK(f.display.pushes[1].mode == Refresh::Text);
+  CHECK(f.dm.refreshLogTail(1).find("why=feedback-gray") != std::string::npos);
+  f.display.isBusy = false;
+  CHECK(f.dm.nextDeadlineMs() == kNoDeadline);
+  f.dm.tick(f.clock.ms + 5000);
+  CHECK(f.display.pushes.size() == 2);
+
+  // A settle under it is dropped: the Text push already shows the final grays.
+  Fixture g;
+  for (int i = 0; i < 20; ++i) g.fill(Rect{static_cast<int16_t>(90 + i * 2), static_cast<int16_t>(750 + i), 1, 1}, gray(7));
+  g.dm.invalidate(Rect{84, 747, 48, 66}, Hint::Feedback);
+  g.dm.commit();
+  REQUIRE(g.dm.nextDeadlineMs() != kNoDeadline);
+  g.fill(Rect{84, 747, 48, 66}, gray(13));
+  g.dm.invalidate(Rect{84, 747, 48, 66}, Hint::Feedback);
+  g.dm.commit();
+  CHECK(g.display.pushes.back().mode == Refresh::Text);
+  CHECK(g.dm.nextDeadlineMs() == kNoDeadline);
+
+  // 0 switches it off: Fast, then a settle.
+  Fixture h;
+  DisplayParams p = h.dm.params();
+  p.grayFeedbackMin = 0;
+  h.dm.setParams(p);
+  h.fill(Rect{84, 747, 48, 66}, gray(13));
+  h.dm.invalidate(Rect{84, 747, 48, 66}, Hint::Feedback);
+  h.dm.commit();
+  CHECK(h.display.pushes.back().mode == Refresh::Fast);
+  CHECK(h.dm.nextDeadlineMs() != kNoDeadline);
 }
 
 TEST_CASE("Feedback and Content: changes that are rows apart are pushed apart (a key and its letter in the field), close ones as one") {
   Fixture f;
-  // A key at the bottom goes back to gray, its letter appears in the field at the top: two small pushes, two small settles.
+  // A key at the bottom goes back to gray, its letter appears in the field at the top: two small pushes (the key's gray
+  // fill as one Text push), one small settle (the letter).
   const Rect key{84, 747, 48, 66}, letter{40, 187, 16, 32};
   f.fill(key, gray(13));
   f.fill(letter, gray(5));
@@ -144,15 +194,15 @@ TEST_CASE("Feedback and Content: changes that are rows apart are pushed apart (a
   f.dm.commit();
   REQUIRE(f.display.pushes.size() == 2);
   for (const auto& p : f.display.pushes) {
-    CHECK(p.mode == Refresh::Fast);
+    CHECK(p.mode == (p.rect.y == key.y ? Refresh::Text : Refresh::Fast));
     CHECK(p.rect.h <= 66);
   }
-  f.dm.tick(f.clock.ms + 600);  // one settle per tick
   f.dm.tick(f.clock.ms + 600);
-  REQUIRE(f.display.pushes.size() == 4);
+  f.dm.tick(f.clock.ms + 600);
+  REQUIRE(f.display.pushes.size() == 3);
   CHECK(f.display.pushes[2].mode == Refresh::Text);
+  CHECK(f.display.pushes[2].rect.y == letter.y);
   CHECK(f.display.pushes[2].rect.h <= 66);
-  CHECK(f.display.pushes[3].rect.h <= 66);
 
   // Two keys side by side (they share an edge): one push.
   Fixture g;

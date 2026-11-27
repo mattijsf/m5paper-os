@@ -120,7 +120,8 @@ bool DisplayManager::flatGray(int x, int y, uint8_t q) const {
          kQuant.q[src[i + 2 * kScreenW]] == q;
 }
 
-Rect DisplayManager::diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool wantBw, uint32_t* grayArea, int* restY) {
+Rect DisplayManager::diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool wantBw, uint32_t* grayArea, uint32_t grayMin,
+                          int* restY) {
   const auto* src = static_cast<const uint8_t*>(canvas_.getBuffer());
   uint8_t* old = shadow_.data();
   int minX = r.x + r.w, minY = r.y + r.h, maxX = -1, maxY = -1;
@@ -179,7 +180,7 @@ Rect DisplayManager::diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool 
         }
       }
     }
-    if (grayArea && *grayArea < params_.grayAreaMin) {
+    if (grayArea && *grayArea < grayMin) {
       for (int x = lo; x <= hi; ++x) {
         if (x + 8 <= hi + 1) {  // runs of pure white or black (most of a screen) are skipped 8 at a time
           uint64_t a;
@@ -192,7 +193,7 @@ Rect DisplayManager::diff(Rect r, uint32_t& changed, bool& onlyBlackWhite, bool 
         const uint8_t q = kQuant.q[row[x]];
         if (q == 0 || q == 15) continue;
         if (shadowValid_ && q == kQuant.q[orow[x]]) continue;  // unchanged inside the span
-        if (flatGray(r.x + x, y, q) && ++*grayArea >= params_.grayAreaMin) break;
+        if (flatGray(r.x + x, y, q) && ++*grayArea >= grayMin) break;
       }
     }
     std::memcpy(orow + rawLo, row + rawLo, static_cast<size_t>(rawHi - rawLo + 1));  // the shadow follows (after all reads)
@@ -263,10 +264,11 @@ void DisplayManager::pushBand(Rect r, Hint hint, int* restY) {
   bool bw = true;
   uint32_t grayArea = 0;
   const uint32_t t0 = clock_.millis();
-  const bool wantGray = hint == Hint::Screen && params_.grayAreaMin > 0 && score_ < params_.ghostLimit;
+  const uint32_t grayMin = hint == Hint::Screen ? params_.grayAreaMin : hint == Hint::Feedback ? params_.grayFeedbackMin : 0;
+  const bool wantGray = grayMin > 0 && (hint == Hint::Feedback || score_ < params_.ghostLimit);
   // Page too: skipping this diff (~25 ms) was tried, but a page turned under the open menu sheet then pushed the sheet's
   // unchanged gray text again in Fast mode, black/white on the panel (golden menu-goto-60, 2026-11-16).
-  Rect box = diff(r, changed, bw, hint == Hint::Feedback, wantGray ? &grayArea : nullptr, restY);
+  Rect box = diff(r, changed, bw, hint == Hint::Feedback, wantGray ? &grayArea : nullptr, grayMin, restY);
   if (box.empty()) return;
   const uint32_t now = clock_.millis();
   const uint32_t dms = now - t0;
@@ -274,6 +276,16 @@ void DisplayManager::pushBand(Rect r, Hint hint, int* restY) {
 
   switch (hint) {
     case Hint::Feedback:
+      if (wantGray && grayArea >= grayMin) {
+        // A gray fill coming back (a key going up): one Text push instead of Fast (dither) then a settle 0.6 s later.
+        push(box, Refresh::Text, changed, "feedback-gray", dms);
+        score_ += added / 2;
+        for (size_t i = 0; i < settles_.size();) {
+          if (uncovered(settles_[i].rect, box)) ++i;
+          else settles_.erase(settles_.begin() + i);
+        }
+        break;
+      }
       push(box, Refresh::Fast, changed, "feedback", dms);
       score_ += added;
       if (!bw) addSettle(box, added, now);
