@@ -196,8 +196,11 @@ ids exist in no Home Assistant, so a device shows them as "not found" until the 
 | Internal copy | `/data/home.json` | written from the default on first run if missing; belongs to the firmware |
 | Pushed | `tools/push.py` over USB | task P4-0 |
 
-- **`"version"`**: the default's is 5. A `/data/home.json` with an older or no version is replaced by the default on the
-  next start. **Own edits go in `/sd/paperos/home.json`.**
+- **`"version"`**: the default's is 5. A `/data/home.json` with an older or no version is an earlier firmware's built-in
+  list, which was the owner's house until the default became the example. With no list on the card it **moves to
+  `/sd/paperos/home.json`** on the next start and stays in use (log: `[home] moved the internal list`); `/data/home.json`
+  gets the default. Without a card to write to it stays in use as it is. One that does not parse is replaced by the
+  default. **Own edits go in `/sd/paperos/home.json`.**
 - The UI tests and their fixtures use the example.
 
 ### The example house

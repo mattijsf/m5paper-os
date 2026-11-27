@@ -11,9 +11,9 @@ before the next task. Update it at the end of every task (ROADMAP.md "How to wor
 - **Next task: P3-5 power measurements** (the first open card from the top): battery sessions with `/data/power.csv`,
   the 80 MHz CPU experiment, POWER.md estimates replaced by numbers. There is no current meter; every mAh figure in
   POWER.md is an estimate.
-- **Before the next flash**: put the real `home.json` on the card (see "Pending device checks"). The device still runs
-  the firmware from before the default `home.json` became an example house.
-- **Firmware**: 2,671,959 bytes (2.55 MiB, 51 % of the 5 MB app slot, 473,769 bytes under the 3 MB budget of
+- **After the next flash**: check that the Home list moved to the card (see "Pending device checks"). The device still
+  runs the firmware from before the default `home.json` became an example house.
+- **Firmware**: 2,672,643 bytes (2.55 MiB, 51 % of the 5 MB app slot, 473,085 bytes under the 3 MB budget of
   ARCHITECTURE.md).
 - **Tests**: 383 host unit tests (`make test`), 334 UI screenshots compared with goldens (`make ui-test`), JVM tests for
   the companion app (`android/`).
@@ -190,11 +190,13 @@ Latest numbers only. Device unless marked.
 
 ## Pending device checks
 
-### Before the next flash
+### After the next flash
 
-- **Real `home.json` on the card.** The firmware's default is an example house (version 5); on a device its entities
-  read "not found". Push the real list first: `tools/push.py --to /sd/paperos/ sim-data/sd/paperos/home.json` (USB, or
-  `--wifi` with wireless development on), then flash, then check that the tabs read (`[home] tab 0 read`).
+- **Home list moved to the card.** The firmware's default is an example house (version 5). The device's
+  `/data/home.json` (version 3, the house list the old firmware had built in) moves to `/sd/paperos/home.json` on the
+  first start of Home: log `[home] moved the internal list (version 3)`, then `[home] tab 0 read`, and
+  `tools/device.py ls /sd/paperos` lists `home.json`. If Home shows "not found" everywhere instead, push the list:
+  `tools/push.py --to /sd/paperos/ sim-data/sd/paperos/home.json`.
 
 ### Display and panel (camera)
 
