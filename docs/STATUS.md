@@ -11,11 +11,9 @@ before the next task. Update it at the end of every task (ROADMAP.md "How to wor
 - **Next task: P3-5 power measurements** (the first open card from the top): battery sessions with `/data/power.csv`,
   the 80 MHz CPU experiment, POWER.md estimates replaced by numbers. There is no current meter; every mAh figure in
   POWER.md is an estimate.
-- **After the next flash**: check that the Home list moved to the card (see "Pending device checks"). The device still
-  runs the firmware from before the default `home.json` became an example house.
 - **Firmware**: 2,672,643 bytes (2.55 MiB, 51 % of the 5 MB app slot, 473,085 bytes under the 3 MB budget of
   ARCHITECTURE.md).
-- **Tests**: 383 host unit tests (`make test`), 334 UI screenshots compared with goldens (`make ui-test`), JVM tests for
+- **Tests**: 384 host unit tests (`make test`), 334 UI screenshots compared with goldens (`make ui-test`), JVM tests for
   the companion app (`android/`).
 
 ## What works
@@ -87,6 +85,7 @@ checked on the physical panel with the webcam (DISPLAY.md "Camera on the panel")
   real links). Pages come from Jina Reader, then markdown.new as fallback (D34).
 - **Home**: Lights, Climate, More, Music tabs from `home.json` (version 5, example house by default). Device: all
   entities read, Music tab reads every 5 s, cover drawn, `volume_set` works. Toggles and scenes not sent from the device.
+  An older internal list moves to the card on the first start (device, 2026-11-27: version 3 moved, tab 0 read).
 - **WhatsApp and Mail** (inbox): encrypted notifications from the companion app through the Home Assistant relay
   (D22, COMPANION.md). Device: real messages, badges, "Mark all read" back to the launcher. A reply from the Paper has
   not arrived end to end yet. Sound for new messages: simulator only.
@@ -190,14 +189,6 @@ Latest numbers only. Device unless marked.
 
 ## Pending device checks
 
-### After the next flash
-
-- **Home list moved to the card.** The firmware's default is an example house (version 5). The device's
-  `/data/home.json` (version 3, the house list the old firmware had built in) moves to `/sd/paperos/home.json` on the
-  first start of Home: log `[home] moved the internal list (version 3)`, then `[home] tab 0 read`, and
-  `tools/device.py ls /sd/paperos` lists `home.json`. If Home shows "not found" everywhere instead, push the list:
-  `tools/push.py --to /sd/paperos/ sim-data/sd/paperos/home.json`.
-
 ### Display and panel (camera)
 
 - Fast then settle in general: `cam.py around tap` on a toggle and a list row; the edge of the touch dot; the Clean flash
@@ -271,9 +262,11 @@ Latest numbers only. Device unless marked.
   no box from the field down to the key; `cam.py around` for the time per key. Reported slow and unresponsive on battery
   (2026-11-27): each key woke the chip from light sleep; the keyboard now holds light sleep off for 10 s after a key.
   Also reported: no fast feel and rough refresh boxes. A key going up was Fast (gray fill as dither) then a Text settle;
-  now one Text push of the key (`why=feedback-gray`, DISPLAY.md). To check with the camera: per key a Fast pressed
-  look, the bullet Fast, the key one Text pass, no dither left on the keys.
-  To check on battery: typing speed, no dropped keys. Not the scan: the scan page starts no scan once it is covered,
+  now one Text push of the key (`why=feedback-gray`, DISPLAY.md). Device, 2026-11-27 (USB, injected taps): a letter is
+  one Fast push of 16 x 32 at the field, 8-11 ms from touch to push; shift and 123 are one Text push of the keyboard
+  (504 x 166 / 534 x 236, 140-250 ms), no Fast first. Still to check: the pressed look with a finger (injected taps are
+  shorter than the press delay), on the panel with the camera (no dither left on the keys), and typing on battery
+  (speed, no dropped keys). Not the scan: the scan page starts no scan once it is covered,
   only one already running ends (2-3 s).
 - Word game: the saved data of the old app id `vijfje` adopted (statistics keep their counts); `tools/memory.py --only
   wordgame`; the weekly word-list fetch with the 44-certificate bundle.
