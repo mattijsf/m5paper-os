@@ -45,10 +45,9 @@ std::string nameOf(const Config& c, const std::string& entity);
 bool parseConfig(const std::string& json, Config& out, std::string& error);
 // The firmware's default home.json: an example house (default_config.cpp).
 const char* defaultConfigJson();
-// /sd/paperos/home.json wins over /data/home.json; a missing /data/home.json is written from the default. One whose "version"
-// is older than the default's is an earlier firmware's built-in list (the owner's house before the default became the
-// example): with no list on the card it is moved there and stays in use, and /data/home.json gets the default. An unreadable
-// file falls back to the default and says so in `note`.
+// /sd/paperos/home.json wins over /data/home.json; a missing /data/home.json is written from the default, and so is one whose
+// "version" is older than the default's (the internal copy is the firmware's: own edits go on the card). An unreadable file
+// falls back to the default and says so in `note`.
 int configVersion(const std::string& json);  // "version" of a home.json, 1 when it has none
 Config loadConfig(std::string& note);
 

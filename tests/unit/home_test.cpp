@@ -227,30 +227,15 @@ TEST_CASE("home: loadConfig writes the default once, the card's copy wins, a bro
   Config c = loadConfig(note);
   CHECK(c.tabs.size() == 4);
   CHECK(pos::fs::exists("/data/home.json"));
-  // An internal copy as new as the default stays.
+  // An internal copy as new as the default stays; an older one (no "version": the list the firmware wrote before) is replaced.
   pos::fs::writeFile("/data/home.json", R"({"version":5,"tabs":[{"title":"Mine","items":[{"type":"light","entity":"light.q"}]}]})");
   c = loadConfig(note);
   REQUIRE(c.tabs.size() == 1);
   CHECK(c.tabs[0].title == "Mine");
-  // An older one (an earlier firmware's built-in list: the owner's house) moves to the card and stays in use; the internal
-  // copy becomes the default.
-  const std::string old = R"({"version":3,"tabs":[{"title":"Old","items":[{"type":"light","entity":"light.hall"}]}]})";
-  pos::fs::writeFile("/data/home.json", old);
-  c = loadConfig(note);
-  REQUIRE(c.tabs.size() == 1);
-  CHECK(c.tabs[0].title == "Old");
-  std::string saved;
-  REQUIRE(pos::fs::readFile("/data/home.json", saved));
-  CHECK(configVersion(saved) == 5);
-  REQUIRE(pos::fs::readFile("/sd/paperos/home.json", saved));
-  CHECK(saved == old);
-  CHECK(loadConfig(note).tabs[0].title == "Old");  // the next start: from the card
-  pos::fs::removeAll("/sd/paperos/home.json");
-  // An older one that does not parse is replaced by the default; nothing goes to the card.
-  pos::fs::writeFile("/data/home.json", R"({"tabs": broken)");
+  pos::fs::writeFile("/data/home.json", R"({"tabs":[{"title":"Old","items":[{"type":"light","entity":"light.hall"}]}]})");
   c = loadConfig(note);
   CHECK(c.tabs.size() == 4);
-  CHECK_FALSE(pos::fs::exists("/sd/paperos/home.json"));
+  std::string saved;
   REQUIRE(pos::fs::readFile("/data/home.json", saved));
   CHECK(configVersion(saved) == 5);
   pos::fs::writeFile("/sd/paperos/home.json", R"({"tabs":[{"title":"Card","items":[{"type":"light","entity":"light.q"}]}]})");

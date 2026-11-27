@@ -11,7 +11,7 @@ before the next task. Update it at the end of every task (ROADMAP.md "How to wor
 - **Next task: P3-5 power measurements** (the first open card from the top): battery sessions with `/data/power.csv`,
   the 80 MHz CPU experiment, POWER.md estimates replaced by numbers. There is no current meter; every mAh figure in
   POWER.md is an estimate.
-- **Firmware**: 2,672,643 bytes (2.55 MiB, 51 % of the 5 MB app slot, 473,085 bytes under the 3 MB budget of
+- **Firmware**: 2,671,959 bytes (2.55 MiB, 51 % of the 5 MB app slot, 473,769 bytes under the 3 MB budget of
   ARCHITECTURE.md).
 - **Tests**: 384 host unit tests (`make test`), 334 UI screenshots compared with goldens (`make ui-test`), JVM tests for
   the companion app (`android/`).
@@ -85,7 +85,8 @@ checked on the physical panel with the webcam (DISPLAY.md "Camera on the panel")
   real links). Pages come from Jina Reader, then markdown.new as fallback (D34).
 - **Home**: Lights, Climate, More, Music tabs from `home.json` (version 5, example house by default). Device: all
   entities read, Music tab reads every 5 s, cover drawn, `volume_set` works. Toggles and scenes not sent from the device.
-  An older internal list moves to the card on the first start (device, 2026-11-27: version 3 moved, tab 0 read).
+  The owner's list is on the card (`/sd/paperos/home.json`, device 2026-11-27); a one-off firmware move put it there
+  from the old internal copy and was then taken out again.
 - **WhatsApp and Mail** (inbox): encrypted notifications from the companion app through the Home Assistant relay
   (D22, COMPANION.md). Device: real messages, badges, "Mark all read" back to the launcher. A reply from the Paper has
   not arrived end to end yet. Sound for new messages: simulator only.

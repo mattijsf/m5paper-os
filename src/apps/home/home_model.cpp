@@ -7,7 +7,6 @@
 #include <ArduinoJson.h>
 
 #include "core/fs.h"
-#include "core/log.h"
 
 namespace pos::home {
 
@@ -83,21 +82,7 @@ Config loadConfig(std::string& note) {
   for (const char* path : {"/sd/paperos/home.json", "/data/home.json"}) {
     if (!fs::readFile(path, text)) continue;
     if (std::string(path) == "/data/home.json" && configVersion(text) < configVersion(defaultConfigJson())) {
-      // An older internal copy is the list an earlier firmware had built in, which was the owner's house until the default
-      // became the example (version 5). It moves to the card (only reached when the card has no list) so a flash does not
-      // turn the owner's lamps into the example's. No card to write to: it stays in use and is not replaced.
-      Config old;
-      std::string oldErr;
-      if (parseConfig(text, old, oldErr)) {
-        if (fs::mkdirs("/sd/paperos") && fs::writeFile("/sd/paperos/home.json", text)) {
-          POS_LOG("home", "moved the internal list (version %d) to /sd/paperos/home.json", configVersion(text));
-          fs::writeFile(path, defaultConfigJson());
-        } else {
-          POS_LOG("home", "could not move the internal list to the card: kept");
-        }
-        return old;
-      }
-      fs::writeFile(path, defaultConfigJson());  // unreadable: the firmware's list (docs/apps/home.md "Config")
+      fs::writeFile(path, defaultConfigJson());  // the firmware's newer list (docs/apps/home.md "Config")
       text = defaultConfigJson();
     }
     if (parseConfig(text, cfg, err)) return cfg;
