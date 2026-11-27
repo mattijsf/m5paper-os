@@ -13,7 +13,7 @@ uint32_t decideSleep(const SleepInputs& in) {
   if (in.workerBusy || in.displayBusy || in.uiDirty || in.touching || in.wifiOn) return 0;
   if (in.usbConnected && in.stayAwakeOnUsb) return 0;  // light sleep breaks the USB serial link (HARDWARE.md)
   if (in.stayAwakeOnUsb && in.msSinceUsbHost < kUsbHostHoldMs) return 0;  // seen recently: a drop-out of the reading, or the port is closed between two tool runs
-  if (in.msSinceInput < kSleepAfterInputMs) return 0;
+  if (in.msSinceInput < (in.keyboard ? kSleepAfterTypingMs : kSleepAfterInputMs)) return 0;
   uint32_t ms = kMaxSleepMs;
   if (in.msToDeadline != kNoDeadline) {
     if (in.msToDeadline <= kSettleGuardMs) return 0;  // something is due now: stay awake for it
@@ -64,6 +64,7 @@ void PowerPolicy::idle(uint32_t maxWaitMs) {
   in.displayBusy = p.display.busy();
   in.uiDirty = maxWaitMs == 0;
   in.touching = os_.touching();
+  in.keyboard = os_.surface() && os_.surface()->keyboardShowing();
   in.wifiOn = os_.net().online();
   in.usbConnected = p.power.usbConnected();
   if (in.usbConnected) {

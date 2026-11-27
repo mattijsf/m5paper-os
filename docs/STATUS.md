@@ -13,7 +13,7 @@ before the next task. Update it at the end of every task (ROADMAP.md "How to wor
   POWER.md is an estimate.
 - **Before the next flash**: put the real `home.json` on the card (see "Pending device checks"). The device still runs
   the firmware from before the default `home.json` became an example house.
-- **Firmware**: 2,671,639 bytes (2.55 MiB, 51 % of the 5 MB app slot, 474,089 bytes under the 3 MB budget of
+- **Firmware**: 2,671,707 bytes (2.55 MiB, 51 % of the 5 MB app slot, 474,021 bytes under the 3 MB budget of
   ARCHITECTURE.md).
 - **Tests**: 383 host unit tests (`make test`), 334 UI screenshots compared with goldens (`make ui-test`), JVM tests for
   the companion app (`android/`).
@@ -266,8 +266,10 @@ Latest numbers only. Device unless marked.
 - Today board: the book row (the `sleepboard` test screen passes no book), the Settings > Power switch.
 - When unused: a tap on the weather and on an unread count of the board; "Then show: Home".
 - Keyboard while typing a Wi-Fi password: per key Fast pushes of about 48 x 66 and 16 x 32 (`tools/device.py refresh`),
-  no box from the field down to the key; `cam.py around` for the time per key. Next suspects if still slow: the Wi-Fi scan
-  still running on the worker, two waveforms per key.
+  no box from the field down to the key; `cam.py around` for the time per key. Reported slow and unresponsive on battery
+  (2026-11-27): each key woke the chip from light sleep; the keyboard now holds light sleep off for 10 s after a key.
+  To check on battery: typing speed, no dropped keys. Not the scan: the scan page starts no scan once it is covered,
+  only one already running ends (2-3 s).
 - Word game: the saved data of the old app id `vijfje` adopted (statistics keep their counts); `tools/memory.py --only
   wordgame`; the weekly word-list fetch with the 44-certificate bundle.
 - Somdoku: play and solve a puzzle on the device; generation time on the worker; the clock across a light sleep and a

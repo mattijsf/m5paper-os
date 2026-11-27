@@ -71,7 +71,8 @@ It light-sleeps when all of these hold, otherwise it waits 10 ms and returns:
 - **Work**: no worker job runs or waits, no callback is queued.
 - **Display**: the panel is not busy, nothing is dirty, and no settle or clean pass is due within 50 ms.
 - **Touch**: no finger is down, and at least 300 ms have passed since the last touch event (lets double taps and swipes
-  finish).
+  finish). With the on-screen keyboard showing, 10 s (`kSleepAfterTypingMs`): the pause between two keys is longer than
+  300 ms, so every key woke the chip (typing a Wi-Fi password on battery was slow).
 - **Wi-Fi** is off. Wi-Fi drops in light sleep unless modem sleep is configured; v1 keeps it simple.
 - **USB**: no USB host is connected, nor was one seen in the last 10 minutes (see below).
 

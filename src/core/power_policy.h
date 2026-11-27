@@ -20,6 +20,7 @@ struct SleepInputs {
   bool displayBusy = false;
   bool uiDirty = false;             // something is waiting to be drawn or pushed
   bool touching = false;            // a finger is down (gesture in progress)
+  bool keyboard = false;            // the on-screen keyboard is showing: kSleepAfterTypingMs
   bool wifiOn = false;
   bool usbConnected = false;
   bool stayAwakeOnUsb = true;       // config power.stayAwakeOnUsb
@@ -29,6 +30,9 @@ struct SleepInputs {
 };
 
 constexpr uint32_t kSleepAfterInputMs = 300;   // let double taps and swipes finish
+// With the keyboard showing: the pause between two keys is longer than kSleepAfterInputMs, so each key woke the chip from
+// light sleep (typing a Wi-Fi password on battery was slow and dropped keys).
+constexpr uint32_t kSleepAfterTypingMs = 10000;
 constexpr uint32_t kSettleGuardMs = 50;        // no sleep if a settle or clean pass is due this soon
 constexpr uint32_t kMaxSleepMs = 60000;        // tick at least once a minute
 // A USB host seen this recently still counts as connected. Two reasons (device, 2026-11-15): the reading drops out for a moment

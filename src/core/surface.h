@@ -39,6 +39,8 @@ class Surface {
   // What the top screen says about itself (UI scripts: expect-state, page-through). "" if nothing.
   virtual std::string debugState() const { return ""; }
   virtual std::vector<KeyTap> keyboardTaps(const std::string& /*text*/) { return {}; }
+  // True while the on-screen keyboard is showing (PowerPolicy: no light sleep between keys).
+  virtual bool keyboardShowing() const { return false; }
 };
 
 }  // namespace pos

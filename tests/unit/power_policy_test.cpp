@@ -30,6 +30,9 @@ TEST_CASE("decideSleep: sleeps only when every condition holds") {
   CHECK(without([](SleepInputs& x) { x.wifiOn = true; }) == 0);
   CHECK(without([](SleepInputs& x) { x.msSinceInput = 299; }) == 0);      // a double tap may still come
   CHECK(without([](SleepInputs& x) { x.msSinceInput = 300; }) == kMaxSleepMs);
+  // keyboard showing: no sleep between two keys
+  CHECK(without([](SleepInputs& x) { x.keyboard = true; x.msSinceInput = 2000; }) == 0);
+  CHECK(without([](SleepInputs& x) { x.keyboard = true; x.msSinceInput = kSleepAfterTypingMs; }) == kMaxSleepMs);
   // USB: stays awake by default so tools/device.py keeps working; the flag can allow sleeping
   CHECK(without([](SleepInputs& x) { x.usbConnected = true; }) == 0);
   CHECK(without([](SleepInputs& x) { x.usbConnected = true; x.stayAwakeOnUsb = false; }) == kMaxSleepMs);

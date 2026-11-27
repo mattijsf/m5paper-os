@@ -65,6 +65,7 @@ class Shell : public Surface {
   std::string currentAppId() const override { return appId_; }
   std::string debugState() const override { return stack_.empty() ? std::string() : stack_.back().screen->debugState(); }
   std::vector<KeyTap> keyboardTaps(const std::string& text) override { return root_.keyboardTaps(text); }
+  bool keyboardShowing() const override { return root_.keyboardShowing(); }
 
  private:
   friend class Nav;
